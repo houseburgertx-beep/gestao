@@ -51,7 +51,7 @@ export default function RootLayout({
           name="description"
           content="Central de comando empresarial e gestão integrada da House 190"
         />
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/gestao/manifest.json" />
         <meta name="theme-color" content="#09090b" />
         <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
