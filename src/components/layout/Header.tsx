@@ -1,20 +1,32 @@
 "use client";
 
-import React, { useState } from "react";
-import { Search, Plus, Bell, Menu, Shield } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Search, Plus, Bell, Menu, Shield, User as UserIcon } from "lucide-react";
 import { UnitSelector } from "@/components/layout/UnitSelector";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { QuickCreateModal } from "@/components/layout/QuickCreateModal";
 import { NotificationCenter } from "@/components/layout/NotificationCenter";
+import { AuthModal } from "@/components/layout/AuthModal";
 import { Button } from "@/components/ui/Button";
-import { store } from "@/services/store";
+import { useAuth } from "@/contexts/AuthContext";
+import { subscribeNotifications } from "@/services/firestoreService";
+import { AppNotification } from "@/types";
 
 export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void }) {
+  const { user, userProfile } = useAuth();
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
-  const notifications = store.getNotifications();
+  useEffect(() => {
+    const unsub = subscribeNotifications((list) => {
+      setNotifications(list);
+    });
+    return () => unsub();
+  }, []);
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
@@ -80,11 +92,33 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
             )}
           </button>
 
-          {/* Profile Badge */}
-          <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-zinc-200 dark:border-zinc-800">
-            <div className="h-7 w-7 rounded-full bg-zinc-900 text-white flex items-center justify-center text-[10px] font-semibold dark:bg-zinc-100 dark:text-zinc-900">
-              LV
-            </div>
+          {/* Profile Badge / Auth Trigger */}
+          <div className="flex items-center pl-2 border-l border-zinc-200 dark:border-zinc-800">
+            {user ? (
+              <button
+                onClick={() => setIsAuthOpen(true)}
+                title={user.email || "Usuário Conectado"}
+                className="flex items-center gap-2 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+              >
+                <div className="relative">
+                  <div className="h-7 w-7 rounded-full bg-zinc-900 text-white flex items-center justify-center text-[10px] font-semibold dark:bg-zinc-100 dark:text-zinc-900">
+                    {userProfile?.displayName ? userProfile.displayName.substring(0, 2).toUpperCase() : "AD"}
+                  </div>
+                  <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-zinc-950" />
+                </div>
+                <span className="hidden md:inline text-xs font-medium text-zinc-700 dark:text-zinc-300 max-w-[100px] truncate">
+                  {userProfile?.displayName || "Admin"}
+                </span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsAuthOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-md transition-colors dark:text-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+              >
+                <UserIcon className="h-3.5 w-3.5" />
+                <span>Entrar</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -101,6 +135,10 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       <NotificationCenter
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
+      />
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
       />
     </>
   );

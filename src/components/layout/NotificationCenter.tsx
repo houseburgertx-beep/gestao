@@ -1,12 +1,18 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Drawer } from "@/components/ui/Drawer";
 import { Badge } from "@/components/ui/Badge";
 import { store } from "@/services/store";
 import { formatDateTime } from "@/lib/utils";
 import { Bell, Check, ExternalLink } from "lucide-react";
+import {
+  subscribeNotifications,
+  markNotificationAsReadInFirestore,
+  markAllNotificationsAsReadInFirestore,
+} from "@/services/firestoreService";
+import { AppNotification } from "@/types";
 
 interface NotificationCenterProps {
   isOpen: boolean;
@@ -14,11 +20,38 @@ interface NotificationCenterProps {
 }
 
 export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
-  const notifications = store.getNotifications();
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+  useEffect(() => {
+    // Initial from store
+    const local = store.getNotifications();
+    if (local.length > 0) setNotifications(local);
+
+    // Live subscription
+    const unsub = subscribeNotifications((cloudList) => {
+      if (cloudList.length > 0) {
+        setNotifications(cloudList);
+      } else {
+        setNotifications(store.getNotifications());
+      }
+    });
+    return () => unsub();
+  }, []);
+
   const unread = notifications.filter((n) => !n.read);
 
-  const handleMarkAllRead = () => {
+  const handleMarkAllRead = async () => {
     unread.forEach((n) => store.markNotificationRead(n.id));
+    await markAllNotificationsAsReadInFirestore();
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const handleMarkSingleRead = async (id: string) => {
+    store.markNotificationRead(id);
+    await markNotificationAsReadInFirestore(id);
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
   };
 
   return (
@@ -75,7 +108,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
                   <Link
                     href={n.link}
                     onClick={() => {
-                      store.markNotificationRead(n.id);
+                      handleMarkSingleRead(n.id);
                       onClose();
                     }}
                     className="inline-flex items-center gap-1 text-[11px] font-medium text-zinc-900 underline underline-offset-2 hover:text-zinc-700 dark:text-zinc-100"

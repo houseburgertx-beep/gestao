@@ -25,6 +25,8 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { Drawer } from "@/components/ui/Drawer";
+import { NewEmployeeModal } from "@/components/rh/NewEmployeeModal";
+import { subscribeEmployees } from "@/services/firestoreService";
 
 function RHContent() {
   const { filterByUnit } = useUnit();
@@ -33,7 +35,18 @@ function RHContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"table" | "cards">("cards");
+  const [isNewEmployeeOpen, setIsNewEmployeeOpen] = useState(false);
+  const [cloudEmployees, setCloudEmployees] = useState<Employee[]>([]);
   const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const unsub = subscribeEmployees((list) => {
+      if (list && list.length > 0) {
+        setCloudEmployees(list);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     const handleUpdate = () => setTick((t) => t + 1);
@@ -48,7 +61,8 @@ function RHContent() {
     if (id) setSelectedEmployeeId(id);
   }, [searchParams]);
 
-  const employees = filterByUnit(store.getEmployees());
+  const rawEmployees = cloudEmployees.length > 0 ? cloudEmployees : store.getEmployees();
+  const employees = filterByUnit(rawEmployees);
   const vacations = filterByUnit(store.getVacations());
 
   const filteredEmployees = employees.filter((e) => {
@@ -80,7 +94,7 @@ function RHContent() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" className="gap-1.5">
+          <Button size="sm" onClick={() => setIsNewEmployeeOpen(true)} className="gap-1.5">
             <UserPlus className="h-3.5 w-3.5" />
             <span>Novo Colaborador</span>
           </Button>
@@ -471,6 +485,11 @@ function RHContent() {
           </div>
         )}
       </Drawer>
+
+      <NewEmployeeModal
+        isOpen={isNewEmployeeOpen}
+        onClose={() => setIsNewEmployeeOpen(false)}
+      />
     </div>
   );
 }

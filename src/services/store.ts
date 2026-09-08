@@ -43,6 +43,18 @@ import {
   INITIAL_ACTIVITY_LOGS,
   INITIAL_NOTIFICATIONS,
 } from "@/data/mockData";
+import {
+  saveEmployeeToFirestore,
+  saveSupplierToFirestore,
+  saveAccountPayableToFirestore,
+  saveGoalToFirestore,
+  saveTakeatRevenuesToCloud,
+  addNotificationToFirestore,
+  getEmployeesFromFirestore,
+  getSuppliersFromFirestore,
+  getAccountsPayableFromFirestore,
+  getGoalsFromFirestore,
+} from "./firestoreService";
 
 const STORAGE_KEYS = {
   ACCOUNTS: "house190_accounts",
@@ -93,7 +105,45 @@ class DataStore {
 
           localStorage.setItem(purgedKey, "true");
         }
+        // Sincroniza em segundo plano com o Firestore
+        this.syncFromFirestore();
       } catch {}
+    }
+  }
+
+  async syncFromFirestore() {
+    if (typeof window === "undefined") return;
+    try {
+      const [emps, sups, accs, goals] = await Promise.all([
+        getEmployeesFromFirestore(),
+        getSuppliersFromFirestore(),
+        getAccountsPayableFromFirestore(),
+        getGoalsFromFirestore(),
+      ]);
+
+      let changed = false;
+      if (emps && emps.length > 0) {
+        this.set(STORAGE_KEYS.EMPLOYEES, emps);
+        changed = true;
+      }
+      if (sups && sups.length > 0) {
+        this.set(STORAGE_KEYS.SUPPLIERS, sups);
+        changed = true;
+      }
+      if (accs && accs.length > 0) {
+        this.set(STORAGE_KEYS.ACCOUNTS, accs);
+        changed = true;
+      }
+      if (goals && goals.length > 0) {
+        this.set(STORAGE_KEYS.GOALS, goals);
+        changed = true;
+      }
+
+      if (changed) {
+        window.dispatchEvent(new Event("house190_data_updated"));
+      }
+    } catch (e) {
+      console.warn("Sincronização em nuvem não disponível offline:", e);
     }
   }
 
@@ -176,6 +226,9 @@ class DataStore {
     }
 
     this.set(STORAGE_KEYS.ACCOUNTS, [...createdList, ...accounts]);
+    createdList.forEach((acc) => {
+      saveAccountPayableToFirestore(acc).catch(() => {});
+    });
     
     // Log activity
     this.addLog({
@@ -296,6 +349,7 @@ class DataStore {
       createdAt: new Date().toISOString(),
     };
     this.set(STORAGE_KEYS.SUPPLIERS, [newSupplier, ...suppliers]);
+    saveSupplierToFirestore(newSupplier).catch(() => {});
     return newSupplier;
   }
 
@@ -441,6 +495,7 @@ class DataStore {
       documentsCount: 0,
     };
     this.set(STORAGE_KEYS.EMPLOYEES, [newEmp, ...employees]);
+    saveEmployeeToFirestore(newEmp).catch(() => {});
     return newEmp;
   }
 

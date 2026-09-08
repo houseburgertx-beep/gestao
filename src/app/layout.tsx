@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import "./globals.css";
 import { UnitProvider } from "@/contexts/UnitContext";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -56,9 +57,10 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
       <body className="min-h-full flex flex-col font-sans bg-[#fafafa] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50">
-        <UnitProvider>
-          {/* Desktop Fixed Sidebar */}
-          <Sidebar />
+        <AuthProvider>
+          <UnitProvider>
+            {/* Desktop Fixed Sidebar */}
+            <Sidebar />
 
           {/* Main Content Area */}
           <div className="flex-1 lg:pl-64 flex flex-col min-h-screen">
@@ -98,6 +100,7 @@ export default function RootLayout({
             </div>
           </Drawer>
         </UnitProvider>
+        </AuthProvider>
       </body>
     </html>
   );
