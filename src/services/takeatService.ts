@@ -91,31 +91,52 @@ export async function authenticateTakeat(
   password?: string
 ): Promise<string> {
   if (!email || !password) {
-    throw new Error("Credenciais incompletas (e-mail ou senha da Takeat não informados).");
+    throw new Error("Credenciais incompletas: informe o e-mail e a senha cadastrados na Takeat.");
   }
 
-  const response = await fetch(TAKEAT_CONFIG.AUTH_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({ email, password }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(TAKEAT_CONFIG.AUTH_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch (netErr: any) {
+    throw new Error(`Falha de conexão com o servidor de login da Takeat: ${netErr.message || "Verifique sua conexão de rede"}`);
+  }
 
   if (!response.ok) {
-    if (response.status === 401) {
-      throw new Error("Autenticação inválida: E-mail ou senha da Takeat incorretos.");
+    let detail = "";
+    try {
+      const errData = await response.json();
+      detail = errData.message || errData.error || (typeof errData === "string" ? errData : "");
+    } catch {
+      detail = await response.text().catch(() => "");
     }
-    throw new Error(`Falha na autenticação da Takeat (HTTP ${response.status}).`);
+
+    if (response.status === 401 || response.status === 400) {
+      throw new Error(
+        `E-mail ou senha inválidos na Takeat.${detail ? ` (${detail})` : ""}`
+      );
+    }
+    throw new Error(`Falha na autenticação da Takeat (HTTP ${response.status}): ${detail}`);
   }
 
   const data = await response.json();
-  if (!data.token) {
-    throw new Error("Resposta da Takeat não continha token de acesso.");
+  const token =
+    data.token ||
+    data.access_token ||
+    data.jwt ||
+    (data.data && (data.data.token || data.data.access_token));
+
+  if (!token) {
+    throw new Error("A Takeat autenticou com sucesso, mas não retornou o token Bearer esperado.");
   }
 
-  return data.token;
+  return token;
 }
 
 /**

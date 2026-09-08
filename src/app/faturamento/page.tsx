@@ -16,6 +16,9 @@ import {
   Store,
   Truck,
   ShoppingBag,
+  Key,
+  ShieldCheck,
+  Building2,
 } from "lucide-react";
 import { store } from "@/services/store";
 import { useUnit } from "@/contexts/UnitContext";
@@ -26,6 +29,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { QuickCreateModal } from "@/components/layout/QuickCreateModal";
+import { authenticateTakeat } from "@/services/takeatService";
 import {
   BarChart,
   Bar,
@@ -36,6 +40,21 @@ import {
   CartesianGrid,
 } from "recharts";
 
+// Helper para obter a data atual no fuso de Brasília/Bahia (UTC-03:00)
+function getTodayBahiaDate(): string {
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const bahia = new Date(utc - 3 * 3600000);
+  return bahia.toISOString().split("T")[0];
+}
+
+const UNIT_LABELS: Record<string, string> = {
+  eunapolis: "House 190 Eunápolis",
+  teixeira: "House 190 Teixeira de Freitas",
+  foodpark: "House Foodpark",
+  central: "Central de Produção",
+};
+
 export default function FaturamentoPage() {
   const { currentUnit, filterByUnit, activeUnitData } = useUnit();
   const [revenues, setRevenues] = useState<DailyRevenue[]>([]);
@@ -44,44 +63,78 @@ export default function FaturamentoPage() {
   const [isCredsModalOpen, setIsCredsModalOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
-  const [syncDate, setSyncDate] = useState("2026-09-07");
+  const [syncDate, setSyncDate] = useState(getTodayBahiaDate());
   const [selectedSyncUnit, setSelectedSyncUnit] = useState<Exclude<UnitId, "all">>(
     currentUnit === "all" ? "eunapolis" : currentUnit
   );
   const [, setTick] = useState(0);
 
-  // Credentials Modal State
+  // Connection credentials state per unit
+  const [unitConnections, setUnitConnections] = useState<Record<string, boolean>>({});
+
+  // Credentials Modal Form State
   const [credsEmail, setCredsEmail] = useState("");
   const [credsPassword, setCredsPassword] = useState("");
+  const [credsManualToken, setCredsManualToken] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "token">("login");
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [credsError, setCredsError] = useState<string | null>(null);
 
+  // Carregamento e purga inicial de mocks
   useEffect(() => {
-    setRevenues(filterByUnit(store.getRevenues()));
-    const allTakeat = store.getTakeatRevenues();
-    setTakeatRevenues(
-      currentUnit === "all"
-        ? allTakeat
-        : allTakeat.filter((t) => t.unitId === currentUnit)
-    );
+    try {
+      const storedRevs = localStorage.getItem("house190_takeat_revenues");
+      if (storedRevs && (storedRevs.includes("takeat-eunapolis-2026-09-07") || storedRevs.includes("tk_eun_live_session_takeat"))) {
+        localStorage.removeItem("house190_takeat_revenues");
+      }
+      const storedCreds = localStorage.getItem("house190_takeat_creds");
+      if (storedCreds && storedCreds.includes("live_session_takeat")) {
+        localStorage.removeItem("house190_takeat_creds");
+      }
+    } catch {}
 
-    const handleUpdate = () => {
+    const refreshData = () => {
       setRevenues(filterByUnit(store.getRevenues()));
-      const updatedTakeat = store.getTakeatRevenues();
+      const allTakeat = store.getTakeatRevenues();
       setTakeatRevenues(
         currentUnit === "all"
-          ? updatedTakeat
-          : updatedTakeat.filter((t) => t.unitId === currentUnit)
+          ? allTakeat
+          : allTakeat.filter((t) => t.unitId === currentUnit)
       );
+
+      // Status de conexão das unidades
+      const units: Exclude<UnitId, "all">[] = ["eunapolis", "teixeira", "foodpark", "central"];
+      const connMap: Record<string, boolean> = {};
+      for (const u of units) {
+        const c = store.getTakeatCredentials(u);
+        connMap[u] = Boolean(c && (c.token || (c.email && c.password)));
+      }
+      setUnitConnections(connMap);
+    };
+
+    refreshData();
+
+    const handleUpdate = () => {
+      refreshData();
       setTick((t) => t + 1);
     };
+
     window.addEventListener("house190_data_updated", handleUpdate);
     return () => window.removeEventListener("house190_data_updated", handleUpdate);
   }, [filterByUnit, currentUnit]);
 
-  // Aggregate Metrics from Takeat records
-  const totalTakeatSalao = takeatRevenues.reduce((acc, cur) => acc + cur.salao, 0);
-  const totalTakeatDelivery = takeatRevenues.reduce((acc, cur) => acc + cur.delivery, 0);
-  const totalTakeatIfood = takeatRevenues.reduce((acc, cur) => acc + cur.ifood, 0);
-  const totalTakeatOfficial = takeatRevenues.reduce((acc, cur) => acc + cur.totalRevenue, 0);
+  // Aggregate Metrics from Takeat records (filtrados pela data selecionada ou total)
+  const currentFilteredRecords = takeatRevenues.filter(
+    (t) => !syncDate || t.date === syncDate
+  );
+
+  const totalTakeatSalao = currentFilteredRecords.reduce((acc, cur) => acc + cur.salao, 0);
+  const totalTakeatDelivery = currentFilteredRecords.reduce((acc, cur) => acc + cur.delivery, 0);
+  const totalTakeatIfood = currentFilteredRecords.reduce((acc, cur) => acc + cur.ifood, 0);
+  const totalTakeatOfficial = currentFilteredRecords.reduce((acc, cur) => acc + cur.totalRevenue, 0);
+
+  const isAnyUnitConnected = Object.values(unitConnections).some(Boolean);
+  const isCurrentUnitConnected = currentUnit === "all" ? isAnyUnitConnected : Boolean(unitConnections[currentUnit]);
 
   const handleSyncTakeat = async () => {
     setSyncing(true);
@@ -93,22 +146,39 @@ export default function FaturamentoPage() {
           ? ["eunapolis", "teixeira", "foodpark"]
           : [currentUnit];
 
-      let anyError = false;
+      // Verifica se há alguma unidade conectada
+      const unconfiguredUnits = unitsToSync.filter((u) => !unitConnections[u]);
+      if (unconfiguredUnits.length === unitsToSync.length) {
+        setSyncMessage({
+          text: "Nenhuma conta da Takeat está conectada ainda. Clique em 'Conectar Takeat' e informe seu e-mail e senha do PDV para importar as vendas reais.",
+          type: "error",
+        });
+        setSyncing(false);
+        return;
+      }
+
+      let successCount = 0;
+      let errors: string[] = [];
+
       for (const u of unitsToSync) {
+        if (!unitConnections[u]) continue; // Pula unidades não configuradas no modo 'all'
+
         const res = await store.syncTakeatUnit(u, syncDate, "diretoria", "all");
         if (!res.success) {
-          anyError = true;
-          setSyncMessage({
-            text: `Erro ao sincronizar ${res.unitName}: ${res.error}`,
-            type: "error",
-          });
-          break;
+          errors.push(`${res.unitName}: ${res.error}`);
+        } else {
+          successCount++;
         }
       }
 
-      if (!anyError) {
+      if (errors.length > 0) {
         setSyncMessage({
-          text: `Sincronização concluída com sucesso para ${syncDate}! Faturamento oficial atualizado com base estrita no objeto payment_without_tax.`,
+          text: `Aviso: ${errors.join(" | ")}`,
+          type: "error",
+        });
+      } else if (successCount > 0) {
+        setSyncMessage({
+          text: `Faturamento oficial sincronizado com sucesso diretamente da Takeat API (payment_without_tax) para ${syncDate}!`,
           type: "success",
         });
       }
@@ -126,35 +196,94 @@ export default function FaturamentoPage() {
     setSelectedSyncUnit(unitId);
     const existing = store.getTakeatCredentials(unitId);
     setCredsEmail(existing.email || "");
-    setCredsPassword("");
+    setCredsPassword(existing.password || "");
+    setCredsManualToken(existing.token || "");
+    setCredsError(null);
     setIsCredsModalOpen(true);
   };
 
-  const handleSaveCreds = (e: React.FormEvent) => {
+  const handleSaveCreds = async (e: React.FormEvent) => {
     e.preventDefault();
-    store.saveTakeatCredentials({
-      unitId: selectedSyncUnit,
-      email: credsEmail,
-      password: credsPassword || undefined,
-      token: `tk_${selectedSyncUnit}_live_${Date.now()}`,
-    });
-    setIsCredsModalOpen(false);
-    setSyncMessage({
-      text: `Credenciais da Takeat para ${selectedSyncUnit.toUpperCase()} atualizadas com segurança.`,
-      type: "success",
-    });
+    setIsAuthenticating(true);
+    setCredsError(null);
+
+    try {
+      let liveToken = "";
+
+      if (authMode === "login") {
+        if (!credsEmail || !credsPassword) {
+          throw new Error("Por favor, preencha o e-mail e a senha de acesso ao Takeat.");
+        }
+
+        // Autenticação real direta na API da Takeat
+        liveToken = await authenticateTakeat(credsEmail, credsPassword);
+      } else {
+        if (!credsManualToken.trim()) {
+          throw new Error("Informe o token Bearer da Takeat.");
+        }
+        liveToken = credsManualToken.trim();
+      }
+
+      // Salva as credenciais com o token autêntico
+      store.saveTakeatCredentials({
+        unitId: selectedSyncUnit,
+        email: credsEmail,
+        password: credsPassword || undefined,
+        token: liveToken,
+        tokenExpiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+
+      setIsCredsModalOpen(false);
+      setSyncMessage({
+        text: `Conta Takeat conectada com sucesso para ${UNIT_LABELS[selectedSyncUnit]}! Realizando a primeira sincronização...`,
+        type: "success",
+      });
+
+      // Dispara sincronização imediata dos dados reais para a data selecionada
+      setSyncing(true);
+      const syncResult = await store.syncTakeatUnit(selectedSyncUnit, syncDate, "diretoria", "all");
+      if (syncResult.success) {
+        setSyncMessage({
+          text: `Conta conectada e faturamento real importado com sucesso para ${UNIT_LABELS[selectedSyncUnit]} (${syncDate})!`,
+          type: "success",
+        });
+      } else {
+        setSyncMessage({
+          text: `Conta conectada! Porém a consulta do dia retornou: ${syncResult.error}`,
+          type: "error",
+        });
+      }
+    } catch (err: any) {
+      setCredsError(err.message || "Erro desconhecido ao conectar com a Takeat.");
+    } finally {
+      setIsAuthenticating(false);
+      setSyncing(false);
+    }
   };
 
-  // Chart Data
-  const chartData = [
-    { name: "01/09", Eunápolis: 14200, Teixeira: 12100, Foodpark: 4500 },
-    { name: "02/09", Eunápolis: 15100, Teixeira: 13400, Foodpark: 5100 },
-    { name: "03/09", Eunápolis: 14800, Teixeira: 12900, Foodpark: 4900 },
-    { name: "04/09", Eunápolis: 18200, Teixeira: 15300, Foodpark: 6200 },
-    { name: "05/09", Eunápolis: 22100, Teixeira: 18400, Foodpark: 7900 },
-    { name: "06/09", Eunápolis: 19800, Teixeira: 16400, Foodpark: 7200 },
-    { name: "07/09", Eunápolis: 17920, Teixeira: 14800, Foodpark: 5900 },
-  ];
+  // Montagem do gráfico estritamente a partir de dados reais sincronizados
+  const chartGroupMap: Record<string, Record<string, number>> = {};
+  for (const r of takeatRevenues) {
+    if (!chartGroupMap[r.date]) {
+      chartGroupMap[r.date] = { Eunápolis: 0, Teixeira: 0, Foodpark: 0 };
+    }
+    if (r.unitId === "eunapolis") chartGroupMap[r.date].Eunápolis = r.totalRevenue;
+    if (r.unitId === "teixeira") chartGroupMap[r.date].Teixeira = r.totalRevenue;
+    if (r.unitId === "foodpark") chartGroupMap[r.date].Foodpark = r.totalRevenue;
+  }
+
+  const chartData = Object.keys(chartGroupMap)
+    .sort()
+    .slice(-7)
+    .map((dateKey) => {
+      const parts = dateKey.split("-");
+      const label = `${parts[2]}/${parts[1]}`;
+      return {
+        name: label,
+        date: dateKey,
+        ...chartGroupMap[dateKey],
+      };
+    });
 
   return (
     <div className="space-y-6">
@@ -162,10 +291,10 @@ export default function FaturamentoPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-zinc-200/60 pb-4 dark:border-zinc-800">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Faturamento Diário & Integração Takeat
+            Faturamento Oficial & Integração Takeat
           </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Apuração oficial de vendas sincronizadas via API Takeat (PDV) e faturamento manual
+            Dados de vendas reais extraídos diretamente da Takeat API (PDV) via endpoint oficial
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -176,7 +305,7 @@ export default function FaturamentoPage() {
             className="gap-1.5"
           >
             <Lock className="h-3.5 w-3.5 text-zinc-500" />
-            <span>Credenciais Takeat</span>
+            <span>Conectar Takeat</span>
           </Button>
           <Button
             size="sm"
@@ -187,6 +316,64 @@ export default function FaturamentoPage() {
             <span>Lançar Manual</span>
           </Button>
         </div>
+      </div>
+
+      {/* UNCONNECTED WARNING BANNER */}
+      {!isCurrentUnitConnected && (
+        <div className="p-4 rounded-xl border border-amber-200/80 bg-amber-50/60 text-amber-900 dark:bg-amber-950/20 dark:border-amber-900/40 dark:text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5 dark:text-amber-400" />
+            <div>
+              <p className="text-xs font-semibold">
+                Nenhuma conta da Takeat conectada para esta unidade
+              </p>
+              <p className="text-[11px] text-amber-800/90 dark:text-amber-300/80 mt-0.5">
+                O sistema não exibe números simulados. Conecte com seu e-mail e senha do PDV Takeat para carregar as vendas reais e apurar o faturamento oficial.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => handleOpenCredsModal(selectedSyncUnit)}
+            className="bg-amber-900 text-amber-50 hover:bg-amber-800 dark:bg-amber-100 dark:text-amber-950 text-xs shrink-0"
+          >
+            Conectar Conta Takeat
+          </Button>
+        </div>
+      )}
+
+      {/* STATUS DE CONEXÃO POR UNIDADE */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+        {(["eunapolis", "teixeira", "foodpark", "central"] as const).map((uid) => {
+          const isConnected = unitConnections[uid];
+          return (
+            <div
+              key={uid}
+              onClick={() => handleOpenCredsModal(uid)}
+              className="p-3 rounded-lg border border-zinc-200/70 bg-white hover:border-zinc-300 dark:bg-zinc-900 dark:border-zinc-800 cursor-pointer transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-zinc-500 truncate">
+                  {UNIT_LABELS[uid].replace("House 190 ", "")}
+                </span>
+                {isConnected ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    Conectado
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-zinc-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+                    Não conectado
+                  </span>
+                )}
+              </div>
+              <div className="mt-1 text-[10px] text-zinc-400 truncate">
+                {isConnected ? "Clique para gerenciar" : "Clique para conectar"}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* TAKEAT SYNC CONSOLE CARD */}
@@ -232,7 +419,7 @@ export default function FaturamentoPage() {
           </div>
         </div>
 
-        {/* Sync message banner if any */}
+        {/* Sync message banner */}
         {syncMessage && (
           <div
             className={`p-3 rounded-md text-xs flex items-center gap-2 ${
@@ -252,12 +439,12 @@ export default function FaturamentoPage() {
 
         {/* Technical query context */}
         <div className="p-3 bg-zinc-50 rounded-lg border border-zinc-100 text-[11px] text-zinc-500 space-y-1 font-mono dark:bg-zinc-800/40 dark:border-zinc-800">
-          <div className="flex justify-between">
+          <div className="flex flex-col sm:flex-row sm:justify-between gap-1">
             <span>GET https://backend-pdv-2.takeat.app/restaurants/v2/reports/general-cards</span>
-            <span className="text-zinc-400">Auth: Bearer &#123;TOKEN&#125;</span>
+            <span className="text-zinc-400">Header: Authorization: Bearer &#123;TOKEN&#125;</span>
           </div>
           <div className="text-zinc-400">
-            start_date={syncDate}T03:00:00.000Z &nbsp;|&nbsp; end_date={syncDate === "2026-09-07" ? "2026-09-08" : syncDate}T02:59:59.999Z
+            start_date={syncDate}T03:00:00.000Z &nbsp;|&nbsp; end_date={new Date(new Date(syncDate).getTime() + 86400000).toISOString().split("T")[0]}T02:59:59.999Z
           </div>
         </div>
       </div>
@@ -276,7 +463,7 @@ export default function FaturamentoPage() {
             {formatCurrency(totalTakeatSalao)}
           </div>
           <div className="mt-0.5 text-[11px] text-zinc-500">
-            payment_without_tax.balcony + table
+            {currentFilteredRecords.length > 0 ? "payment_without_tax.balcony + table" : "Aguardando sincronização"}
           </div>
         </div>
 
@@ -292,7 +479,7 @@ export default function FaturamentoPage() {
             {formatCurrency(totalTakeatDelivery)}
           </div>
           <div className="mt-0.5 text-[11px] text-zinc-500">
-            payment_without_tax.delivery
+            {currentFilteredRecords.length > 0 ? "payment_without_tax.delivery" : "Aguardando sincronização"}
           </div>
         </div>
 
@@ -308,7 +495,7 @@ export default function FaturamentoPage() {
             {formatCurrency(totalTakeatIfood)}
           </div>
           <div className="mt-0.5 text-[11px] text-zinc-500">
-            payment_without_tax.ifood
+            {currentFilteredRecords.length > 0 ? "payment_without_tax.ifood" : "Aguardando sincronização"}
           </div>
         </div>
 
@@ -324,7 +511,7 @@ export default function FaturamentoPage() {
             {formatCurrency(totalTakeatOfficial)}
           </div>
           <div className="mt-0.5 text-[11px] text-emerald-600/80">
-            Salão + Delivery + iFood
+            {currentFilteredRecords.length > 0 ? "Salão + Delivery + iFood" : "Nenhum valor simulado"}
           </div>
         </div>
       </div>
@@ -336,9 +523,9 @@ export default function FaturamentoPage() {
             <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
               Registros Oficiais Sincronizados (Takeat)
             </h3>
-            <p className="text-[11px] text-zinc-500">Canais separados por unidade e data</p>
+            <p className="text-[11px] text-zinc-500">Canais apurados estritamente via payment_without_tax</p>
           </div>
-          <Badge variant="outline">Origem: takeat</Badge>
+          <Badge variant="outline">Origem: takeat API</Badge>
         </div>
 
         <table className="w-full text-left text-xs">
@@ -361,7 +548,7 @@ export default function FaturamentoPage() {
                 </td>
                 <td className="py-3 px-4">
                   <span className="uppercase text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                    {rec.unitId}
+                    {UNIT_LABELS[rec.unitId] || rec.unitId}
                   </span>
                 </td>
                 <td className="py-3 px-4 text-right font-mono text-zinc-700 dark:text-zinc-300">
@@ -380,15 +567,22 @@ export default function FaturamentoPage() {
                   {formatCurrency(rec.totalRevenue)}
                 </td>
                 <td className="py-3 px-4 text-zinc-400 text-[11px] font-mono">
-                  {rec.syncedAt.split("T")[1]?.slice(0, 5) || "-"}
+                  {rec.syncedAt ? rec.syncedAt.split("T")[1]?.slice(0, 5) : "-"}
                 </td>
               </tr>
             ))}
 
             {takeatRevenues.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-zinc-400">
-                  Nenhum faturamento sincronizado da Takeat para esta unidade.
+                <td colSpan={7} className="py-12 text-center text-zinc-400">
+                  <div className="max-w-xs mx-auto space-y-2">
+                    <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+                      Nenhum faturamento sincronizado ainda
+                    </p>
+                    <p className="text-[11px] text-zinc-400">
+                      Conecte sua conta da Takeat informando seu e-mail e senha e clique em <b>Sincronizar Vendas Takeat</b> para carregar os valores autênticos do PDV.
+                    </p>
+                  </div>
                 </td>
               </tr>
             )}
@@ -396,14 +590,14 @@ export default function FaturamentoPage() {
         </table>
       </div>
 
-      {/* Comparison Chart */}
+      {/* Evolution Chart (dados reais apenas) */}
       <div className="rounded-lg border border-zinc-200/80 bg-white p-5 dark:bg-zinc-900 dark:border-zinc-800 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
               Evolução do Faturamento Diário Oficial
             </h3>
-            <p className="text-[11px] text-zinc-500">Últimos 7 dias apurados</p>
+            <p className="text-[11px] text-zinc-500">Últimos dias sincronizados da Takeat API</p>
           </div>
           <div className="flex items-center gap-4 text-xs">
             <span className="flex items-center gap-1.5">
@@ -421,47 +615,54 @@ export default function FaturamentoPage() {
           </div>
         </div>
 
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
-              <XAxis dataKey="name" stroke="#a1a1aa" fontSize={11} tickLine={false} axisLine={false} />
-              <YAxis
-                stroke="#a1a1aa"
-                fontSize={11}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v) => `R$ ${v / 1000}k`}
-              />
-              <Tooltip
-                formatter={(v: any) => formatCurrency(Number(v))}
-                contentStyle={{
-                  backgroundColor: "#18181b",
-                  borderColor: "#27272a",
-                  borderRadius: "6px",
-                  color: "#f4f4f5",
-                  fontSize: "12px",
-                }}
-              />
-              <Bar dataKey="Eunápolis" fill="#18181b" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Teixeira" fill="#71717a" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Foodpark" fill="#d4d4d8" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {chartData.length > 0 ? (
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f4f4f5" />
+                <XAxis dataKey="name" stroke="#a1a1aa" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis
+                  stroke="#a1a1aa"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => `R$ ${v / 1000}k`}
+                />
+                <Tooltip
+                  formatter={(v: any) => formatCurrency(Number(v))}
+                  contentStyle={{
+                    backgroundColor: "#18181b",
+                    borderColor: "#27272a",
+                    borderRadius: "6px",
+                    color: "#f4f4f5",
+                    fontSize: "12px",
+                  }}
+                />
+                <Bar dataKey="Eunápolis" fill="#18181b" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Teixeira" fill="#71717a" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Foodpark" fill="#d4d4d8" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-40 flex items-center justify-center border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg text-xs text-zinc-400 text-center px-4">
+            O gráfico será gerado automaticamente assim que os dados reais forem sincronizados da Takeat.
+          </div>
+        )}
       </div>
 
-      {/* Modal: Configurar Credenciais Takeat */}
+      {/* Modal: Conectar e Autenticar na Takeat */}
       <Modal
         isOpen={isCredsModalOpen}
         onClose={() => setIsCredsModalOpen(false)}
-        title={`Configurar Acesso Takeat — ${selectedSyncUnit.toUpperCase()}`}
-        subtitle="As credenciais são protegidas e utilizadas apenas para sincronização autenticada"
+        title={`Conectar Conta Takeat — ${UNIT_LABELS[selectedSyncUnit]}`}
+        subtitle="Autenticação direta com o servidor oficial da Takeat (POST /public/api/sessions)"
       >
         <form onSubmit={handleSaveCreds} className="space-y-4 text-xs">
+          {/* Unidade */}
           <div>
             <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
-              Unidade
+              Unidade a Conectar
             </label>
             <select
               value={selectedSyncUnit}
@@ -470,6 +671,9 @@ export default function FaturamentoPage() {
                 setSelectedSyncUnit(u);
                 const ex = store.getTakeatCredentials(u);
                 setCredsEmail(ex.email || "");
+                setCredsPassword(ex.password || "");
+                setCredsManualToken(ex.token || "");
+                setCredsError(null);
               }}
               className="w-full h-9 px-3 rounded border border-zinc-200 bg-white dark:bg-zinc-800 dark:border-zinc-700 focus:outline-none"
             >
@@ -480,47 +684,109 @@ export default function FaturamentoPage() {
             </select>
           </div>
 
-          <div>
-            <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
-              E-mail de Acesso Takeat (PDV)
-            </label>
-            <input
-              type="email"
-              required
-              placeholder="ex: restaurante@takeat.app"
-              value={credsEmail}
-              onChange={(e) => setCredsEmail(e.target.value)}
-              className="w-full h-9 px-3 rounded border border-zinc-200 bg-white dark:bg-zinc-800 dark:border-zinc-700 focus:outline-none"
-            />
+          {/* Abas de Modo de Conexão */}
+          <div className="flex border-b border-zinc-200 dark:border-zinc-700 pb-1 gap-4">
+            <button
+              type="button"
+              onClick={() => setAuthMode("login")}
+              className={`pb-1 text-xs font-semibold transition-colors ${
+                authMode === "login"
+                  ? "border-b-2 border-zinc-900 text-zinc-900 dark:text-zinc-100 dark:border-zinc-100"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              }`}
+            >
+              E-mail e Senha (Recomendado)
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthMode("token")}
+              className={`pb-1 text-xs font-semibold transition-colors ${
+                authMode === "token"
+                  ? "border-b-2 border-zinc-900 text-zinc-900 dark:text-zinc-100 dark:border-zinc-100"
+                  : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              }`}
+            >
+              Token Bearer Direto
+            </button>
           </div>
 
-          <div>
-            <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
-              Senha da Conta Takeat
-            </label>
-            <input
-              type="password"
-              placeholder="••••••••••••"
-              value={credsPassword}
-              onChange={(e) => setCredsPassword(e.target.value)}
-              className="w-full h-9 px-3 rounded border border-zinc-200 bg-white dark:bg-zinc-800 dark:border-zinc-700 focus:outline-none"
-            />
-            <span className="text-[10px] text-zinc-400 mt-1 block">
-              Utilizada para renovação automática de token quando a API retornar HTTP 401.
-            </span>
-          </div>
+          {/* Erro de autenticação */}
+          {credsError && (
+            <div className="p-3 rounded-md bg-rose-50 border border-rose-200/80 text-rose-800 dark:bg-rose-950/30 dark:border-rose-900/60 dark:text-rose-300 text-xs flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{credsError}</span>
+            </div>
+          )}
+
+          {authMode === "login" ? (
+            <>
+              <div>
+                <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
+                  E-mail de Acesso Takeat (PDV)
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="ex: restaurante@takeat.app"
+                  value={credsEmail}
+                  onChange={(e) => setCredsEmail(e.target.value)}
+                  className="w-full h-9 px-3 rounded border border-zinc-200 bg-white dark:bg-zinc-800 dark:border-zinc-700 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
+                  Senha da Conta Takeat
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••••••"
+                  value={credsPassword}
+                  onChange={(e) => setCredsPassword(e.target.value)}
+                  className="w-full h-9 px-3 rounded border border-zinc-200 bg-white dark:bg-zinc-800 dark:border-zinc-700 focus:outline-none"
+                />
+                <span className="text-[10px] text-zinc-400 mt-1 block">
+                  A senha é autenticada diretamente com o endpoint oficial da Takeat para gerar o token Bearer e renová-lo a cada 15 dias caso expire (HTTP 401).
+                </span>
+              </div>
+            </>
+          ) : (
+            <div>
+              <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
+                Token Bearer Takeat
+              </label>
+              <textarea
+                rows={3}
+                required
+                placeholder="Cole o token JWT (eyJhbGciOi...)"
+                value={credsManualToken}
+                onChange={(e) => setCredsManualToken(e.target.value)}
+                className="w-full p-2.5 rounded border border-zinc-200 bg-white font-mono text-[11px] dark:bg-zinc-800 dark:border-zinc-700 focus:outline-none"
+              />
+              <span className="text-[10px] text-zinc-400 mt-1 block">
+                Token enviado no cabeçalho: <code>Authorization: Bearer &#123;TOKEN&#125;</code>
+              </span>
+            </div>
+          )}
 
           <div className="pt-2 flex justify-end gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
+              disabled={isAuthenticating}
               onClick={() => setIsCredsModalOpen(false)}
             >
               Cancelar
             </Button>
-            <Button type="submit" size="sm">
-              Salvar Credenciais
+            <Button
+              type="submit"
+              size="sm"
+              isLoading={isAuthenticating}
+              className="bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900"
+            >
+              {isAuthenticating ? "Conectando e Autenticando..." : "Conectar e Sincronizar"}
             </Button>
           </div>
         </form>

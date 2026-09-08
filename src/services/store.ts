@@ -58,82 +58,10 @@ const STORAGE_KEYS = {
   TAKEAT_CREDS: "house190_takeat_creds",
 };
 
-export const INITIAL_TAKEAT_REVENUES: TakeatRevenueRecord[] = [
-  {
-    id: "takeat-eunapolis-2026-09-07",
-    unitId: "eunapolis",
-    date: "2026-09-07",
-    startDateUtc: "2026-09-07T03:00:00.000Z",
-    endDateUtc: "2026-09-08T02:59:59.999Z",
-    salao: 14250.0,
-    delivery: 2150.0,
-    ifood: 1520.0,
-    totalRevenue: 17920.0,
-    rawBalcony: 3450.0,
-    rawTable: 10800.0,
-    rawDelivery: 2150.0,
-    rawIfood: 1520.0,
-    source: "takeat",
-    syncedAt: "2026-09-07T21:30:00Z",
-  },
-  {
-    id: "takeat-teixeira-2026-09-07",
-    unitId: "teixeira",
-    date: "2026-09-07",
-    startDateUtc: "2026-09-07T03:00:00.000Z",
-    endDateUtc: "2026-09-08T02:59:59.999Z",
-    salao: 11000.0,
-    delivery: 2300.0,
-    ifood: 1500.0,
-    totalRevenue: 14800.0,
-    rawBalcony: 2800.0,
-    rawTable: 8200.0,
-    rawDelivery: 2300.0,
-    rawIfood: 1500.0,
-    source: "takeat",
-    syncedAt: "2026-09-07T21:32:00Z",
-  },
-  {
-    id: "takeat-foodpark-2026-09-07",
-    unitId: "foodpark",
-    date: "2026-09-07",
-    startDateUtc: "2026-09-07T03:00:00.000Z",
-    endDateUtc: "2026-09-08T02:59:59.999Z",
-    salao: 4500.0,
-    delivery: 800.0,
-    ifood: 600.0,
-    totalRevenue: 5900.0,
-    rawBalcony: 2100.0,
-    rawTable: 2400.0,
-    rawDelivery: 800.0,
-    rawIfood: 600.0,
-    source: "takeat",
-    syncedAt: "2026-09-07T21:35:00Z",
-  },
-];
+export const INITIAL_TAKEAT_REVENUES: TakeatRevenueRecord[] = [];
 
-export const INITIAL_TAKEAT_CREDENTIALS: Record<string, TakeatCredentials> = {
-  eunapolis: {
-    unitId: "eunapolis",
-    email: "eunapolis@house190.com.br",
-    token: "tk_eun_live_session_takeat",
-  },
-  teixeira: {
-    unitId: "teixeira",
-    email: "teixeira@house190.com.br",
-    token: "tk_txf_live_session_takeat",
-  },
-  foodpark: {
-    unitId: "foodpark",
-    email: "foodpark@house190.com.br",
-    token: "tk_fdp_live_session_takeat",
-  },
-  central: {
-    unitId: "central",
-    email: "central@house190.com.br",
-    token: "tk_cp_live_session_takeat",
-  },
-};
+export const INITIAL_TAKEAT_CREDENTIALS: Record<string, TakeatCredentials> = {};
+
 
 class DataStore {
   private get<T>(key: string, initial: T): T {
@@ -465,29 +393,49 @@ class DataStore {
 
   // TAKEAT INTEGRATION
   getTakeatRevenues(): TakeatRevenueRecord[] {
-    return this.get(STORAGE_KEYS.TAKEAT_REVENUES, INITIAL_TAKEAT_REVENUES);
+    const records = this.get<TakeatRevenueRecord[]>(STORAGE_KEYS.TAKEAT_REVENUES, []);
+    // Garante que nenhum registro de mock anterior permaneça
+    return records.filter((r) => r && r.id && !r.id.includes("fake"));
   }
 
   getTakeatCredentials(unitId: string): TakeatCredentials {
     const all = this.get<Record<string, TakeatCredentials>>(
       STORAGE_KEYS.TAKEAT_CREDS,
-      INITIAL_TAKEAT_CREDENTIALS
+      {}
     );
-    return (
-      all[unitId] || {
+    const cred = all[unitId];
+    if (!cred) {
+      return {
         unitId: unitId as any,
-        email: `${unitId}@house190.com.br`,
-      }
-    );
+        email: "",
+      };
+    }
+    // Remove resquícios de tokens de teste anteriores se houver
+    if (cred.token && cred.token.includes("live_session_takeat")) {
+      return {
+        unitId: unitId as any,
+        email: "",
+      };
+    }
+    return cred;
   }
 
   saveTakeatCredentials(creds: TakeatCredentials) {
     const all = this.get<Record<string, TakeatCredentials>>(
       STORAGE_KEYS.TAKEAT_CREDS,
-      INITIAL_TAKEAT_CREDENTIALS
+      {}
     );
     all[creds.unitId] = creds;
     this.set(STORAGE_KEYS.TAKEAT_CREDS, all);
+  }
+
+  clearTakeatRevenues(unitId?: string) {
+    if (unitId) {
+      const current = this.getTakeatRevenues().filter((r) => r.unitId !== unitId);
+      this.set(STORAGE_KEYS.TAKEAT_REVENUES, current);
+    } else {
+      this.set(STORAGE_KEYS.TAKEAT_REVENUES, []);
+    }
   }
 
   saveTakeatRevenue(record: TakeatRevenueRecord) {
@@ -565,11 +513,21 @@ class DataStore {
 
     // 3. Credenciais da unidade
     const creds = this.getTakeatCredentials(unitId);
+    if (!creds || (!creds.token && !creds.password)) {
+      return {
+        success: false,
+        unitId,
+        unitName,
+        date: dateStr,
+        error: `A conta do Takeat para ${unitName} ainda não foi conectada. Clique em "Conectar Conta Takeat" para informar seu e-mail e senha de acesso.`,
+        errorCode: "AUTH_FAILED",
+      };
+    }
 
     let rawResponse: TakeatGeneralCardsResponse;
 
     try {
-      // Tenta consulta real à API da Takeat
+      // Consulta real à API da Takeat
       rawResponse = await fetchTakeatGeneralCards(
         creds,
         range.startDate,
@@ -579,23 +537,14 @@ class DataStore {
         }
       );
     } catch (apiError: any) {
-      // Se indisponível ou executando no frontend/browser estático sem proxy CORS,
-      // gera resposta simulada coerente estritamente no schema oficial da Takeat:
-      const unitPresets: Record<string, { b: number; t: number; d: number; i: number }> = {
-        eunapolis: { b: 3450.0, t: 10800.0, d: 2150.0, i: 1520.0 },
-        teixeira: { b: 2800.0, t: 8200.0, d: 2300.0, i: 1500.0 },
-        foodpark: { b: 2100.0, t: 2400.0, d: 800.0, i: 600.0 },
-        central: { b: 0.0, t: 0.0, d: 0.0, i: 0.0 },
-      };
-      const p = unitPresets[unitId] || { b: 2000.0, t: 5000.0, d: 1500.0, i: 1000.0 };
-
-      rawResponse = {
-        payment_without_tax: {
-          balcony: p.b,
-          table: p.t,
-          delivery: p.d,
-          ifood: p.i,
-        },
+      // NUNCA gera dados fictícios. Retorna o erro real ocorrido na API da Takeat.
+      return {
+        success: false,
+        unitId,
+        unitName,
+        date: dateStr,
+        error: apiError.message || "Erro de conexão ao consultar a API da Takeat.",
+        errorCode: "API_UNAVAILABLE",
       };
     }
 
