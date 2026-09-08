@@ -20,9 +20,41 @@ export default function RelatoriosPage() {
   const { currentUnit } = useUnit();
   const [reportType, setReportType] = useState<"financeiro" | "faturamento" | "fiscal" | "rh">("financeiro");
 
-  const accounts = store.getAccounts();
-  const goals = store.getGoals();
-  const employees = store.getEmployees();
+  const { filterByUnit } = useUnit();
+  const accounts = filterByUnit(store.getAccounts());
+  const goals = filterByUnit(store.getGoals());
+  const revenues = filterByUnit(store.getRevenues());
+  const employees = filterByUnit(store.getEmployees());
+
+  const currentMonthRevs = revenues.filter((r) => r.date.startsWith("2026-09"));
+  const grossSales = currentMonthRevs.reduce((acc, cur) => acc + cur.grossRevenue, 0);
+  const discounts = currentMonthRevs.reduce((acc, cur) => acc + (cur.discounts || 0), 0);
+  const netSales = grossSales - discounts;
+
+  const cmvAccounts = accounts.filter(
+    (a) => a.category === "Insumos Alimentícios" || a.category === "Panificação" || a.category === "Laticínios"
+  );
+  const cmvTotal = cmvAccounts.reduce((acc, cur) => acc + cur.finalAmount, 0);
+
+  const packagingAccounts = accounts.filter((a) => a.category === "Embalagens");
+  const packagingTotal = packagingAccounts.reduce((acc, cur) => acc + cur.finalAmount, 0);
+
+  const grossProfit = netSales - cmvTotal - packagingTotal;
+  const grossMargin = netSales > 0 ? (grossProfit / netSales) * 100 : 0;
+
+  const payrollTotal = accounts
+    .filter((a) => a.category === "Folha de Pagamento" || a.category === "Benefícios")
+    .reduce((acc, cur) => acc + cur.finalAmount, 0);
+
+  const utilTotal = accounts
+    .filter((a) => a.category === "Utilidades" || a.category === "Aluguel & Condomínio")
+    .reduce((acc, cur) => acc + cur.finalAmount, 0);
+
+  const marketingTotal = accounts
+    .filter((a) => a.category === "Marketing")
+    .reduce((acc, cur) => acc + cur.finalAmount, 0);
+
+  const ebitda = grossProfit - payrollTotal - utilTotal - marketingTotal;
 
   const handleExportCSV = () => {
     let rows = "";
@@ -102,43 +134,43 @@ export default function RelatoriosPage() {
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800 text-xs">
             <div className="py-2.5 flex justify-between items-center font-bold text-zinc-900 dark:text-zinc-100">
               <span>(+) Receita Bruta de Vendas</span>
-              <span className="font-mono">{formatCurrency(319700)}</span>
+              <span className="font-mono">{formatCurrency(grossSales)}</span>
             </div>
             <div className="py-2 flex justify-between items-center text-zinc-500 pl-4">
               <span>(-) Descontos e Cancelamentos</span>
-              <span className="font-mono">({formatCurrency(4890)})</span>
+              <span className="font-mono">({formatCurrency(discounts)})</span>
             </div>
             <div className="py-2.5 flex justify-between items-center font-semibold text-zinc-800 dark:text-zinc-200">
               <span>(=) Receita Operacional Líquida</span>
-              <span className="font-mono">{formatCurrency(314810)}</span>
+              <span className="font-mono">{formatCurrency(netSales)}</span>
             </div>
             <div className="py-2 flex justify-between items-center text-zinc-500 pl-4">
               <span>(-) CMV (Matéria-prima: Carnes, Pães, Laticínios)</span>
-              <span className="font-mono">({formatCurrency(108500)})</span>
+              <span className="font-mono">({formatCurrency(cmvTotal)})</span>
             </div>
             <div className="py-2 flex justify-between items-center text-zinc-500 pl-4">
               <span>(-) Embalagens & Descartáveis</span>
-              <span className="font-mono">({formatCurrency(17000)})</span>
+              <span className="font-mono">({formatCurrency(packagingTotal)})</span>
             </div>
             <div className="py-2.5 flex justify-between items-center font-semibold text-zinc-800 dark:text-zinc-200">
-              <span>(=) Lucro Bruto Operacional (60,1%)</span>
-              <span className="font-mono">{formatCurrency(189310)}</span>
+              <span>(=) Lucro Bruto Operacional ({formatPercent(grossMargin)})</span>
+              <span className="font-mono">{formatCurrency(grossProfit)}</span>
             </div>
             <div className="py-2 flex justify-between items-center text-zinc-500 pl-4">
               <span>(-) Despesas com Pessoal & Folha</span>
-              <span className="font-mono">({formatCurrency(42500)})</span>
+              <span className="font-mono">({formatCurrency(payrollTotal)})</span>
             </div>
             <div className="py-2 flex justify-between items-center text-zinc-500 pl-4">
               <span>(-) Ocupação & Utilidades (Energia, Água, Condomínio)</span>
-              <span className="font-mono">({formatCurrency(14300)})</span>
+              <span className="font-mono">({formatCurrency(utilTotal)})</span>
             </div>
             <div className="py-2 flex justify-between items-center text-zinc-500 pl-4">
               <span>(-) Marketing & Performance</span>
-              <span className="font-mono">({formatCurrency(8400)})</span>
+              <span className="font-mono">({formatCurrency(marketingTotal)})</span>
             </div>
             <div className="py-3 flex justify-between items-center font-bold text-sm text-emerald-700 dark:text-emerald-400 pt-3 border-t-2 border-zinc-200 dark:border-zinc-700">
               <span>(=) Resultado Operacional Preliminar (EBITDA)</span>
-              <span className="font-mono text-base">{formatCurrency(124110)}</span>
+              <span className="font-mono text-base">{formatCurrency(ebitda)}</span>
             </div>
           </div>
         </div>

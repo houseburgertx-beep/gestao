@@ -9,12 +9,15 @@ import { formatCurrency, formatPercent } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 
 export default function MetasPage() {
-  const { currentUnit } = useUnit();
+  const { currentUnit, filterByUnit } = useUnit();
   const [goals, setGoals] = useState<UnitGoal[]>([]);
 
   useEffect(() => {
-    setGoals(store.getGoals());
-  }, []);
+    const update = () => setGoals(filterByUnit(store.getGoals()));
+    update();
+    window.addEventListener("house190_data_updated", update);
+    return () => window.removeEventListener("house190_data_updated", update);
+  }, [filterByUnit]);
 
   const totalTarget = goals.reduce((acc, cur) => acc + cur.targetAmount, 0);
   const totalRealized = goals.reduce((acc, cur) => acc + cur.currentRealized, 0);

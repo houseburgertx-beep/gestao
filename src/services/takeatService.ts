@@ -92,6 +92,31 @@ export function parseBRLNumber(val: any): number {
  * start_date = 2026-09-07T03:00:00.000Z
  * end_date   = 2026-09-08T02:59:59.999Z
  */
+
+/**
+ * Gera o intervalo ISO 8601 correspondente ao mês completo no fuso de Brasília/Bahia (UTC-03:00).
+ * Exemplo para 2026-09:
+ * start_date = 2026-09-01T03:00:00.000Z
+ * end_date   = 2026-10-01T02:59:59.999Z
+ */
+export function getBahiaIsoMonthRange(yearMonthStr: string): { startDate: string; endDate: string } {
+  const match = yearMonthStr.match(/^(\d{4})-(\d{2})$/);
+  if (!match) {
+    throw new Error("Formato de mês inválido. Use AAAA-MM.");
+  }
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10) - 1;
+
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const startUtc = new Date(Date.UTC(year, month, 1, 3, 0, 0, 0));
+  const endUtc = new Date(Date.UTC(year, month, lastDay + 1, 2, 59, 59, 999));
+
+  return {
+    startDate: startUtc.toISOString(),
+    endDate: endUtc.toISOString(),
+  };
+}
+
 export function getBahiaIsoDayRange(dateStr: string): { startDate: string; endDate: string } {
   const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) {
@@ -498,7 +523,10 @@ export function processOfficialRevenue(
   const ifood = rawIfood;
   const totalRevenue = Math.round((salao + delivery + ifood) * 100) / 100;
 
-  const { startDate, endDate } = getBahiaIsoDayRange(dateStr);
+  const isMonthly = /^\d{4}-\d{2}$/.test(dateStr);
+  const { startDate, endDate } = isMonthly
+    ? getBahiaIsoMonthRange(dateStr)
+    : getBahiaIsoDayRange(dateStr);
 
   return {
     id: `takeat-${unitId}-${dateStr}`,

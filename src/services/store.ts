@@ -24,6 +24,7 @@ import {
 import {
   parseBRLNumber,
   getBahiaIsoDayRange,
+  getBahiaIsoMonthRange,
   validateUnitPermission,
   processOfficialRevenue,
   fetchTakeatGeneralCards,
@@ -262,9 +263,32 @@ class DataStore {
     return newTax;
   }
 
-  // REVENUES
+  // REVENUES (Alimentado estritamente por dados oficiais e lançamentos reais)
   getRevenues(): DailyRevenue[] {
-    return this.get(STORAGE_KEYS.REVENUES, INITIAL_DAILY_REVENUE);
+    const manual = this.get<DailyRevenue[]>(STORAGE_KEYS.REVENUES, []);
+    const takeat = this.getTakeatRevenues();
+    const map = new Map<string, DailyRevenue>();
+
+    for (const m of manual) {
+      if (m && m.id && !m.id.includes("fake") && !m.id.startsWith("rev-01") && !m.id.startsWith("rev-02")) {
+        map.set(`${m.unitId}-${m.date}`, m);
+      }
+    }
+
+    for (const t of takeat) {
+      map.set(`${t.unitId}-${t.date}`, {
+        id: `rev-takeat-${t.unitId}-${t.date}`,
+        unitId: t.unitId,
+        date: t.date,
+        grossRevenue: t.totalRevenue,
+        discounts: 0,
+        cancellations: 0,
+        netRevenue: t.totalRevenue,
+        notes: `Oficial Takeat (Salão: R$ ${t.salao.toFixed(2)}, Delivery: R$ ${t.delivery.toFixed(2)}, iFood: R$ ${t.ifood.toFixed(2)})`,
+      });
+    }
+
+    return Array.from(map.values()).sort((a, b) => b.date.localeCompare(a.date));
   }
 
   addRevenue(rev: Omit<DailyRevenue, "id" | "netRevenue">): DailyRevenue {
@@ -279,9 +303,40 @@ class DataStore {
     return newRev;
   }
 
-  // GOALS
+  // GOALS (Cálculo em tempo real baseado no faturamento oficial)
   getGoals(): UnitGoal[] {
-    return this.get(STORAGE_KEYS.GOALS, INITIAL_GOALS);
+    const rawGoals = this.get<UnitGoal[]>(STORAGE_KEYS.GOALS, INITIAL_GOALS);
+    const revenues = this.getRevenues();
+
+    return rawGoals.map((g) => {
+      const monthPrefix = `${g.year}-${String(g.month).padStart(2, "0")}`;
+      const monthRevs = revenues.filter(
+        (r) => r.unitId === g.unitId && r.date.startsWith(monthPrefix)
+      );
+
+      const monthlySummary = monthRevs.find((r) => r.date === monthPrefix);
+      const currentRealized = monthlySummary
+        ? monthlySummary.netRevenue
+        : monthRevs.reduce((acc, cur) => acc + cur.netRevenue, 0);
+
+      const daysCount = monthRevs.filter((r) => r.date !== monthPrefix).length || 1;
+      const currentDailyAverage =
+        currentRealized > 0
+          ? Math.round((currentRealized / (monthlySummary ? 30 : daysCount)) * 100) / 100
+          : 0;
+
+      const projectedClose =
+        currentDailyAverage > 0
+          ? Math.round(currentDailyAverage * 30 * 100) / 100
+          : currentRealized;
+
+      return {
+        ...g,
+        currentRealized,
+        currentDailyAverage,
+        projectedClose,
+      };
+    });
   }
 
   // EMPLOYEES & VACATIONS
@@ -508,10 +563,11 @@ class DataStore {
       };
     }
 
-    // 2. Cálculo do fuso horário de Brasília/Bahia (America/Bahia)
+    // 2. Cálculo do fuso horário de Brasília/Bahia (America/Bahia) - Suporta diário (YYYY-MM-DD) ou mensal (YYYY-MM)
+    const isMonthly = /^\d{4}-\d{2}$/.test(dateStr);
     let range: { startDate: string; endDate: string };
     try {
-      range = getBahiaIsoDayRange(dateStr);
+      range = isMonthly ? getBahiaIsoMonthRange(dateStr) : getBahiaIsoDayRange(dateStr);
     } catch (e: any) {
       return {
         success: false,

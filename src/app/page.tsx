@@ -78,16 +78,21 @@ export default function DashboardPage() {
       ? ((totalMonthRevenue - totalMonthPrevious) / totalMonthPrevious) * 100
       : 0;
 
-  // Chart Data (Linear aesthetic, minimal)
-  const chartData = [
-    { date: "01/09", total: 38200 },
-    { date: "02/09", total: 41500 },
-    { date: "03/09", total: 39800 },
-    { date: "04/09", total: 46200 },
-    { date: "05/09", total: 54100 },
-    { date: "06/09", total: 58400 },
-    { date: "07/09", total: 49500 },
-  ];
+  // Chart Data derivado estritamente dos faturamentos reais da base
+  const chartData = React.useMemo(() => {
+    const byDate: Record<string, { date: string; total: number }> = {};
+    for (const r of revenues) {
+      if (!byDate[r.date]) {
+        const parts = r.date.split("-");
+        byDate[r.date] = {
+          date: `${parts[2] || r.date}/${parts[1] || ""}`,
+          total: 0,
+        };
+      }
+      byDate[r.date].total += r.netRevenue;
+    }
+    return Object.values(byDate).slice(-7);
+  }, [revenues]);
 
   // Atenção Necessária items
   const attentionItems = [];
@@ -245,7 +250,7 @@ export default function DashboardPage() {
                 <span className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
                   {formatCurrency(totalMonthRevenue)}
                 </span>
-                <span className="text-xs text-emerald-600 font-medium">+14,2% vs período anterior</span>
+                <span className="text-xs text-zinc-500 font-medium">{growthVsLastMonth > 0 ? `+${growthVsLastMonth.toFixed(1)}% vs anterior` : `${growthVsLastMonth.toFixed(1)}% vs anterior`}</span>
               </div>
             </div>
 

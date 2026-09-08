@@ -376,11 +376,11 @@ export const INITIAL_GOALS: UnitGoal[] = [
     month: 9,
     year: 2026,
     targetAmount: 380000.0,
-    currentRealized: 112400.0,
+    currentRealized: 0.0,
     previousMonthRealized: 362100.0,
     dailyAverageTarget: 12666.6,
-    currentDailyAverage: 16057.1,
-    projectedClose: 481714.0,
+    currentDailyAverage: 0.0,
+    projectedClose: 0.0,
   },
   {
     id: "goal-txf",
@@ -388,11 +388,11 @@ export const INITIAL_GOALS: UnitGoal[] = [
     month: 9,
     year: 2026,
     targetAmount: 320000.0,
-    currentRealized: 91800.0,
+    currentRealized: 0.0,
     previousMonthRealized: 308900.0,
     dailyAverageTarget: 10666.6,
-    currentDailyAverage: 13114.2,
-    projectedClose: 393428.0,
+    currentDailyAverage: 0.0,
+    projectedClose: 0.0,
   },
   {
     id: "goal-fdp",
@@ -400,11 +400,11 @@ export const INITIAL_GOALS: UnitGoal[] = [
     month: 9,
     year: 2026,
     targetAmount: 180000.0,
-    currentRealized: 39500.0,
+    currentRealized: 0.0,
     previousMonthRealized: 171200.0,
     dailyAverageTarget: 6000.0,
-    currentDailyAverage: 5642.8,
-    projectedClose: 169285.0, // Abaixo da meta! Gatilho para "Atenção Necessária"
+    currentDailyAverage: 0.0,
+    projectedClose: 0.0, // Abaixo da meta! Gatilho para "Atenção Necessária"
   },
   {
     id: "goal-cp",
@@ -412,72 +412,15 @@ export const INITIAL_GOALS: UnitGoal[] = [
     month: 9,
     year: 2026,
     targetAmount: 240000.0, // Volume transferido interno
-    currentRealized: 76000.0,
+    currentRealized: 0.0,
     previousMonthRealized: 232000.0,
     dailyAverageTarget: 8000.0,
-    currentDailyAverage: 10857.1,
-    projectedClose: 325714.0,
+    currentDailyAverage: 0.0,
+    projectedClose: 0.0,
   },
 ];
 
-export const INITIAL_DAILY_REVENUE: DailyRevenue[] = [
-  {
-    id: "rev-01-eun",
-    unitId: "eunapolis",
-    date: "2026-09-07",
-    grossRevenue: 18450.0,
-    discounts: 420.0,
-    cancellations: 110.0,
-    netRevenue: 17920.0,
-    notes: "Feriado de 7 de Setembro - movimento de salão excelente.",
-  },
-  {
-    id: "rev-01-txf",
-    unitId: "teixeira",
-    date: "2026-09-07",
-    grossRevenue: 15200.0,
-    discounts: 310.0,
-    cancellations: 90.0,
-    netRevenue: 14800.0,
-  },
-  {
-    id: "rev-01-fdp",
-    unitId: "foodpark",
-    date: "2026-09-07",
-    grossRevenue: 6100.0,
-    discounts: 150.0,
-    cancellations: 50.0,
-    netRevenue: 5900.0,
-  },
-  {
-    id: "rev-02-eun",
-    unitId: "eunapolis",
-    date: "2026-09-06",
-    grossRevenue: 19800.0,
-    discounts: 350.0,
-    cancellations: 120.0,
-    netRevenue: 19330.0,
-    notes: "Domingo de casa cheia.",
-  },
-  {
-    id: "rev-02-txf",
-    unitId: "teixeira",
-    date: "2026-09-06",
-    grossRevenue: 16400.0,
-    discounts: 280.0,
-    cancellations: 80.0,
-    netRevenue: 16040.0,
-  },
-  {
-    id: "rev-02-fdp",
-    unitId: "foodpark",
-    date: "2026-09-06",
-    grossRevenue: 7200.0,
-    discounts: 200.0,
-    cancellations: 40.0,
-    netRevenue: 6960.0,
-  },
-];
+export const INITIAL_DAILY_REVENUE: DailyRevenue[] = [];
 
 export const INITIAL_EMPLOYEES: Employee[] = [
   {
