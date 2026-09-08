@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { QuickCreateModal } from "@/components/layout/QuickCreateModal";
-import { authenticateTakeat } from "@/services/takeatService";
+import { authenticateTakeat, sanitizeToken } from "@/services/takeatService";
 import {
   BarChart,
   Bar,
@@ -45,6 +45,13 @@ function getTodayBahiaDate(): string {
   const now = new Date();
   const utc = now.getTime() + now.getTimezoneOffset() * 60000;
   const bahia = new Date(utc - 3 * 3600000);
+  return bahia.toISOString().split("T")[0];
+}
+
+function getYesterdayBahiaDate(): string {
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const bahia = new Date(utc - 3 * 3600000 - 86400000);
   return bahia.toISOString().split("T")[0];
 }
 
@@ -241,6 +248,8 @@ export default function FaturamentoPage() {
 
     try {
       let liveToken = "";
+      let restaurantId: number | string | undefined = undefined;
+      let restaurantName: string | undefined = undefined;
 
       if (authMode === "login") {
         if (!credsEmail || !credsPassword) {
@@ -248,20 +257,26 @@ export default function FaturamentoPage() {
         }
 
         // Autenticação real direta na API da Takeat
-        liveToken = await authenticateTakeat(credsEmail, credsPassword);
+        const authRes = await authenticateTakeat(credsEmail, credsPassword);
+        liveToken = authRes.token;
+        restaurantId = authRes.restaurantId;
+        restaurantName = authRes.restaurantName;
       } else {
-        if (!credsManualToken.trim()) {
+        const clean = sanitizeToken(credsManualToken);
+        if (!clean) {
           throw new Error("Informe o token Bearer da Takeat.");
         }
-        liveToken = credsManualToken.trim();
+        liveToken = clean;
       }
 
-      // Salva as credenciais com o token autêntico
+      // Salva as credenciais com o token autêntico e sanitizado
       store.saveTakeatCredentials({
         unitId: selectedSyncUnit,
         email: credsEmail,
         password: credsPassword || undefined,
         token: liveToken,
+        restaurantId,
+        restaurantName,
         tokenExpiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
       });
 
@@ -431,6 +446,30 @@ export default function FaturamentoPage() {
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-zinc-500 font-medium">Data:</span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSyncDate(getTodayBahiaDate())}
+                  className={`px-2 py-1 text-[11px] font-medium rounded border transition-colors ${
+                    syncDate === getTodayBahiaDate()
+                      ? "bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100"
+                      : "bg-zinc-100 text-zinc-600 border-zinc-200 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700"
+                  }`}
+                >
+                  Hoje
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSyncDate(getYesterdayBahiaDate())}
+                  className={`px-2 py-1 text-[11px] font-medium rounded border transition-colors ${
+                    syncDate === getYesterdayBahiaDate()
+                      ? "bg-zinc-900 text-white border-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100"
+                      : "bg-zinc-100 text-zinc-600 border-zinc-200 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700"
+                  }`}
+                >
+                  Ontem
+                </button>
+              </div>
               <input
                 type="date"
                 value={syncDate}

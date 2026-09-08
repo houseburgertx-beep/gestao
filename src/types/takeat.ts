@@ -18,6 +18,8 @@ export interface TakeatCredentials {
   email: string;
   password?: string;
   token?: string;
+  restaurantId?: number | string;
+  restaurantName?: string;
   tokenExpiresAt?: string;
 }
 

@@ -27,6 +27,7 @@ import {
   validateUnitPermission,
   processOfficialRevenue,
   fetchTakeatGeneralCards,
+  sanitizeToken,
 } from "./takeatService";
 import {
   INITIAL_ACCOUNTS_PAYABLE,
@@ -410,17 +411,12 @@ class DataStore {
         email: "",
       };
     }
-    // Remove qualquer token de teste anterior (ex: tk_...) que não seja um JWT autêntico
-    if (cred.token && (cred.token.startsWith("tk_") || !cred.token.startsWith("eyJ"))) {
-      if (!cred.password) {
-        return {
-          unitId: unitId as any,
-          email: "",
-        };
-      }
+    const token = sanitizeToken(cred.token);
+    // Remove qualquer token de teste anterior (ex: tk_...)
+    if (token && token.startsWith("tk_")) {
       return { ...cred, token: undefined };
     }
-    return cred;
+    return { ...cred, token: token || undefined };
   }
 
   removeTakeatCredentials(unitId: string) {
@@ -437,7 +433,11 @@ class DataStore {
       STORAGE_KEYS.TAKEAT_CREDS,
       {}
     );
-    all[creds.unitId] = creds;
+    const cleanToken = sanitizeToken(creds.token);
+    all[creds.unitId] = {
+      ...creds,
+      token: cleanToken || undefined,
+    };
     this.set(STORAGE_KEYS.TAKEAT_CREDS, all);
   }
 
