@@ -19,6 +19,8 @@ import {
   Key,
   ShieldCheck,
   Building2,
+  Copy,
+  Check,
 } from "lucide-react";
 import { store } from "@/services/store";
 import { useUnit } from "@/contexts/UnitContext";
@@ -29,7 +31,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { QuickCreateModal } from "@/components/layout/QuickCreateModal";
-import { authenticateTakeat, sanitizeToken } from "@/services/takeatService";
+import { authenticateTakeat, sanitizeToken, inspectTakeatToken, DiscoveredStore } from "@/services/takeatService";
 import {
   BarChart,
   Bar,
@@ -41,6 +43,8 @@ import {
 } from "recharts";
 
 // Helper para obter a data atual no fuso de Brasília/Bahia (UTC-03:00)
+const CONSOLE_TOKEN_HELPER = "copy(localStorage.getItem('@gddashboard:token') || JSON.parse(localStorage.getItem('@managerarea:token') || '\"\"') || localStorage.getItem('token'))";
+
 function getTodayBahiaDate(): string {
   const now = new Date();
   const utc = now.getTime() + now.getTimezoneOffset() * 60000;
@@ -86,6 +90,8 @@ export default function FaturamentoPage() {
   const [authMode, setAuthMode] = useState<"login" | "token">("login");
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [credsError, setCredsError] = useState<string | null>(null);
+  const [applyToAllUnits, setApplyToAllUnits] = useState(true);
+  const [copiedHelper, setCopiedHelper] = useState(false);
 
   // Carregamento e purga rigorosa de qualquer dado que não seja um JWT real
   useEffect(() => {
@@ -250,55 +256,122 @@ export default function FaturamentoPage() {
       let liveToken = "";
       let restaurantId: number | string | undefined = undefined;
       let restaurantName: string | undefined = undefined;
+      let discoveredStores: DiscoveredStore[] = [];
 
       if (authMode === "login") {
         if (!credsEmail || !credsPassword) {
           throw new Error("Por favor, preencha o e-mail e a senha de acesso ao Takeat.");
         }
 
-        // Autenticação real direta na API da Takeat
+        // Autenticação real direta na Takeat testando Multilojas, Dashboard e clusters
         const authRes = await authenticateTakeat(credsEmail, credsPassword);
         liveToken = authRes.token;
         restaurantId = authRes.restaurantId;
         restaurantName = authRes.restaurantName;
+        discoveredStores = authRes.discoveredStores || [];
       } else {
         const clean = sanitizeToken(credsManualToken);
         if (!clean) {
           throw new Error("Informe o token Bearer da Takeat.");
         }
         liveToken = clean;
+        try {
+          const inspection = await inspectTakeatToken(clean);
+          restaurantId = inspection.restaurantId;
+          restaurantName = inspection.restaurantName;
+          discoveredStores = inspection.discoveredStores || [];
+        } catch {}
       }
 
-      // Salva as credenciais com o token autêntico e sanitizado
+      // Salva a credencial da unidade selecionada
+      const matchedForSelected = discoveredStores.find((s) => s.matchedUnitId === selectedSyncUnit);
+      const selectedRestId = matchedForSelected ? matchedForSelected.id : restaurantId;
+      const selectedRestName = matchedForSelected ? matchedForSelected.name : restaurantName;
+
       store.saveTakeatCredentials({
         unitId: selectedSyncUnit,
         email: credsEmail,
         password: credsPassword || undefined,
         token: liveToken,
-        restaurantId,
-        restaurantName,
+        restaurantId: selectedRestId,
+        restaurantName: selectedRestName,
         tokenExpiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
       });
 
+      // Se applyToAllUnits estiver marcado OU se descobriu lojas para outras filiais
+      const otherUnits: Exclude<UnitId, "all">[] = (["eunapolis", "teixeira", "foodpark", "central"] as const).filter(
+        (u) => u !== selectedSyncUnit
+      );
+
+      for (const u of otherUnits) {
+        const matchedStore = discoveredStores.find((s) => s.matchedUnitId === u);
+        if (matchedStore) {
+          store.saveTakeatCredentials({
+            unitId: u,
+            email: credsEmail,
+            password: credsPassword || undefined,
+            token: liveToken,
+            restaurantId: matchedStore.id,
+            restaurantName: matchedStore.name,
+            tokenExpiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+          });
+        } else if (applyToAllUnits) {
+          store.saveTakeatCredentials({
+            unitId: u,
+            email: credsEmail,
+            password: credsPassword || undefined,
+            token: liveToken,
+            tokenExpiresAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+          });
+        }
+      }
+
       setIsCredsModalOpen(false);
+
+      const detectedStoreNames = discoveredStores
+        .map((s) => `${s.name}${s.matchedUnitId ? ` (${UNIT_LABELS[s.matchedUnitId]})` : ""}`)
+        .join(", ");
+
       setSyncMessage({
-        text: `Conta Takeat conectada com sucesso para ${UNIT_LABELS[selectedSyncUnit]}! Realizando a primeira sincronização...`,
+        text: `Conta Takeat conectada com sucesso! ${detectedStoreNames ? `Filiais identificadas: ${detectedStoreNames}. ` : ""}Sincronizando faturamento...`,
         type: "success",
       });
 
-      // Dispara sincronização imediata dos dados reais para a data selecionada
+      // Dispara sincronização imediata
       setSyncing(true);
-      const syncResult = await store.syncTakeatUnit(selectedSyncUnit, syncDate, "diretoria", "all");
-      if (syncResult.success) {
-        setSyncMessage({
-          text: `Conta conectada e faturamento real importado com sucesso para ${UNIT_LABELS[selectedSyncUnit]} (${syncDate})!`,
-          type: "success",
-        });
+      if (applyToAllUnits || currentUnit === "all") {
+        const unitsToSync: Exclude<UnitId, "all">[] = ["eunapolis", "teixeira", "foodpark"];
+        const errors: string[] = [];
+        let successCount = 0;
+        for (const u of unitsToSync) {
+          const res = await store.syncTakeatUnit(u, syncDate, "diretoria", "all");
+          if (res.success) successCount++;
+          else errors.push(`${res.unitName}: ${res.error}`);
+        }
+        if (errors.length > 0) {
+          setSyncMessage({
+            text: `Conta conectada. Sincronização: ${successCount} unidade(s) atualizada(s). Avisos: ${errors.join(" | ")}`,
+            type: errors.length === unitsToSync.length ? "error" : "success",
+          });
+        } else {
+          setSyncMessage({
+            text: `Conta conectada e faturamento oficial importado com sucesso para todas as filiais (${syncDate})!`,
+            type: "success",
+          });
+        }
       } else {
-        setSyncMessage({
-          text: `Conta conectada! Porém a consulta do dia retornou: ${syncResult.error}`,
-          type: "error",
-        });
+        const syncResult = await store.syncTakeatUnit(selectedSyncUnit, syncDate, "diretoria", "all");
+        if (syncResult.success) {
+          setSyncMessage({
+            text: `Conta conectada e faturamento oficial importado com sucesso para ${UNIT_LABELS[selectedSyncUnit]} (${syncDate})!`,
+            type: "success",
+          });
+        } else {
+          setSyncMessage({
+            text: `Conta conectada! Porém a consulta retornou: ${syncResult.error}`,
+            type: "error",
+          });
+        }
       }
     } catch (err: any) {
       setCredsError(err.message || "Erro desconhecido ao conectar com a Takeat.");
@@ -727,13 +800,13 @@ export default function FaturamentoPage() {
         isOpen={isCredsModalOpen}
         onClose={() => setIsCredsModalOpen(false)}
         title={`Conectar Conta Takeat — ${UNIT_LABELS[selectedSyncUnit]}`}
-        subtitle="Autenticação direta com o servidor oficial da Takeat (POST /public/api/sessions)"
+        subtitle="Autenticação com a Takeat (Multilojas / Dashboard Oficial)"
       >
         <form onSubmit={handleSaveCreds} className="space-y-4 text-xs">
           {/* Unidade */}
           <div>
             <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
-              Unidade a Conectar
+              Unidade Principal a Conectar
             </label>
             <select
               value={selectedSyncUnit}
@@ -793,12 +866,12 @@ export default function FaturamentoPage() {
             <>
               <div>
                 <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
-                  E-mail de Acesso Takeat (PDV)
+                  E-mail de Acesso Takeat (Multilojas ou Dashboard)
                 </label>
                 <input
                   type="email"
                   required
-                  placeholder="ex: restaurante@takeat.app"
+                  placeholder="ex: contato@house190.com.br"
                   value={credsEmail}
                   onChange={(e) => setCredsEmail(e.target.value)}
                   className="w-full h-9 px-3 rounded border border-zinc-200 bg-white dark:bg-zinc-800 dark:border-zinc-700 focus:outline-none"
@@ -818,14 +891,14 @@ export default function FaturamentoPage() {
                   className="w-full h-9 px-3 rounded border border-zinc-200 bg-white dark:bg-zinc-800 dark:border-zinc-700 focus:outline-none"
                 />
                 <span className="text-[10px] text-zinc-400 mt-1 block">
-                  A senha é autenticada diretamente com o endpoint oficial da Takeat para gerar o token Bearer e renová-lo a cada 15 dias caso expire (HTTP 401).
+                  Autentica com Takeat Multistores e Dashboard, identifica automaticamente as lojas (Eunápolis, Teixeira de Freitas) e renova a sessão de relatórios se necessário.
                 </span>
               </div>
             </>
           ) : (
             <div>
               <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
-                Token Bearer Takeat
+                Token Bearer Takeat (@gddashboard:token ou @managerarea:token)
               </label>
               <textarea
                 rows={3}
@@ -838,14 +911,42 @@ export default function FaturamentoPage() {
               <span className="text-[10px] text-zinc-400 mt-1 block">
                 Token enviado no cabeçalho: <code>Authorization: Bearer &#123;TOKEN&#125;</code>
               </span>
-              <div className="p-2.5 bg-zinc-50 rounded border border-zinc-200 text-[11px] text-zinc-600 space-y-1 dark:bg-zinc-800/50 dark:border-zinc-700 dark:text-zinc-300">
-                <p className="font-semibold text-zinc-700 dark:text-zinc-200">Como copiar da sua aba aberta da Takeat:</p>
-                <p>1. Na aba da Takeat (Dashboard ou Multilojas), aperte <b>F12</b> (Inspecionar).</p>
-                <p>2. Vá na aba <b>Console</b> e digite: <code className="bg-zinc-200 px-1 rounded dark:bg-zinc-700">localStorage.getItem(&apos;token&apos;)</code></p>
-                <p>3. Copie o código gerado (sem as aspas) e cole acima.</p>
+              <div className="mt-2 p-2.5 bg-zinc-50 rounded border border-zinc-200 text-[11px] text-zinc-600 space-y-2 dark:bg-zinc-800/50 dark:border-zinc-700 dark:text-zinc-300">
+                <p className="font-semibold text-zinc-700 dark:text-zinc-200">Como copiar da sua aba aberta no Takeat:</p>
+                <p>1. Na aba onde o Takeat está aberto (Multilojas ou Dashboard), aperte <b>F12</b> (ou Cmd+Opt+I no Mac).</p>
+                <p>2. Clique na aba <b>Console</b>, cole o código abaixo e aperte Enter:</p>
+                <div className="flex items-center gap-2 bg-zinc-100 p-2 rounded font-mono text-[10px] text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 overflow-x-auto">
+                  <span className="flex-1 select-all">copy(localStorage.getItem(&apos;@gddashboard:token&apos;) || JSON.parse(localStorage.getItem(&apos;@managerarea:token&apos;) || &apos;&quot;&quot;&apos;) || localStorage.getItem(&apos;token&apos;))</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(CONSOLE_TOKEN_HELPER);
+                      setCopiedHelper(true);
+                      setTimeout(() => setCopiedHelper(false), 2000);
+                    }}
+                    className="px-2 py-1 bg-white border border-zinc-300 rounded hover:bg-zinc-50 text-[10px] shrink-0 dark:bg-zinc-800 dark:border-zinc-700"
+                  >
+                    {copiedHelper ? "Copiado!" : "Copiar Comando"}
+                  </button>
+                </div>
+                <p>3. O token será copiado diretamente para sua área de transferência. Basta colar no campo acima.</p>
               </div>
             </div>
           )}
+
+          {/* Opção de aplicar em todas as filiais */}
+          <div className="flex items-center gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+            <input
+              type="checkbox"
+              id="applyAllUnits"
+              checked={applyToAllUnits}
+              onChange={(e) => setApplyToAllUnits(e.target.checked)}
+              className="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-700"
+            />
+            <label htmlFor="applyAllUnits" className="text-zinc-600 dark:text-zinc-300 select-none cursor-pointer">
+              Configurar automaticamente todas as filiais House 190 vinculadas a esta conta Takeat
+            </label>
+          </div>
 
           <div className="pt-2 flex items-center justify-between gap-2">
             {unitConnections[selectedSyncUnit] ? (

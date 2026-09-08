@@ -8,26 +8,53 @@ import {
 import { UnitId } from "@/types";
 
 const TAKEAT_CONFIG = {
-  AUTH_URL: "https://backend-pdv-2.takeat.app/public/api/sessions",
-  AUTH_FALLBACK_URL: "https://backend-pdv.takeat.app/public/api/sessions",
   REPORTS_URL: "https://backend-pdv-2.takeat.app/restaurants/v2/reports/general-cards",
   REPORTS_FALLBACK_URL: "https://backend-pdv.takeat.app/restaurants/v2/reports/general-cards",
+  SHOW_RESTAURANT_URL: "https://backend-pdv-2.takeat.app/restaurants/show",
+  MULTISTORES_MINIMAL_URL: "https://backend-pdv-2.takeat.app/restaurants/multistores/minimal",
 };
 
 /**
- * Sanitiza e limpa tokens Bearer de espaços, quebras de linha, aspas e prefixo 'Bearer '.
+ * Sanitiza e limpa tokens Bearer de espaços, quebras de linha, aspas, JSON e prefixo \x27Bearer \x27.
  */
 export function sanitizeToken(raw: any): string {
-  if (!raw || typeof raw !== "string") return "";
-  let clean = raw.trim();
-  // Remove aspas externas
-  clean = clean.replace(/^["'`]+|["'`]+$/g, "").trim();
-  // Remove prefixo "Bearer " (case-insensitive)
-  if (/^bearer\s+/i.test(clean)) {
-    clean = clean.replace(/^bearer\s+/i, "").trim();
+  if (!raw) return "";
+  let clean = String(raw).trim();
+
+  // Trata caso o usuário tenha colado um objeto JSON (ex: {"token":"..."} ou do localStorage)
+  if (clean.startsWith("{") && clean.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(clean);
+      clean =
+        parsed.token ||
+        parsed.access_token ||
+        parsed.jwt ||
+        parsed.tokenClub ||
+        clean;
+    } catch {}
   }
+
+  // Remove aspas simples, duplas ou crases externas repetidamente
+  while (
+    (clean.startsWith('"') && clean.endsWith('"')) ||
+    (clean.startsWith("'") && clean.endsWith("'")) ||
+    (clean.startsWith("`") && clean.endsWith("`"))
+  ) {
+    clean = clean.slice(1, -1).trim();
+  }
+
+  // Remove prefixo "Bearer " (case-insensitive)
+  clean = clean.replace(/^bearer\s+/i, "").trim();
+
   // Remove aspas novamente se estavam dentro do Bearer
-  clean = clean.replace(/^["'`]+|["'`]+$/g, "").trim();
+  while (
+    (clean.startsWith('"') && clean.endsWith('"')) ||
+    (clean.startsWith("'") && clean.endsWith("'")) ||
+    (clean.startsWith("`") && clean.endsWith("`"))
+  ) {
+    clean = clean.slice(1, -1).trim();
+  }
+
   return clean;
 }
 
@@ -84,6 +111,27 @@ export function getBahiaIsoDayRange(dateStr: string): { startDate: string; endDa
 }
 
 /**
+ * Mapeia o nome retornado pela Takeat para o identificador de unidade do House 190.
+ */
+export function matchStoreNameToUnit(name: string): Exclude<UnitId, "all"> | undefined {
+  if (!name) return undefined;
+  const n = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (n.includes("eunapolis") || n.includes("euna")) {
+    return "eunapolis";
+  }
+  if (n.includes("teixeira") || n.includes("tx")) {
+    return "teixeira";
+  }
+  if (n.includes("food") || n.includes("park")) {
+    return "foodpark";
+  }
+  if (n.includes("central") || n.includes("producao")) {
+    return "central";
+  }
+  return undefined;
+}
+
+/**
  * Validação de permissões por perfil e unidade.
  */
 export function validateUnitPermission(
@@ -100,14 +148,25 @@ export function validateUnitPermission(
   return false;
 }
 
+export interface DiscoveredStore {
+  id: number | string;
+  name: string;
+  matchedUnitId?: Exclude<UnitId, "all">;
+}
+
 export interface AuthenticateTakeatResult {
   token: string;
   restaurantId?: number | string;
   restaurantName?: string;
+  discoveredStores?: DiscoveredStore[];
+  authType: "multistores" | "restaurants" | "api";
 }
 
 /**
- * Realiza a autenticação na Takeat e obtém um novo Bearer token.
+ * Realiza a autenticação na Takeat testando em cascata os serviços:
+ * 1. Multilojas (Takeat Multistores - multilojas.takeat.app)
+ * 2. Painel Restaurante (Takeat Dashboard - dashboard.takeat.app)
+ * 3. Fallbacks nos clusters alternativos e API de sessões
  */
 export async function authenticateTakeat(
   email: string,
@@ -117,17 +176,28 @@ export async function authenticateTakeat(
     throw new Error("Credenciais incompletas: informe o e-mail e a senha cadastrados na Takeat.");
   }
 
-  const cleanEmail = email.trim();
-  const urlsToTry = [
-    TAKEAT_CONFIG.AUTH_URL,
-    TAKEAT_CONFIG.AUTH_FALLBACK_URL,
-    "https://webhook.takeat.app/public/api/sessions",
-  ];
-  let lastError = "";
+  const cleanEmail = email.trim().toLowerCase();
 
-  for (const authUrl of urlsToTry) {
+  const authAttempts: Array<{ url: string; type: "multistores" | "restaurants" | "api" }> = [
+    // 1. Multilojas oficial (cluster 2)
+    { url: "https://backend-pdv-2.takeat.app/public/sessions/multistores", type: "multistores" },
+    // 2. Dashboard restaurante individual (cluster 2)
+    { url: "https://backend-pdv-2.takeat.app/public/sessions/restaurants", type: "restaurants" },
+    // 3. Multilojas cluster 1
+    { url: "https://backend-pdv.takeat.app/public/sessions/multistores", type: "multistores" },
+    // 4. Dashboard cluster 1
+    { url: "https://backend-pdv.takeat.app/public/sessions/restaurants", type: "restaurants" },
+    // 5. External sessions
+    { url: "https://backend-pdv-2.takeat.app/public/api/sessions", type: "api" },
+    { url: "https://backend-pdv.takeat.app/public/api/sessions", type: "api" },
+  ];
+
+  let lastErrorDetail = "";
+  let lastStatus = 0;
+
+  for (const attempt of authAttempts) {
     try {
-      const response = await fetch(authUrl, {
+      const response = await fetch(attempt.url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -137,18 +207,13 @@ export async function authenticateTakeat(
       });
 
       if (!response.ok) {
-        let detail = "";
+        lastStatus = response.status;
         try {
           const errData = await response.json();
-          detail = errData.message || errData.error || (typeof errData === "string" ? errData : "");
+          lastErrorDetail = errData.message || errData.error || "";
         } catch {
-          detail = await response.text().catch(() => "");
+          lastErrorDetail = await response.text().catch(() => "");
         }
-
-        if (response.status === 401 || response.status === 400) {
-          throw new Error(`E-mail ou senha incorretos na Takeat.${detail ? ` (${detail})` : ""}`);
-        }
-        lastError = `HTTP ${response.status}: ${detail}`;
         continue;
       }
 
@@ -157,31 +222,135 @@ export async function authenticateTakeat(
         data.token ||
         data.access_token ||
         data.jwt ||
-        (data.data && (data.data.token || data.data.access_token));
+        data.data?.token ||
+        data.data?.access_token ||
+        data.user?.token;
 
       const token = sanitizeToken(rawToken);
 
       if (token) {
-        const rest = data.restaurant || (data.data && data.data.restaurant);
+        // Tenta descobrir as lojas conectadas usando este token autêntico
+        const inspection = await inspectTakeatToken(token);
         return {
           token,
-          restaurantId: rest?.id,
-          restaurantName: rest?.name || rest?.fantasy_name,
+          restaurantId: inspection.restaurantId || data.restaurant?.id || data.data?.restaurant?.id,
+          restaurantName: inspection.restaurantName || data.restaurant?.name || data.data?.restaurant?.name,
+          discoveredStores: inspection.discoveredStores,
+          authType: attempt.type,
         };
       }
-    } catch (err: any) {
-      if (err.message && err.message.includes("E-mail ou senha incorretos")) {
-        throw err;
-      }
-      lastError = err.message || "Erro de conexão";
+    } catch (netErr: any) {
+      lastErrorDetail = netErr.message || "Erro de conexão";
     }
   }
 
-  throw new Error(`Falha na autenticação da Takeat: ${lastError || "Verifique e-mail e senha"}.`);
+  if (lastStatus === 401 || lastStatus === 400) {
+    throw new Error(
+      `E-mail ou senha incorretos na Takeat. ${lastErrorDetail ? `(${lastErrorDetail})` : "Verifique seu usuário e senha."}`
+    );
+  }
+
+  throw new Error(`Falha na autenticação da Takeat: ${lastErrorDetail || "Verifique suas credenciais"}.`);
 }
 
 /**
- * Consulta a Takeat API pelo endpoint oficial com fallback entre clusters e suporte a parâmetros ISO:
+ * Inspeciona um Bearer token já existente na Takeat, descobrindo as lojas cadastradas
+ * através de /restaurants/multistores/minimal ou /restaurants/show.
+ */
+export async function inspectTakeatToken(token: string): Promise<AuthenticateTakeatResult> {
+  const cleanToken = sanitizeToken(token);
+  if (!cleanToken) {
+    throw new Error("Token não fornecido.");
+  }
+
+  const discoveredStores: DiscoveredStore[] = [];
+  let singleRestaurantId: number | string | undefined = undefined;
+  let singleRestaurantName: string | undefined = undefined;
+
+  // 1. Tenta buscar a lista de multilojas (/restaurants/multistores/minimal)
+  const multiUrls = [
+    TAKEAT_CONFIG.MULTISTORES_MINIMAL_URL,
+    "https://backend-pdv.takeat.app/restaurants/multistores/minimal",
+  ];
+
+  for (const mUrl of multiUrls) {
+    try {
+      const multiRes = await fetch(mUrl, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${cleanToken}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (multiRes.ok) {
+        const storesList = await multiRes.json();
+        if (Array.isArray(storesList) && storesList.length > 0) {
+          for (const s of storesList) {
+            if (s && s.id) {
+              const matched = matchStoreNameToUnit(s.name || s.fantasy_name || "");
+              discoveredStores.push({
+                id: s.id,
+                name: s.name || s.fantasy_name || `Loja #${s.id}`,
+                matchedUnitId: matched,
+              });
+            }
+          }
+          break;
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Se não encontrou lista de multilojas, tenta /restaurants/show para loja individual
+  if (discoveredStores.length === 0) {
+    const showUrls = [
+      TAKEAT_CONFIG.SHOW_RESTAURANT_URL,
+      "https://backend-pdv.takeat.app/restaurants/show",
+    ];
+
+    for (const sUrl of showUrls) {
+      try {
+        const showRes = await fetch(sUrl, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${cleanToken}`,
+            Accept: "application/json",
+          },
+        });
+
+        if (showRes.ok) {
+          const showData = await showRes.json();
+          const target = showData.data || showData;
+          singleRestaurantId = target.id || target.restaurant?.id;
+          singleRestaurantName = target.name || target.fantasy_name || target.restaurant?.name;
+          if (singleRestaurantId) {
+            const matched = matchStoreNameToUnit(singleRestaurantName || "");
+            discoveredStores.push({
+              id: singleRestaurantId,
+              name: singleRestaurantName || `Restaurante #${singleRestaurantId}`,
+              matchedUnitId: matched,
+            });
+            break;
+          }
+        }
+      } catch {}
+    }
+  }
+
+  return {
+    token: cleanToken,
+    restaurantId: singleRestaurantId,
+    restaurantName: singleRestaurantName,
+    discoveredStores,
+    authType: discoveredStores.length > 1 ? "multistores" : "restaurants",
+  };
+}
+
+/**
+ * Consulta a Takeat API pelo endpoint oficial com suporte aos formatos da API da Takeat
+ * e seleção por ids (multilojas) ou restaurant_id:
+ * GET /restaurants/v2/reports/general-cards
  */
 export async function fetchTakeatGeneralCards(
   credentials: TakeatCredentials,
@@ -198,24 +367,38 @@ export async function fetchTakeatGeneralCards(
   }
 
   if (!token) {
-    throw new Error("Esta unidade ainda não possui uma sessão válida no Takeat. Clique em 'Conectar Takeat' e informe seu e-mail e senha do PDV.");
+    throw new Error(
+      "Esta unidade ainda não possui uma sessão válida no Takeat. Clique em \x27Conectar Takeat\x27 e informe seu e-mail e senha."
+    );
   }
 
-  // Tenta URLs nos clusters disponíveis
-  const urlsToTry: string[] = [
-    // 1. backend-pdv-2 oficial com formato ISO direto
-    `${TAKEAT_CONFIG.REPORTS_URL}?start_date=${startDateIso}&end_date=${endDateIso}`,
-    // 2. backend-pdv-2 com restaurant_id se conhecido
-    ...(credentials.restaurantId
-      ? [`${TAKEAT_CONFIG.REPORTS_URL}?start_date=${startDateIso}&end_date=${endDateIso}&restaurant_id=${credentials.restaurantId}`]
-      : []),
-    // 3. backend-pdv-2 com percent-encoding
-    `${TAKEAT_CONFIG.REPORTS_URL}?start_date=${encodeURIComponent(startDateIso)}&end_date=${encodeURIComponent(endDateIso)}`,
-    // 4. backend-pdv primário
-    `${TAKEAT_CONFIG.REPORTS_FALLBACK_URL}?start_date=${startDateIso}&end_date=${endDateIso}`,
-    // 5. webhook cluster
-    `https://webhook.takeat.app/restaurants/v2/reports/general-cards?start_date=${startDateIso}&end_date=${endDateIso}`,
-  ];
+  // Monta as variações de URL aceitas pela Takeat:
+  const urlsToTry: string[] = [];
+
+  // Se houver restaurantId definido para a unidade, tenta com ids (padrão Multilojas) e com restaurant_id
+  if (credentials.restaurantId) {
+    urlsToTry.push(
+      `${TAKEAT_CONFIG.REPORTS_URL}?start_date=${startDateIso}&end_date=${endDateIso}&ids=${credentials.restaurantId}`
+    );
+    urlsToTry.push(
+      `${TAKEAT_CONFIG.REPORTS_URL}?start_date=${startDateIso}&end_date=${endDateIso}&restaurant_id=${credentials.restaurantId}`
+    );
+  }
+
+  // Formato padrão direto (para tokens específicos de uma loja)
+  urlsToTry.push(
+    `${TAKEAT_CONFIG.REPORTS_URL}?start_date=${startDateIso}&end_date=${endDateIso}`
+  );
+
+  // Clusters secundários como fallback
+  if (credentials.restaurantId) {
+    urlsToTry.push(
+      `${TAKEAT_CONFIG.REPORTS_FALLBACK_URL}?start_date=${startDateIso}&end_date=${endDateIso}&ids=${credentials.restaurantId}`
+    );
+  }
+  urlsToTry.push(
+    `${TAKEAT_CONFIG.REPORTS_FALLBACK_URL}?start_date=${startDateIso}&end_date=${endDateIso}`
+  );
 
   let lastStatus = 0;
   let lastErrorDetail = "";
@@ -249,8 +432,12 @@ export async function fetchTakeatGeneralCards(
 
       if (response.ok) {
         const json = await response.json();
-        // Valida se a resposta contém o objeto esperado
-        if (json && (json.payment_without_tax || json.data?.payment_without_tax)) {
+        if (
+          json &&
+          (json.payment_without_tax ||
+            json.data?.payment_without_tax ||
+            json.report?.payment_without_tax)
+        ) {
           return json;
         }
       }
@@ -263,13 +450,13 @@ export async function fetchTakeatGeneralCards(
         lastErrorDetail = await response.text().catch(() => "");
       }
     } catch (netErr: any) {
-      lastErrorDetail = netErr.message || "Erro de rede";
+      lastErrorDetail = netErr.message || "Erro de conexão";
     }
   }
 
   if (lastStatus === 401) {
     throw new Error(
-      `Takeat (HTTP 401 - Não autorizado): ${lastErrorDetail || "Token inválido, expirado ou usuário sem permissão para esta unidade no Takeat"}.`
+      `Takeat (HTTP 401 - Não autorizado): ${lastErrorDetail || "Token inválido ou expirado"}. Conecte novamente a conta da Takeat.`
     );
   }
   if (lastStatus === 400 || lastStatus === 422) {
@@ -290,7 +477,6 @@ export function processOfficialRevenue(
   dateStr: string,
   response: TakeatGeneralCardsResponse
 ): TakeatRevenueRecord {
-  // Suporta payment_without_tax tanto na raiz quanto dentro de data
   const pwt: TakeatPaymentWithoutTax | undefined =
     response?.payment_without_tax ||
     (response as any)?.data?.payment_without_tax ||
@@ -298,7 +484,7 @@ export function processOfficialRevenue(
 
   if (!pwt || typeof pwt !== "object") {
     throw new Error(
-      "Objeto 'payment_without_tax' não encontrado na resposta oficial da Takeat."
+      "Objeto \x27payment_without_tax\x27 não encontrado na resposta oficial da Takeat."
     );
   }
 
@@ -307,7 +493,6 @@ export function processOfficialRevenue(
   const rawDelivery = parseBRLNumber(pwt.delivery);
   const rawIfood = parseBRLNumber(pwt.ifood);
 
-  // Canais
   const salao = Math.round((rawBalcony + rawTable) * 100) / 100;
   const delivery = rawDelivery;
   const ifood = rawIfood;
