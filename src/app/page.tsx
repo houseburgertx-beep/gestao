@@ -54,8 +54,9 @@ export default function DashboardPage() {
   const overdueAccounts = accounts.filter((a) => a.status === "overdue");
   const overdueTotal = overdueAccounts.reduce((acc, cur) => acc + cur.finalAmount, 0);
 
+  const todayBahia = new Date(Date.now() - 3 * 3600000).toISOString().split("T")[0];
   const scheduledToday = accounts.filter(
-    (a) => a.dueDate === "2026-09-07" && a.status !== "paid" && a.status !== "canceled"
+    (a) => a.dueDate === todayBahia && a.status !== "paid" && a.status !== "canceled"
   );
   const scheduledTodayTotal = scheduledToday.reduce((acc, cur) => acc + cur.finalAmount, 0);
 
@@ -122,12 +123,12 @@ export default function DashboardPage() {
       type: "danger",
     });
   }
-  // Check if Foodpark or any unit is below goal projection
-  const lowUnits = goals.filter((g) => (g.projectedClose || 0) < g.targetAmount);
-  if (lowUnits.length > 0) {
+  // Alerta de metas apenas quando meta definida for > 0
+  const lowUnits = goals.filter((g) => g.targetAmount > 0 && (g.projectedClose || 0) < g.targetAmount);
+  for (const g of lowUnits) {
     attentionItems.push({
-      id: "att-goal",
-      text: "House Foodpark está projetando 6% abaixo da meta mensal",
+      id: `att-goal-${g.unitId}`,
+      text: `Unidade ${g.unitId} está abaixo da meta mensal definida`,
       link: "/metas",
       type: "warning",
     });

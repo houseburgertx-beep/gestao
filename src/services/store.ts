@@ -66,6 +66,57 @@ export const INITIAL_TAKEAT_CREDENTIALS: Record<string, TakeatCredentials> = {};
 
 
 class DataStore {
+  constructor() {
+    if (typeof window !== "undefined") {
+      try {
+        const purgedKey = "house190_purged_mock_v4";
+        if (!localStorage.getItem(purgedKey)) {
+          // Preserva estritamente as credenciais autênticas e faturamentos da Takeat
+          const takeatCreds = localStorage.getItem(STORAGE_KEYS.TAKEAT_CREDS);
+          const takeatRevs = localStorage.getItem(STORAGE_KEYS.TAKEAT_REVENUES);
+
+          // Zera dados falsos/mock de todas as áreas
+          localStorage.removeItem(STORAGE_KEYS.ACCOUNTS);
+          localStorage.removeItem(STORAGE_KEYS.SUPPLIERS);
+          localStorage.removeItem(STORAGE_KEYS.TAXES);
+          localStorage.removeItem(STORAGE_KEYS.GOALS);
+          localStorage.removeItem(STORAGE_KEYS.EMPLOYEES);
+          localStorage.removeItem(STORAGE_KEYS.VACATIONS);
+          localStorage.removeItem(STORAGE_KEYS.TASKS);
+          localStorage.removeItem(STORAGE_KEYS.DOCS);
+          localStorage.removeItem(STORAGE_KEYS.LOGS);
+          localStorage.removeItem(STORAGE_KEYS.NOTIFS);
+          localStorage.removeItem(STORAGE_KEYS.REVENUES);
+
+          if (takeatCreds) localStorage.setItem(STORAGE_KEYS.TAKEAT_CREDS, takeatCreds);
+          if (takeatRevs) localStorage.setItem(STORAGE_KEYS.TAKEAT_REVENUES, takeatRevs);
+
+          localStorage.setItem(purgedKey, "true");
+        }
+      } catch {}
+    }
+  }
+
+  // Permite ao usuário resetar para estado 100% limpo quando desejar
+  clearAllMockData() {
+    if (typeof window === "undefined") return;
+    try {
+      const takeatCreds = localStorage.getItem(STORAGE_KEYS.TAKEAT_CREDS);
+      localStorage.removeItem(STORAGE_KEYS.ACCOUNTS);
+      localStorage.removeItem(STORAGE_KEYS.SUPPLIERS);
+      localStorage.removeItem(STORAGE_KEYS.TAXES);
+      localStorage.removeItem(STORAGE_KEYS.GOALS);
+      localStorage.removeItem(STORAGE_KEYS.EMPLOYEES);
+      localStorage.removeItem(STORAGE_KEYS.VACATIONS);
+      localStorage.removeItem(STORAGE_KEYS.TASKS);
+      localStorage.removeItem(STORAGE_KEYS.DOCS);
+      localStorage.removeItem(STORAGE_KEYS.LOGS);
+      localStorage.removeItem(STORAGE_KEYS.NOTIFS);
+      localStorage.removeItem(STORAGE_KEYS.REVENUES);
+      if (takeatCreds) localStorage.setItem(STORAGE_KEYS.TAKEAT_CREDS, takeatCreds);
+      window.dispatchEvent(new Event("house190_data_updated"));
+    } catch {}
+  }
   private get<T>(key: string, initial: T): T {
     if (typeof window === "undefined") return initial;
     try {
@@ -303,9 +354,24 @@ class DataStore {
     return newRev;
   }
 
-  // GOALS (Cálculo em tempo real baseado no faturamento oficial)
+  // GOALS (Cálculo em tempo real baseado no faturamento oficial, sem valores falsos)
   getGoals(): UnitGoal[] {
-    const rawGoals = this.get<UnitGoal[]>(STORAGE_KEYS.GOALS, INITIAL_GOALS);
+    let rawGoals = this.get<UnitGoal[]>(STORAGE_KEYS.GOALS, []);
+    if (rawGoals.length === 0) {
+      const units: Array<Exclude<UnitId, "all">> = ["eunapolis", "teixeira", "foodpark", "central"];
+      rawGoals = units.map((u) => ({
+        id: `goal-${u}`,
+        unitId: u,
+        month: 9,
+        year: 2026,
+        targetAmount: 0,
+        currentRealized: 0,
+        previousMonthRealized: 0,
+        dailyAverageTarget: 0,
+        currentDailyAverage: 0,
+        projectedClose: 0,
+      }));
+    }
     const revenues = this.getRevenues();
 
     return rawGoals.map((g) => {
@@ -337,6 +403,29 @@ class DataStore {
         projectedClose,
       };
     });
+  }
+
+
+  setGoalTarget(unitId: string, targetAmount: number, month: number = 9, year: number = 2026) {
+    const goals = this.getGoals();
+    const existingIndex = goals.findIndex((g) => g.unitId === unitId && g.month === month && g.year === year);
+    if (existingIndex >= 0) {
+      goals[existingIndex].targetAmount = targetAmount;
+    } else {
+      goals.push({
+        id: `goal-${unitId}-${year}-${month}`,
+        unitId: unitId as any,
+        month,
+        year,
+        targetAmount,
+        currentRealized: 0,
+        previousMonthRealized: 0,
+        dailyAverageTarget: targetAmount / 30,
+        currentDailyAverage: 0,
+        projectedClose: 0,
+      });
+    }
+    this.set(STORAGE_KEYS.GOALS, goals);
   }
 
   // EMPLOYEES & VACATIONS

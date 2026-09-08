@@ -156,14 +156,51 @@ export default function FaturamentoPage() {
   const activePeriodStr = viewMode === "daily" ? selectedDate : selectedMonth;
 
   const filteredRecords = useMemo(() => {
-    return takeatRevenues.filter((r) => {
-      if (viewMode === "daily") {
-        return r.date === selectedDate;
-      } else {
-        return r.date.startsWith(selectedMonth);
+    if (viewMode === "daily") {
+      return takeatRevenues.filter((r) => r.date === selectedDate);
+    } else {
+      const monthRecords = takeatRevenues.filter((r) => r.date.startsWith(selectedMonth));
+      const byUnitMap = new Map<string, TakeatRevenueRecord>();
+
+      const targetUnits: Array<Exclude<UnitId, "all">> =
+        currentUnit === "all"
+          ? ["eunapolis", "teixeira", "foodpark"]
+          : [currentUnit];
+
+      for (const u of targetUnits) {
+        const fullMonth = monthRecords.find((r) => r.unitId === u && r.date === selectedMonth);
+        if (fullMonth) {
+          byUnitMap.set(u, fullMonth);
+        } else {
+          const daysOfUnit = monthRecords.filter((r) => r.unitId === u && r.date !== selectedMonth);
+          if (daysOfUnit.length > 0) {
+            const sumSalao = daysOfUnit.reduce((a, c) => a + c.salao, 0);
+            const sumDelivery = daysOfUnit.reduce((a, c) => a + c.delivery, 0);
+            const sumIfood = daysOfUnit.reduce((a, c) => a + c.ifood, 0);
+            const sumTotal = daysOfUnit.reduce((a, c) => a + c.totalRevenue, 0);
+            byUnitMap.set(u, {
+              id: `takeat-${u}-${selectedMonth}-computed`,
+              unitId: u,
+              date: selectedMonth,
+              startDateUtc: daysOfUnit[0].startDateUtc,
+              endDateUtc: daysOfUnit[daysOfUnit.length - 1].endDateUtc,
+              salao: sumSalao,
+              delivery: sumDelivery,
+              ifood: sumIfood,
+              totalRevenue: sumTotal,
+              rawBalcony: 0,
+              rawTable: 0,
+              rawDelivery: sumDelivery,
+              rawIfood: sumIfood,
+              source: "takeat",
+              syncedAt: daysOfUnit[0].syncedAt,
+            });
+          }
+        }
       }
-    });
-  }, [takeatRevenues, viewMode, selectedDate, selectedMonth]);
+      return Array.from(byUnitMap.values());
+    }
+  }, [takeatRevenues, viewMode, selectedDate, selectedMonth, currentUnit]);
 
   // KPIs Oficiais
   const totalSalao = filteredRecords.reduce((acc, cur) => acc + cur.salao, 0);
@@ -551,7 +588,7 @@ export default function FaturamentoPage() {
             className="bg-zinc-900 text-white hover:bg-zinc-800 gap-1.5 shadow-2xs dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
-            <span>Sincronizar Vendas</span>
+            <span>{viewMode === "monthly" ? "Sincronizar Mês Inteiro" : "Sincronizar Vendas do Dia"}</span>
           </Button>
 
           {/* Botão de Configurações da Conexão */}
@@ -601,7 +638,7 @@ export default function FaturamentoPage() {
         <div className="p-4 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-              {viewMode === "daily" ? "Faturamento do Dia" : "Faturamento do Mês"}
+              {viewMode === "daily" ? "Faturamento do Dia" : "Faturamento Total do Mês Inteiro"}
             </span>
             <div className="h-7 w-7 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
               <DollarSign className="h-4 w-4" />
