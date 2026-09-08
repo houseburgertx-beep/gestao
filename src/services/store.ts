@@ -410,14 +410,26 @@ class DataStore {
         email: "",
       };
     }
-    // Remove resquícios de tokens de teste anteriores se houver
-    if (cred.token && cred.token.includes("live_session_takeat")) {
-      return {
-        unitId: unitId as any,
-        email: "",
-      };
+    // Remove qualquer token de teste anterior (ex: tk_...) que não seja um JWT autêntico
+    if (cred.token && (cred.token.startsWith("tk_") || !cred.token.startsWith("eyJ"))) {
+      if (!cred.password) {
+        return {
+          unitId: unitId as any,
+          email: "",
+        };
+      }
+      return { ...cred, token: undefined };
     }
     return cred;
+  }
+
+  removeTakeatCredentials(unitId: string) {
+    const all = this.get<Record<string, TakeatCredentials>>(
+      STORAGE_KEYS.TAKEAT_CREDS,
+      {}
+    );
+    delete all[unitId];
+    this.set(STORAGE_KEYS.TAKEAT_CREDS, all);
   }
 
   saveTakeatCredentials(creds: TakeatCredentials) {

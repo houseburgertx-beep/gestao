@@ -80,16 +80,32 @@ export default function FaturamentoPage() {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [credsError, setCredsError] = useState<string | null>(null);
 
-  // Carregamento e purga inicial de mocks
+  // Carregamento e purga rigorosa de qualquer dado que não seja um JWT real
   useEffect(() => {
     try {
-      const storedRevs = localStorage.getItem("house190_takeat_revenues");
-      if (storedRevs && (storedRevs.includes("takeat-eunapolis-2026-09-07") || storedRevs.includes("tk_eun_live_session_takeat"))) {
-        localStorage.removeItem("house190_takeat_revenues");
+      const credsRaw = localStorage.getItem("house190_takeat_creds");
+      if (credsRaw) {
+        const parsed = JSON.parse(credsRaw);
+        let changed = false;
+        for (const k of Object.keys(parsed)) {
+          const item = parsed[k];
+          // Se o token for mock (começa com tk_ ou não começa com eyJ) e não tem senha real
+          if (
+            (item?.token && !item.token.startsWith("eyJ")) ||
+            (item?.email && item.email.includes("@house190.com.br"))
+          ) {
+            delete parsed[k];
+            changed = true;
+          }
+        }
+        if (changed) {
+          localStorage.setItem("house190_takeat_creds", JSON.stringify(parsed));
+        }
       }
-      const storedCreds = localStorage.getItem("house190_takeat_creds");
-      if (storedCreds && storedCreds.includes("live_session_takeat")) {
-        localStorage.removeItem("house190_takeat_creds");
+
+      const revsRaw = localStorage.getItem("house190_takeat_revenues");
+      if (revsRaw && (revsRaw.includes("tk_") || revsRaw.includes("takeat-eunapolis-2026-09-07"))) {
+        localStorage.removeItem("house190_takeat_revenues");
       }
     } catch {}
 
@@ -102,12 +118,14 @@ export default function FaturamentoPage() {
           : allTakeat.filter((t) => t.unitId === currentUnit)
       );
 
-      // Status de conexão das unidades
+      // Status de conexão das unidades: APENAS considera conectado se tiver JWT real da Takeat ou email+senha reais
       const units: Exclude<UnitId, "all">[] = ["eunapolis", "teixeira", "foodpark", "central"];
       const connMap: Record<string, boolean> = {};
       for (const u of units) {
         const c = store.getTakeatCredentials(u);
-        connMap[u] = Boolean(c && (c.token || (c.email && c.password)));
+        const hasValidJwt = Boolean(c && c.token && c.token.startsWith("eyJ"));
+        const hasValidUserPass = Boolean(c && c.email && c.password && !c.email.includes("@house190.com.br"));
+        connMap[u] = hasValidJwt || hasValidUserPass;
       }
       setUnitConnections(connMap);
     };
@@ -195,11 +213,25 @@ export default function FaturamentoPage() {
   const handleOpenCredsModal = (unitId: Exclude<UnitId, "all">) => {
     setSelectedSyncUnit(unitId);
     const existing = store.getTakeatCredentials(unitId);
-    setCredsEmail(existing.email || "");
+    const cleanEmail = existing.email && !existing.email.includes("@house190.com.br") ? existing.email : "";
+    setCredsEmail(cleanEmail);
     setCredsPassword(existing.password || "");
-    setCredsManualToken(existing.token || "");
+    setCredsManualToken(existing.token && existing.token.startsWith("eyJ") ? existing.token : "");
     setCredsError(null);
     setIsCredsModalOpen(true);
+  };
+
+  const handleDisconnect = () => {
+    store.removeTakeatCredentials(selectedSyncUnit);
+    store.clearTakeatRevenues(selectedSyncUnit);
+    setCredsEmail("");
+    setCredsPassword("");
+    setCredsManualToken("");
+    setIsCredsModalOpen(false);
+    setSyncMessage({
+      text: `Conta da Takeat desconectada para ${UNIT_LABELS[selectedSyncUnit]}.`,
+      type: "success",
+    });
   };
 
   const handleSaveCreds = async (e: React.FormEvent) => {
@@ -770,24 +802,38 @@ export default function FaturamentoPage() {
             </div>
           )}
 
-          <div className="pt-2 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isAuthenticating}
-              onClick={() => setIsCredsModalOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              isLoading={isAuthenticating}
-              className="bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900"
-            >
-              {isAuthenticating ? "Conectando e Autenticando..." : "Conectar e Sincronizar"}
-            </Button>
+          <div className="pt-2 flex items-center justify-between gap-2">
+            {unitConnections[selectedSyncUnit] ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleDisconnect}
+                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900/60 dark:hover:bg-rose-950/30"
+              >
+                Desconectar Conta
+              </Button>
+            ) : <div />}
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isAuthenticating}
+                onClick={() => setIsCredsModalOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                isLoading={isAuthenticating}
+                className="bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900"
+              >
+                {isAuthenticating ? "Conectando e Autenticando..." : "Conectar e Sincronizar"}
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>

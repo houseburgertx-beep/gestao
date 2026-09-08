@@ -153,13 +153,13 @@ export async function fetchTakeatGeneralCards(
 ): Promise<TakeatGeneralCardsResponse> {
   let token = credentials.token;
 
-  if (!token && credentials.email && credentials.password) {
+  if ((!token || !token.startsWith("eyJ")) && credentials.email && credentials.password) {
     token = await authenticateTakeat(credentials.email, credentials.password);
     if (onTokenRefreshed) onTokenRefreshed(token);
   }
 
-  if (!token) {
-    throw new Error("Nenhum token ou credencial disponível para autenticar com a Takeat.");
+  if (!token || !token.startsWith("eyJ")) {
+    throw new Error("Esta unidade ainda não possui uma sessão válida no Takeat. Clique em 'Conectar Takeat' e informe seu e-mail e senha do PDV.");
   }
 
   const url = `${TAKEAT_CONFIG.REPORTS_URL}?start_date=${encodeURIComponent(
@@ -195,7 +195,7 @@ export async function fetchTakeatGeneralCards(
 
   if (!response.ok) {
     if (response.status === 401) {
-      throw new Error("Autenticação inválida: token expirado e não foi possível renovar.");
+      throw new Error("Sessão da Takeat expirada. Por favor, conecte novamente informando e-mail e senha.");
     }
     if (response.status === 400 || response.status === 422) {
       throw new Error("Período incorreto ou parâmetros inválidos enviados à Takeat.");
