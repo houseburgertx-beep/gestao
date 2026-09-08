@@ -8,8 +8,10 @@ import {
 import { UnitId } from "@/types";
 
 const TAKEAT_CONFIG = {
-  AUTH_URL: "https://backend-pdv.takeat.app/public/api/sessions",
+  AUTH_URL: "https://backend-pdv-2.takeat.app/public/api/sessions",
+  AUTH_FALLBACK_URL: "https://backend-pdv.takeat.app/public/api/sessions",
   REPORTS_URL: "https://backend-pdv-2.takeat.app/restaurants/v2/reports/general-cards",
+  REPORTS_FALLBACK_URL: "https://backend-pdv.takeat.app/restaurants/v2/reports/general-cards",
 };
 
 /**
@@ -41,10 +43,6 @@ export function parseBRLNumber(val: any): number {
 /**
  * Gera o intervalo ISO 8601 correspondente ao dia completo no fuso horário de
  * Brasília/Bahia (America/Bahia, UTC-03:00), das 00:00:00 até 23:59:59.999.
- *
- * Exemplo para 07/09/2026:
- * start_date = 2026-09-07T03:00:00.000Z
- * end_date   = 2026-09-08T02:59:59.999Z
  */
 export function getBahiaIsoDayRange(dateStr: string): { startDate: string; endDate: string } {
   const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -66,8 +64,6 @@ export function getBahiaIsoDayRange(dateStr: string): { startDate: string; endDa
 
 /**
  * Validação de permissões por perfil e unidade:
- * - Admin e Diretoria podem consultar qualquer unidade.
- * - Gerentes de unidade só podem consultar a sua própria unidade.
  */
 export function validateUnitPermission(
   userRole: string = "admin",
@@ -94,56 +90,59 @@ export async function authenticateTakeat(
     throw new Error("Credenciais incompletas: informe o e-mail e a senha cadastrados na Takeat.");
   }
 
-  let response: Response;
-  try {
-    response = await fetch(TAKEAT_CONFIG.AUTH_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({ email, password }),
-    });
-  } catch (netErr: any) {
-    throw new Error(`Falha de conexão com o servidor de login da Takeat: ${netErr.message || "Verifique sua conexão de rede"}`);
-  }
+  const urlsToTry = [TAKEAT_CONFIG.AUTH_URL, TAKEAT_CONFIG.AUTH_FALLBACK_URL];
+  let lastError = "";
 
-  if (!response.ok) {
-    let detail = "";
+  for (const authUrl of urlsToTry) {
     try {
-      const errData = await response.json();
-      detail = errData.message || errData.error || (typeof errData === "string" ? errData : "");
-    } catch {
-      detail = await response.text().catch(() => "");
-    }
+      const response = await fetch(authUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
 
-    if (response.status === 401 || response.status === 400) {
-      throw new Error(
-        `E-mail ou senha inválidos na Takeat.${detail ? ` (${detail})` : ""}`
-      );
+      if (!response.ok) {
+        let detail = "";
+        try {
+          const errData = await response.json();
+          detail = errData.message || errData.error || (typeof errData === "string" ? errData : "");
+        } catch {
+          detail = await response.text().catch(() => "");
+        }
+
+        if (response.status === 401 || response.status === 400) {
+          throw new Error(`E-mail ou senha incorretos na Takeat.${detail ? ` (${detail})` : ""}`);
+        }
+        lastError = `HTTP ${response.status}: ${detail}`;
+        continue;
+      }
+
+      const data = await response.json();
+      const token =
+        data.token ||
+        data.access_token ||
+        data.jwt ||
+        (data.data && (data.data.token || data.data.access_token));
+
+      if (token) {
+        return token;
+      }
+    } catch (err: any) {
+      if (err.message && err.message.includes("E-mail ou senha incorretos")) {
+        throw err;
+      }
+      lastError = err.message || "Erro de conexão";
     }
-    throw new Error(`Falha na autenticação da Takeat (HTTP ${response.status}): ${detail}`);
   }
 
-  const data = await response.json();
-  const token =
-    data.token ||
-    data.access_token ||
-    data.jwt ||
-    (data.data && (data.data.token || data.data.access_token));
-
-  if (!token) {
-    throw new Error("A Takeat autenticou com sucesso, mas não retornou o token Bearer esperado.");
-  }
-
-  return token;
+  throw new Error(`Falha na autenticação da Takeat: ${lastError || "Verifique e-mail e senha"}.`);
 }
 
 /**
- * Consulta a Takeat API pelo endpoint oficial:
- * GET https://backend-pdv-2.takeat.app/restaurants/v2/reports/general-cards
- *
- * Se retornar 401, renova o token automaticamente e repete a consulta.
+ * Consulta a Takeat API pelo endpoint oficial com fallback entre clusters:
  */
 export async function fetchTakeatGeneralCards(
   credentials: TakeatCredentials,
@@ -162,48 +161,66 @@ export async function fetchTakeatGeneralCards(
     throw new Error("Esta unidade ainda não possui uma sessão válida no Takeat. Clique em 'Conectar Takeat' e informe seu e-mail e senha do PDV.");
   }
 
-  const url = `${TAKEAT_CONFIG.REPORTS_URL}?start_date=${encodeURIComponent(
-    startDateIso
-  )}&end_date=${encodeURIComponent(endDateIso)}`;
+  const queryParams = `start_date=${encodeURIComponent(startDateIso)}&end_date=${encodeURIComponent(endDateIso)}`;
+  const urlsToTry = [
+    `${TAKEAT_CONFIG.REPORTS_URL}?${queryParams}`,
+    `${TAKEAT_CONFIG.REPORTS_FALLBACK_URL}?${queryParams}`,
+  ];
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    });
-  } catch (err: any) {
-    throw new Error(`Indisponibilidade da API Takeat: ${err.message || "Erro de conexão"}`);
-  }
+  let lastStatus = 0;
+  let lastErrorDetail = "";
 
-  // Se retornar 401 (token expirado), tenta renovar caso tenha email/senha
-  if (response.status === 401 && credentials.email && credentials.password) {
-    token = await authenticateTakeat(credentials.email, credentials.password);
-    if (onTokenRefreshed) onTokenRefreshed(token);
+  for (const url of urlsToTry) {
+    try {
+      let response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
 
-    response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    });
-  }
+      // Se retornar 401 e tivermos usuário e senha, tenta renovar token
+      if (response.status === 401 && credentials.email && credentials.password) {
+        try {
+          token = await authenticateTakeat(credentials.email, credentials.password);
+          if (onTokenRefreshed) onTokenRefreshed(token);
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      throw new Error("Sessão da Takeat expirada. Por favor, conecte novamente informando e-mail e senha.");
+          response = await fetch(url, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          });
+        } catch {}
+      }
+
+      if (response.ok) {
+        return await response.json();
+      }
+
+      lastStatus = response.status;
+      try {
+        const errJson = await response.json();
+        lastErrorDetail = errJson.message || errJson.error || errJson.errorType || "";
+      } catch {
+        lastErrorDetail = await response.text().catch(() => "");
+      }
+    } catch (netErr: any) {
+      lastErrorDetail = netErr.message || "Erro de rede";
     }
-    if (response.status === 400 || response.status === 422) {
-      throw new Error("Período incorreto ou parâmetros inválidos enviados à Takeat.");
-    }
-    throw new Error(`A API da Takeat retornou erro HTTP ${response.status}.`);
   }
 
-  return await response.json();
+  if (lastStatus === 401) {
+    throw new Error(
+      `Autenticação recusada pela Takeat (HTTP 401): ${lastErrorDetail || "Token expirado ou sem permissão para esta unidade"}.`
+    );
+  }
+  if (lastStatus === 400 || lastStatus === 422) {
+    throw new Error(`Parâmetros inválidos enviados à Takeat: ${lastErrorDetail}`);
+  }
+  throw new Error(`Falha na consulta à Takeat (HTTP ${lastStatus}): ${lastErrorDetail}`);
 }
 
 /**

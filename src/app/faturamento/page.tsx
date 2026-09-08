@@ -799,6 +799,12 @@ export default function FaturamentoPage() {
               <span className="text-[10px] text-zinc-400 mt-1 block">
                 Token enviado no cabeçalho: <code>Authorization: Bearer &#123;TOKEN&#125;</code>
               </span>
+              <div className="p-2.5 bg-zinc-50 rounded border border-zinc-200 text-[11px] text-zinc-600 space-y-1 dark:bg-zinc-800/50 dark:border-zinc-700 dark:text-zinc-300">
+                <p className="font-semibold text-zinc-700 dark:text-zinc-200">Como copiar da sua aba aberta da Takeat:</p>
+                <p>1. Na aba da Takeat (Dashboard ou Multilojas), aperte <b>F12</b> (Inspecionar).</p>
+                <p>2. Vá na aba <b>Console</b> e digite: <code className="bg-zinc-200 px-1 rounded dark:bg-zinc-700">localStorage.getItem(&apos;token&apos;)</code></p>
+                <p>3. Copie o código gerado (sem as aspas) e cole acima.</p>
+              </div>
             </div>
           )}
 
