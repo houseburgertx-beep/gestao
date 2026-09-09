@@ -26,6 +26,7 @@ import { StatusBadge, Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Drawer } from "@/components/ui/Drawer";
 import { QuickCreateModal } from "@/components/layout/QuickCreateModal";
+import { downloadFileFromDrive, uploadFileToDrive } from "@/services/driveService";
 
 function FinanceiroContent() {
   const { filterByUnit } = useUnit();
@@ -44,6 +45,8 @@ function FinanceiroContent() {
   const [batchSelectedIds, setBatchSelectedIds] = useState<string[]>([]);
   const [approvalComment, setApprovalComment] = useState("");
   const [rejectReason, setRejectReason] = useState("");
+  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
+  const [savingPayment, setSavingPayment] = useState(false);
 
   useEffect(() => {
     const handleUpdate = () => setTick((t) => t + 1);
@@ -105,9 +108,25 @@ function FinanceiroContent() {
     if (selectedAccountId === id) setSelectedAccountId(null);
   };
 
-  const handlePay = (id: string) => {
-    store.payAccount(id, "Banco do Brasil (Conta Principal)");
-    if (selectedAccountId === id) setSelectedAccountId(null);
+  const handlePay = async (id: string) => {
+    setSavingPayment(true);
+    try {
+      const storedProof = paymentProofFile
+        ? await uploadFileToDrive(paymentProofFile, "payment_proofs")
+        : null;
+      store.payAccount(
+        id,
+        "Banco do Brasil (Conta Principal)",
+        storedProof?.fileName,
+        storedProof?.fileId
+      );
+      setPaymentProofFile(null);
+      if (selectedAccountId === id) setSelectedAccountId(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Não foi possível salvar o comprovante.");
+    } finally {
+      setSavingPayment(false);
+    }
   };
 
   const handleBatchPay = () => {
@@ -648,8 +667,8 @@ function FinanceiroContent() {
                   </Button>
                 )}
                 {selectedAccount.status !== "paid" && (
-                  <Button size="sm" onClick={() => handlePay(selectedAccount.id)}>
-                    Registrar Baixa
+                  <Button size="sm" onClick={() => handlePay(selectedAccount.id)} disabled={savingPayment}>
+                    {savingPayment ? "Salvando..." : "Registrar Baixa"}
                   </Button>
                 )}
               </div>
@@ -731,6 +750,36 @@ function FinanceiroContent() {
                   {selectedAccount.notes}
                 </div>
               </div>
+            )}
+
+            {selectedAccount.status !== "paid" && (
+              <div>
+                <label className="block text-xs font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
+                  Comprovante de pagamento
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg,.webp"
+                  onChange={(event) => setPaymentProofFile(event.target.files?.[0] || null)}
+                  className="w-full text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-2 dark:file:bg-zinc-800"
+                />
+                <p className="mt-1 text-[10px] text-zinc-400">PDF ou foto, salvo no Google Drive, até 8 MB.</p>
+              </div>
+            )}
+
+            {selectedAccount.paymentProofDriveFileId && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => downloadFileFromDrive(
+                  selectedAccount.paymentProofDriveFileId!,
+                  selectedAccount.paymentProofName || "comprovante"
+                ).catch(() => alert("Não foi possível baixar o comprovante."))}
+              >
+                <Download className="h-3.5 w-3.5 mr-1" />
+                Baixar comprovante
+              </Button>
             )}
 
             {/* Approvals and Rejections Box */}

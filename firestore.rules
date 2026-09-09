@@ -52,5 +52,9 @@ service cloud.firestore {
     match /daily_revenues/{documentId} {
       allow read, write: if activeUser();
     }
+
+    match /documents/{documentId} {
+      allow read, write: if activeUser();
+    }
   }
 }

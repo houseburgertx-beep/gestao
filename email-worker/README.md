@@ -1,6 +1,6 @@
 # E-mails das notificações
 
-Este Cloudflare Worker recebe notificações autenticadas pelo Firebase e envia o e-mail pelo Resend.
+Este Cloudflare Worker recebe notificações autenticadas pelo Firebase, busca os usuários ativos e envia o e-mail por um Google Apps Script da conta HOUSE 190.
 
 ## Configuração
 
@@ -8,14 +8,12 @@ Instale as dependências e grave os três valores protegidos no Cloudflare:
 
 ```sh
 npm install
-npx wrangler secret put RESEND_API_KEY
-npx wrangler secret put EMAIL_FROM
-npx wrangler secret put EMAIL_TO
+npx wrangler secret put GOOGLE_SCRIPT_URL
+npx wrangler secret put GOOGLE_SCRIPT_SECRET
 ```
 
-- `RESEND_API_KEY`: chave criada no painel do Resend.
-- `EMAIL_FROM`: remetente validado no Resend, por exemplo `HOUSE 190 <avisos@seudominio.com>`.
-- `EMAIL_TO`: um ou mais destinatários separados por vírgula.
+- `GOOGLE_SCRIPT_URL`: endereço da implantação do Google Apps Script.
+- `GOOGLE_SCRIPT_SECRET`: segredo compartilhado com a propriedade `WEBHOOK_SECRET` do Apps Script.
 
 Depois valide e publique:
 
@@ -24,4 +22,4 @@ npm run check
 npm run deploy
 ```
 
-O endereço do destinatário e a chave do Resend ficam armazenados como segredos no Cloudflare e não entram no repositório nem no site público.
+O Worker busca os e-mails ativos na coleção `users` do Firebase. A URL e o segredo do Apps Script ficam armazenados como segredos no Cloudflare e não entram no repositório nem no site público.

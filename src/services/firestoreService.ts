@@ -22,6 +22,7 @@ import type {
   UnitGoal,
   AppNotification,
   DailyRevenue,
+  DocumentItem,
 } from "@/types";
 
 // ==========================================
@@ -300,4 +301,30 @@ export async function getDailyRevenuesFromCloud(): Promise<DailyRevenue[]> {
     console.warn("Erro ao buscar faturamento da nuvem:", error);
     return [];
   }
+}
+
+// ==========================================
+// 7. DOCUMENTS (METADADOS DOS ARQUIVOS NO DRIVE)
+// ==========================================
+export async function getDocumentsFromFirestore(): Promise<DocumentItem[]> {
+  try {
+    const snapshot = await getDocs(collection(db, "documents"));
+    return snapshot.docs.map((item) => ({ ...item.data(), id: item.id } as DocumentItem));
+  } catch (error) {
+    console.warn("Erro ao buscar documentos:", error);
+    return [];
+  }
+}
+
+export async function saveDocumentToFirestore(item: DocumentItem): Promise<string> {
+  await setDoc(doc(db, "documents", item.id), item, { merge: true });
+  return item.id;
+}
+
+export function subscribeDocuments(callback: (items: DocumentItem[]) => void): Unsubscribe {
+  return onSnapshot(
+    collection(db, "documents"),
+    (snapshot) => callback(snapshot.docs.map((item) => ({ ...item.data(), id: item.id } as DocumentItem))),
+    (error) => console.warn("Erro ao sincronizar documentos:", error)
+  );
 }

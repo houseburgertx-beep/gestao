@@ -54,6 +54,8 @@ import {
   getSuppliersFromFirestore,
   getAccountsPayableFromFirestore,
   getGoalsFromFirestore,
+  getDocumentsFromFirestore,
+  saveDocumentToFirestore,
 } from "./firestoreService";
 
 const STORAGE_KEYS = {
@@ -114,11 +116,12 @@ class DataStore {
   async syncFromFirestore() {
     if (typeof window === "undefined") return;
     try {
-      const [emps, sups, accs, goals] = await Promise.all([
+      const [emps, sups, accs, goals, documents] = await Promise.all([
         getEmployeesFromFirestore(),
         getSuppliersFromFirestore(),
         getAccountsPayableFromFirestore(),
         getGoalsFromFirestore(),
+        getDocumentsFromFirestore(),
       ]);
 
       let changed = false;
@@ -136,6 +139,10 @@ class DataStore {
       }
       if (goals && goals.length > 0) {
         this.set(STORAGE_KEYS.GOALS, goals);
+        changed = true;
+      }
+      if (documents && documents.length > 0) {
+        this.set(STORAGE_KEYS.DOCS, documents);
         changed = true;
       }
 
@@ -333,7 +340,7 @@ class DataStore {
     });
   }
 
-  payAccount(id: string, bankAccount: string, proofName?: string) {
+  payAccount(id: string, bankAccount: string, proofName?: string, proofDriveFileId?: string) {
     const accounts = this.getAccounts();
     const now = new Date().toISOString();
     const updated = accounts.map((acc) =>
@@ -344,6 +351,8 @@ class DataStore {
             paidAt: now,
             bankAccount,
             paymentProof: proofName || "comprovante_liquidacao.pdf",
+            paymentProofName: proofName,
+            paymentProofDriveFileId: proofDriveFileId,
           }
         : acc
     );
@@ -628,6 +637,7 @@ class DataStore {
       uploadDate: new Date().toISOString().split("T")[0],
     };
     this.set(STORAGE_KEYS.DOCS, [newDoc, ...docs]);
+    saveDocumentToFirestore(newDoc).catch(() => {});
     this.addNotification({
       type: "doc",
       title: "Documento registrado",

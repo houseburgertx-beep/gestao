@@ -7,11 +7,11 @@ const FIREBASE_JWKS = createRemoteJWKSet(
 );
 const SITE_ORIGIN = "https://houseburgertx-beep.github.io";
 const SITE_URL = `${SITE_ORIGIN}/gestao/`;
+const MAX_FILE_BYTES = 8 * 1024 * 1024;
 
 type EmailEnv = Env & {
-  RESEND_API_KEY: string;
-  EMAIL_FROM: string;
-  EMAIL_TO: string;
+  GOOGLE_SCRIPT_URL: string;
+  GOOGLE_SCRIPT_SECRET: string;
 };
 
 type NotificationPayload = {
@@ -20,6 +20,20 @@ type NotificationPayload = {
   message: string;
   link?: string;
   severity?: "info" | "warning" | "danger" | "success";
+};
+
+type FirestoreDocument = {
+  fields?: {
+    email?: { stringValue?: string };
+    active?: { booleanValue?: boolean };
+  };
+};
+
+type UploadPayload = {
+  fileName: string;
+  mimeType: string;
+  base64: string;
+  category: "documents" | "employee_photos" | "payment_proofs" | "task_attachments";
 };
 
 function corsHeaders(origin: string | null): HeadersInit {
@@ -36,38 +50,39 @@ function jsonResponse(body: object, status: number, origin: string | null): Resp
   return Response.json(body, { status, headers: corsHeaders(origin) });
 }
 
-function isValidPayload(value: unknown): value is NotificationPayload {
+function isValidNotification(value: unknown): value is NotificationPayload {
   if (!value || typeof value !== "object") return false;
   const payload = value as Record<string, unknown>;
   return (
-    typeof payload.eventId === "string" &&
-    payload.eventId.length >= 3 &&
-    payload.eventId.length <= 160 &&
-    typeof payload.title === "string" &&
-    payload.title.length >= 2 &&
-    payload.title.length <= 120 &&
-    typeof payload.message === "string" &&
-    payload.message.length >= 2 &&
-    payload.message.length <= 1000 &&
+    typeof payload.eventId === "string" && payload.eventId.length >= 3 && payload.eventId.length <= 160 &&
+    typeof payload.title === "string" && payload.title.length >= 2 && payload.title.length <= 120 &&
+    typeof payload.message === "string" && payload.message.length >= 2 && payload.message.length <= 1000 &&
     (payload.link === undefined ||
       (typeof payload.link === "string" && payload.link.startsWith("/") && payload.link.length <= 300))
+  );
+}
+
+function isValidUpload(value: unknown): value is UploadPayload {
+  if (!value || typeof value !== "object") return false;
+  const payload = value as Record<string, unknown>;
+  return (
+    typeof payload.fileName === "string" && payload.fileName.length >= 1 && payload.fileName.length <= 180 &&
+    typeof payload.mimeType === "string" && payload.mimeType.length >= 3 && payload.mimeType.length <= 120 &&
+    typeof payload.base64 === "string" && payload.base64.length >= 1 && payload.base64.length <= 11200000 &&
+    ["documents", "employee_photos", "payment_proofs", "task_attachments"].includes(String(payload.category))
   );
 }
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (character) => {
     const replacements: Record<string, string> = {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      "'": "&#39;",
-      '"': "&quot;",
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
     };
     return replacements[character];
   });
 }
 
-async function verifyFirebaseToken(authorization: string | null): Promise<string> {
+async function verifyFirebaseToken(authorization: string | null): Promise<{ token: string; userId: string }> {
   if (!authorization?.startsWith("Bearer ")) throw new Error("missing_token");
   const token = authorization.slice(7);
   const { payload } = await jwtVerify(token, FIREBASE_JWKS, {
@@ -76,18 +91,46 @@ async function verifyFirebaseToken(authorization: string | null): Promise<string
     algorithms: ["RS256"],
   });
   if (!payload.sub) throw new Error("invalid_subject");
-  return payload.sub;
+  return { token, userId: payload.sub };
 }
 
-async function sendEmail(env: EmailEnv, payload: NotificationPayload): Promise<Response> {
-  const recipients = env.EMAIL_TO.split(",")
-    .map((email) => email.trim())
-    .filter(Boolean)
-    .slice(0, 10);
-  if (!env.RESEND_API_KEY || !env.EMAIL_FROM || recipients.length === 0) {
-    throw new Error("email_not_configured");
-  }
+function emailFromDocument(document: FirestoreDocument): string | null {
+  const email = document.fields?.email?.stringValue?.trim().toLowerCase();
+  if (!email || document.fields?.active?.booleanValue === false) return null;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+}
 
+async function fetchRecipients(token: string, userId: string): Promise<string[]> {
+  const baseUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/users`;
+  const headers = { Authorization: `Bearer ${token}` };
+  const listResponse = await fetch(`${baseUrl}?pageSize=100`, { headers });
+  if (listResponse.ok) {
+    const result = (await listResponse.json()) as { documents?: FirestoreDocument[] };
+    const emails = (result.documents || []).map(emailFromDocument).filter((email): email is string => Boolean(email));
+    if (emails.length) return Array.from(new Set(emails)).slice(0, 50);
+  }
+  const ownResponse = await fetch(`${baseUrl}/${encodeURIComponent(userId)}`, { headers });
+  if (!ownResponse.ok) throw new Error("recipients_unavailable");
+  const ownEmail = emailFromDocument((await ownResponse.json()) as FirestoreDocument);
+  if (!ownEmail) throw new Error("recipient_unavailable");
+  return [ownEmail];
+}
+
+async function callGoogleScript(env: EmailEnv, body: object): Promise<Record<string, unknown>> {
+  if (!env.GOOGLE_SCRIPT_URL || !env.GOOGLE_SCRIPT_SECRET) throw new Error("google_script_not_configured");
+  const response = await fetch(env.GOOGLE_SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ secret: env.GOOGLE_SCRIPT_SECRET, ...body }),
+    redirect: "follow",
+  });
+  if (!response.ok) throw new Error(`google_script_http_${response.status}`);
+  const result = (await response.json()) as Record<string, unknown>;
+  if (!result.ok) throw new Error(String(result.error || "google_script_failed"));
+  return result;
+}
+
+async function sendEmail(env: EmailEnv, payload: NotificationPayload, recipients: string[]): Promise<void> {
   const destination = payload.link ? new URL(payload.link.slice(1), SITE_URL).toString() : SITE_URL;
   const accent = payload.severity === "danger" ? "#e11d48" : payload.severity === "warning" ? "#f59e0b" : "#18181b";
   const html = `
@@ -101,23 +144,20 @@ async function sendEmail(env: EmailEnv, payload: NotificationPayload): Promise<R
         </div>
       </div>
     </div>`;
-
-  return fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-      "Idempotency-Key": `house190-${payload.eventId.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 220)}`,
-    },
-    body: JSON.stringify({
-      from: env.EMAIL_FROM,
-      to: recipients,
-      subject: `[HOUSE 190] ${payload.title}`,
-      html,
-      text: `${payload.title}\n\n${payload.message}\n\n${destination}`,
-      tags: [{ name: "source", value: "house190-gestao" }],
-    }),
+  await callGoogleScript(env, {
+    action: "email",
+    to: recipients,
+    subject: `[HOUSE 190] ${payload.title}`,
+    html,
+    text: `${payload.title}\n\n${payload.message}\n\n${destination}`,
   });
+}
+
+function decodeBase64(value: string): ArrayBuffer {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes.buffer as ArrayBuffer;
 }
 
 export default {
@@ -125,41 +165,59 @@ export default {
     const origin = request.headers.get("Origin");
     if (origin !== SITE_ORIGIN) return jsonResponse({ error: "origin_not_allowed" }, 403, origin);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
-
     const url = new URL(request.url);
-    if (request.method !== "POST" || url.pathname !== "/notifications/email") {
+    if (request.method !== "POST" || !["/notifications/email", "/files/upload", "/files/download"].includes(url.pathname)) {
       return jsonResponse({ error: "not_found" }, 404, origin);
     }
-
     const contentLength = Number(request.headers.get("Content-Length") || "0");
-    if (contentLength > 8192) return jsonResponse({ error: "payload_too_large" }, 413, origin);
+    const maxRequestSize = url.pathname === "/files/upload" ? 11250000 : 8192;
+    if (contentLength > maxRequestSize) return jsonResponse({ error: "payload_too_large" }, 413, origin);
 
-    let userId: string;
+    let verifiedUser: { token: string; userId: string };
     try {
-      userId = await verifyFirebaseToken(request.headers.get("Authorization"));
+      verifiedUser = await verifyFirebaseToken(request.headers.get("Authorization"));
     } catch {
       return jsonResponse({ error: "unauthorized" }, 401, origin);
     }
 
     let payload: unknown;
-    try {
-      payload = await request.json();
-    } catch {
-      return jsonResponse({ error: "invalid_json" }, 400, origin);
-    }
-    if (!isValidPayload(payload)) return jsonResponse({ error: "invalid_payload" }, 400, origin);
+    try { payload = await request.json(); } catch { return jsonResponse({ error: "invalid_json" }, 400, origin); }
 
     try {
-      const resendResponse = await sendEmail(env, payload);
-      if (!resendResponse.ok) {
-        console.error(JSON.stringify({ event: "email_failed", status: resendResponse.status, userId }));
-        return jsonResponse({ error: "email_provider_failed" }, 502, origin);
+      if (url.pathname === "/notifications/email") {
+        if (!isValidNotification(payload)) return jsonResponse({ error: "invalid_payload" }, 400, origin);
+        const recipients = await fetchRecipients(verifiedUser.token, verifiedUser.userId);
+        await sendEmail(env, payload, recipients);
+        console.log(JSON.stringify({ event: "email_sent", eventId: payload.eventId, userId: verifiedUser.userId, recipients: recipients.length }));
+        return jsonResponse({ ok: true }, 200, origin);
       }
-      console.log(JSON.stringify({ event: "email_sent", eventId: payload.eventId, userId }));
-      return jsonResponse({ ok: true }, 200, origin);
+
+      if (url.pathname === "/files/upload") {
+        if (!isValidUpload(payload)) return jsonResponse({ error: "invalid_payload" }, 400, origin);
+        if (Math.floor(payload.base64.length * 0.75) > MAX_FILE_BYTES) return jsonResponse({ error: "file_too_large" }, 413, origin);
+        const result = await callGoogleScript(env, { action: "upload", ...payload, userId: verifiedUser.userId });
+        return jsonResponse({ ok: true, fileId: result.fileId, fileName: result.fileName, mimeType: result.mimeType, size: result.size }, 200, origin);
+      }
+
+      const download = payload as { fileId?: unknown };
+      if (typeof download?.fileId !== "string" || !/^[a-zA-Z0-9_-]{10,200}$/.test(download.fileId)) {
+        return jsonResponse({ error: "invalid_file_id" }, 400, origin);
+      }
+      const result = await callGoogleScript(env, { action: "download", fileId: download.fileId, userId: verifiedUser.userId });
+      if (typeof result.base64 !== "string") throw new Error("download_missing_content");
+      const bytes = decodeBase64(result.base64);
+      const fileName = String(result.fileName || "arquivo").replace(/[\r\n"]/g, "_");
+      return new Response(bytes, {
+        status: 200,
+        headers: {
+          ...corsHeaders(origin),
+          "Content-Type": String(result.mimeType || "application/octet-stream"),
+          "Content-Disposition": `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+        },
+      });
     } catch (error) {
-      console.error(JSON.stringify({ event: "email_error", reason: error instanceof Error ? error.message : "unknown", userId }));
-      return jsonResponse({ error: "email_unavailable" }, 503, origin);
+      console.error(JSON.stringify({ event: "service_error", reason: error instanceof Error ? error.message : "unknown", userId: verifiedUser.userId }));
+      return jsonResponse({ error: "service_unavailable" }, 503, origin);
     }
   },
 } satisfies ExportedHandler<EmailEnv>;

@@ -20,6 +20,8 @@ import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
+import { downloadFileFromDrive, formatFileSize, uploadFileToDrive } from "@/services/driveService";
+import { subscribeDocuments } from "@/services/firestoreService";
 
 export default function DocumentosPage() {
   const { filterByUnit } = useUnit();
@@ -32,6 +34,9 @@ export default function DocumentosPage() {
   const [newTitle, setNewTitle] = useState("");
   const [newCategory, setNewCategory] = useState<DocumentItem["category"]>("contracts");
   const [newExpiration, setNewExpiration] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -44,6 +49,11 @@ export default function DocumentosPage() {
     return () => window.removeEventListener("house190_data_updated", handleUpdate);
   }, [filterByUnit]);
 
+  useEffect(() => {
+    const unsubscribe = subscribeDocuments((items) => setDocuments(filterByUnit(items)));
+    return unsubscribe;
+  }, [filterByUnit]);
+
   const filteredDocs = documents.filter((d) => {
     if (categoryFilter !== "all" && d.category !== categoryFilter) return false;
     if (!searchQuery) return true;
@@ -54,24 +64,46 @@ export default function DocumentosPage() {
     );
   });
 
-  const handleUploadSubmit = (e: React.FormEvent) => {
+  const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle) return;
+    if (!newTitle || !selectedFile) return;
 
-    store.addDocument({
-      title: newTitle,
-      category: newCategory,
-      unitId: "all",
-      expirationDate: newExpiration || undefined,
-      size: "2.4 MB",
-      format: "pdf",
-      url: `/docs/${newTitle.toLowerCase().replace(/\s+/g, "_")}.pdf`,
-      tags: ["Novo", "Arquivado"],
-    });
+    setUploading(true);
+    setUploadError("");
+    try {
+      const stored = await uploadFileToDrive(selectedFile, "documents");
+      const extension = selectedFile.name.split(".").pop()?.toLowerCase() || "arquivo";
+      store.addDocument({
+        title: newTitle,
+        category: newCategory,
+        unitId: "all",
+        expirationDate: newExpiration || undefined,
+        size: formatFileSize(stored.size),
+        format: extension,
+        url: `drive:${stored.fileId}`,
+        driveFileId: stored.fileId,
+        originalFileName: stored.fileName,
+        mimeType: stored.mimeType,
+        tags: ["Google Drive", "Protegido"],
+      });
+      setIsUploadModalOpen(false);
+      setNewTitle("");
+      setNewExpiration("");
+      setSelectedFile(null);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Não foi possível enviar o arquivo.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
-    setIsUploadModalOpen(false);
-    setNewTitle("");
-    setNewExpiration("");
+  const handleDownload = async (document: DocumentItem) => {
+    if (!document.driveFileId) return;
+    try {
+      await downloadFileFromDrive(document.driveFileId, document.originalFileName || document.title);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Não foi possível baixar o arquivo.");
+    }
   };
 
   return (
@@ -201,7 +233,8 @@ export default function DocumentosPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => alert(`Download simulado do arquivo: ${doc.title}`)}
+                      onClick={() => handleDownload(doc)}
+                      disabled={!doc.driveFileId}
                       className="h-7 text-xs gap-1"
                     >
                       <Download className="h-3 w-3" />
@@ -267,19 +300,27 @@ export default function DocumentosPage() {
             </div>
           </div>
 
-          {/* Drag & drop dropzone simulation */}
-          <div className="border-2 border-dashed border-zinc-200 rounded-lg p-6 text-center text-zinc-500 hover:border-zinc-400 transition-colors dark:border-zinc-700">
+          <label className="block border-2 border-dashed border-zinc-200 rounded-lg p-6 text-center text-zinc-500 hover:border-zinc-400 transition-colors cursor-pointer dark:border-zinc-700">
             <Upload className="h-6 w-6 mx-auto text-zinc-400 mb-2" />
-            <p className="font-medium">Clique ou arraste arquivos aqui</p>
-            <p className="text-[11px] text-zinc-400 mt-1">PDF, XLSX, DOCX até 25MB</p>
-          </div>
+            <p className="font-medium">{selectedFile ? selectedFile.name : "Clique para selecionar o arquivo"}</p>
+            <p className="text-[11px] text-zinc-400 mt-1">PDF, foto, planilha ou documento até 8 MB</p>
+            <input
+              type="file"
+              required
+              className="sr-only"
+              accept=".pdf,.xlsx,.xls,.docx,.doc,.png,.jpg,.jpeg,.webp,.zip"
+              onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+            />
+          </label>
+
+          {uploadError && <p className="text-xs text-rose-600">{uploadError}</p>}
 
           <div className="pt-2 flex justify-end gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => setIsUploadModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" size="sm">
-              Concluir Upload
+            <Button type="submit" size="sm" disabled={uploading || !selectedFile}>
+              {uploading ? "Salvando no Drive..." : "Concluir Upload"}
             </Button>
           </div>
         </form>

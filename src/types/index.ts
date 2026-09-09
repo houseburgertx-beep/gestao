@@ -53,6 +53,8 @@ export interface AccountPayable {
   approvedAt?: string;
   paidAt?: string;
   paymentProof?: string;
+  paymentProofDriveFileId?: string;
+  paymentProofName?: string;
   createdAt: string;
   deletedAt?: string | null;
 }
@@ -142,6 +144,7 @@ export type EmployeeStatus = 'active' | 'vacation' | 'leave' | 'terminated';
 export interface Employee {
   id: string;
   photoUrl: string;
+  photoDriveFileId?: string;
   name: string;
   cpf: string;
   birthDate: string;
@@ -249,8 +252,11 @@ export interface DocumentItem {
   expirationDate?: string;
   uploadDate: string;
   size: string;
-  format: 'pdf' | 'xlsx' | 'docx' | 'png' | 'zip';
+  format: string;
   url: string;
+  driveFileId?: string;
+  originalFileName?: string;
+  mimeType?: string;
   tags: string[];
 }
 

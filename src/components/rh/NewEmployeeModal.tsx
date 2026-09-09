@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { store } from "@/services/store";
 import { Employee, UnitId } from "@/types";
 import { UserPlus, Check, Building2 } from "lucide-react";
+import { uploadFileToDrive } from "@/services/driveService";
 
 interface NewEmployeeModalProps {
   isOpen: boolean;
@@ -33,6 +34,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
   const [managerName, setManagerName] = useState("Gerência Operacional");
   const [bankData, setBankData] = useState("");
   const [notes, setNotes] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +46,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
         salary.replace(/\./g, "").replace(",", ".")
       ) || 0;
 
+      const storedPhoto = photoFile ? await uploadFileToDrive(photoFile, "employee_photos") : null;
       const employeeData: Omit<Employee, "documentsCount"> = {
         id: `emp-${Date.now()}`,
         name: name.trim(),
@@ -63,6 +66,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
         status: "active",
         bankData: bankData.trim(),
         photoUrl: "",
+        photoDriveFileId: storedPhoto?.fileId,
         notes: notes.trim(),
       };
 
@@ -77,6 +81,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
       setEmail("");
       setPhone("");
       setBankData("");
+      setPhotoFile(null);
 
       if (onSuccess) onSuccess();
       onClose();
@@ -96,6 +101,19 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
       maxWidth="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+            Foto do colaborador
+          </label>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => setPhotoFile(event.target.files?.[0] || null)}
+            className="w-full text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-2 dark:file:bg-zinc-800"
+          />
+          <p className="mt-1 text-[10px] text-zinc-400">A foto será guardada no Google Drive, até 8 MB.</p>
+        </div>
+
         {/* Dados Básicos */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
