@@ -3,55 +3,57 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Drawer } from "@/components/ui/Drawer";
-import { Badge } from "@/components/ui/Badge";
-import { store } from "@/services/store";
 import { formatDateTime } from "@/lib/utils";
 import { Bell, Check, ExternalLink } from "lucide-react";
 import {
-  subscribeNotifications,
   markNotificationAsReadInFirestore,
   markAllNotificationsAsReadInFirestore,
 } from "@/services/firestoreService";
 import { AppNotification } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface NotificationCenterProps {
   isOpen: boolean;
   onClose: () => void;
+  notifications: AppNotification[];
+  onNotificationsChange: (notifications: AppNotification[]) => void;
 }
 
-export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+export function NotificationCenter({
+  isOpen,
+  onClose,
+  notifications,
+  onNotificationsChange,
+}: NotificationCenterProps) {
+  const { user } = useAuth();
+  const [browserPermission, setBrowserPermission] = useState<NotificationPermission | "unsupported">("default");
 
   useEffect(() => {
-    // Initial from store
-    const local = store.getNotifications();
-    if (local.length > 0) setNotifications(local);
-
-    // Live subscription
-    const unsub = subscribeNotifications((cloudList) => {
-      if (cloudList.length > 0) {
-        setNotifications(cloudList);
-      } else {
-        setNotifications(store.getNotifications());
-      }
-    });
-    return () => unsub();
+    if (typeof window !== "undefined") {
+      setBrowserPermission(window.Notification?.permission || "unsupported");
+    }
   }, []);
 
   const unread = notifications.filter((n) => !n.read);
 
   const handleMarkAllRead = async () => {
-    unread.forEach((n) => store.markNotificationRead(n.id));
-    await markAllNotificationsAsReadInFirestore();
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    if (!user) return;
+    await markAllNotificationsAsReadInFirestore(user.uid);
+    onNotificationsChange(notifications.map((n) => ({ ...n, read: true })));
   };
 
   const handleMarkSingleRead = async (id: string) => {
-    store.markNotificationRead(id);
-    await markNotificationAsReadInFirestore(id);
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    if (!user) return;
+    await markNotificationAsReadInFirestore(id, user.uid);
+    onNotificationsChange(
+      notifications.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
+  };
+
+  const handleEnableBrowserNotifications = async () => {
+    if (typeof window === "undefined" || !window.Notification) return;
+    const permission = await window.Notification.requestPermission();
+    setBrowserPermission(permission);
   };
 
   return (
@@ -62,8 +64,20 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
       subtitle={`${unread.length} pendências não lidas`}
       width="md"
       footer={
-        <div className="flex w-full items-center justify-between">
-          <span className="text-xs text-zinc-400">Notificações House 190</span>
+        <div className="flex w-full items-center justify-between gap-3">
+          {browserPermission === "default" ? (
+            <button
+              onClick={handleEnableBrowserNotifications}
+              className="text-xs font-medium text-zinc-700 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100 flex items-center gap-1"
+            >
+              <Bell className="h-3 w-3" />
+              Ativar avisos do navegador
+            </button>
+          ) : (
+            <span className="text-xs text-zinc-400">
+              {browserPermission === "granted" ? "Avisos do navegador ativos" : "Notificações House 190"}
+            </span>
+          )}
           {unread.length > 0 && (
             <button
               onClick={handleMarkAllRead}

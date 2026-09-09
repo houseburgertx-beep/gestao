@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUnit } from "@/contexts/UnitContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface NavItem {
   title: string;
@@ -44,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const { activeUnitData } = useUnit();
+  const { user, userProfile } = useAuth();
 
   return (
     <aside className="hidden lg:flex w-64 flex-col fixed inset-y-0 left-0 bg-white border-r border-zinc-200/80 dark:bg-zinc-950 dark:border-zinc-800 z-30 select-none">
@@ -119,13 +121,15 @@ export function Sidebar() {
         <div className="flex items-center justify-between pt-1 border-t border-zinc-200/50 dark:border-zinc-800/50">
           <div className="flex items-center gap-2">
             <div className="h-6 w-6 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-              LV
+              {userProfile?.displayName?.substring(0, 2).toUpperCase() || "US"}
             </div>
             <div className="flex flex-col">
               <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200 leading-tight">
-                Lucas Vasconcelos
+                {userProfile?.displayName || user?.email || "Usuário"}
               </span>
-              <span className="text-[10px] text-zinc-400">Diretoria & Gestão</span>
+              <span className="text-[10px] text-zinc-400">
+                {userProfile?.role === "admin" ? "Diretoria & Gestão" : userProfile?.role || "Acesso Firebase"}
+              </span>
             </div>
           </div>
         </div>

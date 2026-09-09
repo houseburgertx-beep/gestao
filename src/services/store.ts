@@ -239,6 +239,13 @@ class DataStore {
       entityId: createdList[0].id,
       details: `Lançou conta "${account.description}" para ${account.supplierName} no valor de R$ ${account.amount.toFixed(2)}${installmentsCount > 1 ? ` em ${installmentsCount}x` : ""}.`,
     });
+    this.addNotification({
+      type: "payable",
+      title: "Nova conta a pagar",
+      message: `${account.description} foi lançada no valor de R$ ${account.amount.toFixed(2)}.`,
+      link: "/financeiro",
+      severity: account.amount > 1000 ? "warning" : "info",
+    });
 
     return createdList;
   }
@@ -247,6 +254,8 @@ class DataStore {
     const accounts = this.getAccounts();
     const updated = accounts.map((acc) => (acc.id === id ? { ...acc, status } : acc));
     this.set(STORAGE_KEYS.ACCOUNTS, updated);
+    const changed = updated.find((acc) => acc.id === id);
+    if (changed) saveAccountPayableToFirestore(changed).catch(() => {});
 
     this.addLog({
       userId: "usr-current",
@@ -272,6 +281,8 @@ class DataStore {
         : acc
     );
     this.set(STORAGE_KEYS.ACCOUNTS, updated);
+    const changed = updated.find((acc) => acc.id === id);
+    if (changed) saveAccountPayableToFirestore(changed).catch(() => {});
 
     this.addLog({
       userId: "usr-current",
@@ -280,6 +291,13 @@ class DataStore {
       entityType: "Conta a Pagar",
       entityId: id,
       details: `Aprovou o pagamento da conta ${id}.${comment ? ` Comentário: ${comment}` : ""}`,
+    });
+    this.addNotification({
+      type: "approval",
+      title: "Pagamento aprovado",
+      message: `A conta ${id} foi aprovada por ${reviewerName}.`,
+      link: "/financeiro",
+      severity: "success",
     });
   }
 
@@ -295,6 +313,8 @@ class DataStore {
         : acc
     );
     this.set(STORAGE_KEYS.ACCOUNTS, updated);
+    const changed = updated.find((acc) => acc.id === id);
+    if (changed) saveAccountPayableToFirestore(changed).catch(() => {});
 
     this.addLog({
       userId: "usr-current",
@@ -303,6 +323,13 @@ class DataStore {
       entityType: "Conta a Pagar",
       entityId: id,
       details: `Recusou o pagamento da conta ${id}. Motivo: ${reason}`,
+    });
+    this.addNotification({
+      type: "approval",
+      title: "Pagamento recusado",
+      message: `A conta ${id} foi recusada. Motivo: ${reason}`,
+      link: "/financeiro",
+      severity: "danger",
     });
   }
 
@@ -321,6 +348,8 @@ class DataStore {
         : acc
     );
     this.set(STORAGE_KEYS.ACCOUNTS, updated);
+    const changed = updated.find((acc) => acc.id === id);
+    if (changed) saveAccountPayableToFirestore(changed).catch(() => {});
 
     this.addLog({
       userId: "usr-current",
@@ -329,6 +358,13 @@ class DataStore {
       entityType: "Conta a Pagar",
       entityId: id,
       details: `Liquidou pagamento da conta ${id} via conta "${bankAccount}".`,
+    });
+    this.addNotification({
+      type: "payable",
+      title: "Pagamento concluído",
+      message: `A conta ${id} foi marcada como paga.`,
+      link: "/financeiro",
+      severity: "success",
     });
   }
 
@@ -365,6 +401,13 @@ class DataStore {
       id: `tax-${Date.now()}`,
     };
     this.set(STORAGE_KEYS.TAXES, [newTax, ...taxes]);
+    this.addNotification({
+      type: "tax",
+      title: `Novo tributo ${tax.taxType}`,
+      message: `Vencimento em ${tax.dueDate}, no valor de R$ ${tax.amount.toFixed(2)}.`,
+      link: "/fiscal",
+      severity: "warning",
+    });
     return newTax;
   }
 
@@ -480,6 +523,15 @@ class DataStore {
       });
     }
     this.set(STORAGE_KEYS.GOALS, goals);
+    const changed = goals.find((g) => g.unitId === unitId && g.month === month && g.year === year);
+    if (changed) saveGoalToFirestore(changed).catch(() => {});
+    this.addNotification({
+      type: "goal",
+      title: "Meta atualizada",
+      message: `A meta da unidade ${unitId} foi definida em R$ ${targetAmount.toFixed(2)}.`,
+      link: "/metas",
+      severity: "info",
+    });
   }
 
   // EMPLOYEES & VACATIONS
@@ -496,6 +548,13 @@ class DataStore {
     };
     this.set(STORAGE_KEYS.EMPLOYEES, [newEmp, ...employees]);
     saveEmployeeToFirestore(newEmp).catch(() => {});
+    this.addNotification({
+      type: "vacation",
+      title: "Novo colaborador cadastrado",
+      message: `${newEmp.name} foi adicionado(a) como ${newEmp.role}.`,
+      link: "/rh",
+      severity: "success",
+    });
     return newEmp;
   }
 
@@ -528,6 +587,13 @@ class DataStore {
       attachmentsCount: 0,
     };
     this.set(STORAGE_KEYS.TASKS, [newTask, ...tasks]);
+    this.addNotification({
+      type: "task",
+      title: "Nova tarefa criada",
+      message: `${task.title} foi atribuída a ${task.assigneeName}.`,
+      link: "/tarefas",
+      severity: task.priority === "urgent" ? "danger" : "info",
+    });
     return newTask;
   }
 
@@ -562,6 +628,13 @@ class DataStore {
       uploadDate: new Date().toISOString().split("T")[0],
     };
     this.set(STORAGE_KEYS.DOCS, [newDoc, ...docs]);
+    this.addNotification({
+      type: "doc",
+      title: "Documento registrado",
+      message: `${doc.title} foi adicionado ao controle de documentos.`,
+      link: "/documentos",
+      severity: "success",
+    });
     return newDoc;
   }
 
@@ -583,6 +656,18 @@ class DataStore {
   // NOTIFICATIONS
   getNotifications(): AppNotification[] {
     return this.get(STORAGE_KEYS.NOTIFS, INITIAL_NOTIFICATIONS);
+  }
+
+  addNotification(notification: Omit<AppNotification, "id" | "read" | "timestamp">) {
+    const newNotification: AppNotification = {
+      ...notification,
+      id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      read: false,
+      readBy: [],
+      timestamp: new Date().toISOString(),
+    };
+    this.set(STORAGE_KEYS.NOTIFS, [newNotification, ...this.getNotifications()].slice(0, 50));
+    addNotificationToFirestore(newNotification).catch(() => {});
   }
 
   markNotificationRead(id: string) {
@@ -799,4 +884,3 @@ class DataStore {
 }
 
 export const store = new DataStore();
-

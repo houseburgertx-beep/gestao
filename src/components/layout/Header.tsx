@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Search, Plus, Bell, Menu, Shield, User as UserIcon } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Search, Plus, Bell, Menu, User as UserIcon } from "lucide-react";
 import { UnitSelector } from "@/components/layout/UnitSelector";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { QuickCreateModal } from "@/components/layout/QuickCreateModal";
@@ -19,13 +19,36 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const seenNotificationIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {
-    const unsub = subscribeNotifications((list) => {
+    if (!user) {
+      setNotifications([]);
+      return;
+    }
+
+    const unsub = subscribeNotifications(user.uid, (list) => {
       setNotifications(list);
+
+      if (seenNotificationIds.current === null) {
+        seenNotificationIds.current = new Set(list.map((notification) => notification.id));
+        return;
+      }
+
+      const newNotification = list.find(
+        (notification) => !notification.read && !seenNotificationIds.current?.has(notification.id)
+      );
+      list.forEach((notification) => seenNotificationIds.current?.add(notification.id));
+
+      if (newNotification && typeof window !== "undefined" && window.Notification?.permission === "granted") {
+        new window.Notification(newNotification.title, {
+          body: newNotification.message,
+          icon: "/gestao/icon.svg",
+        });
+      }
     });
     return () => unsub();
-  }, []);
+  }, [user]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -135,6 +158,8 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       <NotificationCenter
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
+        notifications={notifications}
+        onNotificationsChange={setNotifications}
       />
       <AuthModal
         isOpen={isAuthOpen}

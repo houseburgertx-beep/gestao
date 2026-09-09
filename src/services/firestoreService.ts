@@ -9,9 +9,8 @@ import {
   onSnapshot,
   query,
   orderBy,
-  where,
   limit,
-  Timestamp,
+  arrayUnion,
   type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -219,6 +218,7 @@ export async function addNotificationToFirestore(
       ...notification,
       timestamp: notification.timestamp || new Date().toISOString(),
       read: false,
+      readBy: [],
     });
     await updateDoc(docRef, { id: docRef.id });
     return docRef.id;
@@ -228,33 +228,46 @@ export async function addNotificationToFirestore(
   }
 }
 
-export async function markNotificationAsReadInFirestore(id: string): Promise<void> {
+export async function markNotificationAsReadInFirestore(id: string, userId: string): Promise<void> {
   try {
     const docRef = doc(db, "notifications", id);
-    await updateDoc(docRef, { read: true });
+    await updateDoc(docRef, { readBy: arrayUnion(userId) });
   } catch (error) {
     console.warn("Erro ao marcar notificação como lida:", error);
   }
 }
 
-export async function markAllNotificationsAsReadInFirestore(): Promise<void> {
+export async function markAllNotificationsAsReadInFirestore(userId: string): Promise<void> {
   try {
     const colRef = collection(db, "notifications");
-    const snapshot = await getDocs(query(colRef, where("read", "==", false)));
-    const promises = snapshot.docs.map((d) => updateDoc(d.ref, { read: true }));
+    const snapshot = await getDocs(query(colRef, orderBy("timestamp", "desc"), limit(50)));
+    const promises = snapshot.docs
+      .filter((d) => !((d.data().readBy as string[] | undefined) || []).includes(userId))
+      .map((d) => updateDoc(d.ref, { readBy: arrayUnion(userId) }));
     await Promise.all(promises);
   } catch (error) {
     console.warn("Erro ao marcar todas notificações:", error);
   }
 }
 
-export function subscribeNotifications(callback: (notifications: AppNotification[]) => void): Unsubscribe {
+export function subscribeNotifications(
+  userId: string,
+  callback: (notifications: AppNotification[]) => void
+): Unsubscribe {
   const colRef = collection(db, "notifications");
   const q = query(colRef, orderBy("timestamp", "desc"), limit(30));
   return onSnapshot(
     q,
     (snapshot) => {
-      const list = snapshot.docs.map((d) => ({ ...d.data(), id: d.id } as AppNotification));
+      const list = snapshot.docs.map((d) => {
+        const data = d.data() as AppNotification;
+        const readBy = data.readBy || [];
+        return {
+          ...data,
+          id: d.id,
+          read: readBy.length > 0 ? readBy.includes(userId) : Boolean(data.read),
+        } as AppNotification;
+      });
       callback(list);
     },
     (err) => console.warn("Erro no snapshot de notificações:", err)

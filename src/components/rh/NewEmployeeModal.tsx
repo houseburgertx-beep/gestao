@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { store } from "@/services/store";
-import { saveEmployeeToFirestore, addNotificationToFirestore } from "@/services/firestoreService";
 import { Employee, UnitId } from "@/types";
 import { UserPlus, Check, Building2 } from "lucide-react";
 
@@ -67,24 +66,8 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
         notes: notes.trim(),
       };
 
-      // 1. Salva no Store Local (reativo imediato)
+      // Salva localmente e sincroniza com o Firestore e as notificações.
       store.addEmployee(employeeData);
-
-      // 2. Salva em tempo real no banco de dados Firestore da House 190
-      await saveEmployeeToFirestore({
-        ...employeeData,
-        documentsCount: 0,
-      });
-
-      // 3. Registra notificação e auditoria
-      await addNotificationToFirestore({
-        title: "Novo Colaborador Cadastrado",
-        message: `${employeeData.name} foi adicionado(a) como ${employeeData.role} na filial ${unitId === "eunapolis" ? "Eunápolis" : "Teixeira"}.`,
-        severity: "success",
-        type: "vacation",
-        read: false,
-        timestamp: new Date().toISOString(),
-      });
 
       // Limpa campos
       setName("");

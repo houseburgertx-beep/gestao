@@ -11,6 +11,7 @@ interface ModalProps {
   subtitle?: string;
   children: React.ReactNode;
   maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl";
+  dismissible?: boolean;
 }
 
 export function Modal({
@@ -20,10 +21,11 @@ export function Modal({
   subtitle,
   children,
   maxWidth = "lg",
+  dismissible = true,
 }: ModalProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
+      if (e.key === "Escape" && isOpen && dismissible) {
         onClose();
       }
     };
@@ -37,7 +39,7 @@ export function Modal({
       window.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
     };
-  }, [isOpen, onClose]);
+  }, [dismissible, isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -53,7 +55,7 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        onClick={onClose}
+        onClick={dismissible ? onClose : undefined}
         className="fixed inset-0 bg-zinc-950/40 backdrop-blur-[2px] transition-opacity duration-150"
       />
 
@@ -76,12 +78,14 @@ export function Modal({
               </p>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-md p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          {dismissible && (
+            <button
+              onClick={onClose}
+              className="rounded-md p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {/* Content */}

@@ -8,6 +8,8 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Drawer } from "@/components/ui/Drawer";
+import { AuthModal } from "@/components/layout/AuthModal";
+import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -23,12 +25,13 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-export default function RootLayout({
+function ProtectedShell({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, loading } = useAuth();
 
   const menuItems = [
     { title: "Visão Geral", href: "/", icon: LayoutDashboard },
@@ -44,21 +47,27 @@ export default function RootLayout({
     { title: "Auditoria & Logs", href: "/auditoria", icon: ShieldCheck },
   ];
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#fafafa] dark:bg-zinc-950">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="h-9 w-9 rounded-lg bg-zinc-900 text-white flex items-center justify-center text-xs font-bold dark:bg-zinc-100 dark:text-zinc-900">190</div>
+          <p className="text-xs text-zinc-500">Conectando ao Firebase...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#fafafa] dark:bg-zinc-950">
+        <AuthModal isOpen required onClose={() => {}} />
+      </div>
+    );
+  }
+
   return (
-    <html lang="pt-BR" className="h-full">
-      <head>
-        <title>HOUSE 190 — Painel de Gestão Integrada</title>
-        <meta
-          name="description"
-          content="Central de comando empresarial e gestão integrada da House 190"
-        />
-        <link rel="manifest" href="/gestao/manifest.json" />
-        <meta name="theme-color" content="#09090b" />
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-      </head>
-      <body className="min-h-full flex flex-col font-sans bg-[#fafafa] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50">
-        <AuthProvider>
-          <UnitProvider>
+    <UnitProvider>
             {/* Desktop Fixed Sidebar */}
             <Sidebar />
 
@@ -99,7 +108,30 @@ export default function RootLayout({
               })}
             </div>
           </Drawer>
-        </UnitProvider>
+    </UnitProvider>
+  );
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="pt-BR" className="h-full">
+      <head>
+        <title>HOUSE 190 — Painel de Gestão Integrada</title>
+        <meta
+          name="description"
+          content="Central de comando empresarial e gestão integrada da House 190"
+        />
+        <link rel="manifest" href="/gestao/manifest.json" />
+        <meta name="theme-color" content="#09090b" />
+        <link rel="icon" href="/gestao/icon.svg" type="image/svg+xml" />
+      </head>
+      <body className="min-h-full flex flex-col font-sans bg-[#fafafa] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50">
+        <AuthProvider>
+          <ProtectedShell>{children}</ProtectedShell>
         </AuthProvider>
       </body>
     </html>

@@ -272,6 +272,7 @@ export interface AppNotification {
   message: string;
   link?: string;
   read: boolean;
+  readBy?: string[];
   timestamp: string;
   severity: 'info' | 'warning' | 'danger' | 'success';
 }

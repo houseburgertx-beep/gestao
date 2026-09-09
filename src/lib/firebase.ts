@@ -2,7 +2,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyAXrIRQmhgRkHOpZawe58KNNEM7detObCs",
   authDomain: "house-crm-pos-venda.firebaseapp.com",
   projectId: "house-crm-pos-venda",
