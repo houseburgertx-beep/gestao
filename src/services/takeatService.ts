@@ -234,7 +234,7 @@ export async function authenticateTakeat(
       if (!response.ok) {
         lastStatus = response.status;
         try {
-          const errData = await response.json();
+          const errData = (await response.json()) as Record<string, any>;
           lastErrorDetail = errData.message || errData.error || "";
         } catch {
           lastErrorDetail = await response.text().catch(() => "");
@@ -242,7 +242,7 @@ export async function authenticateTakeat(
         continue;
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as Record<string, any>;
       const rawToken =
         data.token ||
         data.access_token ||
@@ -345,7 +345,7 @@ export async function inspectTakeatToken(token: string): Promise<AuthenticateTak
         });
 
         if (showRes.ok) {
-          const showData = await showRes.json();
+          const showData = (await showRes.json()) as Record<string, any>;
           const target = showData.data || showData;
           singleRestaurantId = target.id || target.restaurant?.id;
           singleRestaurantName = target.name || target.fantasy_name || target.restaurant?.name;
@@ -456,7 +456,7 @@ export async function fetchTakeatGeneralCards(
       }
 
       if (response.ok) {
-        const json = await response.json();
+        const json = (await response.json()) as Record<string, any>;
         if (
           json &&
           (json.payment_without_tax ||
@@ -469,7 +469,7 @@ export async function fetchTakeatGeneralCards(
 
       lastStatus = response.status;
       try {
-        const errJson = await response.json();
+        const errJson = (await response.json()) as Record<string, any>;
         lastErrorDetail = errJson.message || errJson.error || errJson.errorType || "";
       } catch {
         lastErrorDetail = await response.text().catch(() => "");

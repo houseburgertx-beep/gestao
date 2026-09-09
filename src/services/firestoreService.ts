@@ -14,6 +14,7 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { sendNotificationEmail } from "./emailService";
 import type {
   Employee,
   Supplier,
@@ -221,6 +222,7 @@ export async function addNotificationToFirestore(
       readBy: [],
     });
     await updateDoc(docRef, { id: docRef.id });
+    await sendNotificationEmail(docRef.id, notification);
     return docRef.id;
   } catch (error) {
     console.warn("Erro ao salvar notificação:", error);

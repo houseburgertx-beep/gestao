@@ -1,0 +1,17 @@
+{
+  "name": "house190-email-notifications",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "check": "wrangler types && tsc --noEmit && wrangler deploy --dry-run",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "jose": "^6.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "wrangler": "^4.130.0"
+  }
+}
