@@ -24,7 +24,7 @@ service cloud.firestore {
       allow create: if adminUser()
         || (signedIn()
           && request.auth.uid == userId
-          && request.auth.token.email == "gleucedias1@gmail.com"
+          && request.auth.uid == "X3rPLrYN6OediKCZnn1cI8GHmVm2"
           && request.resource.data.role == "admin");
       allow update, delete: if adminUser();
     }

@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setAccessError("");
             setUserProfile(profile);
           } else {
-            if (currentUser.email?.toLowerCase() !== "gleucedias1@gmail.com") {
+            if (currentUser.uid !== "X3rPLrYN6OediKCZnn1cI8GHmVm2") {
               setAccessError("Usuário sem perfil autorizado. Peça ao administrador para criar o acesso.");
               await fbSignOut(auth);
               return;

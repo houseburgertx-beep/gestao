@@ -265,7 +265,7 @@ export function AuthModal({ isOpen, onClose, required = false }: AuthModalProps)
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="gleucedias1@gmail.com"
+                  placeholder="Digite seu e-mail"
                   className="w-full text-xs px-3 py-2 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950"
                 />
               </div>
@@ -324,7 +324,7 @@ export function AuthModal({ isOpen, onClose, required = false }: AuthModalProps)
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="gleucedias1@gmail.com"
+                  placeholder="Digite seu e-mail cadastrado"
                   className="w-full text-xs px-3 py-2 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950"
                 />
               </div>
