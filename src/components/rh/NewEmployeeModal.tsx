@@ -66,7 +66,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
         status: "active",
         bankData: bankData.trim(),
         photoUrl: "",
-        photoDriveFileId: storedPhoto?.fileId,
+        ...(storedPhoto ? { photoDriveFileId: storedPhoto.fileId } : {}),
         notes: notes.trim(),
       };
 

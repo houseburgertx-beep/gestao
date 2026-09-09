@@ -351,8 +351,8 @@ class DataStore {
             paidAt: now,
             bankAccount,
             paymentProof: proofName || "comprovante_liquidacao.pdf",
-            paymentProofName: proofName,
-            paymentProofDriveFileId: proofDriveFileId,
+            ...(proofName ? { paymentProofName: proofName } : {}),
+            ...(proofDriveFileId ? { paymentProofDriveFileId: proofDriveFileId } : {}),
           }
         : acc
     );

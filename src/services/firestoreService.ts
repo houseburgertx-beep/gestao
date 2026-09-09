@@ -317,7 +317,10 @@ export async function getDocumentsFromFirestore(): Promise<DocumentItem[]> {
 }
 
 export async function saveDocumentToFirestore(item: DocumentItem): Promise<string> {
-  await setDoc(doc(db, "documents", item.id), item, { merge: true });
+  const cleanItem = Object.fromEntries(
+    Object.entries(item).filter(([, value]) => value !== undefined)
+  ) as DocumentItem;
+  await setDoc(doc(db, "documents", item.id), cleanItem, { merge: true });
   return item.id;
 }
 
