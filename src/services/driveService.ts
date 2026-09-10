@@ -22,12 +22,14 @@ function cleanFilePart(value: string): string {
 }
 
 export function nameFileForDrive(file: File, context: string): File {
-  const date = new Intl.DateTimeFormat("en-CA", {
+  const dateParts = new Intl.DateTimeFormat("pt-BR", {
     timeZone: "America/Bahia",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).formatToParts(new Date());
+  const getPart = (type: "year" | "month" | "day") => dateParts.find((part) => part.type === type)?.value || "00";
+  const date = `${getPart("year")}-${getPart("month")}-${getPart("day")}`;
   const originalName = cleanFilePart(file.name) || "arquivo";
   const cleanContext = cleanFilePart(context);
   const fileName = cleanContext ? `${date} - ${cleanContext} - ${originalName}` : `${date} - ${originalName}`;
