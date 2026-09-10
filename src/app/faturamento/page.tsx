@@ -32,6 +32,10 @@ import {
   sanitizeToken,
   inspectTakeatToken,
   DiscoveredStore,
+  getTodayBahiaDate,
+  getYesterdayBahiaDate,
+  getCurrentBahiaMonth,
+  getPreviousBahiaMonth,
 } from "@/services/takeatService";
 import {
   BarChart,
@@ -46,35 +50,6 @@ import {
 
 const CONSOLE_TOKEN_HELPER =
   "copy(localStorage.getItem('@gddashboard:token') || JSON.parse(localStorage.getItem('@managerarea:token') || '\"\"') || localStorage.getItem('token'))";
-
-function getTodayBahiaDate(): string {
-  const now = new Date();
-  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-  const bahia = new Date(utc - 3 * 3600000);
-  return bahia.toISOString().split("T")[0];
-}
-
-function getYesterdayBahiaDate(): string {
-  const now = new Date();
-  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-  const bahia = new Date(utc - 3 * 3600000 - 86400000);
-  return bahia.toISOString().split("T")[0];
-}
-
-function getCurrentBahiaMonth(): string {
-  return getTodayBahiaDate().substring(0, 7);
-}
-
-function getPreviousBahiaMonth(): string {
-  const [yearStr, monthStr] = getCurrentBahiaMonth().split("-");
-  let y = parseInt(yearStr, 10);
-  let m = parseInt(monthStr, 10) - 1;
-  if (m === 0) {
-    m = 12;
-    y -= 1;
-  }
-  return `${y}-${String(m).padStart(2, "0")}`;
-}
 
 const UNIT_LABELS: Record<string, string> = {
   eunapolis: "House 190 Eunápolis",

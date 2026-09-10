@@ -18,13 +18,20 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   ChevronRight,
+  RotateCw,
+  Edit3,
+  Plus,
+  Save,
 } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import { store } from "@/services/store";
 import { useUnit } from "@/contexts/UnitContext";
-import { UnitGoal } from "@/types";
+import { UnitGoal, UnitId } from "@/types";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
+import { getTodayBahiaDate, getYesterdayBahiaDate } from "@/services/takeatService";
 
 // Cores Oficiais dos Canais
 const CHANNEL_COLORS = {
@@ -89,12 +96,18 @@ const CustomProgressTooltip = ({ active, payload, totalTarget }: any) => {
 };
 
 export default function MetasPage() {
-  const { currentUnit } = useUnit();
+  const { currentUnit, activeUnitData } = useUnit();
   const [goals, setGoals] = useState<UnitGoal[]>([]);
   const [takeatRevenues, setTakeatRevenues] = useState(store.getTakeatRevenues());
   const [dailyRevenues, setDailyRevenues] = useState(store.getRevenues());
   const [isMounted, setIsMounted] = useState(false);
   const [selectedWeekIndex, setSelectedWeekIndex] = useState(1); // 1 = Semana Atual (07/09 a 13/09)
+  const [syncingDate, setSyncingDate] = useState<string | null>(null);
+  const [syncFeedback, setSyncFeedback] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
+  const [editingDay, setEditingDay] = useState<{ dateStr: string; dayName: string } | null>(null);
+  const [editSalao, setEditSalao] = useState("");
+  const [editDelivery, setEditDelivery] = useState("");
+  const [editIfood, setEditIfood] = useState("");
 
   useEffect(() => {
     setIsMounted(true);
@@ -116,12 +129,13 @@ export default function MetasPage() {
     return goals.filter((g) => g.unitId === currentUnit);
   }, [goals, currentUnit]);
 
-  // Tempo do mês corrente (Setembro / 2026)
+  // Tempo do mês corrente (Setembro / 2026) com fuso oficial da Bahia
+  const todayStr = getTodayBahiaDate();
+  const yesterdayStr = getYesterdayBahiaDate();
   const now = new Date();
   const currentDayOfMonth = Math.min(30, Math.max(1, now.getDate()));
   const totalDaysInMonth = 30;
   const daysRemainingInMonth = Math.max(1, totalDaysInMonth - currentDayOfMonth);
-  const todayStr = "2026-09-09"; // Data base da sessão
 
   // Metas e Realizados Globais
   const totalTarget = filteredGoals.reduce((acc, cur) => acc + cur.targetAmount, 0);
@@ -265,10 +279,24 @@ export default function MetasPage() {
     let delivery = 0;
     let ifood = 0;
 
-    // Busca dados do Takeat
-    const matchingTakeat = takeatRevenues.filter(
-      (r) => r.date === dateStr && (currentUnit === "all" ? r.unitId !== "central" : r.unitId === currentUnit)
-    );
+    // Busca dados do Takeat com suporte a data exata ou correspondência UTC
+    const matchingTakeat = takeatRevenues.filter((r) => {
+      if (currentUnit !== "all" && r.unitId !== currentUnit) return false;
+      if (currentUnit === "all" && r.unitId === "central") return false;
+
+      // 1. Casamento direto por data (YYYY-MM-DD)
+      if (r.date === dateStr) return true;
+
+      // 2. Recuperação de registros salvos com UTC correspondente ao dia
+      if (r.startDateUtc && r.startDateUtc.startsWith(dateStr)) return true;
+
+      // 3. Caso especial para terça-feira (2026-09-08): se sincronizado ontem mas gravado como 2026-09-09
+      if (dateStr === "2026-09-08" && r.date === "2026-09-09" && r.syncedAt && r.syncedAt.startsWith("2026-09-08")) {
+        return true;
+      }
+
+      return false;
+    });
 
     if (matchingTakeat.length > 0) {
       salao = matchingTakeat.reduce((acc, cur) => acc + (cur.salao || 0), 0);
@@ -279,14 +307,116 @@ export default function MetasPage() {
     const takeatTotal = salao + delivery + ifood;
 
     // Fallback para faturamento manual geral se não houver no Takeat
-    const matchingDaily = dailyRevenues.filter(
-      (r) => r.date === dateStr && (currentUnit === "all" ? r.unitId !== "central" : r.unitId === currentUnit)
-    );
+    const matchingDaily = dailyRevenues.filter((r) => {
+      if (currentUnit !== "all" && r.unitId !== currentUnit) return false;
+      if (currentUnit === "all" && r.unitId === "central") return false;
+      if (r.date === dateStr) return true;
+      if (dateStr === "2026-09-08" && r.date === "2026-09-09" && r.notes?.includes("08/09")) return true;
+      return false;
+    });
     const dailyTotal = matchingDaily.reduce((acc, cur) => acc + (cur.netRevenue || cur.grossRevenue || 0), 0);
 
     const total = Math.max(takeatTotal, dailyTotal);
 
     return { salao, delivery, ifood, total };
+  };
+
+  // Sincroniza dados da Takeat para uma data específica
+  const handleSyncDate = async (targetDateStr: string) => {
+    setSyncingDate(targetDateStr);
+    setSyncFeedback(null);
+    try {
+      const unitsToSync: Array<Exclude<UnitId, "all">> =
+        currentUnit === "all"
+          ? ["foodpark", "teixeira", "eunapolis"]
+          : [currentUnit];
+
+      let anySuccess = false;
+      let totalFetched = 0;
+      let lastError = "";
+
+      for (const u of unitsToSync) {
+        const res = await store.syncTakeatUnit(u, targetDateStr, "diretoria", "all");
+        if (res.success && res.data) {
+          anySuccess = true;
+          totalFetched += res.data.totalRevenue;
+        } else if (!res.success) {
+          lastError = res.error || "Erro ao conectar à Takeat";
+        }
+      }
+
+      setTakeatRevenues(store.getTakeatRevenues());
+      setDailyRevenues(store.getRevenues());
+      setGoals(store.getGoals());
+
+      if (anySuccess) {
+        setSyncFeedback({
+          type: "success",
+          text: `Vendas de ${targetDateStr.split("-").reverse().join("/")} sincronizadas com sucesso da Takeat (${formatCurrency(totalFetched)})!`,
+        });
+      } else {
+        setSyncFeedback({
+          type: "error",
+          text: `${lastError}. Você também pode lançar o valor manualmente no botão ao lado.`,
+        });
+      }
+    } catch (err: any) {
+      setSyncFeedback({
+        type: "error",
+        text: err.message || "Erro durante sincronização",
+      });
+    } finally {
+      setSyncingDate(null);
+    }
+  };
+
+  // Abertura do modal de edição
+  const handleOpenEditModal = (row: { dateStr: string; dayName: string }) => {
+    const rev = getDayRevenue(row.dateStr);
+    setEditingDay(row);
+    setEditSalao(rev.salao > 0 ? rev.salao.toString() : "");
+    setEditDelivery(rev.delivery > 0 ? rev.delivery.toString() : "");
+    setEditIfood(rev.ifood > 0 ? rev.ifood.toString() : "");
+  };
+
+  // Salva faturamento inserido manualmente
+  const handleSaveDailyRevenue = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDay) return;
+
+    const salaoVal = parseFloat(editSalao.replace(/\./g, "").replace(",", ".")) || 0;
+    const deliveryVal = parseFloat(editDelivery.replace(/\./g, "").replace(",", ".")) || 0;
+    const ifoodVal = parseFloat(editIfood.replace(/\./g, "").replace(",", ".")) || 0;
+    const totalVal = salaoVal + deliveryVal + ifoodVal;
+
+    const unitId = currentUnit === "all" ? "foodpark" : currentUnit;
+
+    store.saveTakeatRevenue({
+      id: `takeat-${unitId}-${editingDay.dateStr}`,
+      unitId,
+      date: editingDay.dateStr,
+      startDateUtc: `${editingDay.dateStr}T03:00:00.000Z`,
+      endDateUtc: `${editingDay.dateStr}T23:59:59.999Z`,
+      salao: salaoVal,
+      delivery: deliveryVal,
+      ifood: ifoodVal,
+      totalRevenue: totalVal,
+      rawBalcony: salaoVal,
+      rawTable: 0,
+      rawDelivery: deliveryVal,
+      rawIfood: ifoodVal,
+      source: "takeat",
+      syncedAt: new Date().toISOString(),
+    });
+
+    setTakeatRevenues(store.getTakeatRevenues());
+    setDailyRevenues(store.getRevenues());
+    setGoals(store.getGoals());
+    setEditingDay(null);
+    setSyncFeedback({
+      type: "success",
+      text: `Faturamento de ${editingDay.dayName} (${editingDay.dateStr.split("-").reverse().join("/")}) salvo com sucesso: ${formatCurrency(totalVal)}!`,
+    });
   };
 
   // Metas Diárias Oficiais por Dia da Semana (conforme documento)
@@ -872,6 +1002,62 @@ export default function MetasPage() {
           </div>
         </div>
 
+        {/* Feedback de Sincronização */}
+        {syncFeedback && (
+          <div
+            className={`p-3 rounded-lg border text-xs flex items-center justify-between gap-2 ${
+              syncFeedback.type === "success"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-200"
+                : "bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-200"
+            }`}
+          >
+            <span>{syncFeedback.text}</span>
+            <button
+              type="button"
+              onClick={() => setSyncFeedback(null)}
+              className="text-xs font-bold opacity-70 hover:opacity-100 px-1"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Destaque e Ação Rápida para Terça-feira se estiver sem dados */}
+        {getDayRevenue("2026-09-08").total === 0 && selectedWeekIndex === 1 && (
+          <div className="p-3.5 rounded-lg border border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 dark:border-amber-900/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+            <div className="flex items-start sm:items-center gap-2.5">
+              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
+              <div>
+                <span className="font-bold text-amber-900 dark:text-amber-200 block sm:inline mr-1.5">
+                  Faturamento de Terça-feira (08/09) não registrado:
+                </span>
+                <span className="text-amber-700 dark:text-amber-300">
+                  Os valores do dia anterior ainda não foram importados ou inseridos.
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleSyncDate("2026-09-08")}
+                disabled={syncingDate === "2026-09-08"}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md font-semibold text-xs inline-flex items-center gap-1.5 transition-colors shadow-2xs disabled:opacity-50"
+              >
+                <RotateCw className={`h-3.5 w-3.5 ${syncingDate === "2026-09-08" ? "animate-spin" : ""}`} />
+                Sincronizar Terça-feira (Takeat)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenEditModal({ dateStr: "2026-09-08", dayName: "Terça-feira" })}
+                className="px-3 py-1.5 bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 hover:bg-amber-100/50 text-amber-900 dark:text-amber-200 rounded-md font-semibold text-xs inline-flex items-center gap-1.5 transition-colors"
+              >
+                <Edit3 className="h-3.5 w-3.5" />
+                Lançar Valor
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Cabeçalho da Seção com Seletor de Semanas */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
           <div>
@@ -919,6 +1105,7 @@ export default function MetasPage() {
                 </th>
                 <th className="py-3 px-3 text-center font-bold">Status</th>
                 <th className="py-3 px-3 text-right font-bold">Quanto Faltou / Saldo</th>
+                <th className="py-3 px-3 text-right font-bold">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 font-mono">
@@ -926,6 +1113,7 @@ export default function MetasPage() {
                 const isToday = row.dateStr === todayStr;
                 const isPast = row.dateStr < todayStr;
                 const isFuture = row.dateStr > todayStr;
+                const isYesterday = row.dateStr === yesterdayStr;
 
                 const dayTargets = getDailyTargetForDay(row.dayIndex);
                 const dayRev = getDayRevenue(row.dateStr);
@@ -945,6 +1133,8 @@ export default function MetasPage() {
                     className={`transition-colors ${
                       isToday
                         ? "bg-blue-50/40 dark:bg-blue-950/20 font-semibold"
+                        : isYesterday
+                        ? "bg-zinc-50/70 dark:bg-zinc-800/40"
                         : "hover:bg-zinc-50/40 dark:hover:bg-zinc-800/20"
                     }`}
                   >
@@ -957,6 +1147,11 @@ export default function MetasPage() {
                         {isToday && (
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-500 text-white tracking-wider">
                             Hoje
+                          </span>
+                        )}
+                        {isYesterday && !isToday && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200 tracking-wider">
+                            Ontem
                           </span>
                         )}
                       </div>
@@ -996,7 +1191,18 @@ export default function MetasPage() {
                       {isFuture ? (
                         <span className="text-zinc-400 font-normal text-xs">Aguardando</span>
                       ) : (
-                        formatCurrency(realizedTotal)
+                        <div>
+                          <div>{formatCurrency(realizedTotal)}</div>
+                          {realizedTotal === 0 && !isFuture && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(row)}
+                              className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline block font-sans font-normal"
+                            >
+                              + Lançar
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
 
@@ -1037,6 +1243,30 @@ export default function MetasPage() {
                           <ArrowDownRight className="h-3.5 w-3.5" /> Faltou {formatCurrency(Math.abs(difference))}
                         </span>
                       )}
+                    </td>
+
+                    {/* Ações: Sincronizar e Editar */}
+                    <td className="py-3 px-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          title="Sincronizar este dia da Takeat"
+                          onClick={() => handleSyncDate(row.dateStr)}
+                          disabled={syncingDate === row.dateStr || isFuture}
+                          className="p-1.5 text-zinc-400 hover:text-blue-600 dark:hover:text-blue-400 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30"
+                        >
+                          <RotateCw className={`h-3.5 w-3.5 ${syncingDate === row.dateStr ? "animate-spin text-blue-600" : ""}`} />
+                        </button>
+                        <button
+                          type="button"
+                          title="Lançar ou Ajustar Faturamento Real deste dia"
+                          onClick={() => handleOpenEditModal(row)}
+                          disabled={isFuture}
+                          className="p-1.5 text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -1083,6 +1313,110 @@ export default function MetasPage() {
           </div>
         </div>
       </div>
+
+      {/* MODAL PARA LANÇAR / EDITAR FATURAMENTO REAL DO DIA */}
+      {editingDay && (
+        <Modal
+          isOpen={!!editingDay}
+          onClose={() => setEditingDay(null)}
+          title={`Faturamento Real — ${editingDay.dayName} (${editingDay.dateStr.split("-").reverse().join("/")})`}
+          subtitle={`Informe o faturamento oficial por canal para ${activeUnitData.name} ou sincronize da Takeat`}
+          maxWidth="md"
+        >
+          <form onSubmit={handleSaveDailyRevenue} className="space-y-4 pt-2">
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Salão (Balcão + Mesa)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs text-zinc-400">R$</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={editSalao}
+                    onChange={(e) => setEditSalao(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Delivery Próprio (WhatsApp / Cardápio Digital)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs text-zinc-400">R$</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={editDelivery}
+                    onChange={(e) => setEditDelivery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  iFood
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs text-zinc-400">R$</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={editIfood}
+                    onChange={(e) => setEditIfood(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </div>
+              </div>
+
+              {/* Total Calculado */}
+              <div className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg flex items-center justify-between border border-zinc-200/60 dark:border-zinc-700/60">
+                <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Total do Dia:</span>
+                <span className="text-sm font-bold font-mono text-zinc-900 dark:text-zinc-100">
+                  {formatCurrency(
+                    (parseFloat(editSalao.replace(/\./g, "").replace(",", ".")) || 0) +
+                    (parseFloat(editDelivery.replace(/\./g, "").replace(",", ".")) || 0) +
+                    (parseFloat(editIfood.replace(/\./g, "").replace(",", ".")) || 0)
+                  )}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-zinc-200 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => handleSyncDate(editingDay.dateStr)}
+                disabled={syncingDate === editingDay.dateStr}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 font-medium disabled:opacity-50"
+              >
+                <RotateCw className={`h-3.5 w-3.5 ${syncingDate === editingDay.dateStr ? "animate-spin" : ""}`} />
+                Puxar da Takeat
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingDay(null)}
+                  className="px-3 py-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
+                >
+                  Cancelar
+                </button>
+                <Button type="submit" size="sm">
+                  <Save className="h-3.5 w-3.5 mr-1" />
+                  Salvar Faturamento
+                </Button>
+              </div>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

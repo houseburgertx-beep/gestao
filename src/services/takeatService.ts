@@ -136,6 +136,56 @@ export function getBahiaIsoDayRange(dateStr: string): { startDate: string; endDa
 }
 
 /**
+ * Retorna a data de hoje no fuso oficial da Bahia/Brasília (America/Bahia, UTC-03:00) no formato YYYY-MM-DD.
+ * Nunca sofre adiantamento de dia após as 21h.
+ */
+export function getTodayBahiaDate(refDate: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bahia",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(refDate);
+}
+
+/**
+ * Retorna a data de ontem no fuso oficial da Bahia/Brasília (America/Bahia, UTC-03:00) no formato YYYY-MM-DD.
+ * Exemplo: Em 09/09/2026 (quarta-feira), retorna rigorosamente 2026-09-08 (terça-feira).
+ */
+export function getYesterdayBahiaDate(refDate: Date = new Date()): string {
+  const bahiaStr = getTodayBahiaDate(refDate);
+  const [y, m, d] = bahiaStr.split("-").map(Number);
+  const prev = new Date(Date.UTC(y, m - 1, d - 1, 12, 0, 0));
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bahia",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(prev);
+}
+
+/**
+ * Retorna o mês atual no fuso da Bahia (YYYY-MM).
+ */
+export function getCurrentBahiaMonth(refDate: Date = new Date()): string {
+  return getTodayBahiaDate(refDate).substring(0, 7);
+}
+
+/**
+ * Retorna o mês anterior no fuso da Bahia (YYYY-MM).
+ */
+export function getPreviousBahiaMonth(refDate: Date = new Date()): string {
+  const [yearStr, monthStr] = getCurrentBahiaMonth(refDate).split("-");
+  let y = parseInt(yearStr, 10);
+  let m = parseInt(monthStr, 10) - 1;
+  if (m === 0) {
+    m = 12;
+    y -= 1;
+  }
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+/**
  * Mapeia o nome retornado pela Takeat para o identificador de unidade do House 190.
  */
 export function matchStoreNameToUnit(name: string): Exclude<UnitId, "all"> | undefined {
@@ -397,20 +447,28 @@ export async function fetchTakeatGeneralCards(
     );
   }
 
-  // Monta as variações de URL aceitas pela Takeat:
+  // Monta as variações de URL aceitas pela Takeat (tanto com encode quanto puro):
+  const startEnc = encodeURIComponent(startDateIso);
+  const endEnc = encodeURIComponent(endDateIso);
   const urlsToTry: string[] = [];
 
   // Se houver restaurantId definido para a unidade, tenta com ids (padrão Multilojas) e com restaurant_id
   if (credentials.restaurantId) {
     urlsToTry.push(
+      `${TAKEAT_CONFIG.REPORTS_URL}?start_date=${startEnc}&end_date=${endEnc}&ids=${credentials.restaurantId}`
+    );
+    urlsToTry.push(
       `${TAKEAT_CONFIG.REPORTS_URL}?start_date=${startDateIso}&end_date=${endDateIso}&ids=${credentials.restaurantId}`
     );
     urlsToTry.push(
-      `${TAKEAT_CONFIG.REPORTS_URL}?start_date=${startDateIso}&end_date=${endDateIso}&restaurant_id=${credentials.restaurantId}`
+      `${TAKEAT_CONFIG.REPORTS_URL}?start_date=${startEnc}&end_date=${endEnc}&restaurant_id=${credentials.restaurantId}`
     );
   }
 
   // Formato padrão direto (para tokens específicos de uma loja)
+  urlsToTry.push(
+    `${TAKEAT_CONFIG.REPORTS_URL}?start_date=${startEnc}&end_date=${endEnc}`
+  );
   urlsToTry.push(
     `${TAKEAT_CONFIG.REPORTS_URL}?start_date=${startDateIso}&end_date=${endDateIso}`
   );
@@ -418,9 +476,15 @@ export async function fetchTakeatGeneralCards(
   // Clusters secundários como fallback
   if (credentials.restaurantId) {
     urlsToTry.push(
+      `${TAKEAT_CONFIG.REPORTS_FALLBACK_URL}?start_date=${startEnc}&end_date=${endEnc}&ids=${credentials.restaurantId}`
+    );
+    urlsToTry.push(
       `${TAKEAT_CONFIG.REPORTS_FALLBACK_URL}?start_date=${startDateIso}&end_date=${endDateIso}&ids=${credentials.restaurantId}`
     );
   }
+  urlsToTry.push(
+    `${TAKEAT_CONFIG.REPORTS_FALLBACK_URL}?start_date=${startEnc}&end_date=${endEnc}`
+  );
   urlsToTry.push(
     `${TAKEAT_CONFIG.REPORTS_FALLBACK_URL}?start_date=${startDateIso}&end_date=${endDateIso}`
   );
