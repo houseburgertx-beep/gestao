@@ -126,17 +126,29 @@ export interface DailyRevenue {
   notes?: string;
 }
 
+export interface ChannelGoalData {
+  target: number;
+  realized: number;
+  bonus: number;
+}
+
 export interface UnitGoal {
   id: string;
   unitId: Exclude<UnitId, 'all'>;
   month: number; // 1-12
   year: number;
   targetAmount: number;
+  superTargetAmount?: number;
   currentRealized: number;
   previousMonthRealized: number;
   dailyAverageTarget?: number;
   currentDailyAverage?: number;
   projectedClose?: number;
+  channels?: {
+    salao: ChannelGoalData;
+    delivery: ChannelGoalData;
+    ifood: ChannelGoalData;
+  };
 }
 
 export type EmployeeStatus = 'active' | 'vacation' | 'leave' | 'terminated';

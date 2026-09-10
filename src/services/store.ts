@@ -460,41 +460,68 @@ class DataStore {
     return newRev;
   }
 
-  // GOALS (Cálculo em tempo real baseado no faturamento oficial, sem valores falsos)
+  // GOALS (Cálculo em tempo real baseado nas metas oficiais dos documentos e faturamento Takeat)
   getGoals(): UnitGoal[] {
     let rawGoals = this.get<UnitGoal[]>(STORAGE_KEYS.GOALS, []);
-    if (rawGoals.length === 0) {
+    const defaultTargets: Record<string, { target: number; superTarget: number; salaoTarget: number; deliveryTarget: number; ifoodTarget: number }> = {
+      teixeira: { target: 200000, superTarget: 210000, salaoTarget: 70000, deliveryTarget: 80000, ifoodTarget: 50000 },
+      eunapolis: { target: 200000, superTarget: 210000, salaoTarget: 70000, deliveryTarget: 80000, ifoodTarget: 50000 },
+      foodpark: { target: 180000, superTarget: 190000, salaoTarget: 90000, deliveryTarget: 60000, ifoodTarget: 30000 },
+      central: { target: 0, superTarget: 0, salaoTarget: 0, deliveryTarget: 0, ifoodTarget: 0 },
+    };
+
+    if (rawGoals.length === 0 || rawGoals.some((g) => g.targetAmount === 0 && defaultTargets[g.unitId]?.target > 0)) {
       const units: Array<Exclude<UnitId, "all">> = ["eunapolis", "teixeira", "foodpark", "central"];
-      rawGoals = units.map((u) => ({
-        id: `goal-${u}`,
-        unitId: u,
-        month: 9,
-        year: 2026,
-        targetAmount: 0,
-        currentRealized: 0,
-        previousMonthRealized: 0,
-        dailyAverageTarget: 0,
-        currentDailyAverage: 0,
-        projectedClose: 0,
-      }));
+      rawGoals = units.map((u) => {
+        const conf = defaultTargets[u] || { target: 0, superTarget: 0 };
+        return {
+          id: `goal-${u}`,
+          unitId: u,
+          month: 9,
+          year: 2026,
+          targetAmount: conf.target,
+          superTargetAmount: conf.superTarget,
+          currentRealized: 0,
+          previousMonthRealized: 0,
+          dailyAverageTarget: conf.target > 0 ? Math.round(conf.target / 30) : 0,
+          currentDailyAverage: 0,
+          projectedClose: 0,
+        };
+      });
+      this.set(STORAGE_KEYS.GOALS, rawGoals);
     }
+
     const revenues = this.getRevenues();
+    const takeatRevs = this.getTakeatRevenues();
 
     return rawGoals.map((g) => {
       const monthPrefix = `${g.year}-${String(g.month).padStart(2, "0")}`;
-      const monthRevs = revenues.filter(
+      const conf = defaultTargets[g.unitId] || { target: g.targetAmount, superTarget: g.superTargetAmount || g.targetAmount, salaoTarget: 0, deliveryTarget: 0, ifoodTarget: 0 };
+
+      // Takeat channel breakdown
+      const unitTakeat = takeatRevs.filter(
         (r) => r.unitId === g.unitId && r.date.startsWith(monthPrefix)
       );
 
+      const salaoRealized = unitTakeat.reduce((acc, cur) => acc + (cur.salao || 0), 0);
+      const deliveryRealized = unitTakeat.reduce((acc, cur) => acc + (cur.delivery || 0), 0);
+      const ifoodRealized = unitTakeat.reduce((acc, cur) => acc + (cur.ifood || 0), 0);
+      const takeatSum = salaoRealized + deliveryRealized + ifoodRealized;
+
+      const monthRevs = revenues.filter(
+        (r) => r.unitId === g.unitId && r.date.startsWith(monthPrefix)
+      );
       const monthlySummary = monthRevs.find((r) => r.date === monthPrefix);
-      const currentRealized = monthlySummary
+      const generalRealized = monthlySummary
         ? monthlySummary.netRevenue
         : monthRevs.reduce((acc, cur) => acc + cur.netRevenue, 0);
 
-      const daysCount = monthRevs.filter((r) => r.date !== monthPrefix).length || 1;
+      const currentRealized = Math.max(takeatSum, generalRealized);
+
+      const daysElapsed = Math.min(30, Math.max(1, new Date().getDate()));
       const currentDailyAverage =
         currentRealized > 0
-          ? Math.round((currentRealized / (monthlySummary ? 30 : daysCount)) * 100) / 100
+          ? Math.round((currentRealized / daysElapsed) * 100) / 100
           : 0;
 
       const projectedClose =
@@ -502,11 +529,33 @@ class DataStore {
           ? Math.round(currentDailyAverage * 30 * 100) / 100
           : currentRealized;
 
+      const targetAmount = g.targetAmount > 0 ? g.targetAmount : conf.target;
+      const superTargetAmount = g.superTargetAmount && g.superTargetAmount > 0 ? g.superTargetAmount : conf.superTarget;
+
       return {
         ...g,
+        targetAmount,
+        superTargetAmount,
         currentRealized,
         currentDailyAverage,
         projectedClose,
+        channels: {
+          salao: {
+            target: conf.salaoTarget,
+            realized: salaoRealized,
+            bonus: 500,
+          },
+          delivery: {
+            target: conf.deliveryTarget,
+            realized: deliveryRealized,
+            bonus: g.unitId === "foodpark" ? 1000 : 750,
+          },
+          ifood: {
+            target: conf.ifoodTarget,
+            realized: ifoodRealized,
+            bonus: g.unitId === "foodpark" ? 500 : 750,
+          },
+        },
       };
     });
   }
