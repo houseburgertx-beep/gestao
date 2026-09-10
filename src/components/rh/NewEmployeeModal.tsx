@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { store } from "@/services/store";
 import { Employee, UnitId } from "@/types";
 import { UserPlus, Check, Building2 } from "lucide-react";
-import { uploadFileToDrive } from "@/services/driveService";
+import { nameFileForDrive, uploadFileToDrive } from "@/services/driveService";
 
 interface NewEmployeeModalProps {
   isOpen: boolean;
@@ -46,7 +46,9 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
         salary.replace(/\./g, "").replace(",", ".")
       ) || 0;
 
-      const storedPhoto = photoFile ? await uploadFileToDrive(photoFile, "employee_photos") : null;
+      const storedPhoto = photoFile
+        ? await uploadFileToDrive(nameFileForDrive(photoFile, `Foto - ${name.trim()}`), "employee_photos")
+        : null;
       const employeeData: Omit<Employee, "documentsCount"> = {
         id: `emp-${Date.now()}`,
         name: name.trim(),

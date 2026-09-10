@@ -640,8 +640,8 @@ class DataStore {
     saveDocumentToFirestore(newDoc).catch(() => {});
     this.addNotification({
       type: "doc",
-      title: "Documento registrado",
-      message: `${doc.title} foi adicionado ao controle de documentos.`,
+      title: "Documento salvo no Drive",
+      message: `${doc.originalFileName || doc.title} foi salvo na pasta Documentos e já está disponível no painel.`,
       link: "/documentos",
       severity: "success",
     });

@@ -12,6 +12,31 @@ export type StoredDriveFile = {
   size: number;
 };
 
+function cleanFilePart(value: string): string {
+  return value
+    .replace(/[\\/:*?"<>|#%{}]/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/-+/g, "-")
+    .trim()
+    .slice(0, 70);
+}
+
+export function nameFileForDrive(file: File, context: string): File {
+  const date = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bahia",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const originalName = cleanFilePart(file.name) || "arquivo";
+  const cleanContext = cleanFilePart(context);
+  const fileName = cleanContext ? `${date} - ${cleanContext} - ${originalName}` : `${date} - ${originalName}`;
+  return new File([file], fileName.slice(0, 180), {
+    type: file.type,
+    lastModified: file.lastModified,
+  });
+}
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = "";

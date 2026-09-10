@@ -26,7 +26,7 @@ import { StatusBadge, Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Drawer } from "@/components/ui/Drawer";
 import { QuickCreateModal } from "@/components/layout/QuickCreateModal";
-import { downloadFileFromDrive, uploadFileToDrive } from "@/services/driveService";
+import { downloadFileFromDrive, nameFileForDrive, uploadFileToDrive } from "@/services/driveService";
 
 function FinanceiroContent() {
   const { filterByUnit } = useUnit();
@@ -112,7 +112,10 @@ function FinanceiroContent() {
     setSavingPayment(true);
     try {
       const storedProof = paymentProofFile
-        ? await uploadFileToDrive(paymentProofFile, "payment_proofs")
+        ? await uploadFileToDrive(
+            nameFileForDrive(paymentProofFile, `Comprovante - ${selectedAccount?.description || id}`),
+            "payment_proofs"
+          )
         : null;
       store.payAccount(
         id,

@@ -132,18 +132,38 @@ async function callGoogleScript(env: EmailEnv, body: object): Promise<Record<str
 
 async function sendEmail(env: EmailEnv, payload: NotificationPayload, recipients: string[]): Promise<void> {
   const destination = payload.link ? new URL(payload.link.slice(1), SITE_URL).toString() : SITE_URL;
-  const accent = payload.severity === "danger" ? "#e11d48" : payload.severity === "warning" ? "#f59e0b" : "#18181b";
+  const accent = payload.severity === "danger" ? "#e11d48" : payload.severity === "warning" ? "#f59e0b" : payload.severity === "success" ? "#16a34a" : "#2563eb";
+  const label = payload.severity === "danger" ? "URGENTE" : payload.severity === "warning" ? "ATENÇÃO" : payload.severity === "success" ? "CONCLUÍDO" : "INFORMAÇÃO";
+  const sentAt = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Bahia",
+    dateStyle: "long",
+    timeStyle: "short",
+  }).format(new Date());
   const html = `
-    <div style="font-family:Arial,sans-serif;background:#f4f4f5;padding:28px;color:#18181b">
-      <div style="max-width:560px;margin:auto;background:#fff;border:1px solid #e4e4e7;border-radius:12px;overflow:hidden">
-        <div style="padding:18px 24px;background:#18181b;color:#fff;font-weight:700">HOUSE 190 · Gestão</div>
-        <div style="padding:24px;border-left:4px solid ${accent}">
-          <h1 style="font-size:18px;margin:0 0 12px">${escapeHtml(payload.title)}</h1>
-          <p style="font-size:14px;line-height:1.6;color:#52525b;margin:0 0 20px">${escapeHtml(payload.message)}</p>
-          <a href="${escapeHtml(destination)}" style="display:inline-block;background:#18181b;color:#fff;text-decoration:none;padding:10px 16px;border-radius:7px;font-size:13px;font-weight:600">Abrir painel</a>
-        </div>
-      </div>
-    </div>`;
+    <div style="display:none;max-height:0;overflow:hidden;color:transparent">${escapeHtml(payload.message)}</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background-color:#f3f1eb;font-family:Arial,Helvetica,sans-serif;color:#18181b">
+      <tr><td align="center" style="padding:28px 12px">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:580px;background-color:#ffffff;border:1px solid #e4e4e7;border-radius:18px;overflow:hidden">
+          <tr><td style="background-color:#151515;padding:22px 26px;border-bottom:5px solid #facc15">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
+              <td width="54"><div style="width:44px;height:44px;line-height:44px;text-align:center;border-radius:50%;background-color:#facc15;color:#151515;font-size:14px;font-weight:800">H190</div></td>
+              <td><div style="color:#ffffff;font-size:20px;font-weight:800;letter-spacing:.2px">HOUSE 190</div><div style="color:#d4d4d8;font-size:12px;margin-top:3px">Gestão integrada</div></td>
+            </tr></table>
+          </td></tr>
+          <tr><td style="padding:30px 28px 28px">
+            <div style="display:inline-block;background-color:${accent}18;color:${accent};border:1px solid ${accent}45;border-radius:999px;padding:6px 10px;font-size:10px;font-weight:800;letter-spacing:1px">${label}</div>
+            <h1 style="color:#18181b;font-size:24px;line-height:1.25;margin:18px 0 12px;font-weight:800">${escapeHtml(payload.title)}</h1>
+            <p style="color:#52525b;font-size:15px;line-height:1.65;margin:0 0 24px">${escapeHtml(payload.message)}</p>
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr><td bgcolor="#facc15" style="border-radius:9px">
+              <a href="${escapeHtml(destination)}" style="display:inline-block;color:#18181b;text-decoration:none;padding:13px 20px;font-size:14px;font-weight:800">Abrir painel →</a>
+            </td></tr></table>
+          </td></tr>
+          <tr><td style="background-color:#fafafa;border-top:1px solid #eeeeee;padding:16px 28px;color:#71717a;font-size:11px;line-height:1.5">
+            Enviado em ${escapeHtml(sentAt)} · HOUSE 190<br>Este é um aviso automático do sistema de gestão.
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>`;
   await callGoogleScript(env, {
     action: "email",
     to: recipients,

@@ -20,7 +20,7 @@ import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
-import { downloadFileFromDrive, formatFileSize, uploadFileToDrive } from "@/services/driveService";
+import { downloadFileFromDrive, formatFileSize, nameFileForDrive, uploadFileToDrive } from "@/services/driveService";
 import { subscribeDocuments } from "@/services/firestoreService";
 
 export default function DocumentosPage() {
@@ -71,7 +71,8 @@ export default function DocumentosPage() {
     setUploading(true);
     setUploadError("");
     try {
-      const stored = await uploadFileToDrive(selectedFile, "documents");
+      const driveFile = nameFileForDrive(selectedFile, newTitle);
+      const stored = await uploadFileToDrive(driveFile, "documents");
       const extension = selectedFile.name.split(".").pop()?.toLowerCase() || "arquivo";
       store.addDocument({
         title: newTitle,
