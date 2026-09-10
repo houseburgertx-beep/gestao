@@ -555,10 +555,161 @@ export async function fetchTakeatGeneralCards(
 }
 
 /**
- * Processa a resposta oficial da Takeat extraindo estritamente payment_without_tax:
- * - Salão = balcony + table
- * - Delivery = delivery
- * - iFood = ifood
+ * Extrai os canais de venda (Salão, Delivery Próprio e iFood) analisando
+ * exaustivamente qualquer resposta da Takeat (payment_without_tax, sales_by_channel,
+ * channels, etc.) de forma case-insensitive e tolerante a múltiplos sinônimos
+ * em português e inglês (balcão, mesas, salão, pdv, totem, ifood, delivery próprio, etc.).
+ */
+export function extractChannelsFromTakeatResponse(
+  response: TakeatGeneralCardsResponse
+): {
+  salao: number;
+  delivery: number;
+  ifood: number;
+  rawBalcony: number;
+  rawTable: number;
+  rawDelivery: number;
+  rawIfood: number;
+  totalRevenue: number;
+} {
+  const pwt: Record<string, any> =
+    response?.payment_without_tax ||
+    (response as any)?.data?.payment_without_tax ||
+    (response as any)?.report?.payment_without_tax ||
+    {};
+
+  let rawBalcony = parseBRLNumber(pwt.balcony);
+  let rawTable = parseBRLNumber(pwt.table);
+  let rawDelivery = parseBRLNumber(pwt.delivery);
+  let rawIfood = parseBRLNumber(pwt.ifood || pwt.iFood || pwt.IFOOD);
+
+  // Varre exaustivamente todas as chaves do objeto de pagamentos sem taxas
+  for (const [key, val] of Object.entries(pwt)) {
+    if (val === null || val === undefined) continue;
+    const cleanKey = key
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "");
+    const num = parseBRLNumber(val);
+    if (num <= 0) continue;
+
+    // Salão (balcão, mesas, salão, pdv, totem, consumo local, comanda)
+    if (
+      cleanKey.includes("balcao") ||
+      cleanKey.includes("balcony") ||
+      cleanKey.includes("retirada") ||
+      cleanKey.includes("counter") ||
+      cleanKey.includes("takeaway")
+    ) {
+      if (rawBalcony === 0) rawBalcony = num;
+    } else if (
+      cleanKey.includes("mesa") ||
+      cleanKey.includes("table") ||
+      cleanKey.includes("salao") ||
+      cleanKey.includes("salon") ||
+      cleanKey.includes("dinein") ||
+      cleanKey.includes("hall") ||
+      cleanKey.includes("totem") ||
+      cleanKey.includes("pdv") ||
+      cleanKey.includes("pos") ||
+      cleanKey.includes("comanda") ||
+      cleanKey.includes("presencial") ||
+      cleanKey.includes("consumolocal")
+    ) {
+      if (rawTable === 0) rawTable = num;
+    }
+    // iFood (iFood, integracao_ifood, marketplace, apps)
+    else if (
+      cleanKey.includes("ifood") ||
+      cleanKey.includes("integracaoifood") ||
+      cleanKey.includes("marketplace") ||
+      cleanKey.includes("deliveryapp")
+    ) {
+      if (rawIfood === 0) rawIfood = num;
+    }
+    // Delivery Próprio
+    else if (
+      cleanKey.includes("deliveryproprio") ||
+      cleanKey.includes("proprio") ||
+      cleanKey.includes("whatsapp") ||
+      cleanKey.includes("cardapio") ||
+      cleanKey.includes("site") ||
+      cleanKey.includes("app")
+    ) {
+      if (rawDelivery === 0) rawDelivery = num;
+    }
+  }
+
+  // Verifica outras seções da resposta oficial da Takeat (channels, sales_by_channel, cards)
+  const channelSources = [
+    (response as any)?.sales_by_channel,
+    (response as any)?.channels,
+    (response as any)?.data?.sales_by_channel,
+    (response as any)?.data?.channels,
+    (response as any)?.report?.sales_by_channel,
+    (response as any)?.report?.channels,
+    (response as any)?.cards?.channels,
+  ];
+
+  for (const src of channelSources) {
+    if (src && typeof src === "object") {
+      for (const [k, v] of Object.entries(src)) {
+        const cleanK = k
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]/g, "");
+        const num = parseBRLNumber(
+          (v as any)?.total || (v as any)?.value || (v as any)?.amount || v
+        );
+        if (num <= 0) continue;
+
+        if (
+          rawBalcony === 0 &&
+          rawTable === 0 &&
+          (cleanK.includes("salao") ||
+            cleanK.includes("mesa") ||
+            cleanK.includes("balcao") ||
+            cleanK.includes("pdv"))
+        ) {
+          rawTable = num;
+        } else if (rawIfood === 0 && cleanK.includes("ifood")) {
+          rawIfood = num;
+        } else if (
+          rawDelivery === 0 &&
+          (cleanK.includes("delivery") ||
+            cleanK.includes("proprio") ||
+            cleanK.includes("site"))
+        ) {
+          rawDelivery = num;
+        }
+      }
+    }
+  }
+
+  const salao = Math.round((rawBalcony + rawTable) * 100) / 100;
+  const delivery = rawDelivery;
+  const ifood = rawIfood;
+  const totalRevenue = Math.round((salao + delivery + ifood) * 100) / 100;
+
+  return {
+    salao,
+    delivery,
+    ifood,
+    rawBalcony,
+    rawTable,
+    rawDelivery,
+    rawIfood,
+    totalRevenue,
+  };
+}
+
+/**
+ * Processa a resposta oficial da Takeat extraindo canais detalhados:
+ * - Salão = Balcão + Mesas / Salão
+ * - Delivery Próprio = WhatsApp / Cardápio Digital / Delivery Próprio
+ * - iFood = Integração iFood / Marketplaces
  * - Faturamento Total Oficial = Salão + Delivery + iFood
  */
 export function processOfficialRevenue(
@@ -566,26 +717,18 @@ export function processOfficialRevenue(
   dateStr: string,
   response: TakeatGeneralCardsResponse
 ): TakeatRevenueRecord {
-  const pwt: TakeatPaymentWithoutTax | undefined =
+  const pwt =
     response?.payment_without_tax ||
     (response as any)?.data?.payment_without_tax ||
     (response as any)?.report?.payment_without_tax;
 
   if (!pwt || typeof pwt !== "object") {
     throw new Error(
-      "Objeto \x27payment_without_tax\x27 não encontrado na resposta oficial da Takeat."
+      "Objeto 'payment_without_tax' não encontrado na resposta oficial da Takeat."
     );
   }
 
-  const rawBalcony = parseBRLNumber(pwt.balcony);
-  const rawTable = parseBRLNumber(pwt.table);
-  const rawDelivery = parseBRLNumber(pwt.delivery);
-  const rawIfood = parseBRLNumber(pwt.ifood);
-
-  const salao = Math.round((rawBalcony + rawTable) * 100) / 100;
-  const delivery = rawDelivery;
-  const ifood = rawIfood;
-  const totalRevenue = Math.round((salao + delivery + ifood) * 100) / 100;
+  const channels = extractChannelsFromTakeatResponse(response);
 
   const isMonthly = /^\d{4}-\d{2}$/.test(dateStr);
   const { startDate, endDate } = isMonthly
@@ -598,14 +741,14 @@ export function processOfficialRevenue(
     date: dateStr,
     startDateUtc: startDate,
     endDateUtc: endDate,
-    salao,
-    delivery,
-    ifood,
-    totalRevenue,
-    rawBalcony,
-    rawTable,
-    rawDelivery,
-    rawIfood,
+    salao: channels.salao,
+    delivery: channels.delivery,
+    ifood: channels.ifood,
+    totalRevenue: channels.totalRevenue,
+    rawBalcony: channels.rawBalcony,
+    rawTable: channels.rawTable,
+    rawDelivery: channels.rawDelivery,
+    rawIfood: channels.rawIfood,
     source: "takeat",
     syncedAt: new Date().toISOString(),
   };

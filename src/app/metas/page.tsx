@@ -105,6 +105,7 @@ export default function MetasPage() {
   const [syncingDate, setSyncingDate] = useState<string | null>(null);
   const [syncFeedback, setSyncFeedback] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
   const [editingDay, setEditingDay] = useState<{ dateStr: string; dayName: string } | null>(null);
+  const [editUnit, setEditUnit] = useState<Exclude<UnitId, "all"> | "all">("all");
   const [editSalao, setEditSalao] = useState("");
   const [editDelivery, setEditDelivery] = useState("");
   const [editIfood, setEditIfood] = useState("");
@@ -273,6 +274,37 @@ export default function MetasPage() {
     ];
   }, [channelData]);
 
+  // Metas Diárias Oficiais por Dia da Semana (conforme documento)
+  const isFoodPark = currentUnit === "foodpark";
+  const isAll = currentUnit === "all";
+
+  // Obter a meta diária planejada para um dia da semana (0 = Domingo, 1 = Segunda, etc.)
+  const getDailyTargetForDay = (dayIndex: number) => {
+    if (isFoodPark) {
+      // Food Park
+      if (dayIndex >= 1 && dayIndex <= 4) return { salao: 1800, delivery: 1600, ifood: 600, total: 4000 };
+      if (dayIndex === 5) return { salao: 2800, delivery: 2400, ifood: 800, total: 6000 };
+      if (dayIndex === 6) return { salao: 4500, delivery: 2800, ifood: 1300, total: 8600 };
+      return { salao: 4900, delivery: 2800, ifood: 1300, total: 9000 }; // Domingo
+    } else if (currentUnit === "teixeira" || currentUnit === "eunapolis") {
+      // House 190 (Teixeira ou Eunápolis individual)
+      if (dayIndex === 1 || dayIndex === 2) return { salao: 2100, delivery: 2100, ifood: 800, total: 5000 };
+      if (dayIndex === 3) return { salao: 2300, delivery: 2400, ifood: 1300, total: 6000 };
+      if (dayIndex === 4) return { salao: 2500, delivery: 2700, ifood: 1300, total: 6500 };
+      if (dayIndex === 5) return { salao: 2800, delivery: 3200, ifood: 1500, total: 7500 };
+      if (dayIndex === 6) return { salao: 3000, delivery: 3500, ifood: 2000, total: 8500 };
+      return { salao: 3500, delivery: 4000, ifood: 2500, total: 10000 }; // Domingo
+    } else {
+      // Consolidado Grupo House (Teixeira 200k + Eunápolis 200k + Food Park 180k)
+      if (dayIndex === 1 || dayIndex === 2) return { salao: 6000, delivery: 5800, ifood: 2200, total: 14000 };
+      if (dayIndex === 3) return { salao: 6400, delivery: 6400, ifood: 3200, total: 16000 };
+      if (dayIndex === 4) return { salao: 6800, delivery: 7000, ifood: 3200, total: 17000 };
+      if (dayIndex === 5) return { salao: 8400, delivery: 8800, ifood: 3800, total: 21000 };
+      if (dayIndex === 6) return { salao: 10500, delivery: 9800, ifood: 5300, total: 25600 };
+      return { salao: 11900, delivery: 10800, ifood: 6300, total: 29000 }; // Domingo
+    }
+  };
+
   // Função para obter o faturamento real oficial de um dia específico (YYYY-MM-DD)
   const getDayRevenue = (dateStr: string) => {
     let salao = 0;
@@ -309,6 +341,20 @@ export default function MetasPage() {
     const dailyTotal = matchingDaily.reduce((acc, cur) => acc + (cur.netRevenue || cur.grossRevenue || 0), 0);
 
     const total = Math.max(takeatTotal, dailyTotal);
+
+    // Se o dia possui faturamento apurado (total > 0), mas Salão e iFood estão zerados
+    // (situação em que o Takeat só reportou delivery próprio ou faturamento sem abertura):
+    if (total > 0 && salao === 0 && ifood === 0) {
+      const parts = dateStr.split("-").map(Number);
+      const dObj = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12, 0, 0));
+      const targets = getDailyTargetForDay(dObj.getUTCDay());
+      const dayTargetTotal = targets.salao + targets.delivery + targets.ifood;
+      if (dayTargetTotal > 0) {
+        salao = Math.round((total * (targets.salao / dayTargetTotal)) * 100) / 100;
+        delivery = Math.round((total * (targets.delivery / dayTargetTotal)) * 100) / 100;
+        ifood = Math.round((total - salao - delivery) * 100) / 100;
+      }
+    }
 
     return { salao, delivery, ifood, total };
   };
@@ -470,9 +516,34 @@ export default function MetasPage() {
   const handleOpenEditModal = (row: { dateStr: string; dayName: string }) => {
     const rev = getDayRevenue(row.dateStr);
     setEditingDay(row);
+    setEditUnit(currentUnit);
     setEditSalao(rev.salao > 0 ? rev.salao.toString() : "");
     setEditDelivery(rev.delivery > 0 ? rev.delivery.toString() : "");
     setEditIfood(rev.ifood > 0 ? rev.ifood.toString() : "");
+  };
+
+  // Botão para distribuir total proporcionalmente às metas do dia
+  const handleDistributeByTargets = () => {
+    if (!editingDay) return;
+    const currentTotal =
+      (parseFloat(editSalao.replace(/\./g, "").replace(",", ".")) || 0) +
+      (parseFloat(editDelivery.replace(/\./g, "").replace(",", ".")) || 0) +
+      (parseFloat(editIfood.replace(/\./g, "").replace(",", ".")) || 0);
+
+    const parts = editingDay.dateStr.split("-").map(Number);
+    const dObj = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12, 0, 0));
+    const targets = getDailyTargetForDay(dObj.getUTCDay());
+    const targetTotal = targets.salao + targets.delivery + targets.ifood;
+
+    const baseAmount = currentTotal > 0 ? currentTotal : targets.total;
+    if (targetTotal > 0) {
+      const s = Math.round((baseAmount * (targets.salao / targetTotal)) * 100) / 100;
+      const d = Math.round((baseAmount * (targets.delivery / targetTotal)) * 100) / 100;
+      const i = Math.round((baseAmount - s - d) * 100) / 100;
+      setEditSalao(s.toFixed(2).replace(".", ","));
+      setEditDelivery(d.toFixed(2).replace(".", ","));
+      setEditIfood(i.toFixed(2).replace(".", ","));
+    }
   };
 
   // Salva faturamento inserido manualmente
@@ -485,25 +556,45 @@ export default function MetasPage() {
     const ifoodVal = parseFloat(editIfood.replace(/\./g, "").replace(",", ".")) || 0;
     const totalVal = salaoVal + deliveryVal + ifoodVal;
 
-    const unitId = currentUnit === "all" ? "foodpark" : currentUnit;
+    const targetUnits: Array<Exclude<UnitId, "all">> =
+      editUnit === "all"
+        ? ["foodpark", "teixeira", "eunapolis"]
+        : [editUnit];
 
-    store.saveTakeatRevenue({
-      id: `takeat-${unitId}-${editingDay.dateStr}`,
-      unitId,
-      date: editingDay.dateStr,
-      startDateUtc: `${editingDay.dateStr}T03:00:00.000Z`,
-      endDateUtc: `${editingDay.dateStr}T23:59:59.999Z`,
-      salao: salaoVal,
-      delivery: deliveryVal,
-      ifood: ifoodVal,
-      totalRevenue: totalVal,
-      rawBalcony: salaoVal,
-      rawTable: 0,
-      rawDelivery: deliveryVal,
-      rawIfood: ifoodVal,
-      source: "takeat",
-      syncedAt: new Date().toISOString(),
-    });
+    const weights: Record<string, number> = {
+      teixeira: 200 / 580,
+      eunapolis: 200 / 580,
+      foodpark: 180 / 580,
+    };
+
+    for (const u of targetUnits) {
+      const weight = editUnit === "all" ? (weights[u] || 1 / 3) : 1;
+      const uSalao = Math.round(salaoVal * weight * 100) / 100;
+      const uDelivery = Math.round(deliveryVal * weight * 100) / 100;
+      const uIfood = Math.round(ifoodVal * weight * 100) / 100;
+      const uTotal = Math.round((uSalao + uDelivery + uIfood) * 100) / 100;
+
+      store.saveTakeatRevenue(
+        {
+          id: `takeat-${u}-${editingDay.dateStr}`,
+          unitId: u,
+          date: editingDay.dateStr,
+          startDateUtc: `${editingDay.dateStr}T03:00:00.000Z`,
+          endDateUtc: `${editingDay.dateStr}T23:59:59.999Z`,
+          salao: uSalao,
+          delivery: uDelivery,
+          ifood: uIfood,
+          totalRevenue: uTotal,
+          rawBalcony: uSalao,
+          rawTable: 0,
+          rawDelivery: uDelivery,
+          rawIfood: uIfood,
+          source: "takeat",
+          syncedAt: new Date().toISOString(),
+        },
+        true // isManualEdit = true para respeitar a divisão
+      );
+    }
 
     setTakeatRevenues(store.getTakeatRevenues());
     setDailyRevenues(store.getRevenues());
@@ -513,37 +604,6 @@ export default function MetasPage() {
       type: "success",
       text: `Faturamento de ${editingDay.dayName} (${editingDay.dateStr.split("-").reverse().join("/")}) salvo com sucesso: ${formatCurrency(totalVal)}!`,
     });
-  };
-
-  // Metas Diárias Oficiais por Dia da Semana (conforme documento)
-  const isFoodPark = currentUnit === "foodpark";
-  const isAll = currentUnit === "all";
-
-  // Obter a meta diária planejada para um dia da semana (0 = Domingo, 1 = Segunda, etc.)
-  const getDailyTargetForDay = (dayIndex: number) => {
-    if (isFoodPark) {
-      // Food Park
-      if (dayIndex >= 1 && dayIndex <= 4) return { salao: 1800, delivery: 1600, ifood: 600, total: 4000 };
-      if (dayIndex === 5) return { salao: 2800, delivery: 2400, ifood: 800, total: 6000 };
-      if (dayIndex === 6) return { salao: 4500, delivery: 2800, ifood: 1300, total: 8600 };
-      return { salao: 4900, delivery: 2800, ifood: 1300, total: 9000 }; // Domingo
-    } else if (currentUnit === "teixeira" || currentUnit === "eunapolis") {
-      // House 190 (Teixeira ou Eunápolis individual)
-      if (dayIndex === 1 || dayIndex === 2) return { salao: 2100, delivery: 2100, ifood: 800, total: 5000 };
-      if (dayIndex === 3) return { salao: 2300, delivery: 2400, ifood: 1300, total: 6000 };
-      if (dayIndex === 4) return { salao: 2500, delivery: 2700, ifood: 1300, total: 6500 };
-      if (dayIndex === 5) return { salao: 2800, delivery: 3200, ifood: 1500, total: 7500 };
-      if (dayIndex === 6) return { salao: 3000, delivery: 3500, ifood: 2000, total: 8500 };
-      return { salao: 3500, delivery: 4000, ifood: 2500, total: 10000 }; // Domingo
-    } else {
-      // Consolidado Grupo House (Teixeira 200k + Eunápolis 200k + Food Park 180k)
-      if (dayIndex === 1 || dayIndex === 2) return { salao: 6000, delivery: 5800, ifood: 2200, total: 14000 };
-      if (dayIndex === 3) return { salao: 6400, delivery: 6400, ifood: 3200, total: 16000 };
-      if (dayIndex === 4) return { salao: 6800, delivery: 7000, ifood: 3200, total: 17000 };
-      if (dayIndex === 5) return { salao: 8400, delivery: 8800, ifood: 3800, total: 21000 };
-      if (dayIndex === 6) return { salao: 10500, delivery: 9800, ifood: 5300, total: 25600 };
-      return { salao: 11900, delivery: 10800, ifood: 6300, total: 29000 }; // Domingo
-    }
   };
 
   // Semanas do mês de Setembro de 2026
@@ -1481,9 +1541,28 @@ export default function MetasPage() {
         >
           <form onSubmit={handleSaveDailyRevenue} className="space-y-4 pt-2">
             <div className="space-y-3">
+              {currentUnit === "all" && (
+                <div>
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                    Unidade de Lançamento
+                  </label>
+                  <select
+                    value={editUnit}
+                    onChange={(e) => setEditUnit(e.target.value as any)}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Todas as Unidades (Rateio Proporcional às Metas)</option>
+                    <option value="foodpark">House Food Park</option>
+                    <option value="teixeira">House 190 Teixeira de Freitas</option>
+                    <option value="eunapolis">House 190 Eunápolis</option>
+                  </select>
+                </div>
+              )}
+
               <div>
-                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
-                  Salão (Balcão + Mesa)
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1 flex items-center justify-between">
+                  <span>Salão (Balcão + Mesa)</span>
+                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-normal">Canal Salão</span>
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-xs text-zinc-400">R$</span>
@@ -1499,8 +1578,9 @@ export default function MetasPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
-                  Delivery Próprio (WhatsApp / Cardápio Digital)
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1 flex items-center justify-between">
+                  <span>Delivery Próprio (WhatsApp / Cardápio Digital)</span>
+                  <span className="text-[10px] text-violet-600 dark:text-violet-400 font-normal">Canal Delivery Próprio</span>
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-xs text-zinc-400">R$</span>
@@ -1516,8 +1596,9 @@ export default function MetasPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
-                  iFood
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1 flex items-center justify-between">
+                  <span>iFood</span>
+                  <span className="text-[10px] text-rose-600 dark:text-rose-400 font-normal">Canal iFood</span>
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-xs text-zinc-400">R$</span>
@@ -1530,6 +1611,18 @@ export default function MetasPage() {
                     className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-rose-500"
                   />
                 </div>
+              </div>
+
+              {/* Botão para Distribuir Automaticamente pelas Metas */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={handleDistributeByTargets}
+                  className="w-full py-1.5 px-2.5 rounded-md border border-dashed border-blue-300 dark:border-blue-800/60 bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100/60 text-xs font-medium inline-flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Distribuir Total pelas Metas do Dia (Salão / Delivery / iFood)
+                </button>
               </div>
 
               {/* Total Calculado */}

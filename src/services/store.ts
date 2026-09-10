@@ -527,6 +527,15 @@ class DataStore {
         ifoodRealized = dailyIfood;
       }
 
+      // Proteção de canais: se o acumulado diário veio sem Salão ou iFood (ex: Takeat só reportou delivery),
+      // mas o registro consolidado mensal possui valores nesses canais, preserva os dados oficiais do mês
+      if (salaoRealized === 0 && monthlyRecord && (monthlyRecord.salao || 0) > 0) {
+        salaoRealized = monthlyRecord.salao;
+      }
+      if (ifoodRealized === 0 && monthlyRecord && (monthlyRecord.ifood || 0) > 0) {
+        ifoodRealized = monthlyRecord.ifood;
+      }
+
       const takeatSum = salaoRealized + deliveryRealized + ifoodRealized;
 
       const monthRevs = revenues.filter(
@@ -540,6 +549,17 @@ class DataStore {
         : dailyRevsSum;
 
       const currentRealized = Math.max(takeatSum, generalRealized);
+
+      // Se há faturamento realizado apurado (currentRealized > 0), mas Salão e iFood ficaram zerados
+      // (caso onde todo o faturamento foi atribuído exclusivamente ao delivery ou apuração global):
+      if (currentRealized > 0 && salaoRealized === 0 && ifoodRealized === 0) {
+        const totalPlanned = conf.salaoTarget + conf.deliveryTarget + conf.ifoodTarget;
+        if (totalPlanned > 0) {
+          salaoRealized = Math.round((currentRealized * (conf.salaoTarget / totalPlanned)) * 100) / 100;
+          deliveryRealized = Math.round((currentRealized * (conf.deliveryTarget / totalPlanned)) * 100) / 100;
+          ifoodRealized = Math.round((currentRealized - salaoRealized - deliveryRealized) * 100) / 100;
+        }
+      }
 
       const daysElapsed = Math.min(30, Math.max(1, new Date().getDate()));
       const currentDailyAverage =
@@ -816,28 +836,47 @@ class DataStore {
     }
   }
 
-  saveTakeatRevenue(record: TakeatRevenueRecord) {
+  saveTakeatRevenue(record: TakeatRevenueRecord, isManualEdit: boolean = false) {
     const current = this.getTakeatRevenues();
+    const existing = current.find((r) => r.unitId === record.unitId && r.date === record.date);
+
+    let finalRecord = { ...record };
+    if (existing && !isManualEdit) {
+      // Preserva canais já lançados se a nova sincronização veio com zero neles
+      const salao = record.salao > 0 ? record.salao : (existing.salao || 0);
+      const ifood = record.ifood > 0 ? record.ifood : (existing.ifood || 0);
+      const delivery = record.delivery > 0 ? record.delivery : (existing.delivery || 0);
+      const totalRevenue = Math.round((salao + delivery + ifood) * 100) / 100;
+
+      finalRecord = {
+        ...record,
+        salao,
+        delivery,
+        ifood,
+        totalRevenue: Math.max(record.totalRevenue, totalRevenue),
+      };
+    }
+
     const filtered = current.filter(
-      (r) => !(r.unitId === record.unitId && r.date === record.date)
+      (r) => !(r.unitId === finalRecord.unitId && r.date === finalRecord.date)
     );
-    this.set(STORAGE_KEYS.TAKEAT_REVENUES, [record, ...filtered]);
+    this.set(STORAGE_KEYS.TAKEAT_REVENUES, [finalRecord, ...filtered]);
 
     // Sincroniza também no faturamento diário da plataforma
     const currentRevs = this.getRevenues();
     const existingIndex = currentRevs.findIndex(
-      (r) => r.unitId === record.unitId && r.date === record.date
+      (r) => r.unitId === finalRecord.unitId && r.date === finalRecord.date
     );
 
     const updatedRevItem: DailyRevenue = {
-      id: `rev-takeat-${record.unitId}-${record.date}`,
-      unitId: record.unitId,
-      date: record.date,
-      grossRevenue: record.totalRevenue,
+      id: `rev-takeat-${finalRecord.unitId}-${finalRecord.date}`,
+      unitId: finalRecord.unitId,
+      date: finalRecord.date,
+      grossRevenue: finalRecord.totalRevenue,
       discounts: 0,
       cancellations: 0,
-      netRevenue: record.totalRevenue,
-      notes: `Sincronizado via API Takeat (Salão: R$ ${record.salao.toFixed(2)}, Delivery: R$ ${record.delivery.toFixed(2)}, iFood: R$ ${record.ifood.toFixed(2)})`,
+      netRevenue: finalRecord.totalRevenue,
+      notes: `Sincronizado via API Takeat (Salão: R$ ${finalRecord.salao.toFixed(2)}, Delivery: R$ ${finalRecord.delivery.toFixed(2)}, iFood: R$ ${finalRecord.ifood.toFixed(2)})`,
     };
 
     if (existingIndex >= 0) {
