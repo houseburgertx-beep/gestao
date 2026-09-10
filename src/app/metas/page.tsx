@@ -279,23 +279,16 @@ export default function MetasPage() {
     let delivery = 0;
     let ifood = 0;
 
-    // Busca dados do Takeat com suporte a data exata ou correspondência UTC
+    // Busca dados do Takeat estritamente diários (YYYY-MM-DD - exatamente 10 caracteres)
+    // NUNCA incluir registros mensais acumulados (ex: date = "2026-09")
     const matchingTakeat = takeatRevenues.filter((r) => {
       if (currentUnit !== "all" && r.unitId !== currentUnit) return false;
       if (currentUnit === "all" && r.unitId === "central") return false;
 
-      // 1. Casamento direto por data (YYYY-MM-DD)
-      if (r.date === dateStr) return true;
+      // NUNCA permitir registros mensais (tamanho !== 10) em um dia individual
+      if (!r.date || r.date.length !== 10) return false;
 
-      // 2. Recuperação de registros salvos com UTC correspondente ao dia
-      if (r.startDateUtc && r.startDateUtc.startsWith(dateStr)) return true;
-
-      // 3. Caso especial para terça-feira (2026-09-08): se sincronizado ontem mas gravado como 2026-09-09
-      if (dateStr === "2026-09-08" && r.date === "2026-09-09" && r.syncedAt && r.syncedAt.startsWith("2026-09-08")) {
-        return true;
-      }
-
-      return false;
+      return r.date === dateStr;
     });
 
     if (matchingTakeat.length > 0) {
@@ -306,13 +299,12 @@ export default function MetasPage() {
 
     const takeatTotal = salao + delivery + ifood;
 
-    // Fallback para faturamento manual geral se não houver no Takeat
+    // Fallback para faturamento manual geral estritamente diário
     const matchingDaily = dailyRevenues.filter((r) => {
       if (currentUnit !== "all" && r.unitId !== currentUnit) return false;
       if (currentUnit === "all" && r.unitId === "central") return false;
-      if (r.date === dateStr) return true;
-      if (dateStr === "2026-09-08" && r.date === "2026-09-09" && r.notes?.includes("08/09")) return true;
-      return false;
+      if (!r.date || r.date.length !== 10) return false;
+      return r.date === dateStr;
     });
     const dailyTotal = matchingDaily.reduce((acc, cur) => acc + (cur.netRevenue || cur.grossRevenue || 0), 0);
 
@@ -352,7 +344,11 @@ export default function MetasPage() {
       if (anySuccess) {
         setSyncFeedback({
           type: "success",
-          text: `Vendas de ${targetDateStr.split("-").reverse().join("/")} sincronizadas com sucesso da Takeat (${formatCurrency(totalFetched)})!`,
+          text: `Vendas de ${targetDateStr.split("-").reverse().join("/")} sincronizadas com sucesso da Takeat (${formatCurrency(totalFetched)})!${
+            targetDateStr === "2026-09-08" && selectedWeekIndex !== 1
+              ? " Atenção: A terça-feira (08/09) está localizada na aba 'Semana Atual'."
+              : ""
+          }`,
         });
       } else {
         setSyncFeedback({
@@ -364,6 +360,106 @@ export default function MetasPage() {
       setSyncFeedback({
         type: "error",
         text: err.message || "Erro durante sincronização",
+      });
+    } finally {
+      setSyncingDate(null);
+    }
+  };
+
+  // Sincroniza todos os dias da semana selecionada
+  const handleSyncWeek = async (weekIdx: number) => {
+    const week = monthWeeks[weekIdx];
+    if (!week) return;
+
+    const daysToSync = week.days.filter((d) => d.dateStr <= todayStr);
+    if (daysToSync.length === 0) {
+      setSyncFeedback({
+        type: "info",
+        text: "Esta semana contém apenas dias futuros que ainda não ocorreram.",
+      });
+      return;
+    }
+
+    setSyncingDate(`week-${week.id}`);
+    setSyncFeedback({
+      type: "info",
+      text: `Sincronizando faturamento diário oficial de ${daysToSync.length} dia(s) da ${week.label} na Takeat...`,
+    });
+
+    try {
+      const unitsToSync: Array<Exclude<UnitId, "all">> =
+        currentUnit === "all"
+          ? ["foodpark", "teixeira", "eunapolis"]
+          : [currentUnit];
+
+      let totalFetched = 0;
+
+      for (const d of daysToSync) {
+        for (const u of unitsToSync) {
+          const res = await store.syncTakeatUnit(u, d.dateStr, "diretoria", "all");
+          if (res.success && res.data) {
+            totalFetched += res.data.totalRevenue;
+          }
+        }
+      }
+
+      setTakeatRevenues(store.getTakeatRevenues());
+      setDailyRevenues(store.getRevenues());
+      setGoals(store.getGoals());
+
+      setSyncFeedback({
+        type: "success",
+        text: `Sincronização concluída para ${daysToSync.length} dia(s) da ${week.label}! Total apurado: ${formatCurrency(totalFetched)}.`,
+      });
+    } catch (err: any) {
+      setSyncFeedback({
+        type: "error",
+        text: err.message || "Erro ao sincronizar semana.",
+      });
+    } finally {
+      setSyncingDate(null);
+    }
+  };
+
+  // Sincroniza todos os dias do mês decorridos (01/09 até Hoje)
+  const handleSyncMonthDays = async () => {
+    setSyncingDate("month-days");
+    setSyncFeedback({
+      type: "info",
+      text: "Sincronizando faturamento diário oficial de 01/09 até hoje dia a dia da Takeat...",
+    });
+
+    try {
+      const unitsToSync: Array<Exclude<UnitId, "all">> =
+        currentUnit === "all"
+          ? ["foodpark", "teixeira", "eunapolis"]
+          : [currentUnit];
+
+      const currentDay = parseInt(todayStr.split("-")[2], 10);
+      let totalFetched = 0;
+
+      for (let day = 1; day <= currentDay; day++) {
+        const dStr = `2026-09-${String(day).padStart(2, "0")}`;
+        for (const u of unitsToSync) {
+          const res = await store.syncTakeatUnit(u, dStr, "diretoria", "all");
+          if (res.success && res.data) {
+            totalFetched += res.data.totalRevenue;
+          }
+        }
+      }
+
+      setTakeatRevenues(store.getTakeatRevenues());
+      setDailyRevenues(store.getRevenues());
+      setGoals(store.getGoals());
+
+      setSyncFeedback({
+        type: "success",
+        text: `Faturamento diário de 01/09 até hoje sincronizado com sucesso dia a dia da Takeat! Total: ${formatCurrency(totalFetched)}.`,
+      });
+    } catch (err: any) {
+      setSyncFeedback({
+        type: "error",
+        text: err.message || "Erro ao sincronizar mês.",
       });
     } finally {
       setSyncingDate(null);
@@ -1008,10 +1104,23 @@ export default function MetasPage() {
             className={`p-3 rounded-lg border text-xs flex items-center justify-between gap-2 ${
               syncFeedback.type === "success"
                 ? "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-200"
+                : syncFeedback.type === "info"
+                ? "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950/40 dark:border-blue-900 dark:text-blue-200"
                 : "bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-200"
             }`}
           >
-            <span>{syncFeedback.text}</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span>{syncFeedback.text}</span>
+              {selectedWeekIndex !== 1 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedWeekIndex(1)}
+                  className="px-2 py-0.5 rounded bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 transition-colors inline-flex items-center gap-1"
+                >
+                  Ir para a Semana Atual (07/09 a 13/09) →
+                </button>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => setSyncFeedback(null)}
@@ -1022,8 +1131,8 @@ export default function MetasPage() {
           </div>
         )}
 
-        {/* Destaque e Ação Rápida para Terça-feira se estiver sem dados */}
-        {getDayRevenue("2026-09-08").total === 0 && selectedWeekIndex === 1 && (
+        {/* Destaque para Terça-feira (08/09) */}
+        {getDayRevenue("2026-09-08").total === 0 ? (
           <div className="p-3.5 rounded-lg border border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 dark:border-amber-900/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
             <div className="flex items-start sm:items-center gap-2.5">
               <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
@@ -1032,14 +1141,17 @@ export default function MetasPage() {
                   Faturamento de Terça-feira (08/09) não registrado:
                 </span>
                 <span className="text-amber-700 dark:text-amber-300">
-                  Os valores do dia anterior ainda não foram importados ou inseridos.
+                  Os valores do dia anterior ainda não foram importados ou inseridos (fica na aba "Semana Atual").
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={() => handleSyncDate("2026-09-08")}
+                onClick={() => {
+                  setSelectedWeekIndex(1);
+                  handleSyncDate("2026-09-08");
+                }}
                 disabled={syncingDate === "2026-09-08"}
                 className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md font-semibold text-xs inline-flex items-center gap-1.5 transition-colors shadow-2xs disabled:opacity-50"
               >
@@ -1056,35 +1168,79 @@ export default function MetasPage() {
               </button>
             </div>
           </div>
+        ) : (
+          <div className="p-3 rounded-lg border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-900/40 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-200">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <span>
+                <strong>Terça-feira (08/09) oficial:</strong> {formatCurrency(getDayRevenue("2026-09-08").total)} registrados.
+              </span>
+            </div>
+            {selectedWeekIndex !== 1 && (
+              <button
+                type="button"
+                onClick={() => setSelectedWeekIndex(1)}
+                className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:underline inline-flex items-center gap-1 self-start sm:self-auto"
+              >
+                Conferir na Semana Atual (07/09 a 13/09) →
+              </button>
+            )}
+          </div>
         )}
 
-        {/* Cabeçalho da Seção com Seletor de Semanas */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+        {/* Cabeçalho da Seção com Seletor de Semanas e Ações em Massa */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pt-2">
           <div>
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
               <Clock className="h-4 w-4 text-zinc-400" />
               Metas Diárias vs Faturamento Real (Por Dia da Semana)
             </h2>
             <p className="text-xs text-zinc-400">
-              Compare a meta planejada com o faturamento oficial realizado em cada dia
+              Acompanhamento oficial dia a dia — Selecione a semana ou sincronize com a Takeat
             </p>
           </div>
 
-          {/* Seletor de Semana */}
-          <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg text-xs">
-            {monthWeeks.map((week, idx) => (
-              <button
-                key={week.id}
-                onClick={() => setSelectedWeekIndex(idx)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                  selectedWeekIndex === idx
-                    ? "bg-white text-zinc-900 shadow-2xs font-semibold dark:bg-zinc-900 dark:text-zinc-100"
-                    : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
-                }`}
-              >
-                {week.label.split(" ")[0]} {week.label.split(" ")[1]}
-              </button>
-            ))}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Botões de Sincronização em Massa */}
+            <button
+              type="button"
+              onClick={() => handleSyncWeek(selectedWeekIndex)}
+              disabled={syncingDate !== null}
+              className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 transition-colors shadow-2xs disabled:opacity-50"
+              title="Sincronizar todos os dias já ocorridos desta semana na Takeat"
+            >
+              <RotateCw className={`h-3 w-3 ${syncingDate?.startsWith("week-") ? "animate-spin" : ""}`} />
+              Sincronizar Esta Semana
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSyncMonthDays}
+              disabled={syncingDate !== null}
+              className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              title="Consultar e sincronizar dia a dia de 01/09 até hoje na Takeat"
+            >
+              <RotateCw className={`h-3 w-3 ${syncingDate === "month-days" ? "animate-spin" : ""}`} />
+              Sincronizar Mês Inteiro
+            </button>
+
+            {/* Seletor de Semana */}
+            <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg text-xs">
+              {monthWeeks.map((week, idx) => (
+                <button
+                  key={week.id}
+                  onClick={() => setSelectedWeekIndex(idx)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                    selectedWeekIndex === idx
+                      ? "bg-white text-zinc-900 shadow-2xs font-semibold dark:bg-zinc-900 dark:text-zinc-100"
+                      : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                  }`}
+                >
+                  {week.label.split(" ")[0]} {week.label.split(" ")[1]}
+                  {idx === 1 && " • Atual"}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

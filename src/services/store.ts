@@ -498,23 +498,46 @@ class DataStore {
       const monthPrefix = `${g.year}-${String(g.month).padStart(2, "0")}`;
       const conf = defaultTargets[g.unitId] || { target: g.targetAmount, superTarget: g.superTargetAmount || g.targetAmount, salaoTarget: 0, deliveryTarget: 0, ifoodTarget: 0 };
 
-      // Takeat channel breakdown
+      // Takeat channel breakdown: separa registros do mês consolidado e diários para nunca duplicar
       const unitTakeat = takeatRevs.filter(
         (r) => r.unitId === g.unitId && r.date.startsWith(monthPrefix)
       );
 
-      const salaoRealized = unitTakeat.reduce((acc, cur) => acc + (cur.salao || 0), 0);
-      const deliveryRealized = unitTakeat.reduce((acc, cur) => acc + (cur.delivery || 0), 0);
-      const ifoodRealized = unitTakeat.reduce((acc, cur) => acc + (cur.ifood || 0), 0);
+      const monthlyRecord = unitTakeat.find((r) => r.date === monthPrefix);
+      const dailyTakeat = unitTakeat.filter((r) => r.date !== monthPrefix && r.date.length === 10);
+
+      const dailySalao = dailyTakeat.reduce((acc, cur) => acc + (cur.salao || 0), 0);
+      const dailyDelivery = dailyTakeat.reduce((acc, cur) => acc + (cur.delivery || 0), 0);
+      const dailyIfood = dailyTakeat.reduce((acc, cur) => acc + (cur.ifood || 0), 0);
+      const dailySum = dailySalao + dailyDelivery + dailyIfood;
+
+      let salaoRealized = 0;
+      let deliveryRealized = 0;
+      let ifoodRealized = 0;
+
+      if (monthlyRecord && monthlyRecord.totalRevenue >= dailySum) {
+        // Usa o registro consolidado do mês oficial
+        salaoRealized = monthlyRecord.salao || 0;
+        deliveryRealized = monthlyRecord.delivery || 0;
+        ifoodRealized = monthlyRecord.ifood || 0;
+      } else {
+        // Usa o acumulado dos dias individuais
+        salaoRealized = dailySalao;
+        deliveryRealized = dailyDelivery;
+        ifoodRealized = dailyIfood;
+      }
+
       const takeatSum = salaoRealized + deliveryRealized + ifoodRealized;
 
       const monthRevs = revenues.filter(
         (r) => r.unitId === g.unitId && r.date.startsWith(monthPrefix)
       );
       const monthlySummary = monthRevs.find((r) => r.date === monthPrefix);
-      const generalRealized = monthlySummary
+      const dailyRevsOnly = monthRevs.filter((r) => r.date !== monthPrefix && r.date.length === 10);
+      const dailyRevsSum = dailyRevsOnly.reduce((acc, cur) => acc + cur.netRevenue, 0);
+      const generalRealized = monthlySummary && monthlySummary.netRevenue >= dailyRevsSum
         ? monthlySummary.netRevenue
-        : monthRevs.reduce((acc, cur) => acc + cur.netRevenue, 0);
+        : dailyRevsSum;
 
       const currentRealized = Math.max(takeatSum, generalRealized);
 
