@@ -5,16 +5,19 @@ import {
   Target,
   TrendingUp,
   Calendar,
-  ArrowUpRight,
   Award,
   AlertCircle,
   UtensilsCrossed,
   Bike,
   ShoppingBag,
   CheckCircle2,
+  XCircle,
   Clock,
   Sparkles,
   Info,
+  ArrowUpRight,
+  ArrowDownRight,
+  ChevronRight,
 } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import { store } from "@/services/store";
@@ -23,29 +26,89 @@ import { UnitGoal } from "@/types";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 
-// Cores dos Canais
+// Cores Oficiais dos Canais
 const CHANNEL_COLORS = {
   salao: "#3b82f6", // Azul
   delivery: "#8b5cf6", // Violeta
   ifood: "#ef4444", // Vermelho iFood
   restante: "#e4e4e7", // Zinc 200
-  restanteDark: "#27272a", // Zinc 800
+};
+
+// Tooltip Personalizado do Donut de Composição por Canal
+const CustomChannelTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const item = payload[0];
+    const val = Number(item.value || 0);
+    const color = item.payload?.color || item.color || "#3b82f6";
+    const name = item.name || item.payload?.name || "Canal";
+    const percent = item.payload?.percentValue || 0;
+
+    return (
+      <div className="bg-zinc-950/95 text-white px-3.5 py-2.5 rounded-xl shadow-xl border border-zinc-800 text-xs backdrop-blur-md">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="h-3 w-3 rounded-full shrink-0 ring-1 ring-white/20" style={{ backgroundColor: color }} />
+          <span className="font-bold text-sm text-zinc-100">{name}</span>
+        </div>
+        <div className="flex items-baseline gap-2 pt-0.5">
+          <span className="font-mono font-bold text-base text-zinc-50">{formatCurrency(val)}</span>
+          {percent > 0 && (
+            <span className="text-zinc-400 text-xs font-semibold">({percent.toFixed(1)}%)</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+// Tooltip Personalizado do Donut de Progresso Global
+const CustomProgressTooltip = ({ active, payload, totalTarget }: any) => {
+  if (active && payload && payload.length) {
+    const item = payload[0];
+    const val = Number(item.value || 0);
+    const color = item.payload?.color || item.color || "#10b981";
+    const name = item.name || item.payload?.name || "Valor";
+    const percent = totalTarget > 0 ? (val / totalTarget) * 100 : 0;
+
+    return (
+      <div className="bg-zinc-950/95 text-white px-3.5 py-2.5 rounded-xl shadow-xl border border-zinc-800 text-xs backdrop-blur-md">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="h-3 w-3 rounded-full shrink-0 ring-1 ring-white/20" style={{ backgroundColor: color }} />
+          <span className="font-bold text-sm text-zinc-100">{name}</span>
+        </div>
+        <div className="flex items-baseline gap-2 pt-0.5">
+          <span className="font-mono font-bold text-base text-zinc-50">{formatCurrency(val)}</span>
+          {totalTarget > 0 && (
+            <span className="text-zinc-400 text-xs font-semibold">({percent.toFixed(1)}% da Meta)</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+  return null;
 };
 
 export default function MetasPage() {
-  const { currentUnit, filterByUnit } = useUnit();
+  const { currentUnit } = useUnit();
   const [goals, setGoals] = useState<UnitGoal[]>([]);
+  const [takeatRevenues, setTakeatRevenues] = useState(store.getTakeatRevenues());
+  const [dailyRevenues, setDailyRevenues] = useState(store.getRevenues());
   const [isMounted, setIsMounted] = useState(false);
+  const [selectedWeekIndex, setSelectedWeekIndex] = useState(1); // 1 = Semana Atual (07/09 a 13/09)
 
   useEffect(() => {
     setIsMounted(true);
-    const update = () => setGoals(store.getGoals());
+    const update = () => {
+      setGoals(store.getGoals());
+      setTakeatRevenues(store.getTakeatRevenues());
+      setDailyRevenues(store.getRevenues());
+    };
     update();
     window.addEventListener("house190_data_updated", update);
     return () => window.removeEventListener("house190_data_updated", update);
   }, []);
 
-  // Filtra de acordo com a unidade selecionada no seletor global
+  // Filtra de acordo com a unidade selecionada
   const filteredGoals = useMemo(() => {
     if (currentUnit === "all") {
       return goals.filter((g) => g.unitId !== "central");
@@ -53,13 +116,14 @@ export default function MetasPage() {
     return goals.filter((g) => g.unitId === currentUnit);
   }, [goals, currentUnit]);
 
-  // Cálculos de Tempo (Mês de Setembro / 2026)
+  // Tempo do mês corrente (Setembro / 2026)
   const now = new Date();
   const currentDayOfMonth = Math.min(30, Math.max(1, now.getDate()));
   const totalDaysInMonth = 30;
   const daysRemainingInMonth = Math.max(1, totalDaysInMonth - currentDayOfMonth);
+  const todayStr = "2026-09-09"; // Data base da sessão
 
-  // Metas e Realizados Globais (ou da Unidade Selecionada)
+  // Metas e Realizados Globais
   const totalTarget = filteredGoals.reduce((acc, cur) => acc + cur.targetAmount, 0);
   const totalSuperTarget = filteredGoals.reduce(
     (acc, cur) => acc + (cur.superTargetAmount || cur.targetAmount),
@@ -68,16 +132,11 @@ export default function MetasPage() {
   const totalRealized = filteredGoals.reduce((acc, cur) => acc + cur.currentRealized, 0);
   const totalPercent = totalTarget > 0 ? (totalRealized / totalTarget) * 100 : 0;
   const remainingTotal = Math.max(0, totalTarget - totalRealized);
-  const remainingSuperTotal = Math.max(0, totalSuperTarget - totalRealized);
 
-  // Médias Diárias
-  const dailyAverageRealized =
-    currentDayOfMonth > 0 ? totalRealized / currentDayOfMonth : 0;
+  // Médias Diárias e Projeção Matemática
+  const dailyAverageRealized = currentDayOfMonth > 0 ? totalRealized / currentDayOfMonth : 0;
   const dailyNeeded = remainingTotal / daysRemainingInMonth;
-  const projectedClose =
-    dailyAverageRealized > 0
-      ? dailyAverageRealized * totalDaysInMonth
-      : totalRealized;
+  const projectedClose = dailyAverageRealized > 0 ? dailyAverageRealized * totalDaysInMonth : totalRealized;
   const isAhead = projectedClose >= totalTarget && totalTarget > 0;
 
   // Canais Consolidados (Salão, Delivery Próprio, iFood)
@@ -147,7 +206,7 @@ export default function MetasPage() {
     ];
   }, [totalRealized, totalTarget, remainingTotal]);
 
-  // Donut 2: Composição por Canal (Salão vs Delivery vs iFood)
+  // Donut 2: Composição por Canal com Porcentagens para o Tooltip
   const channelDonutData = useMemo(() => {
     const totalChannelsRealized =
       channelData.salao.realized +
@@ -156,49 +215,176 @@ export default function MetasPage() {
 
     if (totalChannelsRealized > 0) {
       return [
-        { name: "Salão", value: channelData.salao.realized, color: CHANNEL_COLORS.salao },
-        { name: "Delivery Próprio", value: channelData.delivery.realized, color: CHANNEL_COLORS.delivery },
-        { name: "iFood", value: channelData.ifood.realized, color: CHANNEL_COLORS.ifood },
+        {
+          name: "Salão",
+          value: channelData.salao.realized,
+          color: CHANNEL_COLORS.salao,
+          percentValue: (channelData.salao.realized / totalChannelsRealized) * 100,
+        },
+        {
+          name: "Delivery Próprio",
+          value: channelData.delivery.realized,
+          color: CHANNEL_COLORS.delivery,
+          percentValue: (channelData.delivery.realized / totalChannelsRealized) * 100,
+        },
+        {
+          name: "iFood",
+          value: channelData.ifood.realized,
+          color: CHANNEL_COLORS.ifood,
+          percentValue: (channelData.ifood.realized / totalChannelsRealized) * 100,
+        },
       ];
     }
 
-    // Se ainda não houver faturamento lançado, exibe o mix planejado da meta
+    const totalPlanned = channelData.salao.target + channelData.delivery.target + channelData.ifood.target;
     return [
-      { name: "Salão (Planejado)", value: channelData.salao.target, color: CHANNEL_COLORS.salao },
-      { name: "Delivery Próprio (Planejado)", value: channelData.delivery.target, color: CHANNEL_COLORS.delivery },
-      { name: "iFood (Planejado)", value: channelData.ifood.target, color: CHANNEL_COLORS.ifood },
+      {
+        name: "Salão (Planejado)",
+        value: channelData.salao.target,
+        color: CHANNEL_COLORS.salao,
+        percentValue: totalPlanned > 0 ? (channelData.salao.target / totalPlanned) * 100 : 35,
+      },
+      {
+        name: "Delivery Próprio (Planejado)",
+        value: channelData.delivery.target,
+        color: CHANNEL_COLORS.delivery,
+        percentValue: totalPlanned > 0 ? (channelData.delivery.target / totalPlanned) * 100 : 40,
+      },
+      {
+        name: "iFood (Planejado)",
+        value: channelData.ifood.target,
+        color: CHANNEL_COLORS.ifood,
+        percentValue: totalPlanned > 0 ? (channelData.ifood.target / totalPlanned) * 100 : 25,
+      },
     ];
   }, [channelData]);
 
-  // Metas Diárias Oficiais por Dia da Semana (conforme documento oficial)
-  const isFoodPark = currentUnit === "foodpark";
-  const dailyTargetsConfig = useMemo(() => {
-    if (isFoodPark) {
-      return [
-        { day: "Segunda-feira", salao: 1800, delivery: 1600, ifood: 600, total: 4000, dayIndex: 1 },
-        { day: "Terça-feira", salao: 1800, delivery: 1600, ifood: 600, total: 4000, dayIndex: 2 },
-        { day: "Quarta-feira", salao: 1800, delivery: 1600, ifood: 600, total: 4000, dayIndex: 3 },
-        { day: "Quinta-feira", salao: 1800, delivery: 1600, ifood: 600, total: 4000, dayIndex: 4 },
-        { day: "Sexta-feira", salao: 2800, delivery: 2400, ifood: 800, total: 6000, dayIndex: 5 },
-        { day: "Sábado", salao: 4500, delivery: 2800, ifood: 1300, total: 8600, dayIndex: 6 },
-        { day: "Domingo", salao: 4900, delivery: 2800, ifood: 1300, total: 9000, dayIndex: 0 },
-      ];
-    } else {
-      // Padrão House 190 (Teixeira e Eunápolis)
-      return [
-        { day: "Segunda-feira", salao: 2100, delivery: 2100, ifood: 800, total: 5000, dayIndex: 1 },
-        { day: "Terça-feira", salao: 2100, delivery: 2100, ifood: 800, total: 5000, dayIndex: 2 },
-        { day: "Quarta-feira", salao: 2300, delivery: 2400, ifood: 1300, total: 6000, dayIndex: 3 },
-        { day: "Quinta-feira", salao: 2500, delivery: 2700, ifood: 1300, total: 6500, dayIndex: 4 },
-        { day: "Sexta-feira", salao: 2800, delivery: 3200, ifood: 1500, total: 7500, dayIndex: 5 },
-        { day: "Sábado", salao: 3000, delivery: 3500, ifood: 2000, total: 8500, dayIndex: 6 },
-        { day: "Domingo", salao: 3500, delivery: 4000, ifood: 2500, total: 10000, dayIndex: 0 },
-      ];
-    }
-  }, [isFoodPark]);
+  // Função para obter o faturamento real oficial de um dia específico (YYYY-MM-DD)
+  const getDayRevenue = (dateStr: string) => {
+    let salao = 0;
+    let delivery = 0;
+    let ifood = 0;
 
-  const currentDayOfWeekIndex = now.getDay(); // 0 = Domingo, 1 = Segunda, etc.
-  const todayTarget = dailyTargetsConfig.find((d) => d.dayIndex === currentDayOfWeekIndex);
+    // Busca dados do Takeat
+    const matchingTakeat = takeatRevenues.filter(
+      (r) => r.date === dateStr && (currentUnit === "all" ? r.unitId !== "central" : r.unitId === currentUnit)
+    );
+
+    if (matchingTakeat.length > 0) {
+      salao = matchingTakeat.reduce((acc, cur) => acc + (cur.salao || 0), 0);
+      delivery = matchingTakeat.reduce((acc, cur) => acc + (cur.delivery || 0), 0);
+      ifood = matchingTakeat.reduce((acc, cur) => acc + (cur.ifood || 0), 0);
+    }
+
+    const takeatTotal = salao + delivery + ifood;
+
+    // Fallback para faturamento manual geral se não houver no Takeat
+    const matchingDaily = dailyRevenues.filter(
+      (r) => r.date === dateStr && (currentUnit === "all" ? r.unitId !== "central" : r.unitId === currentUnit)
+    );
+    const dailyTotal = matchingDaily.reduce((acc, cur) => acc + (cur.netRevenue || cur.grossRevenue || 0), 0);
+
+    const total = Math.max(takeatTotal, dailyTotal);
+
+    return { salao, delivery, ifood, total };
+  };
+
+  // Metas Diárias Oficiais por Dia da Semana (conforme documento)
+  const isFoodPark = currentUnit === "foodpark";
+  const isAll = currentUnit === "all";
+
+  // Obter a meta diária planejada para um dia da semana (0 = Domingo, 1 = Segunda, etc.)
+  const getDailyTargetForDay = (dayIndex: number) => {
+    if (isFoodPark) {
+      // Food Park
+      if (dayIndex >= 1 && dayIndex <= 4) return { salao: 1800, delivery: 1600, ifood: 600, total: 4000 };
+      if (dayIndex === 5) return { salao: 2800, delivery: 2400, ifood: 800, total: 6000 };
+      if (dayIndex === 6) return { salao: 4500, delivery: 2800, ifood: 1300, total: 8600 };
+      return { salao: 4900, delivery: 2800, ifood: 1300, total: 9000 }; // Domingo
+    } else if (currentUnit === "teixeira" || currentUnit === "eunapolis") {
+      // House 190 (Teixeira ou Eunápolis individual)
+      if (dayIndex === 1 || dayIndex === 2) return { salao: 2100, delivery: 2100, ifood: 800, total: 5000 };
+      if (dayIndex === 3) return { salao: 2300, delivery: 2400, ifood: 1300, total: 6000 };
+      if (dayIndex === 4) return { salao: 2500, delivery: 2700, ifood: 1300, total: 6500 };
+      if (dayIndex === 5) return { salao: 2800, delivery: 3200, ifood: 1500, total: 7500 };
+      if (dayIndex === 6) return { salao: 3000, delivery: 3500, ifood: 2000, total: 8500 };
+      return { salao: 3500, delivery: 4000, ifood: 2500, total: 10000 }; // Domingo
+    } else {
+      // Consolidado Grupo House (Teixeira 200k + Eunápolis 200k + Food Park 180k)
+      if (dayIndex === 1 || dayIndex === 2) return { salao: 6000, delivery: 5800, ifood: 2200, total: 14000 };
+      if (dayIndex === 3) return { salao: 6400, delivery: 6400, ifood: 3200, total: 16000 };
+      if (dayIndex === 4) return { salao: 6800, delivery: 7000, ifood: 3200, total: 17000 };
+      if (dayIndex === 5) return { salao: 8400, delivery: 8800, ifood: 3800, total: 21000 };
+      if (dayIndex === 6) return { salao: 10500, delivery: 9800, ifood: 5300, total: 25600 };
+      return { salao: 11900, delivery: 10800, ifood: 6300, total: 29000 }; // Domingo
+    }
+  };
+
+  // Semanas do mês de Setembro de 2026
+  const monthWeeks = [
+    {
+      id: "w1",
+      label: "Semana 1 (01/09 a 06/09)",
+      days: [
+        { dayName: "Terça-feira", dateStr: "2026-09-01", dayIndex: 2 },
+        { dayName: "Quarta-feira", dateStr: "2026-09-02", dayIndex: 3 },
+        { dayName: "Quinta-feira", dateStr: "2026-09-03", dayIndex: 4 },
+        { dayName: "Sexta-feira", dateStr: "2026-09-04", dayIndex: 5 },
+        { dayName: "Sábado", dateStr: "2026-09-05", dayIndex: 6 },
+        { dayName: "Domingo", dateStr: "2026-09-06", dayIndex: 0 },
+      ],
+    },
+    {
+      id: "w2",
+      label: "Semana Atual (07/09 a 13/09)",
+      days: [
+        { dayName: "Segunda-feira", dateStr: "2026-09-07", dayIndex: 1 },
+        { dayName: "Terça-feira", dateStr: "2026-09-08", dayIndex: 2 },
+        { dayName: "Quarta-feira", dateStr: "2026-09-09", dayIndex: 3 },
+        { dayName: "Quinta-feira", dateStr: "2026-09-10", dayIndex: 4 },
+        { dayName: "Sexta-feira", dateStr: "2026-09-11", dayIndex: 5 },
+        { dayName: "Sábado", dateStr: "2026-09-12", dayIndex: 6 },
+        { dayName: "Domingo", dateStr: "2026-09-13", dayIndex: 0 },
+      ],
+    },
+    {
+      id: "w3",
+      label: "Semana 3 (14/09 a 20/09)",
+      days: [
+        { dayName: "Segunda-feira", dateStr: "2026-09-14", dayIndex: 1 },
+        { dayName: "Terça-feira", dateStr: "2026-09-15", dayIndex: 2 },
+        { dayName: "Quarta-feira", dateStr: "2026-09-16", dayIndex: 3 },
+        { dayName: "Quinta-feira", dateStr: "2026-09-17", dayIndex: 4 },
+        { dayName: "Sexta-feira", dateStr: "2026-09-18", dayIndex: 5 },
+        { dayName: "Sábado", dateStr: "2026-09-19", dayIndex: 6 },
+        { dayName: "Domingo", dateStr: "2026-09-20", dayIndex: 0 },
+      ],
+    },
+    {
+      id: "w4",
+      label: "Semana 4 (21/09 a 27/09)",
+      days: [
+        { dayName: "Segunda-feira", dateStr: "2026-09-21", dayIndex: 1 },
+        { dayName: "Terça-feira", dateStr: "2026-09-22", dayIndex: 2 },
+        { dayName: "Quarta-feira", dateStr: "2026-09-23", dayIndex: 3 },
+        { dayName: "Quinta-feira", dateStr: "2026-09-24", dayIndex: 4 },
+        { dayName: "Sexta-feira", dateStr: "2026-09-25", dayIndex: 5 },
+        { dayName: "Sábado", dateStr: "2026-09-26", dayIndex: 6 },
+        { dayName: "Domingo", dateStr: "2026-09-27", dayIndex: 0 },
+      ],
+    },
+  ];
+
+  const currentWeek = monthWeeks[selectedWeekIndex];
+
+  // Dados de Hoje
+  const todayRevenue = getDayRevenue(todayStr);
+  const todayTargetConfig = getDailyTargetForDay(3); // Quarta-feira = 3
+  const todayTargetTotal = todayTargetConfig.total;
+  const todayRealizedTotal = todayRevenue.total;
+  const todayDifference = todayRealizedTotal - todayTargetTotal;
+  const todayBateu = todayRealizedTotal >= todayTargetTotal;
+  const todayPercent = todayTargetTotal > 0 ? (todayRealizedTotal / todayTargetTotal) * 100 : 0;
 
   return (
     <div className="space-y-6">
@@ -214,7 +400,7 @@ export default function MetasPage() {
             </span>
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Acompanhamento mensal com projeção matemática, metas diárias e canais de venda (Salão, Delivery Próprio e iFood)
+            Acompanhamento em tempo real das metas oficiais, faturamento diário real e canais de venda
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -306,7 +492,7 @@ export default function MetasPage() {
         </div>
       </div>
 
-      {/* SEÇÃO 2: GRÁFICOS DONUT EXECUTIVOS */}
+      {/* SEÇÃO 2: GRÁFICOS DONUT EXECUTIVOS COM TOOLTIP COMPLETO */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Donut 1: Progresso Global da Meta */}
         <div className="p-5 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs space-y-3">
@@ -324,24 +510,16 @@ export default function MetasPage() {
             {isMounted && (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Tooltip
-                    formatter={(value: any) => formatCurrency(Number(value))}
-                    contentStyle={{
-                      backgroundColor: "#18181b",
-                      borderRadius: "8px",
-                      border: "none",
-                      color: "#fff",
-                      fontSize: "12px",
-                    }}
-                  />
+                  <Tooltip content={<CustomProgressTooltip totalTarget={totalTarget} />} />
                   <Pie
                     data={progressDonutData}
+                    nameKey="name"
+                    dataKey="value"
                     cx="50%"
                     cy="50%"
                     innerRadius={62}
                     outerRadius={85}
                     paddingAngle={3}
-                    dataKey="value"
                   >
                     {progressDonutData.map((entry, index) => (
                       <Cell key={`cell-p-${index}`} fill={entry.color} />
@@ -382,38 +560,30 @@ export default function MetasPage() {
           </div>
         </div>
 
-        {/* Donut 2: Composição por Canal (Salão vs Delivery vs iFood) */}
+        {/* Donut 2: Composição por Canal COM TOOLTIP COM NOME DO CANAL */}
         <div className="p-5 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
               <TrendingUp className="h-3.5 w-3.5 text-zinc-400" />
               Composição das Vendas por Canal
             </h3>
-            <span className="text-[11px] text-zinc-400">Salão • Delivery • iFood</span>
+            <span className="text-[11px] text-zinc-400">Passe o mouse para ver os detalhes</span>
           </div>
 
           <div className="relative h-52 w-full flex items-center justify-center">
             {isMounted && (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Tooltip
-                    formatter={(value: any) => formatCurrency(Number(value))}
-                    contentStyle={{
-                      backgroundColor: "#18181b",
-                      borderRadius: "8px",
-                      border: "none",
-                      color: "#fff",
-                      fontSize: "12px",
-                    }}
-                  />
+                  <Tooltip content={<CustomChannelTooltip />} />
                   <Pie
                     data={channelDonutData}
+                    nameKey="name"
+                    dataKey="value"
                     cx="50%"
                     cy="50%"
                     innerRadius={62}
                     outerRadius={85}
                     paddingAngle={3}
-                    dataKey="value"
                   >
                     {channelDonutData.map((entry, index) => (
                       <Cell key={`cell-c-${index}`} fill={entry.color} />
@@ -422,8 +592,8 @@ export default function MetasPage() {
                 </PieChart>
               </ResponsiveContainer>
             )}
-            <div className="absolute flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+            <div className="absolute flex flex-col items-center justify-center pointer-events-none text-center">
+              <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
                 3 Canais
               </span>
               <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">
@@ -641,75 +811,232 @@ export default function MetasPage() {
         </div>
       </div>
 
-      {/* SEÇÃO 4: METAS DIÁRIAS POR DIA DA SEMANA */}
-      <div className="p-6 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 space-y-4 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      {/* SEÇÃO 4: METAS DIÁRIAS, FATURAMENTO REAL, STATUS E QUANTO FALTOU */}
+      <div className="p-6 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 space-y-5 shadow-2xs">
+        {/* Banner de Destaque: HOJE (Quarta-feira) */}
+        <div className="p-4 rounded-xl border border-zinc-200/80 bg-zinc-50/60 dark:bg-zinc-800/40 dark:border-zinc-700/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                Acompanhamento de Hoje (Quarta-feira, 09/09)
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                  todayBateu
+                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                    : todayRealizedTotal > 0
+                    ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                    : "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                }`}
+              >
+                {todayBateu ? "Meta do Dia Batida!" : todayRealizedTotal > 0 ? "Em Andamento" : "Aguardando Vendas"}
+              </span>
+            </div>
+
+            <div className="mt-2 flex flex-wrap items-baseline gap-3">
+              <div>
+                <span className="text-[10px] text-zinc-400 block font-medium">Faturamento Real Hoje:</span>
+                <span className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-50">
+                  {formatCurrency(todayRealizedTotal)}
+                </span>
+              </div>
+              <span className="text-zinc-300 dark:text-zinc-700 text-lg">/</span>
+              <div>
+                <span className="text-[10px] text-zinc-400 block font-medium">Meta do Dia:</span>
+                <span className="text-lg font-bold font-mono text-zinc-500 dark:text-zinc-400">
+                  {formatCurrency(todayTargetTotal)}
+                </span>
+              </div>
+              <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+                ({formatPercent(todayPercent)})
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:items-end gap-1">
+            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              {todayBateu ? "Superavit do Dia:" : "Falta para bater a meta de hoje:"}
+            </span>
+            <span
+              className={`text-xl font-bold font-mono ${
+                todayBateu
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-rose-600 dark:text-rose-400"
+              }`}
+            >
+              {todayBateu
+                ? `+ ${formatCurrency(todayDifference)} acima`
+                : formatCurrency(Math.abs(todayDifference))}
+            </span>
+          </div>
+        </div>
+
+        {/* Cabeçalho da Seção com Seletor de Semanas */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
           <div>
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
               <Clock className="h-4 w-4 text-zinc-400" />
-              Metas Diárias de Faturamento por Dia da Semana
+              Metas Diárias vs Faturamento Real (Por Dia da Semana)
             </h2>
             <p className="text-xs text-zinc-400">
-              Distribuição semanal planejada para {isFoodPark ? "o House Food Park" : "a House 190"}
+              Compare a meta planejada com o faturamento oficial realizado em cada dia
             </p>
           </div>
 
-          {todayTarget && (
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-xs">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-zinc-500 dark:text-zinc-400">Meta de Hoje ({todayTarget.day}):</span>
-              <span className="font-bold font-mono text-zinc-900 dark:text-zinc-50">
-                {formatCurrency(todayTarget.total)}
-              </span>
-            </div>
-          )}
+          {/* Seletor de Semana */}
+          <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg text-xs">
+            {monthWeeks.map((week, idx) => (
+              <button
+                key={week.id}
+                onClick={() => setSelectedWeekIndex(idx)}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                  selectedWeekIndex === idx
+                    ? "bg-white text-zinc-900 shadow-2xs font-semibold dark:bg-zinc-900 dark:text-zinc-100"
+                    : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                }`}
+              >
+                {week.label.split(" ")[0]} {week.label.split(" ")[1]}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Tabela Diária Responsiva */}
+        {/* Tabela Diária com Realizado, Se Bateu e Quanto Faltou */}
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
             <thead>
               <tr className="border-b border-zinc-200 dark:border-zinc-800 text-zinc-400 uppercase text-[10px] font-semibold">
-                <th className="py-2.5 px-3">Dia da Semana</th>
-                <th className="py-2.5 px-3 text-right">Salão</th>
-                <th className="py-2.5 px-3 text-right">Delivery Próprio</th>
-                <th className="py-2.5 px-3 text-right">iFood</th>
-                <th className="py-2.5 px-3 text-right font-bold text-zinc-700 dark:text-zinc-300">
-                  Meta Total do Dia
+                <th className="py-3 px-3">Dia da Semana & Data</th>
+                <th className="py-3 px-3 text-right">Salão (Meta | Real)</th>
+                <th className="py-3 px-3 text-right">Delivery (Meta | Real)</th>
+                <th className="py-3 px-3 text-right">iFood (Meta | Real)</th>
+                <th className="py-3 px-3 text-right font-bold text-zinc-700 dark:text-zinc-300">
+                  Meta do Dia
                 </th>
+                <th className="py-3 px-3 text-right font-bold text-zinc-900 dark:text-zinc-100">
+                  Faturamento Real
+                </th>
+                <th className="py-3 px-3 text-center font-bold">Status</th>
+                <th className="py-3 px-3 text-right font-bold">Quanto Faltou / Saldo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800 font-mono">
-              {dailyTargetsConfig.map((row) => {
-                const isToday = row.dayIndex === currentDayOfWeekIndex;
+              {currentWeek.days.map((row) => {
+                const isToday = row.dateStr === todayStr;
+                const isPast = row.dateStr < todayStr;
+                const isFuture = row.dateStr > todayStr;
+
+                const dayTargets = getDailyTargetForDay(row.dayIndex);
+                const dayRev = getDayRevenue(row.dateStr);
+
+                const targetTotal = dayTargets.total;
+                const realizedTotal = dayRev.total;
+                const difference = realizedTotal - targetTotal;
+                const bateu = realizedTotal >= targetTotal;
+
+                // Formatação da data (ex: 09/09)
+                const dateParts = row.dateStr.split("-");
+                const formattedDate = `${dateParts[2]}/${dateParts[1]}`;
+
                 return (
                   <tr
-                    key={row.day}
+                    key={row.dateStr}
                     className={`transition-colors ${
                       isToday
-                        ? "bg-zinc-50/80 font-bold dark:bg-zinc-800/50"
+                        ? "bg-blue-50/40 dark:bg-blue-950/20 font-semibold"
                         : "hover:bg-zinc-50/40 dark:hover:bg-zinc-800/20"
                     }`}
                   >
-                    <td className="py-3 px-3 font-sans font-medium text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                      <span>{row.day}</span>
-                      {isToday && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-500 text-white tracking-wider">
-                          Hoje
+                    {/* Dia da Semana e Data */}
+                    <td className="py-3 px-3 font-sans font-medium text-zinc-900 dark:text-zinc-100">
+                      <div className="flex items-center gap-2">
+                        <span>
+                          {row.dayName} <span className="text-zinc-400 font-normal">({formattedDate})</span>
+                        </span>
+                        {isToday && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-500 text-white tracking-wider">
+                            Hoje
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Salão: Meta vs Real */}
+                    <td className="py-3 px-3 text-right">
+                      <span className="text-zinc-400 text-[10px] block">{formatCurrency(dayTargets.salao)}</span>
+                      <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                        {isFuture ? "-" : formatCurrency(dayRev.salao)}
+                      </span>
+                    </td>
+
+                    {/* Delivery: Meta vs Real */}
+                    <td className="py-3 px-3 text-right">
+                      <span className="text-zinc-400 text-[10px] block">{formatCurrency(dayTargets.delivery)}</span>
+                      <span className="text-violet-600 dark:text-violet-400 font-semibold">
+                        {isFuture ? "-" : formatCurrency(dayRev.delivery)}
+                      </span>
+                    </td>
+
+                    {/* iFood: Meta vs Real */}
+                    <td className="py-3 px-3 text-right">
+                      <span className="text-zinc-400 text-[10px] block">{formatCurrency(dayTargets.ifood)}</span>
+                      <span className="text-rose-600 dark:text-rose-400 font-semibold">
+                        {isFuture ? "-" : formatCurrency(dayRev.ifood)}
+                      </span>
+                    </td>
+
+                    {/* Meta Total do Dia */}
+                    <td className="py-3 px-3 text-right font-bold text-zinc-600 dark:text-zinc-400">
+                      {formatCurrency(targetTotal)}
+                    </td>
+
+                    {/* Faturamento Real do Dia */}
+                    <td className="py-3 px-3 text-right font-bold text-zinc-900 dark:text-zinc-50 text-sm">
+                      {isFuture ? (
+                        <span className="text-zinc-400 font-normal text-xs">Aguardando</span>
+                      ) : (
+                        formatCurrency(realizedTotal)
+                      )}
+                    </td>
+
+                    {/* Status: Bateu ou Não */}
+                    <td className="py-3 px-3 text-center">
+                      {isFuture ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                          A Realizar
+                        </span>
+                      ) : bateu ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Bateu a Meta
+                        </span>
+                      ) : isToday ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                          <Clock className="h-3 w-3" />
+                          Em Andamento
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
+                          <XCircle className="h-3 w-3" />
+                          Não Bateu
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-3 text-right text-zinc-600 dark:text-zinc-300">
-                      {formatCurrency(row.salao)}
-                    </td>
-                    <td className="py-3 px-3 text-right text-zinc-600 dark:text-zinc-300">
-                      {formatCurrency(row.delivery)}
-                    </td>
-                    <td className="py-3 px-3 text-right text-zinc-600 dark:text-zinc-300">
-                      {formatCurrency(row.ifood)}
-                    </td>
-                    <td className="py-3 px-3 text-right font-bold text-zinc-900 dark:text-zinc-50">
-                      {formatCurrency(row.total)}
+
+                    {/* Diferença / Quanto Faltou */}
+                    <td className="py-3 px-3 text-right">
+                      {isFuture ? (
+                        <span className="text-zinc-400 font-sans">-</span>
+                      ) : bateu ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs inline-flex items-center justify-end gap-0.5">
+                          <ArrowUpRight className="h-3.5 w-3.5" />+ {formatCurrency(difference)}
+                        </span>
+                      ) : (
+                        <span className="text-rose-600 dark:text-rose-400 font-bold text-xs inline-flex items-center justify-end gap-0.5">
+                          <ArrowDownRight className="h-3.5 w-3.5" /> Faltou {formatCurrency(Math.abs(difference))}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );
