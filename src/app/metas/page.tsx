@@ -15,6 +15,7 @@ import {
   Clock,
   Sparkles,
   Info,
+  Building2,
   ArrowUpRight,
   ArrowDownRight,
   ChevronRight,
@@ -96,7 +97,21 @@ const CustomProgressTooltip = ({ active, payload, totalTarget }: any) => {
 };
 
 export default function MetasPage() {
-  const { currentUnit, activeUnitData } = useUnit();
+  const { currentUnit } = useUnit();
+  // Seletor de Loja ativo em Metas: Central de Produção é fábrica/industrial e não possui metas de venda
+  const [activeMetaUnit, setActiveMetaUnit] = useState<Exclude<UnitId, "central"> | "all">(() => {
+    return currentUnit === "central" ? "all" : (currentUnit as any);
+  });
+
+  // Atualiza activeMetaUnit caso o usuário mude a loja no seletor global do topo
+  useEffect(() => {
+    if (currentUnit === "central") {
+      setActiveMetaUnit("all");
+    } else {
+      setActiveMetaUnit(currentUnit as any);
+    }
+  }, [currentUnit]);
+
   const [goals, setGoals] = useState<UnitGoal[]>([]);
   const [takeatRevenues, setTakeatRevenues] = useState(store.getTakeatRevenues());
   const [dailyRevenues, setDailyRevenues] = useState(store.getRevenues());
@@ -105,7 +120,7 @@ export default function MetasPage() {
   const [syncingDate, setSyncingDate] = useState<string | null>(null);
   const [syncFeedback, setSyncFeedback] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
   const [editingDay, setEditingDay] = useState<{ dateStr: string; dayName: string } | null>(null);
-  const [editUnit, setEditUnit] = useState<Exclude<UnitId, "all"> | "all">("all");
+  const [editUnit, setEditUnit] = useState<Exclude<UnitId, "all" | "central"> | "all">("all");
   const [editSalao, setEditSalao] = useState("");
   const [editDelivery, setEditDelivery] = useState("");
   const [editIfood, setEditIfood] = useState("");
@@ -122,13 +137,13 @@ export default function MetasPage() {
     return () => window.removeEventListener("house190_data_updated", update);
   }, []);
 
-  // Filtra de acordo com a unidade selecionada
+  // Filtra metas de acordo com a unidade selecionada (Central de Produção é estritamente excluída)
   const filteredGoals = useMemo(() => {
-    if (currentUnit === "all") {
-      return goals.filter((g) => g.unitId !== "central");
+    if (activeMetaUnit === "all") {
+      return goals.filter((g) => (g.unitId as string) !== "central");
     }
-    return goals.filter((g) => g.unitId === currentUnit);
-  }, [goals, currentUnit]);
+    return goals.filter((g) => g.unitId === activeMetaUnit);
+  }, [goals, activeMetaUnit]);
 
   // Tempo do mês corrente (Setembro / 2026) com fuso oficial da Bahia
   const todayStr = getTodayBahiaDate();
@@ -275,19 +290,19 @@ export default function MetasPage() {
   }, [channelData]);
 
   // Metas Diárias Oficiais por Dia da Semana (conforme documento)
-  const isFoodPark = currentUnit === "foodpark";
-  const isAll = currentUnit === "all";
+  const isFoodPark = activeMetaUnit === "foodpark";
+  const isAll = activeMetaUnit === "all";
 
   // Obter a meta diária planejada para um dia da semana (0 = Domingo, 1 = Segunda, etc.)
   const getDailyTargetForDay = (dayIndex: number) => {
     if (isFoodPark) {
-      // Food Park
+      // House Food Park (R$ 180k / Super R$ 190k)
       if (dayIndex >= 1 && dayIndex <= 4) return { salao: 1800, delivery: 1600, ifood: 600, total: 4000 };
       if (dayIndex === 5) return { salao: 2800, delivery: 2400, ifood: 800, total: 6000 };
       if (dayIndex === 6) return { salao: 4500, delivery: 2800, ifood: 1300, total: 8600 };
       return { salao: 4900, delivery: 2800, ifood: 1300, total: 9000 }; // Domingo
-    } else if (currentUnit === "teixeira" || currentUnit === "eunapolis") {
-      // House 190 (Teixeira ou Eunápolis individual)
+    } else if (activeMetaUnit === "teixeira" || activeMetaUnit === "eunapolis") {
+      // House 190 Teixeira ou Eunápolis individual (R$ 200k / Super R$ 210k cada)
       if (dayIndex === 1 || dayIndex === 2) return { salao: 2100, delivery: 2100, ifood: 800, total: 5000 };
       if (dayIndex === 3) return { salao: 2300, delivery: 2400, ifood: 1300, total: 6000 };
       if (dayIndex === 4) return { salao: 2500, delivery: 2700, ifood: 1300, total: 6500 };
@@ -295,7 +310,7 @@ export default function MetasPage() {
       if (dayIndex === 6) return { salao: 3000, delivery: 3500, ifood: 2000, total: 8500 };
       return { salao: 3500, delivery: 4000, ifood: 2500, total: 10000 }; // Domingo
     } else {
-      // Consolidado Grupo House (Teixeira 200k + Eunápolis 200k + Food Park 180k)
+      // Consolidado Geral Grupo House (Teixeira 200k + Eunápolis 200k + Food Park 180k = R$ 580k mês)
       if (dayIndex === 1 || dayIndex === 2) return { salao: 6000, delivery: 5800, ifood: 2200, total: 14000 };
       if (dayIndex === 3) return { salao: 6400, delivery: 6400, ifood: 3200, total: 16000 };
       if (dayIndex === 4) return { salao: 6800, delivery: 7000, ifood: 3200, total: 17000 };
@@ -312,14 +327,11 @@ export default function MetasPage() {
     let ifood = 0;
 
     // Busca dados do Takeat estritamente diários (YYYY-MM-DD - exatamente 10 caracteres)
-    // NUNCA incluir registros mensais acumulados (ex: date = "2026-09")
+    // Central de Produção e registros consolidados mensais são estritamente excluídos
     const matchingTakeat = takeatRevenues.filter((r) => {
-      if (currentUnit !== "all" && r.unitId !== currentUnit) return false;
-      if (currentUnit === "all" && r.unitId === "central") return false;
-
-      // NUNCA permitir registros mensais (tamanho !== 10) em um dia individual
+      if ((r.unitId as string) === "central") return false;
+      if (activeMetaUnit !== "all" && r.unitId !== activeMetaUnit) return false;
       if (!r.date || r.date.length !== 10) return false;
-
       return r.date === dateStr;
     });
 
@@ -329,32 +341,18 @@ export default function MetasPage() {
       ifood = matchingTakeat.reduce((acc, cur) => acc + (cur.ifood || 0), 0);
     }
 
-    const takeatTotal = salao + delivery + ifood;
+    const takeatTotal = Math.round((salao + delivery + ifood) * 100) / 100;
 
-    // Fallback para faturamento manual geral estritamente diário
+    // Faturamento manual geral estritamente diário
     const matchingDaily = dailyRevenues.filter((r) => {
-      if (currentUnit !== "all" && r.unitId !== currentUnit) return false;
-      if (currentUnit === "all" && r.unitId === "central") return false;
+      if ((r.unitId as string) === "central") return false;
+      if (activeMetaUnit !== "all" && r.unitId !== activeMetaUnit) return false;
       if (!r.date || r.date.length !== 10) return false;
       return r.date === dateStr;
     });
     const dailyTotal = matchingDaily.reduce((acc, cur) => acc + (cur.netRevenue || cur.grossRevenue || 0), 0);
 
-    const total = Math.max(takeatTotal, dailyTotal);
-
-    // Se o dia possui faturamento apurado (total > 0), mas Salão e iFood estão zerados
-    // (situação em que o Takeat só reportou delivery próprio ou faturamento sem abertura):
-    if (total > 0 && salao === 0 && ifood === 0) {
-      const parts = dateStr.split("-").map(Number);
-      const dObj = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12, 0, 0));
-      const targets = getDailyTargetForDay(dObj.getUTCDay());
-      const dayTargetTotal = targets.salao + targets.delivery + targets.ifood;
-      if (dayTargetTotal > 0) {
-        salao = Math.round((total * (targets.salao / dayTargetTotal)) * 100) / 100;
-        delivery = Math.round((total * (targets.delivery / dayTargetTotal)) * 100) / 100;
-        ifood = Math.round((total - salao - delivery) * 100) / 100;
-      }
-    }
+    const total = Math.round(Math.max(takeatTotal, dailyTotal) * 100) / 100;
 
     return { salao, delivery, ifood, total };
   };
@@ -364,10 +362,10 @@ export default function MetasPage() {
     setSyncingDate(targetDateStr);
     setSyncFeedback(null);
     try {
-      const unitsToSync: Array<Exclude<UnitId, "all">> =
-        currentUnit === "all"
+      const unitsToSync: Array<Exclude<UnitId, "all" | "central">> =
+        activeMetaUnit === "all"
           ? ["foodpark", "teixeira", "eunapolis"]
-          : [currentUnit];
+          : [activeMetaUnit as any];
 
       let anySuccess = false;
       let totalFetched = 0;
@@ -433,10 +431,10 @@ export default function MetasPage() {
     });
 
     try {
-      const unitsToSync: Array<Exclude<UnitId, "all">> =
-        currentUnit === "all"
+      const unitsToSync: Array<Exclude<UnitId, "all" | "central">> =
+        activeMetaUnit === "all"
           ? ["foodpark", "teixeira", "eunapolis"]
-          : [currentUnit];
+          : [activeMetaUnit as any];
 
       let totalFetched = 0;
 
@@ -476,10 +474,10 @@ export default function MetasPage() {
     });
 
     try {
-      const unitsToSync: Array<Exclude<UnitId, "all">> =
-        currentUnit === "all"
+      const unitsToSync: Array<Exclude<UnitId, "all" | "central">> =
+        activeMetaUnit === "all"
           ? ["foodpark", "teixeira", "eunapolis"]
-          : [currentUnit];
+          : [activeMetaUnit as any];
 
       const currentDay = parseInt(todayStr.split("-")[2], 10);
       let totalFetched = 0;
@@ -516,34 +514,10 @@ export default function MetasPage() {
   const handleOpenEditModal = (row: { dateStr: string; dayName: string }) => {
     const rev = getDayRevenue(row.dateStr);
     setEditingDay(row);
-    setEditUnit(currentUnit);
-    setEditSalao(rev.salao > 0 ? rev.salao.toString() : "");
-    setEditDelivery(rev.delivery > 0 ? rev.delivery.toString() : "");
-    setEditIfood(rev.ifood > 0 ? rev.ifood.toString() : "");
-  };
-
-  // Botão para distribuir total proporcionalmente às metas do dia
-  const handleDistributeByTargets = () => {
-    if (!editingDay) return;
-    const currentTotal =
-      (parseFloat(editSalao.replace(/\./g, "").replace(",", ".")) || 0) +
-      (parseFloat(editDelivery.replace(/\./g, "").replace(",", ".")) || 0) +
-      (parseFloat(editIfood.replace(/\./g, "").replace(",", ".")) || 0);
-
-    const parts = editingDay.dateStr.split("-").map(Number);
-    const dObj = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12, 0, 0));
-    const targets = getDailyTargetForDay(dObj.getUTCDay());
-    const targetTotal = targets.salao + targets.delivery + targets.ifood;
-
-    const baseAmount = currentTotal > 0 ? currentTotal : targets.total;
-    if (targetTotal > 0) {
-      const s = Math.round((baseAmount * (targets.salao / targetTotal)) * 100) / 100;
-      const d = Math.round((baseAmount * (targets.delivery / targetTotal)) * 100) / 100;
-      const i = Math.round((baseAmount - s - d) * 100) / 100;
-      setEditSalao(s.toFixed(2).replace(".", ","));
-      setEditDelivery(d.toFixed(2).replace(".", ","));
-      setEditIfood(i.toFixed(2).replace(".", ","));
-    }
+    setEditUnit(activeMetaUnit === "all" ? "all" : (activeMetaUnit as any));
+    setEditSalao(rev.salao > 0 ? rev.salao.toString().replace(".", ",") : "");
+    setEditDelivery(rev.delivery > 0 ? rev.delivery.toString().replace(".", ",") : "");
+    setEditIfood(rev.ifood > 0 ? rev.ifood.toString().replace(".", ",") : "");
   };
 
   // Salva faturamento inserido manualmente
@@ -556,10 +530,10 @@ export default function MetasPage() {
     const ifoodVal = parseFloat(editIfood.replace(/\./g, "").replace(",", ".")) || 0;
     const totalVal = salaoVal + deliveryVal + ifoodVal;
 
-    const targetUnits: Array<Exclude<UnitId, "all">> =
+    const targetUnits: Array<Exclude<UnitId, "all" | "central">> =
       editUnit === "all"
         ? ["foodpark", "teixeira", "eunapolis"]
-        : [editUnit];
+        : [editUnit as any];
 
     const weights: Record<string, number> = {
       teixeira: 200 / 580,
@@ -592,7 +566,7 @@ export default function MetasPage() {
           source: "takeat",
           syncedAt: new Date().toISOString(),
         },
-        true // isManualEdit = true para respeitar a divisão
+        true // isManualEdit = true
       );
     }
 
@@ -663,9 +637,10 @@ export default function MetasPage() {
 
   const currentWeek = monthWeeks[selectedWeekIndex];
 
-  // Dados de Hoje
+  // Dados de Hoje calculados dinamicamente com base no dia da semana oficial
+  const todayDayOfWeek = new Date(`${todayStr}T12:00:00Z`).getUTCDay();
   const todayRevenue = getDayRevenue(todayStr);
-  const todayTargetConfig = getDailyTargetForDay(3); // Quarta-feira = 3
+  const todayTargetConfig = getDailyTargetForDay(todayDayOfWeek);
   const todayTargetTotal = todayTargetConfig.total;
   const todayRealizedTotal = todayRevenue.total;
   const todayDifference = todayRealizedTotal - todayTargetTotal;
@@ -697,17 +672,73 @@ export default function MetasPage() {
         </div>
       </div>
 
+      {/* AVISO EXCLUSIVO: Central de Produção não possui metas comerciais */}
+      {currentUnit === "central" && (
+        <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/90 dark:bg-amber-950/40 dark:border-amber-900/60 flex items-start gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-xs">
+          <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <span className="font-bold block">
+              Unidade de Fábrica / Apoio Produtivo: Central de Produção (CP)
+            </span>
+            <p className="text-amber-800 dark:text-amber-300 leading-relaxed font-normal">
+              A Central de Produção é o polo fabril/industrial de preparação e logística interna do Grupo House 190, não atuando com atendimento direto ao público (sem salão, delivery ou iFood). Por essa razão, <strong>a Central de Produção não possui metas comerciais de vendas</strong>. Abaixo são exibidas as metas das unidades comerciais ativas.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* SELETOR RÁPIDO DE VISÃO: CONSOLIDADO OU LOJAS INDIVIDUAIS */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-xl border border-zinc-200/80 bg-zinc-50/70 dark:bg-zinc-900/60 dark:border-zinc-800 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider px-2 flex items-center gap-1">
+            <Building2 className="h-3.5 w-3.5 text-zinc-400" />
+            Visualizar Metas:
+          </span>
+          {[
+            { id: "all", label: "Visão Geral (Consolidado)", targetStr: "R$ 580k" },
+            { id: "teixeira", label: "House 190 Teixeira", targetStr: "R$ 200k" },
+            { id: "eunapolis", label: "House 190 Eunápolis", targetStr: "R$ 200k" },
+            { id: "foodpark", label: "House Food Park", targetStr: "R$ 180k" },
+          ].map((tab) => {
+            const active = activeMetaUnit === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveMetaUnit(tab.id as any)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
+                  active
+                    ? "bg-zinc-900 text-white shadow-xs dark:bg-zinc-100 dark:text-zinc-900"
+                    : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 border border-zinc-200/60 dark:border-zinc-700/60"
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
+                    active
+                      ? "bg-white/20 text-white dark:bg-zinc-900/20 dark:text-zinc-900"
+                      : "bg-zinc-100 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-300"
+                  }`}
+                >
+                  {tab.targetStr}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Cartão Macro de Projeção e Desempenho Global */}
       <div className="p-6 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 space-y-5 shadow-2xs">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-                {currentUnit === "all"
-                  ? "Meta Consolidada do Grupo House"
-                  : currentUnit === "foodpark"
+                {activeMetaUnit === "all"
+                  ? "Meta Consolidada do Grupo House (Teixeira + Eunápolis + Food Park)"
+                  : activeMetaUnit === "foodpark"
                   ? "Meta House Food Park"
-                  : currentUnit === "eunapolis"
+                  : activeMetaUnit === "eunapolis"
                   ? "Meta House 190 Eunápolis"
                   : "Meta House 190 Teixeira de Freitas"}
               </span>
@@ -1536,28 +1567,26 @@ export default function MetasPage() {
           isOpen={!!editingDay}
           onClose={() => setEditingDay(null)}
           title={`Faturamento Real — ${editingDay.dayName} (${editingDay.dateStr.split("-").reverse().join("/")})`}
-          subtitle={`Informe o faturamento oficial por canal para ${activeUnitData.name} ou sincronize da Takeat`}
+          subtitle={`Informe os valores oficiais por canal ou sincronize diretamente da Takeat API`}
           maxWidth="md"
         >
           <form onSubmit={handleSaveDailyRevenue} className="space-y-4 pt-2">
             <div className="space-y-3">
-              {currentUnit === "all" && (
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
-                    Unidade de Lançamento
-                  </label>
-                  <select
-                    value={editUnit}
-                    onChange={(e) => setEditUnit(e.target.value as any)}
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="all">Todas as Unidades (Rateio Proporcional às Metas)</option>
-                    <option value="foodpark">House Food Park</option>
-                    <option value="teixeira">House 190 Teixeira de Freitas</option>
-                    <option value="eunapolis">House 190 Eunápolis</option>
-                  </select>
-                </div>
-              )}
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  Unidade de Destino
+                </label>
+                <select
+                  value={editUnit}
+                  onChange={(e) => setEditUnit(e.target.value as any)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">Consolidado Geral (Rateio proporcional entre as 3 lojas)</option>
+                  <option value="teixeira">House 190 Teixeira de Freitas</option>
+                  <option value="eunapolis">House 190 Eunápolis</option>
+                  <option value="foodpark">House Food Park</option>
+                </select>
+              </div>
 
               <div>
                 <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1 flex items-center justify-between">
@@ -1611,18 +1640,6 @@ export default function MetasPage() {
                     className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 font-mono text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-rose-500"
                   />
                 </div>
-              </div>
-
-              {/* Botão para Distribuir Automaticamente pelas Metas */}
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={handleDistributeByTargets}
-                  className="w-full py-1.5 px-2.5 rounded-md border border-dashed border-blue-300 dark:border-blue-800/60 bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100/60 text-xs font-medium inline-flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Distribuir Total pelas Metas do Dia (Salão / Delivery / iFood)
-                </button>
               </div>
 
               {/* Total Calculado */}

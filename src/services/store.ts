@@ -427,12 +427,21 @@ class DataStore {
     const map = new Map<string, DailyRevenue>();
 
     for (const m of manual) {
-      if (m && m.id && !m.id.includes("fake") && !m.id.startsWith("rev-01") && !m.id.startsWith("rev-02")) {
-        map.set(`${m.unitId}-${m.date}`, m);
+      if (
+        m &&
+        m.id &&
+        !m.id.includes("fake") &&
+        (m.unitId as string) !== "central" &&
+        !m.id.startsWith("rev-01") &&
+        !m.id.startsWith("rev-02")
+      ) {
+        const fixedDate = m.date === "2026-09-01" && (m.netRevenue || m.grossRevenue) > 40000 ? "2026-09" : m.date;
+        map.set(`${m.unitId}-${fixedDate}`, { ...m, date: fixedDate });
       }
     }
 
     for (const t of takeat) {
+      if ((t.unitId as string) === "central") continue;
       map.set(`${t.unitId}-${t.date}`, {
         id: `rev-takeat-${t.unitId}-${t.date}`,
         unitId: t.unitId,
@@ -449,14 +458,15 @@ class DataStore {
   }
 
   addRevenue(rev: Omit<DailyRevenue, "id" | "netRevenue">): DailyRevenue {
-    const revenues = this.getRevenues();
+    const manualRevenues = this.get<DailyRevenue[]>(STORAGE_KEYS.REVENUES, [])
+      .filter((r) => !r.id.startsWith("rev-takeat-") && (r.unitId as string) !== "central");
     const netRevenue = rev.grossRevenue - (rev.discounts || 0) - (rev.cancellations || 0);
     const newRev: DailyRevenue = {
       ...rev,
       id: `rev-${Date.now()}`,
       netRevenue,
     };
-    this.set(STORAGE_KEYS.REVENUES, [newRev, ...revenues]);
+    this.set(STORAGE_KEYS.REVENUES, [newRev, ...manualRevenues]);
     return newRev;
   }
 
@@ -467,12 +477,14 @@ class DataStore {
       teixeira: { target: 200000, superTarget: 210000, salaoTarget: 70000, deliveryTarget: 80000, ifoodTarget: 50000 },
       eunapolis: { target: 200000, superTarget: 210000, salaoTarget: 70000, deliveryTarget: 80000, ifoodTarget: 50000 },
       foodpark: { target: 180000, superTarget: 190000, salaoTarget: 90000, deliveryTarget: 60000, ifoodTarget: 30000 },
-      central: { target: 0, superTarget: 0, salaoTarget: 0, deliveryTarget: 0, ifoodTarget: 0 },
     };
 
+    // Central de Produção (CP) é estritamente excluída de metas (é uma unidade de fábrica/produção sem venda direta)
+    rawGoals = rawGoals.filter((g) => g.unitId !== ("central" as any));
+
     if (rawGoals.length === 0 || rawGoals.some((g) => g.targetAmount === 0 && defaultTargets[g.unitId]?.target > 0)) {
-      const units: Array<Exclude<UnitId, "all">> = ["eunapolis", "teixeira", "foodpark", "central"];
-      rawGoals = units.map((u) => {
+      const salesUnits: Array<Exclude<UnitId, "all" | "central">> = ["teixeira", "eunapolis", "foodpark"];
+      rawGoals = salesUnits.map((u) => {
         const conf = defaultTargets[u] || { target: 0, superTarget: 0 };
         return {
           id: `goal-${u}`,
@@ -549,17 +561,6 @@ class DataStore {
         : dailyRevsSum;
 
       const currentRealized = Math.max(takeatSum, generalRealized);
-
-      // Se há faturamento realizado apurado (currentRealized > 0), mas Salão e iFood ficaram zerados
-      // (caso onde todo o faturamento foi atribuído exclusivamente ao delivery ou apuração global):
-      if (currentRealized > 0 && salaoRealized === 0 && ifoodRealized === 0) {
-        const totalPlanned = conf.salaoTarget + conf.deliveryTarget + conf.ifoodTarget;
-        if (totalPlanned > 0) {
-          salaoRealized = Math.round((currentRealized * (conf.salaoTarget / totalPlanned)) * 100) / 100;
-          deliveryRealized = Math.round((currentRealized * (conf.deliveryTarget / totalPlanned)) * 100) / 100;
-          ifoodRealized = Math.round((currentRealized - salaoRealized - deliveryRealized) * 100) / 100;
-        }
-      }
 
       const daysElapsed = Math.min(30, Math.max(1, new Date().getDate()));
       const currentDailyAverage =
@@ -781,8 +782,17 @@ class DataStore {
   // TAKEAT INTEGRATION
   getTakeatRevenues(): TakeatRevenueRecord[] {
     const records = this.get<TakeatRevenueRecord[]>(STORAGE_KEYS.TAKEAT_REVENUES, []);
-    // Garante que nenhum registro de mock anterior permaneça
-    return records.filter((r) => r && r.id && !r.id.includes("fake"));
+    // Garante que nenhum registro de mock anterior permaneça e exclui Central de Produção (sem vendas)
+    return records
+      .filter((r) => r && r.id && !r.id.includes("fake") && (r.unitId as string) !== "central")
+      .map((r) => {
+        // Se um registro com data de 01/09 tem valor de faturamento mensal (> R$ 40.000 por unidade),
+        // ele é na verdade o consolidado mensal de 2026-09 e não o faturamento de um único dia
+        if (r.date === "2026-09-01" && r.totalRevenue > 40000) {
+          return { ...r, date: "2026-09", id: `takeat-${r.unitId}-2026-09` };
+        }
+        return r;
+      });
   }
 
   getTakeatCredentials(unitId: string): TakeatCredentials {
@@ -837,6 +847,9 @@ class DataStore {
   }
 
   saveTakeatRevenue(record: TakeatRevenueRecord, isManualEdit: boolean = false) {
+    // Central de Produção é estritamente ignorada pois não possui vendas comerciais
+    if ((record.unitId as string) === "central") return;
+
     const current = this.getTakeatRevenues();
     const existing = current.find((r) => r.unitId === record.unitId && r.date === record.date);
 
@@ -861,30 +874,6 @@ class DataStore {
       (r) => !(r.unitId === finalRecord.unitId && r.date === finalRecord.date)
     );
     this.set(STORAGE_KEYS.TAKEAT_REVENUES, [finalRecord, ...filtered]);
-
-    // Sincroniza também no faturamento diário da plataforma
-    const currentRevs = this.getRevenues();
-    const existingIndex = currentRevs.findIndex(
-      (r) => r.unitId === finalRecord.unitId && r.date === finalRecord.date
-    );
-
-    const updatedRevItem: DailyRevenue = {
-      id: `rev-takeat-${finalRecord.unitId}-${finalRecord.date}`,
-      unitId: finalRecord.unitId,
-      date: finalRecord.date,
-      grossRevenue: finalRecord.totalRevenue,
-      discounts: 0,
-      cancellations: 0,
-      netRevenue: finalRecord.totalRevenue,
-      notes: `Sincronizado via API Takeat (Salão: R$ ${finalRecord.salao.toFixed(2)}, Delivery: R$ ${finalRecord.delivery.toFixed(2)}, iFood: R$ ${finalRecord.ifood.toFixed(2)})`,
-    };
-
-    if (existingIndex >= 0) {
-      currentRevs[existingIndex] = updatedRevItem;
-      this.set(STORAGE_KEYS.REVENUES, [...currentRevs]);
-    } else {
-      this.set(STORAGE_KEYS.REVENUES, [updatedRevItem, ...currentRevs]);
-    }
   }
 
   async syncTakeatUnit(
@@ -900,6 +889,18 @@ class DataStore {
       central: "Central de Produção",
     };
     const unitName = unitNames[unitId] || unitId;
+
+    // 0. Central de Produção não realiza vendas nem possui integração com Takeat PDV
+    if ((unitId as string) === "central") {
+      return {
+        success: false,
+        unitId,
+        unitName: "Central de Produção",
+        date: dateStr,
+        error: "A Central de Produção é uma unidade industrial e não possui vendas comerciais no Takeat.",
+        errorCode: "UNAUTHORIZED_UNIT",
+      };
+    }
 
     // 1. Validação de permissões de usuário
     if (!validateUnitPermission(userRole, userUnitId, unitId)) {
