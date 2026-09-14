@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import {MANAGEMENT_NAV} from "./managementNavigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -28,19 +29,7 @@ interface NavItem {
   badge?: number;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { title: "Visão Geral", href: "/", icon: LayoutDashboard },
-  { title: "Financeiro", href: "/financeiro", icon: Wallet },
-  { title: "Fornecedores", href: "/fornecedores", icon: Building2 },
-  { title: "Fiscal & Impostos", href: "/fiscal", icon: Receipt },
-  { title: "Faturamento", href: "/faturamento", icon: TrendingUp },
-  { title: "Metas", href: "/metas", icon: Target },
-  { title: "RH & Pessoas", href: "/rh", icon: Users },
-  { title: "Tarefas & Projetos", href: "/tarefas", icon: CheckSquare },
-  { title: "Documentos", href: "/documentos", icon: FolderLock },
-  { title: "Relatórios", href: "/relatorios", icon: FileBarChart },
-  { title: "Auditoria & Logs", href: "/auditoria", icon: ShieldCheck },
-];
+const NAV_ITEMS: NavItem[] = MANAGEMENT_NAV;
 
 export function Sidebar() {
   const pathname = usePathname();

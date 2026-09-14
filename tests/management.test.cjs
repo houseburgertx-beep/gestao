@@ -1,0 +1,674 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const ts = require("typescript");
+const Module = require("node:module");
+const path = require("node:path");
+require.extensions[".ts"] = (module, filename) =>
+  module._compile(
+    ts.transpileModule(fs.readFileSync(filename, "utf8"), {
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        target: ts.ScriptTarget.ES2020,
+      },
+    }).outputText,
+    filename,
+  );
+const {
+  calculate,
+  isCovered,
+  outstanding,
+  healthLabel,
+  payableStatus,
+} = require("../src/domain/management/engine.ts");
+const {
+  emptyDatabase,
+  DEFINITIONS,
+  addMonths,
+  monthEnd,
+  DATASETS,
+} = require("../src/domain/management/model.ts");
+const {
+  buildRecords,
+  validate,
+  payrollProvisions,
+  settlement,
+} = require("../src/domain/management/operations.ts");
+const filters = {
+  start: "2026-09-01",
+  end: "2026-09-30",
+  today: "2026-09-30",
+  unitId: "",
+  companyId: "",
+  brandId: "",
+  group: "",
+  channel: "",
+};
+let seq = 0;
+const record = (kind, fields = {}) => ({
+  id: "id" + ++seq,
+  kind,
+  tenantId: "test",
+  unitId: "u1",
+  version: 1,
+  createdAt: "2026-09-01",
+  updatedAt: "2026-09-01",
+  createdBy: "test",
+  updatedBy: "test",
+  ...Object.fromEntries(
+    (DEFINITIONS[kind]?.fields || [])
+      .filter(
+        (f) => f.required && ["money", "number", "percent"].includes(f.type),
+      )
+      .map((f) => [f.key, 0]),
+  ),
+  ...(kind === "payroll"
+    ? {
+        vacationProvision: 0,
+        vacationThird: 0,
+        thirteenth: 0,
+        fgts: 0,
+        provisionCharges: 0,
+      }
+    : {}),
+  ...fields,
+});
+function fixture() {
+  const db = emptyDatabase();
+  db.units = [
+    record("units", {
+      id: "u1",
+      name: "Loja A",
+      companyId: "c1",
+      brandId: "b1",
+      unitType: "Loja",
+    }),
+  ];
+  return db;
+}
+function complete(db) {
+  for (const u of db.units)
+    for (const dataset of DATASETS)
+      db.coverage.push(
+        record("coverage", {
+          unitId: u.id,
+          dataset,
+          start: "2026-08-01",
+          end: "2027-01-01",
+          confirmed: true,
+        }),
+      );
+  return db;
+}
+test("nenhuma base não vira faturamento zero ou score saudável", () => {
+  const r = calculate(emptyDatabase(), filters);
+  for (const k of ["gross", "bank", "profit", "freeCash"])
+    assert.equal(r.metrics[k].value, null);
+  assert.equal(r.score, null);
+  assert.equal(r.negativeDate, undefined);
+});
+test("unidade cadastrada sem cobertura permanece pendente", () =>
+  assert.equal(calculate(fixture(), filters).metrics.gross.value, null));
+test("zero explicitamente conferido é zero; denominador zero não vira percentual", () => {
+  const r = calculate(complete(fixture()), filters);
+  assert.equal(r.metrics.gross.value, 0);
+  assert.equal(r.metrics.margin.value, null);
+  assert.equal(r.metrics.cmv.value, 0);
+  assert.equal(r.score, null);
+});
+test("cobertura soma janelas adjacentes mas não cobre lacunas", () => {
+  const db = fixture();
+  db.coverage = [
+    record("coverage", {
+      dataset: "revenues",
+      start: "2026-09-01",
+      end: "2026-09-10",
+      confirmed: true,
+    }),
+    record("coverage", {
+      dataset: "revenues",
+      start: "2026-09-11",
+      end: "2026-09-30",
+      confirmed: true,
+    }),
+  ];
+  assert.equal(
+    isCovered(db, "u1", "revenues", "2026-09-01", "2026-09-30"),
+    true,
+  );
+  db.coverage[1].start = "2026-09-12";
+  assert.equal(
+    isCovered(db, "u1", "revenues", "2026-09-01", "2026-09-30"),
+    false,
+  );
+});
+test("cobertura de um canal não certifica todos os canais", () => {
+  const db = fixture();
+  db.coverage = [
+    record("coverage", {
+      dataset: "revenues",
+      start: "2026-09-01",
+      end: "2026-09-30",
+      channel: "iFood",
+      confirmed: true,
+    }),
+  ];
+  assert.equal(
+    isCovered(db, "u1", "revenues", filters.start, filters.end),
+    false,
+  );
+  assert.equal(
+    isCovered(db, "u1", "revenues", filters.start, filters.end, "iFood"),
+    true,
+  );
+});
+test("venda, DRE e recebimento permanecem separados", () => {
+  const db = complete(fixture());
+  db.revenues = [
+    record("revenues", {
+      date: "2026-09-10",
+      channel: "Salão",
+      gross: 100000,
+      discounts: 1000,
+      coupons: 0,
+      cashback: 0,
+      cancellations: 0,
+      fees: 500,
+      orders: 20,
+      customers: 18,
+    }),
+  ];
+  const r = calculate(db, filters);
+  assert.equal(r.metrics.gross.value, 100000);
+  assert.equal(r.metrics.net.value, 99000);
+  assert.equal(r.metrics.receipts.value, 0);
+  assert.equal(r.metrics.profit.value, 98500);
+  assert.equal(r.metrics.ticket.value, 4950);
+});
+test("pagamento parcial não altera despesa por competência", () => {
+  const db = complete(fixture());
+  db.categories = [
+    record("categories", { id: "rent", dreLine: "Aluguel", behavior: "Fixa" }),
+  ];
+  db.payables = [
+    record("payables", {
+      id: "a",
+      amount: 10000,
+      competence: "2026-09",
+      dueDate: "2026-09-20",
+      categoryId: "rent",
+    }),
+  ];
+  db.transactions = [
+    record("transactions", {
+      obligationId: "a",
+      amount: 4000,
+      date: "2026-09-21",
+      direction: "Saída",
+      nature: "Operacional",
+    }),
+  ];
+  const r = calculate(db, filters);
+  assert.equal(r.metrics.payable.value, 6000);
+  assert.equal(r.metrics.spending.value, 4000);
+  assert.equal(r.metrics.opExpenses.value, 10000);
+  assert.equal(r.metrics.overdue.value, 6000);
+});
+test("saldo inicial não conta movimentos anteriores novamente", () => {
+  const db = complete(fixture());
+  db.bankAccounts = [
+    record("bankAccounts", {
+      id: "bank",
+      balance: 50000,
+      balanceDate: "2026-09-15",
+      reconciled: true,
+    }),
+  ];
+  db.transactions = [
+    record("transactions", {
+      date: "2026-09-10",
+      amount: 10000,
+      direction: "Entrada",
+      bankAccountId: "bank",
+      nature: "Operacional",
+    }),
+    record("transactions", {
+      date: "2026-09-20",
+      amount: 5000,
+      direction: "Saída",
+      bankAccountId: "bank",
+      nature: "Operacional",
+    }),
+  ];
+  assert.equal(calculate(db, filters).metrics.bank.value, 45000);
+});
+test("imposto gera uma obrigação e reduz caixa livre uma única vez", () => {
+  const db = complete(fixture());
+  const source = record("taxes", {
+    id: "tax",
+    amount: 10000,
+    competence: "2026-09",
+    dueDate: "2026-10-03",
+    taxType: "ISS",
+    taxEffect: "Impostos sobre vendas",
+  });
+  for (const r of buildRecords(source)) db[r.kind].push(r);
+  db.bankAccounts = [
+    record("bankAccounts", {
+      balance: 100000,
+      balanceDate: "2026-09-30",
+      reconciled: true,
+    }),
+  ];
+  const r = calculate(db, filters);
+  assert.equal(r.metrics.taxesPayable.value, 10000);
+  assert.equal(r.metrics.committed.value, 10000);
+  assert.equal(r.metrics.freeCash.value, 90000);
+  assert.equal(r.metrics.net.value, -10000);
+  assert.equal(r.metrics.opExpenses.value, 0);
+});
+test("estoque e transferências a custo consolidam sem duplicação", () => {
+  const db = complete(fixture());
+  db.units.push(
+    record("units", { id: "u2", name: "Loja B", unitType: "Loja" }),
+  );
+  complete(db);
+  for (const u of ["u1", "u2"]) {
+    db.inventory.push(
+      record("inventory", {
+        unitId: u,
+        productId: "p",
+        date: "2026-08-31",
+        amount: 10000,
+        confirmed: true,
+      }),
+      record("inventory", {
+        unitId: u,
+        productId: "p",
+        date: "2026-09-30",
+        amount: 5000,
+        confirmed: true,
+      }),
+    );
+  }
+  db.transfers = [
+    record("transfers", {
+      toUnitId: "u2",
+      date: "2026-09-15",
+      amount: 1000,
+      productId: "p",
+    }),
+  ];
+  assert.equal(calculate(db, filters).metrics.cmv.value, 10000);
+  assert.equal(
+    calculate(db, { ...filters, unitId: "u1" }).metrics.cmv.value,
+    4000,
+  );
+  assert.equal(
+    calculate(db, { ...filters, unitId: "u2" }).metrics.cmv.value,
+    6000,
+  );
+});
+test("estoque inicial ausente nunca equivale a zero", () => {
+  const db = complete(fixture());
+  db.inventory = [
+    record("inventory", {
+      productId: "p",
+      date: "2026-09-30",
+      amount: 5000,
+      confirmed: true,
+    }),
+  ];
+  assert.equal(calculate(db, filters).metrics.cmv.value, null);
+});
+test("empréstimo recebido não é geração operacional ou receita", () => {
+  const db = complete(fixture());
+  db.transactions = [
+    record("transactions", {
+      date: "2026-09-02",
+      direction: "Entrada",
+      nature: "Financiamento",
+      amount: 100000,
+    }),
+  ];
+  const r = calculate(db, filters);
+  assert.equal(r.metrics.receipts.value, 100000);
+  assert.equal(r.metrics.cashGeneration.value, 0);
+  assert.equal(r.metrics.gross.value, 0);
+});
+test("recebíveis vencidos não são recebimento futuro presumido", () => {
+  const db = complete(fixture());
+  db.bankAccounts = [
+    record("bankAccounts", {
+      balance: 0,
+      balanceDate: "2026-09-30",
+      reconciled: true,
+    }),
+  ];
+  db.receivables = [
+    record("receivables", { amount: 10000, dueDate: "2026-09-10" }),
+  ];
+  assert.equal(calculate(db, filters).forecast[0].incoming, 0);
+});
+test("alerta identifica primeira data e déficit exato de caixa", () => {
+  const db = complete(fixture());
+  db.bankAccounts = [
+    record("bankAccounts", {
+      balance: 10000,
+      balanceDate: "2026-09-30",
+      reconciled: true,
+    }),
+  ];
+  db.payables = [record("payables", { amount: 15000, dueDate: "2026-10-03" })];
+  const r = calculate(db, filters);
+  assert.equal(r.negativeDate, "2026-10-03");
+  assert.equal(r.lowest, -5000);
+  assert.equal(r.alerts[0].id, "cash-negative");
+});
+test("arredondamento de parcelas preserva cada centavo e último dia do mês", () => {
+  const rows = buildRecords(
+    record("payables", {
+      amount: 10000,
+      dueDate: "2026-01-31",
+      competence: "2026-01",
+      installments: 3,
+    }),
+  );
+  assert.deepEqual(
+    rows.map((r) => r.amount),
+    [3334, 3333, 3333],
+  );
+  assert.deepEqual(
+    rows.map((r) => r.dueDate),
+    ["2026-01-31", "2026-02-28", "2026-03-31"],
+  );
+  assert.equal(
+    rows.reduce((s, r) => s + r.amount, 0),
+    10000,
+  );
+});
+test("recorrência repete valor e muda competência", () => {
+  const rows = buildRecords(
+    record("payables", {
+      amount: 10000,
+      dueDate: "2026-12-10",
+      competence: "2026-12",
+      recurrenceCount: 2,
+    }),
+  );
+  assert.equal(rows[1].amount, 10000);
+  assert.equal(rows[1].competence, "2027-01");
+});
+test("provisões explicitam férias, terço e décimo terceiro", () => {
+  const r = payrollProvisions(
+    record("payroll", { eligibleBase: 120000, fgtsRate: 8, chargeRate: 0 }),
+  );
+  assert.equal(r.vacationProvision, 10000);
+  assert.equal(r.vacationThird, 3333);
+  assert.equal(r.thirteenth, 10000);
+  assert.equal(r.fgts, 9600);
+});
+test("baixa acima do saldo ou em conta de outra unidade é bloqueada", () => {
+  const db = fixture();
+  const r = record("payables", { id: "p", amount: 10000 });
+  db.payables = [r];
+  db.bankAccounts = [
+    record("bankAccounts", { id: "bank" }),
+    record("bankAccounts", { id: "other", unitId: "u2" }),
+  ];
+  assert.throws(() =>
+    settlement(r, db, 10001, "2026-09-20", "bank", "test", "tx"),
+  );
+  assert.throws(() =>
+    settlement(r, db, 1, "2026-09-20", "other", "test", "tx"),
+  );
+});
+test("score não redistribui pesos na falta de posição patrimonial", () => {
+  const db = complete(fixture());
+  db.policies = [
+    record("policies", {
+      effectiveDate: "2026-01-01",
+      liquidityTarget: 1.5,
+      cmvTarget: 35,
+      cmvCritical: 40,
+      payrollTarget: 25,
+      payrollCritical: 35,
+      marginTarget: 10,
+      debtTarget: 40,
+      debtCritical: 80,
+      returnTarget: 5,
+    }),
+  ];
+  assert.equal(calculate(db, filters).score, null);
+});
+test("faixas solicitadas do score têm limites corretos", () =>
+  assert.deepEqual([0, 29, 30, 49, 50, 64, 65, 79, 80, 100].map(healthLabel), [
+    "Emergência",
+    "Emergência",
+    "Crítico",
+    "Crítico",
+    "Atenção",
+    "Atenção",
+    "Saudável",
+    "Saudável",
+    "Excelente",
+    "Excelente",
+  ]));
+test("filtro de empresa exclui outras unidades", () => {
+  const db = complete(fixture());
+  db.units.push(record("units", { id: "u2", companyId: "other" }));
+  db.revenues = [
+    record("revenues", { unitId: "u2", date: "2026-09-10", gross: 99999 }),
+  ];
+  assert.equal(
+    calculate(db, { ...filters, companyId: "c1" }).metrics.gross.value,
+    0,
+  );
+});
+test("valores patrimoniais não são rateados arbitrariamente por canal", () => {
+  const db = complete(fixture());
+  db.bankAccounts = [
+    record("bankAccounts", {
+      balance: 10000,
+      balanceDate: "2026-09-30",
+      reconciled: true,
+    }),
+  ];
+  assert.equal(
+    calculate(db, { ...filters, channel: "iFood" }).metrics.bank.value,
+    null,
+  );
+});
+test("resumo e venda do mesmo dia/canal impedem receita conclusiva", () => {
+  const db = complete(fixture());
+  db.revenues = [
+    record("revenues", { date: "2026-09-01", channel: "Salão", gross: 10000 }),
+  ];
+  db.sales = [
+    record("sales", { date: "2026-09-01", channel: "Salão", gross: 10000 }),
+  ];
+  assert.equal(calculate(db, filters).metrics.gross.value, null);
+});
+test("mês fechado exige checklist integral", () => {
+  const db = fixture();
+  assert.throws(() =>
+    validate(
+      record("closings", { competence: "2026-09", status: "MÊS FECHADO" }),
+      db,
+    ),
+  );
+});
+test("mudança de ano e fevereiro bissexto", () => {
+  assert.equal(addMonths("2026-12-31", 2), "2027-02-28");
+  assert.equal(monthEnd("2028-02-01"), "2028-02-29");
+});
+test("estorno restaura obrigação sem apagar histórico de caixa", () => {
+  const db = complete(fixture());
+  const p = record("payables", {
+    id: "p-reversal",
+    amount: 10000,
+    dueDate: "2026-09-20",
+    competence: "2026-09",
+  });
+  db.payables = [p];
+  db.transactions = [
+    record("transactions", {
+      id: "paid",
+      obligationId: p.id,
+      amount: 4000,
+      direction: "Saída",
+      nature: "Operacional",
+      date: "2026-09-20",
+    }),
+    record("transactions", {
+      id: "reverse-paid",
+      obligationId: p.id,
+      reversalOf: "paid",
+      amount: 4000,
+      direction: "Entrada",
+      nature: "Operacional",
+      date: "2026-09-21",
+    }),
+  ];
+  assert.equal(outstanding(p, db, "2026-09-20"), 6000);
+  assert.equal(outstanding(p, db, "2026-09-21"), 10000);
+  assert.equal(calculate(db, filters).metrics.cashGeneration.value, 0);
+});
+test("provisão tributária exige base e alíquota e preserva centavos", () => {
+  const r = record("taxes", {
+    amount: null,
+    base: 123456,
+    rate: 6,
+    competence: "2026-09",
+    dueDate: "2026-10-20",
+    taxType: "Simples Nacional",
+  });
+  const records = buildRecords(r);
+  assert.equal(records[0].amount, 7407);
+  assert.equal(records[1].amount, 7407);
+  assert.throws(() => buildRecords({ ...r, base: null }));
+});
+test("limite para gastar não antecipa recebíveis nem consome provisões", () => {
+  const db = complete(fixture());
+  db.bankAccounts = [
+    record("bankAccounts", {
+      balance: 10000,
+      balanceDate: "2026-09-30",
+      reconciled: true,
+    }),
+  ];
+  db.payables = [record("payables", { amount: 4000, dueDate: "2026-10-15" })];
+  db.receivables = [
+    record("receivables", { amount: 100000, dueDate: "2026-10-01" }),
+  ];
+  const r = calculate(db, filters);
+  assert.equal(r.metrics.freeCash.value, 6000);
+  assert.equal(r.metrics.safeSpend.value, 6000);
+});
+test("score completo decorre dos dez indicadores e não de valores fixos", () => {
+  const db = complete(fixture());
+  db.revenues = [
+    record("revenues", {
+      date: "2026-09-30",
+      channel: "Salão",
+      gross: 100000,
+      discounts: 0,
+      coupons: 0,
+      cashback: 0,
+      cancellations: 0,
+      fees: 2000,
+      orders: 100,
+      customers: 100,
+    }),
+  ];
+  db.purchases = [
+    record("purchases", { date: "2026-09-10", productId: "p", amount: 30000 }),
+  ];
+  db.inventory = [
+    record("inventory", {
+      date: "2026-08-31",
+      productId: "p",
+      amount: 10000,
+      confirmed: true,
+    }),
+    record("inventory", {
+      date: "2026-09-30",
+      productId: "p",
+      amount: 10000,
+      confirmed: true,
+    }),
+  ];
+  db.payroll = [record("payroll", { competence: "2026-09", salary: 20000 })];
+  db.categories = [
+    record("categories", { id: "rent", dreLine: "Aluguel", behavior: "Fixa" }),
+  ];
+  db.payables = [
+    record("payables", {
+      amount: 10000,
+      competence: "2026-09",
+      dueDate: "2026-10-05",
+      categoryId: "rent",
+    }),
+  ];
+  db.transactions = [
+    record("transactions", {
+      date: "2026-09-15",
+      amount: 100000,
+      direction: "Entrada",
+      nature: "Operacional",
+    }),
+    record("transactions", {
+      date: "2026-09-15",
+      amount: 70000,
+      direction: "Saída",
+      nature: "Operacional",
+    }),
+  ];
+  db.bankAccounts = [
+    record("bankAccounts", {
+      balance: 100000,
+      balanceDate: "2026-09-30",
+      reconciled: true,
+    }),
+  ];
+  db.positions = [
+    record("positions", { date: "2026-08-31", totalAssets: 200000 }),
+    record("positions", {
+      date: "2026-09-30",
+      currentAssets: 180000,
+      currentLiabilities: 40000,
+      totalAssets: 250000,
+      totalLiabilities: 40000,
+    }),
+  ];
+  db.goals = [
+    record("goals", { start: "2026-09-01", end: "2026-09-30", target: 100000 }),
+  ];
+  db.policies = [
+    record("policies", {
+      effectiveDate: "2026-01-01",
+      liquidityTarget: 1.5,
+      cmvTarget: 35,
+      cmvCritical: 40,
+      payrollTarget: 25,
+      payrollCritical: 35,
+      marginTarget: 10,
+      debtTarget: 40,
+      debtCritical: 80,
+      returnTarget: 5,
+    }),
+  ];
+  const r = calculate(db, filters);
+  assert.equal(r.metrics.profit.value, 38000);
+  assert.equal(r.score, 100);
+  db.inventory.pop();
+  assert.equal(calculate(db, filters).score, null);
+});
+
+test("campo financeiro ausente continua pendente apesar da cobertura", () => {
+  const db = complete(fixture());
+  const payroll = record("payroll", { competence: "2026-09", salary: 10000 });
+  delete payroll.benefits;
+  db.payroll = [payroll];
+  assert.equal(calculate(db, filters).metrics.payroll.value, null);
+});

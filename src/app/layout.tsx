@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
+import {MANAGEMENT_NAV} from "@/components/layout/managementNavigation";
 import "./globals.css";
+import { ManagementProvider } from "@/contexts/ManagementContext";
 import { UnitProvider } from "@/contexts/UnitContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -33,19 +35,7 @@ function ProtectedShell({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, loading } = useAuth();
 
-  const menuItems = [
-    { title: "Visão Geral", href: "/", icon: LayoutDashboard },
-    { title: "Financeiro", href: "/financeiro", icon: Wallet },
-    { title: "Fornecedores", href: "/fornecedores", icon: Building2 },
-    { title: "Fiscal & Impostos", href: "/fiscal", icon: Receipt },
-    { title: "Faturamento", href: "/faturamento", icon: TrendingUp },
-    { title: "Metas", href: "/metas", icon: Target },
-    { title: "RH & Pessoas", href: "/rh", icon: Users },
-    { title: "Tarefas & Projetos", href: "/tarefas", icon: CheckSquare },
-    { title: "Documentos", href: "/documentos", icon: FolderLock },
-    { title: "Relatórios", href: "/relatorios", icon: FileBarChart },
-    { title: "Auditoria & Logs", href: "/auditoria", icon: ShieldCheck },
-  ];
+  const menuItems = MANAGEMENT_NAV;
 
   if (loading) {
     return (
@@ -67,7 +57,7 @@ function ProtectedShell({
   }
 
   return (
-    <UnitProvider>
+    <ManagementProvider><UnitProvider>
             {/* Desktop Fixed Sidebar */}
             <Sidebar />
 
@@ -108,7 +98,7 @@ function ProtectedShell({
               })}
             </div>
           </Drawer>
-    </UnitProvider>
+    </UnitProvider></ManagementProvider>
   );
 }
 

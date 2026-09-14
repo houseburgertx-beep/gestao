@@ -5,6 +5,7 @@ Plataforma web empresarial para centralizar as operações administrativas, fina
 ---
 
 ## 🏢 Unidades Atendidas
+
 1. **Central de Produção** (`CP`)
 2. **House 190 Eunápolis** (`EUN`)
 3. **House 190 Teixeira de Freitas** (`TXF`)
@@ -13,19 +14,21 @@ Plataforma web empresarial para centralizar as operações administrativas, fina
 ---
 
 ## 🚀 Tecnologias
+
 - **Framework**: Next.js 14+ (App Router) + React 18 + TypeScript
 - **Estilização**: Tailwind CSS (Design system refinado inspirado em Linear, Stripe e Vercel)
 - **Componentes**: Radix UI + Componentes customizados (DataTables, Drawers, Modals, Badges)
 - **Ícones**: Lucide React
 - **Gráficos**: Recharts
-- **Banco de Dados**: PostgreSQL / Supabase com Row Level Security (RLS)
+- **Banco de Dados**: Firebase Firestore com regras por grupo, papel e unidade
 - **App**: Progressive Web App (PWA)
 
 ---
 
 ## 📦 Módulos da Aplicação
+
 - **Seletor Global de Unidades**: Filtragem em tempo real de todo o sistema.
-- **Dashboard Executivo**: KPIs com variação mensal, bloco de *Atenção Necessária*, curvas de faturamento e comparativo entre filiais.
+- **Dashboard Executivo**: KPIs com variação mensal, bloco de _Atenção Necessária_, curvas de faturamento e comparativo entre filiais.
 - **Financeiro & Contas a Pagar**: Lançamentos, parcelamentos automáticos (1/N a N/N), central de pagamentos com baixa em lote e fluxo de aprovações por alçadas.
 - **Fornecedores**: Perfis empresariais detalhados com histórico financeiro e chaves PIX.
 - **Fiscal & Impostos**: Guias fiscais (DAS, ICMS, FGTS, ISS), códigos de barra e calendário tributário.
@@ -42,23 +45,28 @@ Plataforma web empresarial para centralizar as operações administrativas, fina
 ## 🛠️ Como Executar Localmente
 
 ### 1. Clonar o repositório
+
 ```bash
 git clone https://github.com/houseburgertx-beep/gestao.git
 cd gestao
 ```
 
 ### 2. Instalar dependências
+
 ```bash
 npm install
 ```
 
 ### 3. Rodar em desenvolvimento
+
 ```bash
 npm run dev
 ```
+
 Acesse [http://localhost:3000](http://localhost:3000) no seu navegador.
 
 ### 4. Build de produção
+
 ```bash
 npm run build
 npm run start
@@ -67,5 +75,12 @@ npm run start
 ---
 
 ## 🗄️ Banco de Dados (Supabase)
+
 O schema relacional completo com tabelas, RLS e seeds de demonstração está localizado em:
 [`supabase/schema.sql`](supabase/schema.sql)
+
+## Gestão financeira e operacional
+
+A arquitetura está em [docs/ARQUITETURA.md](docs/ARQUITETURA.md). Consulte [docs/ATIVACAO.md](docs/ATIVACAO.md) para ativar as novas bases, revisar o legado e publicar a versão.
+
+A fonte de verdade atual é o Firebase Firestore. O schema em `supabase/` é histórico e não está conectado à aplicação. Os módulos novos distinguem competência, liquidação e vencimento; ausência de dados não equivale a zero.
