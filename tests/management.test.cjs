@@ -672,3 +672,32 @@ test("campo financeiro ausente continua pendente apesar da cobertura", () => {
   db.payroll = [payroll];
   assert.equal(calculate(db, filters).metrics.payroll.value, null);
 });
+
+test('Takeat: monthly and daily reports never double count; unknown costs remain pending',()=>{
+ const db=emptyDatabase();
+ db.units=[{id:'teixeira',name:'House 190 Teixeira',unitId:''}];
+ const base={source:'takeat',unitId:'teixeira',syncedAt:'2026-09-30T20:00:00Z',salao:60,delivery:30,ifood:10,totalRevenue:100};
+ db.takeatReports=[{...base,id:'month',date:'2026-09'},{...base,id:'day',date:'2026-09-10'}];
+ const result=calculate(db,filters);
+ assert.equal(result.metrics.gross.value,10000);
+ assert.equal(result.metrics.net.value,null);
+ assert.equal(result.metrics.freeCash.value,null);
+ assert.equal(result.trend.length,0);
+ assert.equal(calculate(db,{...filters,channel:'Salão'}).metrics.gross.value,6000);
+ assert.equal(calculate(db,{...filters,channel:'Outros'}).metrics.gross.value,null);
+ assert.equal(calculate(db,{...filters,start:'2026-09-10',end:'2026-09-10'}).metrics.gross.value,10000);
+ assert.equal(calculate(db,{...filters,start:'2026-09-11',end:'2026-09-11'}).metrics.gross.value,null);
+});
+test('Takeat: stale monthly snapshot does not assert current-day completeness',()=>{
+ const db=emptyDatabase();db.units=[{id:'teixeira',name:'Teixeira',unitId:''}];
+ db.takeatReports=[{id:'m',source:'takeat',unitId:'teixeira',date:'2026-09',syncedAt:'2026-09-14T20:00:00Z',salao:60,delivery:30,ifood:10,totalRevenue:100}];
+ const result=calculate(db,filters);
+ assert.equal(result.metrics.gross.value,null);
+ assert.equal(result.metrics.gross.partial,10000);
+});
+test('Takeat: channels without reconciliation are not invented',()=>{
+ const db=emptyDatabase();db.units=[{id:'teixeira',name:'Teixeira',unitId:''}];
+ db.takeatReports=[{id:'m',source:'takeat',unitId:'teixeira',date:'2026-09',syncedAt:'2026-09-30T20:00:00Z',salao:60,delivery:30,ifood:0,totalRevenue:100}];
+ assert.equal(calculate(db,filters).metrics.gross.value,10000);
+ assert.equal(calculate(db,{...filters,channel:'iFood'}).metrics.gross.value,null);
+});

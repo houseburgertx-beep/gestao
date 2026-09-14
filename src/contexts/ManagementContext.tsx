@@ -1,13 +1,17 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import {
   Database,
   DEFINITIONS,
   emptyDatabase,
   dateToday,
   monthEnd,
+  cents,
 } from "@/domain/management/model";
-import { subscribeManagement } from "@/services/managementService";
+import { saveManagement, subscribeManagement } from "@/services/managementService";
+import { store } from "@/services/store";
+import { persistTakeatReports, subscribeTakeatReports } from "@/services/takeatManagementService";
+import type { RecordData } from "@/domain/management/model";
 import type { Filters } from "@/domain/management/engine";
 import { useAuth } from "./AuthContext";
 interface State {
@@ -119,6 +123,46 @@ export function ManagementProvider({
       },
     );
   }, [user?.uid, userProfile?.role, tenantId, allowedUnit, revision]);
+  useEffect(() => {
+    if(!user || !userProfile || !allowedUnit) return;
+    let stopped=false;
+    let cloud: RecordData[]=[];
+    const refresh=()=>{
+      const local=(tenantId==='house190'?store.getTakeatRevenues():[]).filter(r=>allowedUnit==='all'||r.unitId===allowedUnit);
+      const map=new Map(cloud.map(r=>[`${r.unitId}_${r.date}`,r]));
+      for(const r of local) {
+        const key=`${r.unitId}_${r.date}`;
+        if(!map.has(key)||String(map.get(key)?.syncedAt)<r.syncedAt) map.set(key,{...r,kind:'takeatReports',tenantId} as unknown as RecordData);
+      }
+      setData(d=>({...d,takeatReports:Array.from(map.values())}));
+      if(userProfile.role==='admin'||userProfile.role==='manager'||userProfile.role==='accountant') persistTakeatReports(local,tenantId,allowedUnit).catch(()=>{
+        if(!stopped) setErrors(e=>({...e,takeat:'Faturamento disponível neste dispositivo; não foi possível salvar a cópia compartilhada. Tente atualizar.'}));
+      });
+    };
+    const unsub=subscribeTakeatReports(tenantId,allowedUnit,rows=>{
+      cloud=rows; refresh();
+      setErrors(e=>{const next={...e};delete next.takeat;return next;});
+    },()=>setErrors(e=>({...e,takeat:'Não foi possível consultar a integração Takeat.'})));
+    refresh();
+    window.addEventListener('house190_data_updated',refresh);
+    window.addEventListener('storage',refresh);
+    return ()=>{stopped=true;unsub();window.removeEventListener('house190_data_updated',refresh);window.removeEventListener('storage',refresh);};
+  },[user?.uid, userProfile?.role,tenantId,allowedUnit,revision]);
+  const migratingGoals=useRef(new Set<string>());
+  useEffect(()=>{
+    if(!user || userProfile?.role!=='admin' || pending.length || tenantId!=='house190') return;
+    for(const g of store.getStoredGoals()) {
+      const start=`${g.year}-${String(g.month).padStart(2,'0')}-01`;
+      if(!data.units.some(u=>u.id===g.unitId) || !Number.isFinite(g.targetAmount) || !/^\d{4}-(0[1-9]|1[0-2])-01$/.test(start)) continue;
+      const id=`existing-goal-${g.unitId}-${start.slice(0,7)}`;
+      if(migratingGoals.current.has(id)||data.goals.some(r=>r.unitId===g.unitId&&r.start===start)) continue;
+      migratingGoals.current.add(id);
+      const now=new Date().toISOString();
+      const record:RecordData={id,kind:'goals',tenantId,unitId:g.unitId,version:0,createdAt:now,updatedAt:now,createdBy:user.uid,updatedBy:user.uid,description:'Meta cadastrada da loja',frequency:'Mensal',start,end:monthEnd(start),channel:'',target:cents(g.targetAmount),source:'existing-goal'};
+      if(Number.isFinite(g.superTargetAmount)) record.superTarget=cents(g.superTargetAmount!);
+      saveManagement(record,data).catch(()=>setErrors(e=>({...e,goalsMigration:'Uma meta existente precisa de revisão em Cadastros. Nenhuma meta foi substituída.'})));
+    }
+  },[user?.uid,userProfile?.role,pending.length,data.units,data.goals,tenantId]);
   return (
     <Context.Provider
       value={{

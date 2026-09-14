@@ -7,11 +7,11 @@ import { useManagement } from "@/contexts/ManagementContext";
 import { RecordData, cents } from "@/domain/management/model";
 import { RecordForm } from "./RecordTable";
 const SOURCES: Record<string, { label: string; kind: string }> = {
-  accounts_payable: { label: "Contas a pagar anteriores", kind: "payables" },
-  daily_revenues: { label: "Faturamentos anteriores", kind: "revenues" },
-  unit_goals: { label: "Metas anteriores", kind: "goals" },
-  employees: { label: "Funcionários anteriores", kind: "employees" },
-  suppliers: { label: "Fornecedores anteriores", kind: "suppliers" },
+  accounts_payable: { label: "Contas a pagar existentes", kind: "payables" },
+  daily_revenues: { label: "Faturamentos existentes", kind: "revenues" },
+  unit_goals: { label: "Metas existentes", kind: "goals" },
+  employees: { label: "Funcionários existentes", kind: "employees" },
+  suppliers: { label: "Fornecedores existentes", kind: "suppliers" },
 };
 export function LegacyImport() {
   const { user } = useAuth();
@@ -34,7 +34,7 @@ export function LegacyImport() {
       );
       setRows(snapshot.docs.map((d) => ({ ...d.data(), id: d.id })));
     } catch {
-      setError("Não foi possível consultar a base anterior.");
+      setError("Não foi possível consultar a base de origem.");
     } finally {
       setBusy(false);
     }
@@ -74,7 +74,7 @@ export function LegacyImport() {
       });
       if (r.status === "paid" || r.status === "canceled") {
         setError(
-          "Título já pago/cancelado: preserve no histórico anterior. Não importe como obrigação aberta.",
+          "Título já pago/cancelado: preserve no histórico de origem. Não importe como obrigação aberta.",
         );
         return;
       }
@@ -132,23 +132,23 @@ export function LegacyImport() {
         phone: text("phone"),
       });
     if (data[kind].some((x) => x.id === result.id)) {
-      setError("Este registro já foi importado. Edite-o na base nova.");
+      setError("Este registro já foi importado. Edite-o na base integrada.");
       return;
     }
     setDraft(result);
   };
   return (
     <section className="mg-panel">
-      <h2>Revisão dos dados anteriores</h2>
+      <h2>Outros registros disponíveis</h2>
       <p className="mg-method mt-3">
         Os registros existentes permanecem preservados. Confira a unidade e
         complete os campos ausentes antes de importar cada registro. Não importe
-        novamente no sistema anterior após a transição. Cadastros sem
+        novamente no módulo de origem após importar. Cadastros sem
         documentação não serão usados como valores reais.
       </p>
       <div className="mg-toolbar mt-4">
         <select
-          aria-label="Base anterior"
+          aria-label="Base de origem"
           value={source}
           onChange={(e) => {
             setSource(e.target.value);
@@ -163,7 +163,7 @@ export function LegacyImport() {
           ))}
         </select>
         <button className="mg-button secondary" disabled={busy} onClick={load}>
-          {busy ? "Consultando…" : "Consultar base anterior"}
+          {busy ? "Consultando…" : "Consultar base de origem"}
         </button>
       </div>
       {error && <p className="mg-error">{error}</p>}
@@ -173,7 +173,7 @@ export function LegacyImport() {
           <thead>
             <tr>
               <th>Origem</th>
-              <th>Unidade anterior</th>
+              <th>Unidade de origem</th>
               <th>Identificação</th>
               <th>Ação</th>
             </tr>
@@ -209,7 +209,7 @@ export function LegacyImport() {
           onSaved={() => {
             setDraft(null);
             setMessage(
-              "Importação revisada salva. O registro anterior foi preservado.",
+              "Importação revisada salva. O registro de origem foi preservado.",
             );
           }}
         />

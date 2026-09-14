@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { UnitId, Unit } from "@/types";
+import { useManagement } from "./ManagementContext";
 import { UNITS } from "@/data/mockData";
 
 interface UnitContextType {
@@ -17,6 +18,7 @@ const UnitContext = createContext<UnitContextType | undefined>(undefined);
 const STORAGE_KEY = "house190_active_unit";
 
 export function UnitProvider({ children }: { children: React.ReactNode }) {
+  const {filters,setFilters,allowedUnit}=useManagement();
   const [currentUnit, setCurrentUnitState] = useState<UnitId>("all");
   const [isMounted, setIsMounted] = useState(false);
 
@@ -28,7 +30,13 @@ export function UnitProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  useEffect(()=>{
+    const selected=allowedUnit === "all" ? filters.unitId || "all" : allowedUnit;
+    if(UNITS.some(u=>u.id===selected)) setCurrentUnitState(selected as UnitId);
+  },[filters.unitId,allowedUnit]);
+
   const setCurrentUnit = (unit: UnitId) => {
+    setFilters(f=>({...f,unitId:unit === "all" ? "" : unit}));
     setCurrentUnitState(unit);
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY, unit);

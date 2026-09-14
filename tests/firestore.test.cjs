@@ -395,3 +395,16 @@ test("two simultaneous entries for the same source cannot duplicate a budget", a
     1,
   );
 });
+
+test('Takeat reports: shared source is tenant-scoped and credentials are rejected',async()=>{
+ const db=env.authenticatedContext('admin').firestore();
+ const id='house190_teixeira_2026-09';
+ const report={id,kind:'takeatReports',tenantId:'house190',unitId:'teixeira',date:'2026-09',source:'takeat',syncedAt:'2026-09-14T20:00:00Z',totalRevenue:100,updatedBy:'admin'};
+ await assertSucceeds(setDoc(doc(db,'takeat_reports',id),report));
+ await assertSucceeds(getDocs(query(collection(db,'takeat_reports'),where('tenantId','==','house190'))));
+ await assertFails(getDoc(doc(env.authenticatedContext('other').firestore(),'takeat_reports',id)));
+ await assertFails(getDoc(doc(env.authenticatedContext('manager').firestore(),'takeat_reports',id)));
+ await assertFails(setDoc(doc(db,'takeat_reports',id),{...report,token:'must-not-be-stored',syncedAt:'2026-09-15T20:00:00Z'}));
+ await assertFails(setDoc(doc(db,'takeat_reports',id),{...report,syncedAt:'2026-09-13T20:00:00Z'}));
+ await assertSucceeds(setDoc(doc(db,'takeat_reports',id),{...report,totalRevenue:90,syncedAt:'2026-09-15T20:00:00Z'}));
+});

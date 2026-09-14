@@ -57,6 +57,29 @@ service cloud.firestore {
       allow read, write: if activeUser();
     }
 
+    // Source reports are shared across screens without publishing credentials.
+    match /takeat_reports/{id} {
+      function ownReport(data) {
+        return activeUser() && data.tenantId == tenantId()
+          && (directorOrAccountant() || data.unitId == userProfile().unitId);
+      }
+      function validReport(data) {
+        return ownReport(data) && userProfile().role in ['admin', 'accountant', 'manager']
+          && data.id == id && id == data.tenantId + '_' + data.unitId + '_' + data.date
+          && data.updatedBy == request.auth.uid && data.source == 'takeat'
+          && data.unitId in ['teixeira', 'eunapolis', 'foodpark']
+          && data.totalRevenue is number && data.totalRevenue >= 0
+          && data.syncedAt is string && data.date.matches('^[0-9]{4}-[0-9]{2}(-[0-9]{2})?$')
+          && data.keys().hasOnly(['id','kind','tenantId','unitId','date','source','syncedAt','totalRevenue','updatedBy','salao','delivery','ifood','rawBalcony','rawTable','rawDelivery','rawIfood']);
+      }
+      allow get: if activeUser() && (!exists(/databases/$(database)/documents/takeat_reports/$(id)) || ownReport(resource.data));
+      allow list: if ownReport(resource.data);
+      allow create: if validReport(request.resource.data);
+      allow update: if ownReport(resource.data) && validReport(request.resource.data)
+        && request.resource.data.syncedAt > resource.data.syncedAt;
+      allow delete: if false;
+    }
+
     // Canonical management collections are separate from the preserved legacy bases.
     function tenantId() {
       return userProfile().get('tenantId', 'house190');

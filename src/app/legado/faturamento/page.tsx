@@ -18,6 +18,8 @@ import {
   Check,
   Percent,
 } from "lucide-react";
+import Link from "next/link";
+import { useManagement } from "@/contexts/ManagementContext";
 import { store } from "@/services/store";
 import { useUnit } from "@/contexts/UnitContext";
 import { UnitId } from "@/types";
@@ -59,6 +61,7 @@ const UNIT_LABELS: Record<string, string> = {
 };
 
 export default function FaturamentoPage() {
+  const { data: managementData }=useManagement();
   const { currentUnit, activeUnitData } = useUnit();
 
   // Mode: Diário vs Mensal
@@ -95,7 +98,12 @@ export default function FaturamentoPage() {
 
   // Carregamento de dados limpos e sincronizados
   const refreshData = () => {
-    const allTakeat = store.getTakeatRevenues();
+    const reports=new Map(store.getTakeatRevenues().map(r=>[`${r.unitId}-${r.date}`,r]));
+    for(const r of managementData.takeatReports||[]) {
+      const key=`${r.unitId}-${r.date}`;
+      if(!reports.has(key)||String(r.syncedAt)>reports.get(key)!.syncedAt) reports.set(key,r as unknown as TakeatRevenueRecord);
+    }
+    const allTakeat = Array.from(reports.values());
     setTakeatRevenues(
       currentUnit === "all"
         ? allTakeat
@@ -118,7 +126,7 @@ export default function FaturamentoPage() {
     const handleUpdate = () => refreshData();
     window.addEventListener("house190_data_updated", handleUpdate);
     return () => window.removeEventListener("house190_data_updated", handleUpdate);
-  }, [currentUnit]);
+  }, [currentUnit, managementData.takeatReports]);
 
   // Se o usuário alternar a unidade no topo, atualiza a unidade de seleção padrão
   useEffect(() => {
@@ -432,12 +440,13 @@ export default function FaturamentoPage() {
 
   return (
     <div className="space-y-6">
+      <Link href="/faturamento" className="text-sm text-teal-700">← Voltar ao faturamento integrado</Link>
       {/* Header Executivo & Clean */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-zinc-200/70 pb-4 dark:border-zinc-800">
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-              Faturamento & Vendas
+              Integração Takeat
             </h1>
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium ${
