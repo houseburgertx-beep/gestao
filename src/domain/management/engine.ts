@@ -1,3 +1,4 @@
+import { withTakeat } from "./takeat";
 import {
   Database,
   RecordData,
@@ -119,7 +120,7 @@ export function isCovered(
         r.unitId === unitId &&
         r.dataset === dataset &&
         r.confirmed === true &&
-        (!str(r, "channel") || r.channel === channel),
+        (r.source === "takeat" ? str(r, "channel") === channel : (!str(r, "channel") || r.channel === channel)),
     )
     .sort((a, b) => str(a, "start").localeCompare(str(b, "start")));
   let cursor = start;
@@ -167,6 +168,7 @@ export function healthLabel(score: number | null) {
             : "Emergência";
 }
 export function calculate(db: Database, f: Filters) {
+  db = withTakeat(db, f);
   const units = scopeUnits(db, f),
     ids = new Set(units.map((u) => u.id));
   const asOf = f.end < f.today ? f.end : f.today;
@@ -197,7 +199,7 @@ export function calculate(db: Database, f: Filters) {
             str(r, def.dated) <= finish.slice(0, 7)
           : str(r, def.dated) >= start && str(r, def.dated) <= finish),
     );
-    const invalid = relevant.flatMap((r) =>
+    const invalid = relevant.filter(r => !(dataset === "revenues" && r.source === "takeat")).flatMap((r) =>
       fields
         .filter((field) => num(r, field.key) === null)
         .map((field) => `${def.label}: ${field.label} ausente (${r.id})`),
@@ -1262,13 +1264,13 @@ export function calculate(db: Database, f: Filters) {
     { label: "Impostos sobre lucro", metric: profitTaxes },
     { label: "Resultado líquido", metric: profit },
   ];
-  const trend = Array.from(new Set(revenueRows.map((r) => str(r, "date"))))
+  const trend = Array.from(new Set(revenueRows.filter(r => !r.periodEnd || r.periodStart === r.periodEnd).map((r) => str(r, "date"))))
     .sort()
     .map((date) => ({
       date,
       total:
         total(
-          revenueRows.filter((r) => r.date === date),
+          revenueRows.filter((r) => r.date === date && (!r.periodEnd || r.periodStart === r.periodEnd)),
           "gross",
         ) / 100,
     }));

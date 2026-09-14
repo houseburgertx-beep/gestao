@@ -154,8 +154,8 @@ export const DEFINITIONS: Record<string, Definition> = {
     fields: [
       f("name", "Nome"),
       f("code", "Código"),
-      ref("companyId", "Empresa", "companies"),
-      ref("brandId", "Marca", "brands"),
+      ref("companyId", "Empresa", "companies", false),
+      ref("brandId", "Marca", "brands", false),
       opt("unitType", "Tipo", ["Loja", "Central de produção"]),
       f("groups", "Grupos (separados por vírgula)", "text", false),
     ],

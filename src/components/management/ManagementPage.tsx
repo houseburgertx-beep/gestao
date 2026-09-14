@@ -45,6 +45,7 @@ import {
   str,
 } from "@/domain/management/model";
 import "./management.css";
+import { TakeatConnection } from "./TakeatConnection";
 const METRIC_LABELS: Record<string, string> = {
   projectedProfit: "Resultado provável · orçamento",
   marketingPct: "Marketing / receita líquida",
@@ -455,6 +456,7 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
           ))}
         </div>
       </section>
+      {["health","owner","revenues","goals","dre","comparison","meeting"].includes(view) && <TakeatConnection />}
       {Object.keys(errors).length > 0 && (
         <div role="alert" className="mg-notice">
           <AlertTriangle size={20} />

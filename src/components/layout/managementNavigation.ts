@@ -49,13 +49,9 @@ export const MANAGEMENT_NAV = [
   { title: "Orçamento", href: "/orcamento", icon: Calculator },
   { title: "Fechamento", href: "/fechamento", icon: ShieldCheck },
   { title: "Reunião semanal", href: "/reuniao", icon: CheckSquare },
-  { title: "Bases de gestão", href: "/bases", icon: Database },
+  { title: "Cadastros", href: "/bases", icon: Database },
   { title: "Documentos", href: "/documentos", icon: FolderLock },
-  { title: "RH anterior", href: "/rh", icon: Users },
-  { title: "Financeiro anterior", href: "/legado/financeiro", icon: Wallet },
-  {
-    title: "Faturamento anterior",
-    href: "/legado/faturamento",
-    icon: TrendingUp,
-  },
+  { title: "Funcionários", href: "/rh", icon: Users },
+  { title: "Fornecedores", href: "/fornecedores", icon: Building2 },
+  { title: "Integração Takeat", href: "/integracoes/takeat", icon: TrendingUp },
 ];

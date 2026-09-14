@@ -448,6 +448,10 @@ class DataStore {
   }
 
   // GOALS (Cálculo em tempo real baseado nas metas oficiais dos documentos e faturamento Takeat)
+  getStoredGoals(): UnitGoal[] {
+    return this.get<UnitGoal[]>(STORAGE_KEYS.GOALS, []);
+  }
+
   getGoals(): UnitGoal[] {
     let rawGoals = this.get<UnitGoal[]>(STORAGE_KEYS.GOALS, []);
     const defaultTargets: Record<string, { target: number; superTarget: number; salaoTarget: number; deliveryTarget: number; ifoodTarget: number }> = {
@@ -762,14 +766,7 @@ class DataStore {
     // Garante que nenhum registro de mock anterior permaneça e exclui Central de Produção (sem vendas)
     return records
       .filter((r) => r && r.id && !r.id.includes("fake") && (r.unitId as string) !== "central")
-      .map((r) => {
-        // Se um registro com data de 01/09 tem valor de faturamento mensal (> R$ 40.000 por unidade),
-        // ele é na verdade o consolidado mensal de 2026-09 e não o faturamento de um único dia
-        if (r.date === "2026-09-01" && r.totalRevenue > 40000) {
-          return { ...r, date: "2026-09", id: `takeat-${r.unitId}-2026-09` };
-        }
-        return r;
-      });
+;
   }
 
   getTakeatCredentials(unitId: string): TakeatCredentials {
@@ -830,22 +827,7 @@ class DataStore {
     const current = this.getTakeatRevenues();
     const existing = current.find((r) => r.unitId === record.unitId && r.date === record.date);
 
-    let finalRecord = { ...record };
-    if (existing && !isManualEdit) {
-      // Preserva canais já lançados se a nova sincronização veio com zero neles
-      const salao = record.salao > 0 ? record.salao : (existing.salao || 0);
-      const ifood = record.ifood > 0 ? record.ifood : (existing.ifood || 0);
-      const delivery = record.delivery > 0 ? record.delivery : (existing.delivery || 0);
-      const totalRevenue = Math.round((salao + delivery + ifood) * 100) / 100;
-
-      finalRecord = {
-        ...record,
-        salao,
-        delivery,
-        ifood,
-        totalRevenue: Math.max(record.totalRevenue, totalRevenue),
-      };
-    }
+    const finalRecord = { ...record };
 
     const filtered = current.filter(
       (r) => !(r.unitId === finalRecord.unitId && r.date === finalRecord.date)

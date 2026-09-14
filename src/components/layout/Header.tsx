@@ -17,7 +17,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const { user, userProfile } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const legacy = pathname.startsWith("/legado") || ["/rh", "/tarefas", "/documentos", "/fornecedores", "/auditoria"].some(p => pathname.startsWith(p));
+  const legacy = (pathname.startsWith("/legado") || pathname.startsWith("/integracoes")) || ["/rh", "/tarefas", "/documentos", "/fornecedores", "/auditoria"].some(p => pathname.startsWith(p));
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
