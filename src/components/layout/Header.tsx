@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Search, Plus, Bell, Menu, User as UserIcon } from "lucide-react";
 import { UnitSelector } from "@/components/layout/UnitSelector";
 import { CommandPalette } from "@/components/layout/CommandPalette";
@@ -14,6 +15,9 @@ import { AppNotification } from "@/types";
 
 export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void }) {
   const { user, userProfile } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
+  const legacy = pathname.startsWith("/legado") || ["/rh", "/tarefas", "/documentos", "/fornecedores", "/auditoria"].some(p => pathname.startsWith(p));
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -63,7 +67,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
           >
             <Menu className="h-5 w-5" />
           </button>
-          <UnitSelector />
+          {legacy ? <UnitSelector /> : <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Gestão do grupo</span>}
         </div>
 
         {/* Center / Search: Command Palette Trigger */}
@@ -95,7 +99,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
           {/* + Novo Button */}
           <Button
             size="sm"
-            onClick={() => setIsQuickCreateOpen(true)}
+            onClick={() => legacy ? setIsQuickCreateOpen(true) : router.push("/bases")}
             className="h-8 px-2.5 sm:px-3 text-xs gap-1.5"
           >
             <Plus className="h-3.5 w-3.5" />

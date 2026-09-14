@@ -83,30 +83,7 @@ class DataStore {
   constructor() {
     if (typeof window !== "undefined") {
       try {
-        const purgedKey = "house190_purged_mock_v4";
-        if (!localStorage.getItem(purgedKey)) {
-          // Preserva estritamente as credenciais autênticas e faturamentos da Takeat
-          const takeatCreds = localStorage.getItem(STORAGE_KEYS.TAKEAT_CREDS);
-          const takeatRevs = localStorage.getItem(STORAGE_KEYS.TAKEAT_REVENUES);
-
-          // Zera dados falsos/mock de todas as áreas
-          localStorage.removeItem(STORAGE_KEYS.ACCOUNTS);
-          localStorage.removeItem(STORAGE_KEYS.SUPPLIERS);
-          localStorage.removeItem(STORAGE_KEYS.TAXES);
-          localStorage.removeItem(STORAGE_KEYS.GOALS);
-          localStorage.removeItem(STORAGE_KEYS.EMPLOYEES);
-          localStorage.removeItem(STORAGE_KEYS.VACATIONS);
-          localStorage.removeItem(STORAGE_KEYS.TASKS);
-          localStorage.removeItem(STORAGE_KEYS.DOCS);
-          localStorage.removeItem(STORAGE_KEYS.LOGS);
-          localStorage.removeItem(STORAGE_KEYS.NOTIFS);
-          localStorage.removeItem(STORAGE_KEYS.REVENUES);
-
-          if (takeatCreds) localStorage.setItem(STORAGE_KEYS.TAKEAT_CREDS, takeatCreds);
-          if (takeatRevs) localStorage.setItem(STORAGE_KEYS.TAKEAT_REVENUES, takeatRevs);
-
-          localStorage.setItem(purgedKey, "true");
-        }
+        // Preserve prior local records; migration is explicit and reviewed.
         // Sincroniza em segundo plano com o Firestore
         this.syncFromFirestore();
       } catch {}

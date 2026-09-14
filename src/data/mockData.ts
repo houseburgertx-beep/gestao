@@ -28,32 +28,24 @@ export const UNITS: Unit[] = [
     name: "Central de Produção",
     shortName: "Central",
     code: "CP",
-    cnpj: "45.190.190/0001-90",
-    address: "Av. das Indústrias, 190 - Eunápolis/BA",
   },
   {
     id: "eunapolis",
     name: "House 190 Eunápolis",
     shortName: "Eunápolis",
     code: "EUN",
-    cnpj: "45.190.190/0002-71",
-    address: "Av. Porto Seguro, 450 - Centro, Eunápolis/BA",
   },
   {
     id: "teixeira",
     name: "House 190 Teixeira de Freitas",
     shortName: "Teixeira",
     code: "TXF",
-    cnpj: "45.190.190/0003-52",
-    address: "Av. Getúlio Vargas, 1820 - Teixeira de Freitas/BA",
   },
   {
     id: "foodpark",
     name: "House Foodpark",
     shortName: "Foodpark",
     code: "FDP",
-    cnpj: "45.190.190/0004-33",
-    address: "Espaço Gastronômico, Box 04 - Eunápolis/BA",
   },
 ];
 
