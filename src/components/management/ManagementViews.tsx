@@ -34,6 +34,7 @@ import { MetricGrid, Kpi, AlertList, Empty } from "./ManagementPage";
 import { Tables, RecordTable } from "./RecordTable";
 import { LegacyImport } from "./LegacyImport";
 import { PayablesDashboard } from "./PayablesDashboard";
+import { XlsxPayablesImport } from "./XlsxPayablesImport";
 export function ExtendedView({
   view,
   result,
@@ -463,6 +464,10 @@ export function ExtendedView({
         <details className="mg-panel mg-collapsible">
           <summary>Importar outros cadastros existentes</summary>
           <LegacyImport />
+        </details>
+        <details className="mg-panel mg-collapsible">
+          <summary>📊 Importar Contas a Pagar 2026 (arquivo XLSX)</summary>
+          <XlsxPayablesImport />
         </details>
       </>
     );
