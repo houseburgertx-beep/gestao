@@ -68,14 +68,15 @@ export function RecordTable({
       !DEFINITIONS[kind].global &&
       !["closings", "coverage", "positions"].includes(kind));
   useEffect(() => {
-    if (kind !== "payables") return;
+    if (!["payables", "suppliers"].includes(kind)) return;
     const open = () => {
       setMessage("");
       setEditing(false);
     };
-    window.addEventListener("open-payable-form", open);
+    const eventName = kind === "payables" ? "open-payable-form" : "open-supplier-form";
+    window.addEventListener(eventName, open);
     if (new URLSearchParams(window.location.search).get("novo") === "1") open();
-    return () => window.removeEventListener("open-payable-form", open);
+    return () => window.removeEventListener(eventName, open);
   }, [kind]);
   const unitIds = new Set(
     data.units

@@ -521,16 +521,17 @@ export const DEFINITIONS: Record<string, Definition> = {
     fields: [competence(), category(), amount()],
   },
   actions: {
-    label: "Plano de ação",
-    singular: "ação",
+    label: "Tarefas",
+    singular: "tarefa",
     dated: "dueDate",
     fields: [
-      f("problem", "Problema"),
-      f("action", "Ação", "textarea"),
+      f("problem", "Título"),
+      f("action", "Descrição", "textarea", false),
       f("owner", "Responsável"),
       due(),
-      opt("status", "Status", ["Pendente", "Em andamento", "Concluído"]),
-      f("alertId", "Alerta de origem", "text", false),
+      opt("priority", "Prioridade", ["Baixa", "Normal", "Alta", "Urgente"], false),
+      opt("status", "Status", ["Pendente", "Em andamento", "Aguardando", "Concluído"]),
+      f("notes", "Observações", "textarea", false),
     ],
   },
   closings: {

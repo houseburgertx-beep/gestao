@@ -26,6 +26,17 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const seenNotificationIds = useRef<Set<string> | null>(null);
 
   useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "k") {
+        event.preventDefault();
+        setIsCommandOpen(true);
+      }
+    };
+    window.addEventListener("keydown", shortcut);
+    return () => window.removeEventListener("keydown", shortcut);
+  }, []);
+
+  useEffect(() => {
     if (!user) {
       setNotifications([]);
       return;
@@ -55,7 +66,26 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   }, [user]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const primaryActionLabel = pathname.startsWith("/tarefas")
+    ? "Nova tarefa"
+    : pathname.startsWith("/rh")
+      ? "Novo colaborador"
+      : pathname.startsWith("/fornecedores")
+        ? "Novo fornecedor"
+      : "Nova conta";
   const openNewRecord = () => {
+    if (pathname.startsWith("/tarefas")) {
+      window.dispatchEvent(new CustomEvent("open-task-form"));
+      return;
+    }
+    if (pathname.startsWith("/rh")) {
+      window.dispatchEvent(new CustomEvent("open-employee-form"));
+      return;
+    }
+    if (pathname.startsWith("/fornecedores")) {
+      window.dispatchEvent(new CustomEvent("open-supplier-form"));
+      return;
+    }
     if (pathname === "/" || pathname.startsWith("/contas-a-pagar")) {
       window.dispatchEvent(new CustomEvent("open-payable-form"));
       return;
@@ -65,7 +95,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
 
   return (
     <>
-      <header className="sticky top-0 z-20 h-14 w-full bg-white/95 backdrop-blur border-b border-zinc-200/80 px-4 lg:px-6 flex items-center justify-between dark:bg-zinc-950/95 dark:border-zinc-800">
+      <header className="sticky top-0 z-20 h-16 w-full bg-white/90 backdrop-blur-xl border-b border-[#e4e5ee] px-4 lg:px-7 flex items-center justify-between shadow-[0_2px_12px_rgba(35,39,62,0.03)]">
         {/* Left Section: Unit Selector & Mobile Toggle */}
         <div className="flex items-center gap-3">
           <button
@@ -107,10 +137,10 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
           <Button
             size="sm"
             onClick={openNewRecord}
-            className="h-8 px-2.5 sm:px-3 text-xs gap-1.5"
+            className="h-9 px-3 sm:px-4 text-xs gap-1.5 !rounded-lg !bg-gradient-to-r !from-[#554abc] !to-[#7163dc] !text-white shadow-md shadow-purple-200"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Nova conta</span>
+            <span className="hidden sm:inline">{primaryActionLabel}</span>
           </Button>
 
           {/* Notifications */}

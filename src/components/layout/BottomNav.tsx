@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReceiptText, Truck, TrendingUp, Menu } from "lucide-react";
+import { ReceiptText, Users, Columns3, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function BottomNav({ onOpenMobileMenu }: { onOpenMobileMenu: () => void }) {
@@ -11,8 +11,8 @@ export function BottomNav({ onOpenMobileMenu }: { onOpenMobileMenu: () => void }
 
   const items = [
     { label: "A pagar", href: "/", icon: ReceiptText },
-    { label: "Fornecedores", href: "/fornecedores", icon: Truck },
-    { label: "Vendas", href: "/faturamento", icon: TrendingUp },
+    { label: "Tarefas", href: "/tarefas", icon: Columns3 },
+    { label: "Equipe", href: "/rh", icon: Users },
   ];
 
   return (
@@ -20,7 +20,7 @@ export function BottomNav({ onOpenMobileMenu }: { onOpenMobileMenu: () => void }
       {items.map((item) => {
         const Icon = item.icon;
         const isActive =
-          item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+          item.href === "/" ? pathname === "/" || pathname.startsWith("/contas-a-pagar") : pathname.startsWith(item.href);
 
         return (
           <Link
