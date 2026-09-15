@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import {MANAGEMENT_NAV} from "@/components/layout/managementNavigation";
+import React, { useEffect, useState } from "react";
+import {homeForRole, navigationForRole, roleCanAccess} from "@/components/layout/managementNavigation";
+import { usePathname, useRouter } from "next/navigation";
 import "./globals.css";
 import { ManagementProvider } from "@/contexts/ManagementContext";
 import { UnitProvider } from "@/contexts/UnitContext";
@@ -33,9 +34,12 @@ function ProtectedShell({
   children: React.ReactNode;
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
+  const pathname=usePathname();
+  const router=useRouter();
 
-  const menuItems = MANAGEMENT_NAV;
+  const menuItems = navigationForRole(userProfile?.role);
+  useEffect(()=>{if(userProfile&&!roleCanAccess(userProfile.role,pathname))router.replace(homeForRole(userProfile.role));},[userProfile?.role,pathname,router]);
 
   if (loading) {
     return (
@@ -54,6 +58,10 @@ function ProtectedShell({
         <AuthModal isOpen required onClose={() => {}} />
       </div>
     );
+  }
+
+  if (!userProfile || !roleCanAccess(userProfile.role, pathname)) {
+    return <div className="min-h-screen flex items-center justify-center bg-[#fafafa]"><p className="text-sm text-zinc-500">Abrindo sua área autorizada…</p></div>;
   }
 
   return (

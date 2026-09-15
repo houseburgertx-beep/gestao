@@ -68,8 +68,12 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const unreadCount = notifications.filter((n) => !n.read).length;
   const primaryActionLabel = pathname.startsWith("/tarefas")
     ? "Nova tarefa"
-    : pathname.startsWith("/rh")
+      : pathname.startsWith("/rh")
       ? "Novo colaborador"
+      : pathname.startsWith("/fechamento-caixa")
+        ? "Novo fechamento"
+      : pathname.startsWith("/conferencia-caixa")
+        ? "Nova conferência"
       : pathname.startsWith("/fornecedores")
         ? "Novo fornecedor"
       : pathname.startsWith("/documentos")
@@ -86,6 +90,8 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       window.dispatchEvent(new CustomEvent("open-employee-form"));
       return;
     }
+    if (pathname.startsWith("/fechamento-caixa")) { window.dispatchEvent(new CustomEvent("open-cashClosings-form")); return; }
+    if (pathname.startsWith("/conferencia-caixa")) { window.dispatchEvent(new CustomEvent("open-cashConferences-form")); return; }
     if (pathname.startsWith("/fornecedores")) {
       window.dispatchEvent(new CustomEvent("open-supplier-form"));
       return;

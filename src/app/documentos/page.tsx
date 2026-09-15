@@ -7,14 +7,10 @@ import {
   Upload,
   FileText,
   Download,
-  AlertTriangle,
-  Clock,
-  CheckCircle2,
 } from "lucide-react";
 import { store } from "@/services/store";
 import { useUnit } from "@/contexts/UnitContext";
 import { DocumentItem } from "@/types";
-import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -31,7 +27,6 @@ export default function DocumentosPage() {
   // New Doc Form
   const [newTitle, setNewTitle] = useState("");
   const [newCategory, setNewCategory] = useState<DocumentItem["category"]>("contracts");
-  const [newExpiration, setNewExpiration] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -58,22 +53,6 @@ export default function DocumentosPage() {
     return () => window.removeEventListener("open-document-form", openForm);
   }, []);
 
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Bahia",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-  const next30Days = new Date(Date.parse(`${today}T12:00:00Z`) + 30 * 86400000)
-    .toISOString()
-    .slice(0, 10);
-  const expiredDocs = documents
-    .filter((document) => document.expirationDate && document.expirationDate < today)
-    .sort((a, b) => String(a.expirationDate).localeCompare(String(b.expirationDate)));
-  const upcomingDocs = documents
-    .filter((document) => document.expirationDate && document.expirationDate >= today && document.expirationDate <= next30Days)
-    .sort((a, b) => String(a.expirationDate).localeCompare(String(b.expirationDate)));
-
   const filteredDocs = documents.filter((d) => {
     if (categoryFilter !== "all" && d.category !== categoryFilter) return false;
     if (!searchQuery) return true;
@@ -98,7 +77,6 @@ export default function DocumentosPage() {
         title: newTitle,
         category: newCategory,
         unitId: currentUnit === "all" ? "all" : currentUnit,
-        expirationDate: newExpiration || undefined,
         size: formatFileSize(stored.size),
         format: extension,
         url: `drive:${stored.fileId}`,
@@ -109,7 +87,6 @@ export default function DocumentosPage() {
       });
       setIsUploadModalOpen(false);
       setNewTitle("");
-      setNewExpiration("");
       setSelectedFile(null);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Não foi possível enviar o arquivo.");
@@ -136,7 +113,7 @@ export default function DocumentosPage() {
             Documentos
           </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Contratos, alvarás, comprovantes e alertas de vencimento em uma área própria.
+            Biblioteca segura para armazenar e organizar arquivos no Google Drive.
           </p>
         </div>
         <Button
@@ -149,27 +126,10 @@ export default function DocumentosPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <DocumentMetric icon={FolderLock} label="Documentos salvos" value={String(documents.length)} tone="violet" />
-        <DocumentMetric icon={Clock} label="Vencem em 30 dias" value={String(upcomingDocs.length)} tone="amber" />
-        <DocumentMetric icon={AlertTriangle} label="Vencidos" value={String(expiredDocs.length)} tone="rose" />
+        <DocumentMetric icon={Upload} label="Armazenamento" value="Google Drive" tone="amber" />
       </div>
-
-      {(expiredDocs[0] || upcomingDocs[0]) && (() => {
-        const document = expiredDocs[0] || upcomingDocs[0];
-        const expired = Boolean(expiredDocs[0]);
-        return (
-          <div className={`p-4 rounded-lg border flex items-center justify-between gap-3 text-xs ${expired ? "border-rose-200 bg-rose-50/60" : "border-amber-200 bg-amber-50/60"}`}>
-            <div className="flex items-center gap-2.5">
-              <AlertTriangle className={`h-4 w-4 shrink-0 ${expired ? "text-rose-600" : "text-amber-600"}`} />
-              <span className="text-zinc-700">
-                <strong>{expired ? "Documento vencido:" : "Vencimento próximo:"}</strong> {document.title} — {formatDate(document.expirationDate!)}.
-              </span>
-            </div>
-            <span className={`text-[11px] font-semibold uppercase ${expired ? "text-rose-700" : "text-amber-700"}`}>{expired ? "Vencido" : "Atenção"}</span>
-          </div>
-        );
-      })()}
 
       {/* Filters Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -205,16 +165,12 @@ export default function DocumentosPage() {
               <th className="py-3 px-4">Documento</th>
               <th className="py-3 px-4">Categoria</th>
               <th className="py-3 px-4">Unidade</th>
-              <th className="py-3 px-4">Vencimento</th>
               <th className="py-3 px-4">Tamanho</th>
               <th className="py-3 px-4 text-right">Ação</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {filteredDocs.map((doc) => {
-              const isExpiringSoon =
-                doc.expirationDate && doc.expirationDate <= next30Days;
-
               return (
                 <tr key={doc.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50">
                   <td className="py-3 px-4 font-medium text-zinc-900 dark:text-zinc-100">
@@ -241,21 +197,6 @@ export default function DocumentosPage() {
                   <td className="py-3 px-4 uppercase text-[10px] font-mono text-zinc-500">
                     {doc.unitId}
                   </td>
-                  <td className="py-3 px-4 tabular-nums">
-                    {doc.expirationDate ? (
-                      <span
-                        className={
-                          isExpiringSoon
-                            ? "font-semibold text-rose-600 dark:text-rose-400"
-                            : "text-zinc-600 dark:text-zinc-400"
-                        }
-                      >
-                        {formatDate(doc.expirationDate)}
-                      </span>
-                    ) : (
-                      <span className="text-zinc-400">Indeterminado</span>
-                    )}
-                  </td>
                   <td className="py-3 px-4 text-zinc-500 font-mono text-[11px]">
                     {doc.size}
                   </td>
@@ -276,7 +217,7 @@ export default function DocumentosPage() {
             })}
             {!filteredDocs.length && (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-xs text-zinc-500">
+                <td colSpan={5} className="px-4 py-12 text-center text-xs text-zinc-500">
                   Nenhum documento encontrado. Use “Novo documento” para salvar o primeiro arquivo.
                 </td>
               </tr>
@@ -290,7 +231,7 @@ export default function DocumentosPage() {
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         title="Enviar Novo Documento"
-        subtitle="Adicione contratos, certidões ou alvarás para gestão de vencimentos"
+        subtitle="O arquivo será armazenado com segurança no Google Drive"
       >
         <form onSubmit={handleUploadSubmit} className="space-y-4 text-xs">
           <div>
@@ -307,7 +248,7 @@ export default function DocumentosPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div>
             <div>
               <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
                 Categoria
@@ -324,17 +265,6 @@ export default function DocumentosPage() {
               </select>
             </div>
 
-            <div>
-              <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
-                Data de Vencimento
-              </label>
-              <input
-                type="date"
-                value={newExpiration}
-                onChange={(e) => setNewExpiration(e.target.value)}
-                className="w-full h-9 px-3 rounded border border-zinc-200 bg-white dark:bg-zinc-800 dark:border-zinc-700 focus:outline-none"
-              />
-            </div>
           </div>
 
           <label className="block border-2 border-dashed border-zinc-200 rounded-lg p-6 text-center text-zinc-500 hover:border-zinc-400 transition-colors cursor-pointer dark:border-zinc-700">

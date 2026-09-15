@@ -173,6 +173,15 @@ export interface Employee {
   managerName: string;
   status: EmployeeStatus;
   bankData?: string;
+  bankName?: string;
+  bankAgency?: string;
+  bankAccount?: string;
+  bankAccountType?: 'corrente' | 'poupanca';
+  bankHolderCpf?: string;
+  bankHolderName?: string;
+  experienceEndDate?: string;
+  vacationStart?: string;
+  vacationEnd?: string;
   documentsCount: number;
   notes?: string;
 }
@@ -262,6 +271,7 @@ export interface DocumentItem {
   category: 'finance' | 'fiscal' | 'hr' | 'contracts' | 'suppliers' | 'employees' | 'companies' | 'other';
   unitId: UnitId;
   expirationDate?: string;
+  employeeId?: string;
   uploadDate: string;
   size: string;
   format: string;

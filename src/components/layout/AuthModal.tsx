@@ -185,7 +185,7 @@ export function AuthModal({ isOpen, onClose, required = false }: AuthModalProps)
                     <option value="admin">Administrador Geral</option>
                     <option value="manager">Gerente de Unidade</option>
                     <option value="operator">Operador / Caixa</option>
-                    <option value="accountant">Contabilidade / Fiscal</option>
+                    <option value="accountant">Financeiro — acesso completo</option>
                   </select>
                 </div>
                 <div>

@@ -8,6 +8,7 @@ import {
   Cloud,
   FileSpreadsheet,
   Landmark,
+  ArrowDown,
   ReceiptText,
 } from "lucide-react";
 import {
@@ -115,8 +116,17 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
   ).map(([name, value]) => ({ name, value: value / 100 }));
   const attention = [...overdue, ...todayRows, ...next7, ...taxRows]
     .filter((row, index, all) => all.findIndex((item) => item.id === row.id) === index)
-    .sort((a, b) => str(a, "dueDate").localeCompare(str(b, "dueDate")))
-    .slice(0, 7);
+    .sort((a, b) => {
+      const priority = (row: RecordData) => str(row, "dueDate") === today ? 0 : str(row, "dueDate") < today ? 1 : 2;
+      return priority(a) - priority(b) || str(a, "dueDate").localeCompare(str(b, "dueDate"));
+    })
+    .slice(0, 12);
+
+  const goToAccount = (id: string) => {
+    document.getElementById(`record-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => document.getElementById(`record-${id}`)?.classList.add("record-attention"), 350);
+    window.setTimeout(() => document.getElementById(`record-${id}`)?.classList.remove("record-attention"), 2400);
+  };
 
   const createBackup = async () => {
     setBackingUp(true);
@@ -207,7 +217,7 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
               const isTax = str(row, "obligationType") === "Imposto" || row.sourceKind === "taxes";
               const unit = data.units.find((item) => item.id === row.unitId);
               return (
-                <div className="payables-alert-row" key={row.id}>
+                <button className="payables-alert-row" key={row.id} onClick={() => goToAccount(row.id)} title="Abrir esta conta na lista">
                   <span className={`payables-status-dot ${status === "Vencido" ? "danger" : status === "Vencendo" ? "warning" : "normal"}`} />
                   <div className="payables-alert-description">
                     <strong>{str(row, "description")}</strong>
@@ -216,7 +226,8 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
                   <span className={`payables-status ${status.toLowerCase()}`}>{status}</span>
                   <span className="payables-due">{formatDate(str(row, "dueDate"))}</span>
                   <strong className="payables-amount">{currency(outstanding(row, data, today))}</strong>
-                </div>
+                  <ArrowDown size={15} className="payables-alert-open" />
+                </button>
               );
             })}
           </div>

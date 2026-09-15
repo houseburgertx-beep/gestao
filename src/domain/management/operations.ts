@@ -34,7 +34,8 @@ export function validate(record: RecordData, db: Database) {
         throw new Error(`${field.label}: valor monetário inválido.`);
       if (
         value < 0 &&
-        !(record.kind === "bankAccounts" && field.key === "balance")
+        !(record.kind === "bankAccounts" && field.key === "balance") &&
+        !(record.kind === "cashConferences" && field.key === "difference")
       )
         throw new Error(`${field.label} não pode ser negativo.`);
     }

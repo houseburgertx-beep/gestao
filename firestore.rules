@@ -30,19 +30,20 @@ service cloud.firestore {
     }
 
     match /employees/{documentId} {
-      allow read, write: if activeUser();
+      allow read, write: if activeUser() && userProfile().role in ['admin', 'accountant'];
     }
 
     match /suppliers/{documentId} {
-      allow read, write: if activeUser();
+      allow read, write: if activeUser() && userProfile().role in ['admin', 'accountant'];
     }
 
     match /accounts_payable/{documentId} {
-      allow read, write: if activeUser();
+      allow read, write: if activeUser() && userProfile().role in ['admin', 'accountant'];
     }
 
     match /unit_goals/{documentId} {
-      allow read, write: if activeUser();
+      allow read: if activeUser() && userProfile().role in ['admin', 'accountant', 'manager'];
+      allow write: if activeUser() && userProfile().role in ['admin', 'accountant'];
     }
 
     match /notifications/{documentId} {
@@ -50,11 +51,12 @@ service cloud.firestore {
     }
 
     match /daily_revenues/{documentId} {
-      allow read, write: if activeUser();
+      allow read: if activeUser() && userProfile().role in ['admin', 'accountant', 'manager'];
+      allow write: if activeUser() && userProfile().role in ['admin', 'accountant'];
     }
 
     match /documents/{documentId} {
-      allow read, write: if activeUser();
+      allow read, write: if activeUser() && userProfile().role in ['admin', 'accountant'];
     }
 
     // Source reports are shared across screens without publishing credentials.
@@ -87,13 +89,13 @@ service cloud.firestore {
     function managementCollection(name) {
       return name in ['gestao_companies', 'gestao_brands', 'gestao_units',
         'gestao_categories', 'gestao_costCenters', 'gestao_suppliers',
-        'gestao_bankAccounts', 'gestao_revenues', 'gestao_sales',
+        'gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_revenues', 'gestao_sales',
         'gestao_transactions', 'gestao_payables', 'gestao_receivables',
         'gestao_taxes', 'gestao_employees', 'gestao_payroll', 'gestao_attendance',
         'gestao_products', 'gestao_purchases', 'gestao_inventory',
         'gestao_transfers', 'gestao_production', 'gestao_loans',
         'gestao_loanInstallments', 'gestao_goals', 'gestao_budgets',
-        'gestao_actions', 'gestao_closings', 'gestao_coverage',
+        'gestao_actions', 'gestao_closings', 'gestao_cashClosings', 'gestao_cashConferences', 'gestao_coverage',
         'gestao_positions', 'gestao_policies'];
     }
     function globalCollection(name) {
@@ -105,15 +107,16 @@ service cloud.firestore {
     }
     function canReadManagement(name, data) {
       return activeUser() && data.tenantId == tenantId()
-        && (globalCollection(name) || directorOrAccountant()
-          || data.unitId == userProfile().unitId);
+        && (directorOrAccountant()
+          || (name == 'gestao_units')
+          || (userProfile().role == 'manager' && name in ['gestao_actions','gestao_goals','gestao_revenues','gestao_sales'] && data.unitId == userProfile().unitId)
+          || (userProfile().role == 'operator' && name == 'gestao_cashClosings' && data.unitId == userProfile().unitId));
     }
     function writer(name) {
-      return (name in ['gestao_policies', 'gestao_companies', 'gestao_brands', 'gestao_units']
-          ? adminUser()
-          : (globalCollection(name) || name in ['gestao_closings', 'gestao_coverage', 'gestao_positions'])
-            ? directorOrAccountant()
-            : userProfile().role in ['admin', 'accountant', 'manager']);
+      return (name in ['gestao_policies', 'gestao_companies', 'gestao_brands', 'gestao_units'] ? adminUser()
+        : directorOrAccountant()
+          || (userProfile().role == 'manager' && name == 'gestao_actions')
+          || (userProfile().role == 'operator' && name == 'gestao_cashClosings'));
     }
     function recordMonth(data) {
       return data.get('competence', '') != '' ? data.competence
@@ -123,7 +126,7 @@ service cloud.firestore {
     function openPeriod(name, data) {
       let month = recordMonth(data);
       let path = /databases/$(database)/documents/gestao_locks/$(data.tenantId + '_' + data.unitId + '_' + month);
-      return globalCollection(name) || name in ['gestao_closings', 'gestao_coverage', 'gestao_actions']
+      return globalCollection(name) || name in ['gestao_closings', 'gestao_cashClosings', 'gestao_cashConferences', 'gestao_coverage', 'gestao_actions']
         || month == '' || !exists(path) || get(path).data.closed != true;
     }
     function validUnit(name, data) {

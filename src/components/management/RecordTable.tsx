@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
-import { Plus, X, Pencil, Paperclip, Download, Cloud } from "lucide-react";
+import { Plus, X, Pencil, Paperclip, Download, Cloud, Zap } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -64,16 +64,15 @@ export function RecordTable({
   const canWrite =
     userProfile?.role === "admin" ||
     userProfile?.role === "accountant" ||
-    (userProfile?.role === "manager" &&
-      !DEFINITIONS[kind].global &&
-      !["closings", "coverage", "positions"].includes(kind));
+    (userProfile?.role === "manager" && kind === "actions") ||
+    (userProfile?.role === "operator" && kind === "cashClosings");
   useEffect(() => {
-    if (!["payables", "suppliers"].includes(kind)) return;
+    if (!["payables", "suppliers", "cashClosings", "cashConferences"].includes(kind)) return;
     const open = () => {
       setMessage("");
       setEditing(false);
     };
-    const eventName = kind === "payables" ? "open-payable-form" : "open-supplier-form";
+    const eventName = kind === "payables" ? "open-payable-form" : kind === "suppliers" ? "open-supplier-form" : `open-${kind}-form`;
     window.addEventListener(eventName, open);
     if (new URLSearchParams(window.location.search).get("novo") === "1") open();
     return () => window.removeEventListener(eventName, open);
@@ -193,7 +192,7 @@ export function RecordTable({
             <tbody>
               {list.map((r) => (
                 <React.Fragment key={r.id}>
-                  <tr>
+                  <tr id={`record-${r.id}`}>
                     {!def.global && (
                       <td>
                         {String(
@@ -245,6 +244,10 @@ export function RecordTable({
                             <Download size={13} /> Boleto
                           </button>
                         )}
+                        {kind === "payables" && (() => {
+                          const proof = data.transactions.find((item) => item.obligationId === r.id && item.paymentProofFileId && !item.reversalOf);
+                          return proof ? <button className="mg-button secondary" onClick={() => downloadFileFromDrive(str(proof, "paymentProofFileId"), str(proof, "paymentProofFileName") || "comprovante")}><Download size={13}/> Comprovante</button> : null;
+                        })()}
                         <button
                           className="mg-button secondary"
                           disabled={!canWrite || Boolean(r.obligationId)}
@@ -268,11 +271,11 @@ export function RecordTable({
                         {["payables", "receivables"].includes(kind) &&
                           outstanding(r, data, filters.today) > 0 && (
                             <button
-                              className="mg-button"
+                              className="mg-button instant"
                               disabled={!canWrite}
                               onClick={() => setPaying(r)}
                             >
-                              Baixar
+                              <Zap size={13}/> Pagar agora
                             </button>
                           )}
                         {r.obligationId &&
@@ -715,6 +718,15 @@ function SettlementForm({
               user.uid,
               id,
             );
+            const proof = form.get("paymentProof");
+            if (proof instanceof File && proof.size > 0) {
+              const named = nameFileForDrive(proof, `Comprovante - ${str(record, "description")} - ${String(form.get("date"))}`);
+              const stored = await uploadFileToDrive(named, "payment_proofs");
+              row.paymentProofFileId = stored.fileId;
+              row.paymentProofFileName = stored.fileName;
+              row.paymentProofMimeType = stored.mimeType;
+              row.paymentProofSize = stored.size;
+            }
             await commitRecords([row], data, row);
             try {
               await backupPayablesSpreadsheet(data, [row]);
@@ -769,6 +781,11 @@ function SettlementForm({
                 </option>
               ))}
           </select>
+        </label>
+        <label className="full mg-file-field">
+          <span><Paperclip size={15}/> Comprovante de pagamento no Google Drive</span>
+          <input name="paymentProof" type="file" accept=".pdf,image/*" />
+          <small>Opcional. O arquivo fica no Drive e vinculado permanentemente a esta baixa.</small>
         </label>
         <p className="full mg-method">
           Esta ação registra uma liquidação já realizada. O sistema não faz
