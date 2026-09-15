@@ -147,6 +147,7 @@ export function Kpi({
   type?: string;
   emphasis?: boolean;
 }) {
+  const partialRevenue = label === "Faturamento" && metric.value === null && (metric.partial ?? 0) > 0;
   return (
     <div className={"mg-kpi " + (emphasis ? "mg-kpi-featured" : "")}>
       <span className="mg-label">{label}</span>
@@ -167,8 +168,9 @@ export function Kpi({
               : metric.value.toLocaleString("pt-BR", {
                   maximumFractionDigits: 2,
                 })
-            : currency(metric.value)}
+            : currency(partialRevenue ? metric.partial : metric.value)}
       </strong>
+      {partialRevenue && <small>PARCIAL · faltam datas ou campos para concluir o período</small>}
       <details>
         <summary>
           {metric.value === null ? "Ver dados necessários" : "Ver cálculo"}

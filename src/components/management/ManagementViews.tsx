@@ -129,6 +129,7 @@ export function ExtendedView({
             </table>
           </div>
         </section>
+        <p className="mg-method">As vendas Takeat já estão incluídas nos indicadores acima. Use os lançamentos abaixo somente para outras origens; não cadastre novamente as mesmas vendas.</p>
         <Tables kinds={["revenues", "sales"]} filters={filters} />
       </>
     );

@@ -52,7 +52,7 @@ export function RecordTable({
   const [editing, setEditing] = useState<RecordData | false | null>(null);
   const [paying, setPaying] = useState<RecordData | null>(null);
   const [message, setMessage] = useState("");
-  const def = DEFINITIONS[kind];
+  const def = {...DEFINITIONS[kind],label:kind === "revenues" ? "Lançamentos manuais de faturamento" : DEFINITIONS[kind].label};
   const canWrite =
     userProfile?.role === "admin" ||
     userProfile?.role === "accountant" ||
@@ -718,7 +718,7 @@ export function Tables({
             className={active === k ? "active" : ""}
             onClick={() => setActive(k)}
           >
-            {DEFINITIONS[k].label}
+            {k === "revenues" ? "Lançamentos manuais" : DEFINITIONS[k].label}
           </button>
         ))}
       </nav>
