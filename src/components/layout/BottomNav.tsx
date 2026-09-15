@@ -3,17 +3,16 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Wallet, CheckSquare, TrendingUp, Menu } from "lucide-react";
+import { ReceiptText, Truck, TrendingUp, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function BottomNav({ onOpenMobileMenu }: { onOpenMobileMenu: () => void }) {
   const pathname = usePathname();
 
   const items = [
-    { label: "Início", href: "/", icon: LayoutDashboard },
+    { label: "A pagar", href: "/", icon: ReceiptText },
+    { label: "Fornecedores", href: "/fornecedores", icon: Truck },
     { label: "Vendas", href: "/faturamento", icon: TrendingUp },
-    { label: "Financeiro", href: "/financeiro", icon: Wallet },
-    { label: "Ações", href: "/tarefas", icon: CheckSquare },
   ];
 
   return (

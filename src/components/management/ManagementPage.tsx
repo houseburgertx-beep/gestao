@@ -308,6 +308,8 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
           <p>
             {view === "health"
               ? "As informações mais importantes para decidir hoje."
+              : view === "payables"
+                ? "Controle simples de boletos, débitos, impostos e vencimentos."
               : view === "data"
                 ? "Lojas, contas e integrações."
               : `Data de corte: ${result.asOf.split("-").reverse().join("/")}`}
@@ -350,18 +352,20 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
               ))}
           </select>
         </label>
-        <label>
-          Canal
-          <select
-            value={filters.channel}
-            onChange={(e) => change("channel", e.target.value)}
-          >
-            <option value="">Todos os canais</option>
-            {CHANNELS.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </label>
+        {view !== "payables" && (
+          <label>
+            Canal
+            <select
+              value={filters.channel}
+              onChange={(e) => change("channel", e.target.value)}
+            >
+              <option value="">Todos os canais</option>
+              {CHANNELS.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Mês
           <input

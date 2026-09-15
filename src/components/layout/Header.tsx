@@ -55,6 +55,13 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   }, [user]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const openNewRecord = () => {
+    if (pathname === "/" || pathname.startsWith("/contas-a-pagar")) {
+      window.dispatchEvent(new CustomEvent("open-payable-form"));
+      return;
+    }
+    router.push("/contas-a-pagar/?novo=1");
+  };
 
   return (
     <>
@@ -99,11 +106,11 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
           {/* + Novo Button */}
           <Button
             size="sm"
-            onClick={() => legacy ? setIsQuickCreateOpen(true) : router.push("/bases")}
+            onClick={openNewRecord}
             className="h-8 px-2.5 sm:px-3 text-xs gap-1.5"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Novo</span>
+            <span className="hidden sm:inline">Nova conta</span>
           </Button>
 
           {/* Notifications */}

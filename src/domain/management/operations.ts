@@ -115,6 +115,7 @@ export function validate(record: RecordData, db: Database) {
   if (
     record.kind === "payables" &&
     !record.sourceKind &&
+    record.obligationType !== "Imposto" &&
     ["CMV", "Impostos sobre vendas", "Impostos sobre lucro"].includes(
       String(db.categories.find((c) => c.id === record.categoryId)?.dreLine),
     )
@@ -265,6 +266,14 @@ export function buildRecords(input: RecordData): RecordData[] {
       dueDate,
       description,
       status: "Pendente",
+      obligationType:
+        r.kind === "taxes"
+          ? "Imposto"
+          : r.kind === "loanInstallments"
+            ? "Empréstimo"
+            : r.kind === "purchases"
+              ? "Boleto"
+              : "Outros",
       sourceKind: r.kind,
       sourceId: r.id,
       nature: "Operacional",
@@ -340,6 +349,7 @@ export function buildRecords(input: RecordData): RecordData[] {
                 (i < Number(r.amount) % count ? 1 : 0)
               : r.amount,
           originalTotal: r.amount,
+          originalInstallments: count,
           installmentNumber: i + 1,
           installmentGroupId: r.id,
           dueDate: addMonths(str(r, "dueDate"), i),

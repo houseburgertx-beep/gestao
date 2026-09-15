@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
-import { Plus, X, Pencil, Check, ArrowDownUp } from "lucide-react";
+import { Plus, X, Pencil, Paperclip, Download, Cloud } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -10,6 +10,7 @@ import {
   Database,
   currency,
   dateToday,
+  addDays,
   str,
 } from "@/domain/management/model";
 import { parseField, settlement } from "@/domain/management/operations";
@@ -24,6 +25,12 @@ import {
   reverseSettlement,
 } from "@/services/managementService";
 import { Empty } from "./ManagementPage";
+import {
+  downloadFileFromDrive,
+  nameFileForDrive,
+  uploadFileToDrive,
+} from "@/services/driveService";
+import { backupPayablesSpreadsheet } from "@/services/payablesBackupService";
 const fieldDisplay = (r: RecordData, f: Field, db: Database) => {
   const v = r[f.key];
   if (v === null || v === undefined || v === "") return "DADO PENDENTE";
@@ -49,6 +56,7 @@ export function RecordTable({
   const { data, errors, allowedUnit } = useManagement();
   const { userProfile, user } = useAuth();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("Todos");
   const [editing, setEditing] = useState<RecordData | false | null>(null);
   const [paying, setPaying] = useState<RecordData | null>(null);
   const [message, setMessage] = useState("");
@@ -59,6 +67,16 @@ export function RecordTable({
     (userProfile?.role === "manager" &&
       !DEFINITIONS[kind].global &&
       !["closings", "coverage", "positions"].includes(kind));
+  useEffect(() => {
+    if (kind !== "payables") return;
+    const open = () => {
+      setMessage("");
+      setEditing(false);
+    };
+    window.addEventListener("open-payable-form", open);
+    if (new URLSearchParams(window.location.search).get("novo") === "1") open();
+    return () => window.removeEventListener("open-payable-form", open);
+  }, [kind]);
   const unitIds = new Set(
     data.units
       .filter(
@@ -92,15 +110,26 @@ export function RecordTable({
         ["payables", "receivables"].includes(kind) ||
         (str(r, def.dated).slice(0, 7) >= filters.start.slice(0, 7) &&
           str(r, def.dated).slice(0, 7) <= filters.end.slice(0, 7)),
-    );
-  const columns = def.fields
+    )
+    .filter((r) => {
+      if (kind !== "payables" || statusFilter === "Todos") return true;
+      const status = payableStatus(r, data, filters.today);
+      if (statusFilter === "Próximos 7 dias")
+        return outstanding(r, data, filters.today) > 0 && str(r, "dueDate") >= filters.today && str(r, "dueDate") <= addDays(filters.today, 7);
+      return status === statusFilter;
+    });
+  const columns = (kind === "payables"
+    ? ["dueDate", "description", "obligationType", "paymentMethod", "amount"]
+        .map((key) => def.fields.find((field) => field.key === key))
+        .filter(Boolean) as Field[]
+    : def.fields
     .filter(
       (f) =>
         f.type !== "textarea" &&
         f.type !== "check" &&
         !(kind === "units" && ["companyId", "brandId"].includes(f.key)),
     )
-    .slice(0, 5);
+    .slice(0, 5));
   return (
     <section className="mg-panel">
       <div className="mg-toolbar">
@@ -121,13 +150,26 @@ export function RecordTable({
             setEditing(false);
           }}
         >
-          <Plus size={16} /> Novo registro
+          <Plus size={16} /> {kind === "payables" ? "Nova conta" : "Novo registro"}
         </button>
       </div>
       {message && (
         <p role="status" className="mg-status-message">
           {message}
         </p>
+      )}
+      {kind === "payables" && (
+        <nav className="payables-table-filters" aria-label="Filtrar contas por situação">
+          {["Todos", "Vencido", "Vencendo", "Próximos 7 dias", "Pago"].map((status) => (
+            <button
+              key={status}
+              className={statusFilter === status ? "active" : ""}
+              onClick={() => setStatusFilter(status)}
+            >
+              {status}
+            </button>
+          ))}
+        </nav>
       )}
       {list.length ? (
         <div className="mg-table-wrap">
@@ -188,6 +230,20 @@ export function RecordTable({
                     )}
                     <td>
                       <div className="flex gap-2">
+                        {kind === "payables" && r.documentFileId && (
+                          <button
+                            className="mg-button secondary"
+                            title={str(r, "documentFileName") || "Baixar boleto"}
+                            onClick={() =>
+                              downloadFileFromDrive(
+                                str(r, "documentFileId"),
+                                str(r, "documentFileName") || "boleto",
+                              )
+                            }
+                          >
+                            <Download size={13} /> Boleto
+                          </button>
+                        )}
                         <button
                           className="mg-button secondary"
                           disabled={!canWrite || Boolean(r.obligationId)}
@@ -229,15 +285,18 @@ export function RecordTable({
                               onClick={async () => {
                                 if (!user) return;
                                 try {
-                                  await reverseSettlement(
+                                  const reversal = await reverseSettlement(
                                     r,
                                     data,
                                     user.uid,
                                     dateToday(),
                                   );
-                                  setMessage(
-                                    "Estorno registrado na data de hoje; o título voltou ao saldo em aberto.",
-                                  );
+                                  try {
+                                    await backupPayablesSpreadsheet(data, [reversal]);
+                                    setMessage("Estorno registrado e planilha de backup atualizada.");
+                                  } catch {
+                                    setMessage("Estorno registrado. O backup em planilha não pôde ser criado agora.");
+                                  }
                                 } catch (error) {
                                   setMessage(
                                     error instanceof Error
@@ -301,9 +360,9 @@ export function RecordTable({
             filters.unitId || (allowedUnit === "all" ? "" : allowedUnit)
           }
           onClose={() => setEditing(null)}
-          onSaved={() => {
+          onSaved={(savedMessage) => {
             setEditing(null);
-            setMessage("Registro salvo e confirmado na nuvem.");
+            setMessage(savedMessage || "Registro salvo e confirmado na nuvem.");
           }}
         />
       )}
@@ -311,9 +370,9 @@ export function RecordTable({
         <SettlementForm
           record={paying}
           onClose={() => setPaying(null)}
-          onSaved={() => {
+          onSaved={(savedMessage) => {
             setPaying(null);
-            setMessage("Baixa registrada na obrigação e no caixa.");
+            setMessage(savedMessage || "Baixa registrada na obrigação e no caixa.");
           }}
         />
       )}
@@ -389,7 +448,7 @@ export function RecordForm({
   record?: RecordData;
   suggestedUnit?: string;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (message?: string) => void;
 }) {
   const { data, tenantId, allowedUnit } = useManagement();
   const { user } = useAuth();
@@ -421,13 +480,107 @@ export function RecordForm({
       for (const field of def.fields)
         next[field.key] = parseField(field, form.get(field.key));
       if (kind === "units") next.unitId = "";
-      await saveManagement(next, data);
-      onSaved();
+      if (kind === "payables") {
+        next.competence = next.competence || str(next, "dueDate").slice(0, 7);
+        next.status = next.status || "Pendente";
+        next.nature = next.nature || "Operacional";
+        next.originalAmount = next.originalAmount || next.amount;
+        const document = form.get("documentFile");
+        if (document instanceof File && document.size > 0) {
+          const named = nameFileForDrive(
+            document,
+            `${str(next, "description")} - ${str(next, "dueDate")}`,
+          );
+          const stored = await uploadFileToDrive(named, "payment_proofs");
+          next.documentFileId = stored.fileId;
+          next.documentFileName = stored.fileName;
+          next.documentMimeType = stored.mimeType;
+          next.documentSize = stored.size;
+        }
+      }
+      const savedRows = await saveManagement(next, data);
+      if (savedRows.some((row) => row.kind === "payables")) {
+        try {
+          await backupPayablesSpreadsheet(data, savedRows);
+          onSaved("Conta salva e planilha de backup criada no Google Drive.");
+        } catch {
+          onSaved("Conta salva no sistema. O backup em planilha não pôde ser criado agora.");
+        }
+      } else onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível salvar.");
     } finally {
       setBusy(false);
     }
+  };
+  const payableMainFields = new Set([
+    "obligationType",
+    "description",
+    "supplierId",
+    "dueDate",
+    "originalAmount",
+    "amount",
+    "paymentMethod",
+    "documentNumber",
+  ]);
+  const renderField = (field: Field) => {
+    const value = record?.[field.key];
+    const inputType =
+      field.type === "money" || field.type === "number" || field.type === "percent"
+        ? "number"
+        : field.type === "date"
+          ? "date"
+          : field.type === "month"
+            ? "month"
+            : "text";
+    return field.type === "check" ? (
+      <label key={field.key} className="check-field full">
+        <input type="checkbox" name={field.key} defaultChecked={value === true} />
+        {field.label}
+      </label>
+    ) : (
+      <label key={field.key} className={field.type === "textarea" ? "full" : ""}>
+        {field.label}{field.required ? " *" : ""}
+        {field.type === "select" ? (
+          <select
+            name={field.key}
+            required={field.required}
+            defaultValue={String(value || (field.key === "status" ? "Pendente" : ""))}
+          >
+            <option value="">Selecione</option>
+            {field.options?.map((option) => <option key={option}>{option}</option>)}
+          </select>
+        ) : field.type === "ref" ? (
+          <select name={field.key} required={field.required} defaultValue={String(value || "")}>
+            <option value="">Selecione</option>
+            {data[field.ref!]
+              ?.filter((item) => !item.archived && (DEFINITIONS[field.ref!].global || item.unitId === unit))
+              .map((item) => (
+                <option key={item.id} value={item.id}>
+                  {String(item.name || item.description || item.contract || item.bank || item.id)}
+                </option>
+              ))}
+          </select>
+        ) : field.type === "textarea" ? (
+          <textarea name={field.key} required={field.required} rows={3} defaultValue={String(value || "")} />
+        ) : (
+          <input
+            name={field.key}
+            required={field.required}
+            type={inputType}
+            step={["money", "number", "percent"].includes(field.type || "") ? "0.01" : undefined}
+            defaultValue={
+              value === undefined || value === null
+                ? ""
+                : field.type === "money"
+                  ? Number(value) / 100
+                  : String(value)
+            }
+          />
+        )}
+        {field.hint && <small>{field.hint}</small>}
+      </label>
+    );
   };
   return (
     <ModalShell
@@ -459,100 +612,30 @@ export function RecordForm({
             </select>
           </label>
         )}
-        {def.fields.map((field) => {
-          const value = record?.[field.key];
-          const inputType =
-            field.type === "money" ||
-            field.type === "number" ||
-            field.type === "percent"
-              ? "number"
-              : field.type === "date"
-                ? "date"
-                : field.type === "month"
-                  ? "month"
-                  : "text";
-          return field.type === "check" ? (
-            <label key={field.key} className="check-field full">
-              <input
-                type="checkbox"
-                name={field.key}
-                defaultChecked={value === true}
-              />
-              {field.label}
+        {(kind === "payables"
+          ? def.fields.filter((field) => payableMainFields.has(field.key))
+          : def.fields
+        ).map(renderField)}
+        {kind === "payables" && (
+          <>
+            <label className="full mg-file-field">
+              <span><Paperclip size={15} /> Anexar boleto, guia ou comprovante</span>
+              <input name="documentFile" type="file" accept=".pdf,image/*" />
+              {record?.documentFileName && (
+                <small>Arquivo atual: {str(record, "documentFileName")}</small>
+              )}
             </label>
-          ) : (
-            <label
-              key={field.key}
-              className={field.type === "textarea" ? "full" : ""}
-            >
-              {field.label}
-              {field.required ? " *" : ""}
-              {field.type === "select" ? (
-                <select
-                  name={field.key}
-                  required={field.required}
-                  defaultValue={String(value || "")}
-                >
-                  <option value="">Selecione</option>
-                  {field.options?.map((o) => (
-                    <option key={o}>{o}</option>
-                  ))}
-                </select>
-              ) : field.type === "ref" ? (
-                <select
-                  name={field.key}
-                  required={field.required}
-                  defaultValue={String(value || "")}
-                >
-                  <option value="">Selecione</option>
-                  {data[field.ref!]
-                    ?.filter(
-                      (r) =>
-                        !r.archived &&
-                        (DEFINITIONS[field.ref!].global || r.unitId === unit),
-                    )
-                    .map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {String(
-                          r.name ||
-                            r.description ||
-                            r.contract ||
-                            r.bank ||
-                            r.id,
-                        )}
-                      </option>
-                    ))}
-                </select>
-              ) : field.type === "textarea" ? (
-                <textarea
-                  name={field.key}
-                  required={field.required}
-                  rows={3}
-                  defaultValue={String(value || "")}
-                />
-              ) : (
-                <input
-                  name={field.key}
-                  required={field.required}
-                  type={inputType}
-                  step={
-                    ["money", "number", "percent"].includes(field.type || "")
-                      ? "0.01"
-                      : undefined
-                  }
-                  defaultValue={
-                    value === undefined || value === null
-                      ? ""
-                      : field.type === "money"
-                        ? Number(value) / 100
-                        : String(value)
-                  }
-                />
-              )}{" "}
-              {field.hint && <small>{field.hint}</small>}
-            </label>
-          );
-        })}
+            <details className="full mg-form-advanced">
+              <summary>Mais detalhes</summary>
+              <div className="mg-form">
+                {def.fields.filter((field) => !payableMainFields.has(field.key)).map(renderField)}
+              </div>
+            </details>
+            <p className="full mg-backup-note">
+              <Cloud size={16} /> Ao salvar, o sistema cria automaticamente uma planilha de backup no Google Drive.
+            </p>
+          </>
+        )}
         {kind === "payroll" && (
           <p className="mg-method full">
             Férias = base ÷ 12; adicional = férias ÷ 3; 13º = base ÷ 12. FGTS e
@@ -596,7 +679,7 @@ function SettlementForm({
 }: {
   record: RecordData;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (message?: string) => void;
 }) {
   const { data } = useManagement();
   const { user } = useAuth();
@@ -632,7 +715,12 @@ function SettlementForm({
               id,
             );
             await commitRecords([row], data, row);
-            onSaved();
+            try {
+              await backupPayablesSpreadsheet(data, [row]);
+              onSaved("Pagamento registrado e planilha de backup atualizada no Google Drive.");
+            } catch {
+              onSaved("Pagamento registrado. O backup em planilha não pôde ser criado agora.");
+            }
           } catch (err) {
             setError(
               err instanceof Error ? err.message : "Falha ao registrar baixa.",

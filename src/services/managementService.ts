@@ -66,6 +66,7 @@ export async function saveManagement(
     );
   else outgoing.push(...obsolete.map((p) => ({ ...p, archived: true })));
   await commitRecords(outgoing, state, record);
+  return outgoing;
 }
 export async function commitRecords(
   records: RecordData[],
@@ -284,4 +285,5 @@ export async function reverseSettlement(
     principal: record.principal ? -Number(record.principal) : 0,
   };
   await commitRecords([reversal], state, reversal);
+  return reversal;
 }

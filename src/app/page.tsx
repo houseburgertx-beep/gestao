@@ -1,2 +1,2 @@
 import {ManagementPage} from '@/components/management/ManagementPage';
-export default function Page(){return <ManagementPage view="health"/>}
+export default function Page(){return <ManagementPage view="payables"/>}

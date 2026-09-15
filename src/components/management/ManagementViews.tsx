@@ -33,6 +33,7 @@ import { useManagement } from "@/contexts/ManagementContext";
 import { MetricGrid, Kpi, AlertList, Empty } from "./ManagementPage";
 import { Tables, RecordTable } from "./RecordTable";
 import { LegacyImport } from "./LegacyImport";
+import { PayablesDashboard } from "./PayablesDashboard";
 export function ExtendedView({
   view,
   result,
@@ -193,26 +194,7 @@ export function ExtendedView({
       </>
     );
   if (view === "payables")
-    return (
-      <>
-        <div className="mg-grid">
-          {[0, 3, 7, 15, 30].map((days) => (
-            <Kpi
-              key={days}
-              label={
-                days === 0
-                  ? "Vencidos + vencendo hoje"
-                  : `Até ${days} dias · inclui vencidos`
-              }
-              metric={result.amountDue(days)}
-            />
-          ))}
-          <Kpi label="Total vencido" metric={result.metrics.overdue} />
-        </div>
-        <FinancialCalendar result={result} filters={filters} />
-        <RecordTable kind="payables" filters={filters} />
-      </>
-    );
+    return <PayablesDashboard filters={filters} />;
   if (view === "receivables")
     return (
       <>
