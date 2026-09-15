@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Columns3, ReceiptText, Search, Settings, TrendingUp, Truck, Users, X } from "lucide-react";
+import { ArrowRight, Columns3, FolderLock, ReceiptText, Search, TrendingUp, Truck, Users, X } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { currency, str } from "@/domain/management/model";
 import { outstanding } from "@/domain/management/engine";
@@ -31,7 +31,7 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
     { title: "Tarefas", detail: "Kanban dos gerentes", href: "/tarefas", icon: Columns3 },
     { title: "Equipe", detail: "Colaboradores e salários", href: "/rh", icon: Users },
     { title: "Vendas", detail: "Faturamento e metas", href: "/faturamento", icon: TrendingUp },
-    { title: "Ajustes", detail: "Lojas, bancos e integrações", href: "/bases", icon: Settings },
+    { title: "Documentos", detail: "Contratos, alvarás e vencimentos", href: "/documentos", icon: FolderLock },
   ].filter((item) => !query || `${item.title} ${item.detail}`.toLocaleLowerCase().includes(query));
   const suppliers = data.suppliers.filter((item) => !item.archived && (!query || `${item.name} ${item.document}`.toLocaleLowerCase().includes(query))).slice(0, 4);
   const payables = data.payables.filter((item) => !item.archived && (!query || `${item.description} ${item.documentNumber}`.toLocaleLowerCase().includes(query))).slice(0, 4);

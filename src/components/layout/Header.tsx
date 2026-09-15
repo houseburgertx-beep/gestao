@@ -17,7 +17,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const { user, userProfile } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const legacy = (pathname.startsWith("/legado") || pathname.startsWith("/integracoes")) || ["/rh", "/tarefas", "/documentos", "/fornecedores", "/auditoria"].some(p => pathname.startsWith(p));
+  const usesUnitSelector = (pathname.startsWith("/legado") || pathname.startsWith("/integracoes")) || ["/faturamento", "/rh", "/tarefas", "/documentos", "/fornecedores", "/auditoria"].some(p => pathname.startsWith(p));
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -72,6 +72,10 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       ? "Novo colaborador"
       : pathname.startsWith("/fornecedores")
         ? "Novo fornecedor"
+      : pathname.startsWith("/documentos")
+        ? "Novo documento"
+      : pathname.startsWith("/faturamento") || pathname.startsWith("/integracoes/takeat")
+        ? "Atualizar vendas"
       : "Nova conta";
   const openNewRecord = () => {
     if (pathname.startsWith("/tarefas")) {
@@ -84,6 +88,14 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
     }
     if (pathname.startsWith("/fornecedores")) {
       window.dispatchEvent(new CustomEvent("open-supplier-form"));
+      return;
+    }
+    if (pathname.startsWith("/documentos")) {
+      window.dispatchEvent(new CustomEvent("open-document-form"));
+      return;
+    }
+    if (pathname.startsWith("/faturamento") || pathname.startsWith("/integracoes/takeat")) {
+      window.dispatchEvent(new CustomEvent("sync-takeat-sales"));
       return;
     }
     if (pathname === "/" || pathname.startsWith("/contas-a-pagar")) {
@@ -104,7 +116,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
           >
             <Menu className="h-5 w-5" />
           </button>
-          {legacy ? <UnitSelector /> : <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Gestão do grupo</span>}
+          {usesUnitSelector ? <UnitSelector /> : <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Gestão do grupo</span>}
         </div>
 
         {/* Center / Search: Command Palette Trigger */}

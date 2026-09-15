@@ -9,8 +9,6 @@ import {
   Download,
   AlertTriangle,
   Clock,
-  Tag,
-  Building,
   CheckCircle2,
 } from "lucide-react";
 import { store } from "@/services/store";
@@ -24,7 +22,7 @@ import { downloadFileFromDrive, formatFileSize, nameFileForDrive, uploadFileToDr
 import { subscribeDocuments } from "@/services/firestoreService";
 
 export default function DocumentosPage() {
-  const { filterByUnit } = useUnit();
+  const { filterByUnit, currentUnit } = useUnit();
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -54,6 +52,28 @@ export default function DocumentosPage() {
     return unsubscribe;
   }, [filterByUnit]);
 
+  useEffect(() => {
+    const openForm = () => setIsUploadModalOpen(true);
+    window.addEventListener("open-document-form", openForm);
+    return () => window.removeEventListener("open-document-form", openForm);
+  }, []);
+
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bahia",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const next30Days = new Date(Date.parse(`${today}T12:00:00Z`) + 30 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const expiredDocs = documents
+    .filter((document) => document.expirationDate && document.expirationDate < today)
+    .sort((a, b) => String(a.expirationDate).localeCompare(String(b.expirationDate)));
+  const upcomingDocs = documents
+    .filter((document) => document.expirationDate && document.expirationDate >= today && document.expirationDate <= next30Days)
+    .sort((a, b) => String(a.expirationDate).localeCompare(String(b.expirationDate)));
+
   const filteredDocs = documents.filter((d) => {
     if (categoryFilter !== "all" && d.category !== categoryFilter) return false;
     if (!searchQuery) return true;
@@ -77,7 +97,7 @@ export default function DocumentosPage() {
       store.addDocument({
         title: newTitle,
         category: newCategory,
-        unitId: "all",
+        unitId: currentUnit === "all" ? "all" : currentUnit,
         expirationDate: newExpiration || undefined,
         size: formatFileSize(stored.size),
         format: extension,
@@ -113,10 +133,10 @@ export default function DocumentosPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-zinc-200/60 pb-4 dark:border-zinc-800">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Biblioteca de Documentos & Compliance
+            Documentos
           </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Centralização de alvarás, contratos sociais, manuais, certidões e comprovantes
+            Contratos, alvarás, comprovantes e alertas de vencimento em uma área própria.
           </p>
         </div>
         <Button
@@ -129,18 +149,27 @@ export default function DocumentosPage() {
         </Button>
       </div>
 
-      {/* Alert about upcoming expirations */}
-      <div className="p-4 rounded-lg border border-amber-200/80 bg-amber-50/40 flex items-center justify-between text-xs dark:bg-amber-950/20 dark:border-amber-900/40">
-        <div className="flex items-center gap-2.5">
-          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-          <span className="text-zinc-700 dark:text-zinc-300">
-            <strong>Atenção ao Vencimento:</strong> O Alvará Sanitário Municipal de Teixeira de Freitas vence em <strong>30/09/2026</strong>. Protocolo de renovação já iniciado.
-          </span>
-        </div>
-        <span className="text-[11px] font-semibold text-amber-800 uppercase dark:text-amber-300">
-          Urgente
-        </span>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <DocumentMetric icon={FolderLock} label="Documentos salvos" value={String(documents.length)} tone="violet" />
+        <DocumentMetric icon={Clock} label="Vencem em 30 dias" value={String(upcomingDocs.length)} tone="amber" />
+        <DocumentMetric icon={AlertTriangle} label="Vencidos" value={String(expiredDocs.length)} tone="rose" />
       </div>
+
+      {(expiredDocs[0] || upcomingDocs[0]) && (() => {
+        const document = expiredDocs[0] || upcomingDocs[0];
+        const expired = Boolean(expiredDocs[0]);
+        return (
+          <div className={`p-4 rounded-lg border flex items-center justify-between gap-3 text-xs ${expired ? "border-rose-200 bg-rose-50/60" : "border-amber-200 bg-amber-50/60"}`}>
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className={`h-4 w-4 shrink-0 ${expired ? "text-rose-600" : "text-amber-600"}`} />
+              <span className="text-zinc-700">
+                <strong>{expired ? "Documento vencido:" : "Vencimento próximo:"}</strong> {document.title} — {formatDate(document.expirationDate!)}.
+              </span>
+            </div>
+            <span className={`text-[11px] font-semibold uppercase ${expired ? "text-rose-700" : "text-amber-700"}`}>{expired ? "Vencido" : "Atenção"}</span>
+          </div>
+        );
+      })()}
 
       {/* Filters Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -184,7 +213,7 @@ export default function DocumentosPage() {
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {filteredDocs.map((doc) => {
               const isExpiringSoon =
-                doc.expirationDate && doc.expirationDate <= "2026-09-30";
+                doc.expirationDate && doc.expirationDate <= next30Days;
 
               return (
                 <tr key={doc.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50">
@@ -245,6 +274,13 @@ export default function DocumentosPage() {
                 </tr>
               );
             })}
+            {!filteredDocs.length && (
+              <tr>
+                <td colSpan={6} className="px-4 py-12 text-center text-xs text-zinc-500">
+                  Nenhum documento encontrado. Use “Novo documento” para salvar o primeiro arquivo.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -326,6 +362,20 @@ export default function DocumentosPage() {
           </div>
         </form>
       </Modal>
+    </div>
+  );
+}
+
+function DocumentMetric({ icon: Icon, label, value, tone }: { icon: typeof FolderLock; label: string; value: string; tone: "violet" | "amber" | "rose" }) {
+  const tones = {
+    violet: "bg-violet-50 text-violet-700",
+    amber: "bg-amber-50 text-amber-700",
+    rose: "bg-rose-50 text-rose-700",
+  };
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-zinc-200/80 bg-white p-4 shadow-2xs">
+      <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${tones[tone]}`}><Icon className="h-4 w-4" /></span>
+      <div><span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">{label}</span><strong className="text-xl text-zinc-900">{value}</strong></div>
     </div>
   );
 }
