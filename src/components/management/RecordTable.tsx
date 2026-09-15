@@ -94,7 +94,12 @@ export function RecordTable({
           str(r, def.dated).slice(0, 7) <= filters.end.slice(0, 7)),
     );
   const columns = def.fields
-    .filter((f) => f.type !== "textarea" && f.type !== "check")
+    .filter(
+      (f) =>
+        f.type !== "textarea" &&
+        f.type !== "check" &&
+        !(kind === "units" && ["companyId", "brandId"].includes(f.key)),
+    )
     .slice(0, 5);
   return (
     <section className="mg-panel">

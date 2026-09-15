@@ -308,6 +308,8 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
           <p>
             {view === "health"
               ? "As informações mais importantes para decidir hoje."
+              : view === "data"
+                ? "Lojas, contas e integrações."
               : `Data de corte: ${result.asOf.split("-").reverse().join("/")}`}
           </p>
         </div>
@@ -324,6 +326,7 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
           </button>
         </div>
       </header>
+      {view !== "data" && (
       <section className="mg-filters mg-filters-simple" aria-label="Filtros de gestão">
         <label>
           Unidade
@@ -400,6 +403,7 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
           </div>
         </details>
       </section>
+      )}
       {["health", "revenues", "goals"].includes(view) && <TakeatConnection />}
       {Object.keys(errors).length > 0 && (
         <div role="alert" className="mg-notice">
