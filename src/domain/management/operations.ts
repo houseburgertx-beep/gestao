@@ -35,7 +35,8 @@ export function validate(record: RecordData, db: Database) {
       if (
         value < 0 &&
         !(record.kind === "bankAccounts" && field.key === "balance") &&
-        !(record.kind === "cashConferences" && field.key === "difference")
+        !(record.kind === "cashConferences" && field.key === "difference") &&
+        !(record.kind === "cashClosings" && ["difference", "motoboyDifference", "invoiceDifference"].includes(field.key))
       )
         throw new Error(`${field.label} não pode ser negativo.`);
     }
@@ -197,6 +198,8 @@ export function validate(record: RecordData, db: Database) {
     inventory: ["productId", "date"],
     positions: ["date"],
     closings: ["competence"],
+    cashClosings: ["date", "shift"],
+    cashConferences: ["closingId"],
     goals: ["start", "end", "channel"],
     loanInstallments: ["loanId", "number"],
     loans: ["contract"],

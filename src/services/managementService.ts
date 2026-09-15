@@ -84,6 +84,8 @@ export async function commitRecords(
     inventory: ["productId", "date"],
     positions: ["date"],
     closings: ["competence"],
+    cashClosings: ["date", "shift"],
+    cashConferences: ["closingId"],
     goals: ["start", "end", "channel"],
     loanInstallments: ["loanId", "number"],
     loans: ["contract"],

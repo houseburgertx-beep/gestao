@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowRightLeft, Building2, CalendarDays, Landmark, MessageCircle, Plus, WalletCards } from "lucide-react";
+import { ArrowRightLeft, CalendarDays, Landmark, MessageCircle, Pencil, Plus, WalletCards, Zap } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { currency, dateToday, RecordData, str } from "@/domain/management/model";
@@ -25,19 +25,20 @@ function currentBalance(account: RecordData, transactions: RecordData[], transfe
 export function BankWorkspace() {
   const { data, tenantId } = useManagement();
   const { user } = useAuth();
-  const [editingBank, setEditingBank] = useState(false);
+  const [editingBank, setEditingBank] = useState<RecordData | false | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [instantOpen, setInstantOpen] = useState(false);
   const [message, setMessage] = useState("");
   const today = dateToday();
   const accounts = data.bankAccounts.filter((row) => !row.archived);
   const balances = useMemo(() => accounts.map((account) => ({ account, balance: currentBalance(account, data.transactions, data.bankTransfers || []) })), [accounts, data.transactions, data.bankTransfers]);
   const total = balances.every((item) => item.balance !== null) ? balances.reduce((sum, item) => sum + Number(item.balance), 0) : null;
-  const paidToday = data.transactions.filter((row) => !row.archived && row.direction === "Saída" && row.obligationId && str(row, "date") === today && !row.reversalOf);
+  const paidToday = data.transactions.filter((row) => !row.archived && row.direction === "Saída" && str(row, "date") === today && !row.reversalOf);
   const paidTotal = paidToday.reduce((sum, row) => sum + Number(row.amount || 0), 0);
 
   const share = (type: "banks" | "paid") => {
     const text = type === "banks"
-      ? [`*SALDOS BANCÁRIOS — ${today.split("-").reverse().join("/")}*`, ...balances.map(({ account, balance }) => `${str(account, "name")}: ${currency(balance)}`), `*TOTAL: ${currency(total)}*`].join("\n")
+      ? [`*SALDOS BANCÁRIOS — ${today.split("-").reverse().join("/")}*`, ...balances.map(({ account, balance }) => `${str(account, "name")}: ${balance===null?"Não informado":currency(balance)}`), `*TOTAL: ${total===null?"Não informado":currency(total)}*`].join("\n")
       : [`*PAGAMENTOS DO DIA — ${today.split("-").reverse().join("/")}*`, ...paidToday.map((row) => `• ${str(row, "description").replace(/^Baixa:\s*/, "")} — ${currency(Number(row.amount || 0))}`), `*TOTAL PAGO: ${currency(paidTotal)}*`].join("\n");
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   };
@@ -45,19 +46,27 @@ export function BankWorkspace() {
   return <div className="workspace-shell banking-workspace">
     <header className="workspace-header">
       <div><span className="workspace-eyebrow">TESOURARIA</span><h1>Bancos e movimentações</h1><p>Saldos, transferências internas e relatórios diários em um só lugar.</p></div>
-      <div className="bank-actions"><button className="workspace-secondary" onClick={() => share("banks")}><MessageCircle size={16}/> Saldos no WhatsApp</button><button className="workspace-primary" onClick={() => setTransferOpen(true)}><ArrowRightLeft size={16}/> Transferir</button></div>
+      <div className="bank-actions"><button className="workspace-secondary" onClick={() => share("banks")}><MessageCircle size={16}/> Saldos no WhatsApp</button><button className="workspace-secondary" onClick={() => setInstantOpen(true)}><Zap size={16}/> Pagamento instantâneo</button><button className="workspace-primary" onClick={() => setTransferOpen(true)}><ArrowRightLeft size={16}/> Transferir</button></div>
     </header>
-    <section className="bank-total-card"><div><span>SALDO TOTAL DO GRUPO</span><strong>{currency(total)}</strong><small>{total === null ? "Atualize os saldos pendentes para obter o total" : `Posição calculada em ${today.split("-").reverse().join("/")}`}</small></div><WalletCards size={38}/></section>
+    <section className="bank-total-card"><div><span>SALDO TOTAL DO GRUPO</span><strong>{total===null?"Não informado":currency(total)}</strong><small>{total === null ? "Informe os valores dos bancos para calcular o total" : `Posição calculada em ${today.split("-").reverse().join("/")}`}</small></div><WalletCards size={38}/></section>
     <section className="bank-grid">
-      {balances.map(({ account, balance }) => <article className="bank-card" key={account.id}><div className="bank-card-icon"><Landmark size={19}/></div><div><span>{str(account, "bank") || "Conta bancária"}</span><h3>{str(account, "name")}</h3><strong>{currency(balance)}</strong><small>{str(account, "balanceDate") ? `Conciliado em ${str(account, "balanceDate").split("-").reverse().join("/")}` : "Saldo inicial pendente"}</small></div></article>)}
+      {balances.map(({ account, balance }) => <article className="bank-card" key={account.id}><div className="bank-card-icon"><Landmark size={19}/></div><div><span>{str(account, "bank") || "Conta bancária"}</span><h3>{str(account, "name")}</h3><strong>{balance===null?"Não informado":currency(balance)}</strong><small>{str(account, "balanceDate") ? `Atualizado em ${str(account, "balanceDate").split("-").reverse().join("/")}` : "Informe o primeiro valor"}</small><button className="bank-edit" onClick={()=>setEditingBank(account)}><Pencil size={13}/> Incluir valor</button></div></article>)}
       {!accounts.length && <div className="bank-empty">Os sete bancos estão sendo preparados. Nenhum saldo foi inventado.</div>}
     </section>
     <section className="bank-report-row"><div><CalendarDays size={20}/><div><span>PAGAMENTOS REGISTRADOS HOJE</span><strong>{currency(paidTotal)}</strong><small>{paidToday.length} pagamento(s)</small></div></div><button className="workspace-secondary" onClick={() => share("paid")}><MessageCircle size={16}/> Enviar relatório do dia</button></section>
     {message && <p className="workspace-message">{message}</p>}
-    <section className="mg-panel"><div className="mg-toolbar"><h2>Contas cadastradas <span className="mg-tag">{accounts.length}</span></h2><button className="mg-button" onClick={() => setEditingBank(true)}><Plus size={15}/> Nova conta</button></div></section>
-    {editingBank && <RecordForm kind="bankAccounts" suggestedUnit="" onClose={() => setEditingBank(false)} onSaved={() => {setEditingBank(false);setMessage("Conta bancária salva.");}}/>}
+    <section className="mg-panel"><div className="mg-toolbar"><h2>Contas cadastradas <span className="mg-tag">{accounts.length}</span></h2><button className="mg-button" onClick={() => setEditingBank(false)}><Plus size={15}/> Nova conta</button></div></section>
+    {editingBank !== null && <RecordForm kind="bankAccounts" record={editingBank||undefined} suggestedUnit="" onClose={() => setEditingBank(null)} onSaved={() => {setEditingBank(null);setMessage("Saldo bancário atualizado.");}}/>}
     {transferOpen && <TransferModal accounts={accounts} tenantId={tenantId} onClose={() => setTransferOpen(false)} onSaved={() => {setTransferOpen(false);setMessage("Transferência registrada nas duas contas.");}}/>}
+    {instantOpen && <InstantPaymentModal accounts={accounts} tenantId={tenantId} onClose={()=>setInstantOpen(false)} onSaved={()=>{setInstantOpen(false);setMessage("Pagamento instantâneo registrado e incluído no relatório do dia.");}}/>}
   </div>;
+}
+
+export function InstantPaymentModal({accounts,tenantId,onClose,onSaved}:{accounts:RecordData[];tenantId:string;onClose:()=>void;onSaved:()=>void}){
+  const {data}=useManagement();const {user}=useAuth();const [unit,setUnit]=useState("");const [busy,setBusy]=useState(false);const [error,setError]=useState("");
+  const banks=accounts.filter(a=>!unit||a.unitId===unit);
+  return <div className="mg-modal-shade"><div className="mg-modal" role="dialog" aria-modal="true"><header><h2>Pagamento instantâneo</h2><button onClick={onClose}>×</button></header><form className="mg-form" onSubmit={async event=>{event.preventDefault();if(!user)return;setBusy(true);setError("");try{const form=new FormData(event.currentTarget);const proof=form.get("proof");const now=new Date().toISOString();const row:RecordData={id:crypto.randomUUID(),kind:"transactions",tenantId,unitId:unit,version:0,createdAt:now,updatedAt:now,createdBy:user.uid,updatedBy:user.uid,description:String(form.get("description")),date:String(form.get("date")),competence:String(form.get("date")).slice(0,7),direction:"Saída",amount:Math.round(Number(form.get("amount"))*100),bankAccountId:String(form.get("bank")),nature:"Operacional",categoryId:String(form.get("category")),paymentMethod:String(form.get("method")),externalId:crypto.randomUUID(),instantPayment:true};if(proof instanceof File&&proof.size){const {nameFileForDrive,uploadFileToDrive}=await import("@/services/driveService");const stored=await uploadFileToDrive(nameFileForDrive(proof,`Pagamento instantâneo - ${row.description}`),"payment_proofs");row.paymentProofFileId=stored.fileId;row.paymentProofFileName=stored.fileName;}await saveManagement(row,data);onSaved();}catch(e){setError(e instanceof Error?e.message:"Não foi possível registrar.");}finally{setBusy(false);}}}>
+    <label className="full">Descrição<input name="description" required placeholder="Ex.: compra emergencial, motoboy ou manutenção"/></label><label>Unidade<select required value={unit} onChange={e=>setUnit(e.target.value)}><option value="">Selecione</option>{data.units.filter(u=>!u.archived).map(u=><option key={u.id} value={u.id}>{str(u,"name")}</option>)}</select></label><label>Conta bancária<select name="bank" required><option value="">Selecione</option>{banks.map(b=><option key={b.id} value={b.id}>{str(b,"name")}</option>)}</select></label><label>Data<input name="date" type="date" defaultValue={dateToday()} required/></label><label>Valor<input name="amount" type="number" min="0.01" step="0.01" required/></label><label>Categoria<select name="category" required><option value="">Selecione</option>{data.categories.filter(c=>!c.archived).map(c=><option key={c.id} value={c.id}>{str(c,"name")}</option>)}</select></label><label>Forma<select name="method" required><option>PIX</option><option>Transferência</option><option>Débito automático</option><option>Dinheiro</option><option>Outros</option></select></label><label className="full mg-file-field">Comprovante no Google Drive<input name="proof" type="file" accept=".pdf,image/*"/></label>{error&&<p className="mg-error">{error}</p>}<footer><button type="button" className="mg-button secondary" onClick={onClose}>Cancelar</button><button className="mg-button" disabled={busy}>{busy?"Salvando…":"Registrar pagamento"}</button></footer></form></div></div>
 }
 
 function TransferModal({ accounts, tenantId, onClose, onSaved }: { accounts: RecordData[]; tenantId: string; onClose: () => void; onSaved: () => void }) {

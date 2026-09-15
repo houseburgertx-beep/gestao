@@ -29,6 +29,7 @@ import { addDays, currency, RecordData, str } from "@/domain/management/model";
 import { Filters, outstanding, payableStatus } from "@/domain/management/engine";
 import { backupPayablesSpreadsheet } from "@/services/payablesBackupService";
 import { RecordTable } from "./RecordTable";
+import { InstantPaymentModal } from "@/components/finance/BankWorkspace";
 
 const COLORS = ["#5b5ce2", "#06a77d", "#ff9f43", "#e84a5f", "#20a4f3", "#8f5bd7"];
 
@@ -42,9 +43,10 @@ function formatDate(date: string) {
 }
 
 export function PayablesDashboard({ filters }: { filters: Filters }) {
-  const { data } = useManagement();
+  const { data, tenantId } = useManagement();
   const [backupMessage, setBackupMessage] = useState("");
   const [backingUp, setBackingUp] = useState(false);
+  const [instantOpen, setInstantOpen] = useState(false);
   const today = filters.today;
   const unitIds = useMemo(
     () =>
@@ -149,9 +151,7 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
           <h2>O que precisa ser pago agora</h2>
           <p>Boletos, débitos e impostos organizados por vencimento e loja.</p>
         </div>
-        <button className="payables-backup-button" onClick={createBackup} disabled={backingUp}>
-          <FileSpreadsheet size={18} /> {backingUp ? "Criando…" : "Gerar backup agora"}
-        </button>
+        <div className="bank-actions"><button className="workspace-secondary" onClick={()=>setInstantOpen(true)}><ReceiptText size={17}/> Pagamento instantâneo</button><button className="payables-backup-button" onClick={createBackup} disabled={backingUp}><FileSpreadsheet size={18} /> {backingUp ? "Criando…" : "Gerar backup agora"}</button></div>
       </section>
 
       <div className="payables-summary-grid">
@@ -237,6 +237,7 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
       </section>
 
       <RecordTable kind="payables" filters={filters} />
+      {instantOpen&&<InstantPaymentModal accounts={data.bankAccounts.filter(row=>!row.archived)} tenantId={tenantId} onClose={()=>setInstantOpen(false)} onSaved={()=>{setInstantOpen(false);setBackupMessage("Pagamento instantâneo registrado.");}}/>}
     </>
   );
 }
