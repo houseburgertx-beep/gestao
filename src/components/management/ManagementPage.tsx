@@ -313,12 +313,12 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
         </div>
         <div className="mg-header-actions">
           <span className={"mg-sync " + (incomplete ? "is-warning" : "")}>
-            {incomplete ? "DADOS PENDENTES" : "BASES CONECTADAS"}
+            {incomplete ? "VERIFICAR DADOS" : "ATUALIZADO"}
           </span>
           <button
             className="mg-icon-button"
             onClick={reload}
-            aria-label="Atualizar bases"
+            aria-label="Atualizar informações"
           >
             <RefreshCw size={17} />
           </button>
@@ -608,8 +608,14 @@ export function AlertList({
         <div className={"mg-alert " + a.severity} key={a.id}>
           <span className="mg-dot" />
           <div>
-            <strong>{a.title}</strong>
-            <p>{a.detail}</p>
+            <strong>
+              {a.id === "data-quality" ? "Faltam informações para fechar o resultado" : a.title}
+            </strong>
+            <p>
+              {a.id === "data-quality"
+                ? "Existem dias ou informações financeiras que ainda não foram preenchidos."
+                : a.detail}
+            </p>
           </div>
         </div>
       ))}
