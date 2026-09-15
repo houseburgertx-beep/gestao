@@ -73,6 +73,67 @@
   border: 1px solid var(--mg-line);
   border-radius: 10px;
 }
+.mg-filters-simple {
+  grid-template-columns: minmax(190px, 1.5fr) minmax(150px, 1fr) minmax(170px, 1fr) auto;
+  align-items: end;
+}
+.mg-more-filters {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--mg-muted);
+}
+.mg-more-filters summary {
+  cursor: pointer;
+  width: max-content;
+}
+.mg-more-filters > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 220px));
+  gap: 12px;
+  margin-top: 12px;
+}
+.mg-health-chip {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #e7f5ef;
+  color: #256b4b;
+  font-size: 12px;
+  font-weight: 700;
+}
+.mg-quick-links {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.mg-quick-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 14px;
+  border: 1px solid var(--mg-line);
+  background: white;
+  border-radius: 7px;
+  font-weight: 600;
+}
+.mg-collapsible > summary {
+  cursor: pointer;
+  font-weight: 650;
+  font-size: 15px;
+}
+.mg-store-sales .mg-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.mg-store-row {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 7px;
+  background: #f7faf9;
+}
+.mg-store-row span { font-size: 12px; color: var(--mg-muted); }
+.mg-store-row strong { font-size: 19px; }
+.mg-store-row small { color: var(--mg-muted); }
+.mg-simple-link { display: inline-block; margin-top: 12px; font-size: 12px; color: var(--mg-teal); text-decoration: underline; }
 .mg-filters label,
 .mg-form label {
   display: flex;
@@ -230,6 +291,21 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .mg-filters-simple {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .mg-filters-simple {
+    grid-template-columns: 1fr;
+  }
+  .mg-more-filters > div {
+    grid-template-columns: 1fr;
+  }
+  .mg-store-sales .mg-grid { grid-template-columns: 1fr; }
 }
 .mg-kpi {
   background: #fff;

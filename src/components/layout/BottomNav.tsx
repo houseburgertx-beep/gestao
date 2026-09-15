@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Wallet, CheckSquare, Target, Menu } from "lucide-react";
+import { LayoutDashboard, Wallet, CheckSquare, TrendingUp, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function BottomNav({ onOpenMobileMenu }: { onOpenMobileMenu: () => void }) {
@@ -11,9 +11,9 @@ export function BottomNav({ onOpenMobileMenu }: { onOpenMobileMenu: () => void }
 
   const items = [
     { label: "Início", href: "/", icon: LayoutDashboard },
+    { label: "Vendas", href: "/faturamento", icon: TrendingUp },
     { label: "Financeiro", href: "/financeiro", icon: Wallet },
-    { label: "Tarefas", href: "/tarefas", icon: CheckSquare },
-    { label: "Metas", href: "/metas", icon: Target },
+    { label: "Ações", href: "/tarefas", icon: CheckSquare },
   ];
 
   return (

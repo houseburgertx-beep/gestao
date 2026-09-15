@@ -218,11 +218,11 @@ export function MetricGrid({
   );
 }
 export const VIEW_TITLES: Record<string, string> = {
-  health: "SAÚDE DO NEGÓCIO",
-  owner: "PAINEL DO DONO",
+  health: "Visão geral",
+  owner: "Resumo do negócio",
   cash: "Fluxo de caixa",
   dre: "DRE gerencial",
-  revenues: "Faturamento",
+  revenues: "Vendas e metas",
   goals: "Metas",
   finance: "Financeiro",
   payables: "Contas a pagar",
@@ -237,7 +237,7 @@ export const VIEW_TITLES: Record<string, string> = {
   budget: "Orçamento",
   closing: "Fechamento mensal",
   meeting: "Reunião semanal",
-  data: "Bases de gestão",
+  data: "Ajustes",
 };
 export function ManagementPage({ view = "health" }: { view?: string }) {
   const { data, errors, loading, allowedUnit, reload, filters, setFilters } =
@@ -307,7 +307,7 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
           <h1>{VIEW_TITLES[view] || view}</h1>
           <p>
             {view === "health"
-              ? "Resultado, caixa e compromissos. Cada número com sua origem."
+              ? "As informações mais importantes para decidir hoje."
               : `Data de corte: ${result.asOf.split("-").reverse().join("/")}`}
           </p>
         </div>
@@ -324,23 +324,7 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
           </button>
         </div>
       </header>
-      <section className="mg-filters" aria-label="Filtros de gestão">
-        <label>
-          Empresa
-          <select
-            value={filters.companyId}
-            onChange={(e) => change("companyId", e.target.value)}
-          >
-            <option value="">Todas as empresas</option>
-            {data.companies
-              .filter((r) => !r.archived)
-              .map((r) => (
-                <option key={r.id} value={r.id}>
-                  {str(r, "name")}
-                </option>
-              ))}
-          </select>
-        </label>
+      <section className="mg-filters mg-filters-simple" aria-label="Filtros de gestão">
         <label>
           Unidade
           <select
@@ -364,43 +348,6 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
           </select>
         </label>
         <label>
-          Marca
-          <select
-            value={filters.brandId}
-            onChange={(e) => change("brandId", e.target.value)}
-          >
-            <option value="">Todas as marcas</option>
-            {data.brands
-              .filter((r) => !r.archived)
-              .map((r) => (
-                <option key={r.id} value={r.id}>
-                  {str(r, "name")}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label>
-          Grupo de unidades
-          <select
-            value={filters.group}
-            onChange={(e) => change("group", e.target.value)}
-          >
-            <option value="">Todos</option>
-            {Array.from(
-              new Set(
-                data.units.flatMap((r) =>
-                  str(r, "groups")
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean),
-                ),
-              ),
-            ).map((g) => (
-              <option key={g}>{g}</option>
-            ))}
-          </select>
-        </label>
-        <label>
           Canal
           <select
             value={filters.channel}
@@ -411,24 +358,6 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
               <option key={c}>{c}</option>
             ))}
           </select>
-        </label>
-        <label>
-          De
-          <input
-            type="date"
-            value={filters.start}
-            max={filters.end}
-            onChange={(e) => change("start", e.target.value)}
-          />
-        </label>
-        <label>
-          Até
-          <input
-            type="date"
-            value={filters.end}
-            min={filters.start}
-            onChange={(e) => change("end", e.target.value)}
-          />
         </label>
         <label>
           Mês
@@ -457,8 +386,21 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
             </button>
           ))}
         </div>
+        <details className="mg-more-filters">
+          <summary>Escolher datas específicas</summary>
+          <div>
+            <label>
+              De
+              <input type="date" value={filters.start} max={filters.end} onChange={(e) => change("start", e.target.value)} />
+            </label>
+            <label>
+              Até
+              <input type="date" value={filters.end} min={filters.start} onChange={(e) => change("end", e.target.value)} />
+            </label>
+          </div>
+        </details>
       </section>
-      {["health","owner","revenues","goals","dre","comparison","meeting"].includes(view) && <TakeatConnection />}
+      {["health", "revenues", "goals"].includes(view) && <TakeatConnection />}
       {Object.keys(errors).length > 0 && (
         <div role="alert" className="mg-notice">
           <AlertTriangle size={20} />
@@ -502,132 +444,33 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
         <ExtendedView view={view} result={result} filters={filters} />
       )}
       <footer className="mg-footer">
-        Competência determina resultado. Liquidação determina caixa. Vencimento
-        determina compromissos.<span>Sem dados conferidos, DADO PENDENTE.</span>
+        Valores não informados aparecem como <span>DADO PENDENTE.</span>
       </footer>
     </div>
   );
 }
 function Overview({ result }: { result: Calculation }) {
-  const m = result.metrics;
   return (
     <>
-      <section className="mg-executive">
-        <div className="mg-score-panel">
-          <div className="mg-eyebrow">SAÚDE DO NEGÓCIO</div>
-          <div className="mg-score">
-            <strong>{result.score ?? "—"}</strong>
-            <span>/ 100</span>
-          </div>
-          <span
-            className={
-              "mg-score-label " +
-              (result.score === null
-                ? ""
-                : result.score >= 65
-                  ? "good"
-                  : result.score >= 50
-                    ? "warn"
-                    : "bad")
-            }
-          >
-            {healthLabel(result.score)}
-          </span>
-          <p>
-            {result.score === null
-              ? "A nota será calculada quando os dez indicadores e a política gerencial estiverem completos."
-              : "Nota calculada pela política gerencial vigente."}
-          </p>
-          <details>
-            <summary>Composição e pesos</summary>
-            {Object.entries(WEIGHTS).map(([k, w]) => (
-              <p key={k}>
-                {
-                  {
-                    liquidity: "Liquidez",
-                    cashGeneration: "Geração de caixa",
-                    debt: "Endividamento",
-                    margin: "Margem",
-                    cmv: "CMV",
-                    payroll: "Folha",
-                    overdue: "Contas vencidas",
-                    coverage: "Cobertura futura",
-                    goal: "Metas",
-                    profitability: "Rentabilidade",
-                  }[k]
-                }
-                :{" "}
-                {result.scores[k] === null
-                  ? "DADO PENDENTE"
-                  : result.scores[k]?.toFixed(1)}{" "}
-                · peso {w}%
-              </p>
-            ))}
-            <p>
-              Liquidez, geração, margem e rentabilidade: proporção do alvo,
-              limitada a 100. CMV, folha e dívida: redução linear entre limite
-              saudável e crítico. Atrasos: 100 − % vencido. Cobertura e metas:
-              proporção do alvo.
-            </p>
-            <Link href="/bases?base=policies">Configurar política</Link>
-          </details>
-        </div>
-        <div className="mg-three-pillars">
-          <div className="mg-pillar">
-            <span>
-              <TrendingUp size={18} /> RESULTADO
-            </span>
-            <Kpi label="Lucro / prejuízo do período" metric={m.profit} />
-            <div className="mg-pillar-foot">
-              Margem líquida <b>{percent(m.margin.value)}</b>
-            </div>
-          </div>
-          <div className="mg-pillar">
-            <span>
-              <Wallet size={18} /> CAIXA
-            </span>
-            <Kpi label="Caixa livre real" metric={m.freeCash} />
-            <div className="mg-pillar-foot">
-              No banco <b>{currency(m.bank.value)}</b>
-            </div>
-          </div>
-          <div className="mg-pillar">
-            <span>
-              <Landmark size={18} /> COMPROMISSOS
-            </span>
-            <Kpi
-              label="Vencidos + próximos 7 dias"
-              metric={result.amountDue(7)}
-            />
-            <div className="mg-pillar-foot">
-              Até 30 dias <b>{currency(result.amountDue(30).value)}</b>
-            </div>
-          </div>
-        </div>
-      </section>
       <div className="mg-section-title">
-        <h2>Leitura executiva</h2>
-        <Link href="/painel-do-dono">
-          Abrir Painel do Dono <ArrowRight size={16} />
-        </Link>
+        <div>
+          <h2>O que você precisa saber</h2>
+          <p className="mg-method">Resumo do período selecionado</p>
+        </div>
+        {result.score !== null && (
+          <span className="mg-health-chip">
+            Saúde: {healthLabel(result.score)} · {result.score}/100
+          </span>
+        )}
       </div>
       <MetricGrid
         result={result}
-        keys={[
-          "gross",
-          "net",
-          "receipts",
-          "cashGeneration",
-          "payable",
-          "receivable",
-          "taxesPayable",
-          "payrollPayable",
-        ]}
+        keys={["gross", "goalPct", "freeCash", "profit", "cmvPct"]}
       />
       <div className="mg-two-columns">
         <section className="mg-panel">
           <div className="mg-section-title">
-            <h2>Faturamento diário</h2>
+            <h2>Vendas por dia</h2>
             <span>R$ · registros do período</span>
           </div>
           {result.trend.length ? (
@@ -674,35 +517,17 @@ function Overview({ result }: { result: Calculation }) {
         </section>
         <section className="mg-panel">
           <div className="mg-section-title">
-            <h2>Prioridades de hoje</h2>
+            <h2>Precisa de atenção</h2>
             <Link href="/alertas">Ver todas</Link>
           </div>
           <AlertList result={result} limit={5} />
         </section>
       </div>
-      <div className="mg-section-title">
-        <h2>Operação e rentabilidade</h2>
-        <Link href="/dre">
-          Abrir DRE <ArrowRight size={16} />
-        </Link>
-      </div>
-      <MetricGrid
-        result={result}
-        keys={[
-          "purchases",
-          "cmv",
-          "cmvPct",
-          "personnel",
-          "opExpenses",
-          "ebitda",
-          "margin",
-          "breakeven",
-          "workingCapital",
-          "ncg",
-          "committed",
-          "cashProjection",
-        ]}
-      />
+      <section className="mg-quick-links">
+        <Link href="/faturamento">Ver vendas e metas <ArrowRight size={15} /></Link>
+        <Link href="/financeiro">Ver contas e caixa <ArrowRight size={15} /></Link>
+        <Link href="/tarefas">Ver ações <ArrowRight size={15} /></Link>
+      </section>
     </>
   );
 }

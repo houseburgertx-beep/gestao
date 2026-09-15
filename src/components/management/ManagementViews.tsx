@@ -1,5 +1,7 @@
 "use client";
 import React, { useState } from "react";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -88,15 +90,16 @@ export function ExtendedView({
           result={result}
           keys={[
             "gross",
-            "deductions",
-            "net",
-            "ticket",
-            "orders",
-            "customers",
+            "goal",
+            "goalPct",
+            "remaining",
             "projection",
           ]}
         />
-        <RevenueComparisons filters={filters} />
+        <div className="mg-quick-links">
+          <Link href="/metas">Editar metas <ArrowRight size={15} /></Link>
+          <Link href="/integracoes/takeat">Configurar Takeat <ArrowRight size={15} /></Link>
+        </div>
         <section className="mg-panel">
           <h2>Faturamento por canal</h2>
           <div className="mg-table-wrap">
@@ -129,8 +132,11 @@ export function ExtendedView({
             </table>
           </div>
         </section>
-        <p className="mg-method">As vendas Takeat já estão incluídas nos indicadores acima. Use os lançamentos abaixo somente para outras origens; não cadastre novamente as mesmas vendas.</p>
-        <Tables kinds={["revenues", "sales"]} filters={filters} />
+        <details className="mg-panel mg-collapsible">
+          <summary>Outros lançamentos de vendas</summary>
+          <p className="mg-method">Use somente para vendas que não vieram da Takeat.</p>
+          <Tables kinds={["revenues", "sales"]} filters={filters} />
+        </details>
       </>
     );
   if (view === "goals")
@@ -165,28 +171,22 @@ export function ExtendedView({
           keys={[
             "receipts",
             "spending",
-            "cashGeneration",
             "bank",
             "freeCash",
             "payable",
-            "receivable",
             "overdue",
           ]}
         />
         <p className="mg-method">
-          Pagamentos e recebimentos de títulos devem ser registrados pelo botão
-          “Baixar” da obrigação. Movimentos avulsos representam entradas/saídas
-          sem título vinculado. Transferências internas precisam das duas pontas
-          e não compõem a geração operacional.
+          Cadastre o que precisa pagar ou receber. Quando o dinheiro movimentar,
+          use o botão “Baixar”.
         </p>
         <Tables
           kinds={[
-            "transactions",
-            "bankAccounts",
             "payables",
             "receivables",
-            "categories",
-            "costCenters",
+            "bankAccounts",
+            "transactions",
           ]}
           filters={filters}
         />
@@ -448,28 +448,40 @@ export function ExtendedView({
     return (
       <>
         <p className="mg-method">
-          Comece por empresas, marcas e unidades. Depois cadastre bancos,
-          categorias e fontes operacionais. A conferência de cobertura declara
-          que a base está completa naquele período, inclusive quando não houve
-          movimento.
+          Ajuste lojas, contas e integrações. Os controles técnicos ficam
+          recolhidos abaixo e só precisam ser usados na implantação ou no
+          fechamento contábil.
         </p>
+        <div className="mg-quick-links">
+          <Link href="/integracoes/takeat">Integração Takeat <ArrowRight size={15} /></Link>
+          <Link href="/fornecedores">Fornecedores <ArrowRight size={15} /></Link>
+          <Link href="/documentos">Documentos <ArrowRight size={15} /></Link>
+        </div>
         <Tables
-          kinds={[
-            "companies",
-            "brands",
-            "units",
-            "categories",
-            "costCenters",
-            "suppliers",
-            "bankAccounts",
-            "products",
-            "positions",
-            "policies",
-            "coverage",
-          ]}
+          kinds={["units", "bankAccounts"]}
           filters={filters}
         />
-        <LegacyImport />
+        <details className="mg-panel mg-collapsible">
+          <summary>Configurações avançadas</summary>
+          <Tables
+            kinds={[
+              "companies",
+              "brands",
+              "categories",
+              "costCenters",
+              "suppliers",
+              "products",
+              "positions",
+              "policies",
+              "coverage",
+            ]}
+            filters={filters}
+          />
+        </details>
+        <details className="mg-panel mg-collapsible">
+          <summary>Importar outros cadastros existentes</summary>
+          <LegacyImport />
+        </details>
       </>
     );
   return null;

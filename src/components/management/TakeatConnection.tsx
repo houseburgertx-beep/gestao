@@ -32,16 +32,16 @@ export function TakeatConnection() {
    setMessage(results.length?results.join(' • '):'Faturamento atualizado e compartilhado com os painéis, metas, DRE e comparativos.');
   }catch(e){setMessage(e instanceof Error?e.message:'Não foi possível atualizar.');}finally{setBusy(false);}
  };
- return <section className="mg-panel">
-  <div className="mg-toolbar"><div><h2>Vendas das lojas · Takeat</h2><p className="mg-method">A mesma origem alimenta todas as telas. Faturamento não representa recebimento bancário.</p></div><Link className="mg-button secondary" href="/integracoes/takeat">Conexão Takeat</Link><button className="mg-button" onClick={sync} disabled={busy||!units.length||!['admin','accountant','manager'].includes(userProfile?.role||'')}>{busy?'Atualizando…':'Atualizar vendas'}</button></div>
+ return <section className="mg-panel mg-store-sales">
+  <div className="mg-toolbar"><div><h2>Vendas por loja</h2><p className="mg-method">Valores importados da Takeat</p></div><button className="mg-button" onClick={sync} disabled={busy||!units.length||!['admin','accountant','manager'].includes(userProfile?.role||'')}>{busy?'Atualizando…':'Atualizar vendas'}</button></div>
   <div className="mg-grid">{units.map(u=>{
    const rows=transformed.revenues.filter(r=>r.unitId===u.id && r.source==='takeat' && (!filters.channel||r.channel===filters.channel));
    const total=rows.length?rows.reduce((s,r)=>s+Number(r.gross||0),0):null;
    const last=rows.map(r=>str(r,'syncedAt')).sort().at(-1);
    const through=rows.map(r=>str(r,'periodEnd')).sort().at(-1);
-   return <div className="mg-kpi" key={u.id}><span className="mg-label">{str(u,'name')}</span><strong>{currency(total)}</strong><small>{through?`Dados importados até ${through.split('-').reverse().join('/')}`:'Sem relatório para o período selecionado'}</small>{last&&<small>Sincronizado em {new Date(last).toLocaleString('pt-BR')}</small>}</div>;
+   return <div className="mg-store-row" key={u.id}><span>{str(u,'name')}</span><strong>{currency(total)}</strong><small>{through?`até ${through.split('-').reverse().join('/')}`:'sem vendas no período'}</small></div>;
   })}</div>
-  <p className="mg-method">Relatórios mensais alimentam o acumulado do mês. Para semanas ou dias, selecione o intervalo e atualize as vendas. Descontos, impostos, custos e saldo bancário dependem de suas próprias fontes.</p>
+  <Link className="mg-simple-link" href="/integracoes/takeat">Configurar conexão Takeat</Link>
   {message&&<p role="status" className="mg-status-message">{message}</p>}
  </section>;
 }
