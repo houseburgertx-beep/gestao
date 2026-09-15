@@ -253,6 +253,7 @@ const originalLoad = Module._load;
 Module._load = function (request, parent, isMain) {
   if (request === "@/lib/firebase")
     return {
+      auth: {currentUser:{uid:"admin"}},
       get db() {
         return currentServiceDb;
       },
@@ -273,6 +274,7 @@ const {
 } = require("../src/services/managementService.ts");
 const { emptyDatabase } = require("../src/domain/management/model.ts");
 const { settlement } = require("../src/domain/management/operations.ts");
+const {persistTakeatReports}=require("../src/services/takeatManagementService.ts");
 Module._load = originalLoad;
 async function serviceState() {
   const data = emptyDatabase();
@@ -407,4 +409,16 @@ test('Takeat reports: shared source is tenant-scoped and credentials are rejecte
  await assertFails(setDoc(doc(db,'takeat_reports',id),{...report,token:'must-not-be-stored',syncedAt:'2026-09-15T20:00:00Z'}));
  await assertFails(setDoc(doc(db,'takeat_reports',id),{...report,syncedAt:'2026-09-13T20:00:00Z'}));
  await assertSucceeds(setDoc(doc(db,'takeat_reports',id),{...report,totalRevenue:90,syncedAt:'2026-09-15T20:00:00Z'}));
+});
+
+test('Takeat transfer is idempotent under concurrent refresh and accepts a real zero correction',async()=>{
+ currentServiceDb=env.authenticatedContext('admin').firestore();
+ const source={id:'takeat-teixeira-2026-09-16',unitId:'teixeira',date:'2026-09-16',source:'takeat',syncedAt:'2026-09-16T20:00:00Z',totalRevenue:10,salao:10,delivery:0,ifood:0,password:'never-copy',token:'never-copy'};
+ await Promise.all(Array.from({length:4},()=>persistTakeatReports([source],'house190','all')));
+ const ref=doc(currentServiceDb,'takeat_reports','house190_teixeira_2026-09-16');
+ const saved=(await getDoc(ref)).data();
+ const assert=require('node:assert/strict');
+ assert.equal(saved.totalRevenue,10);assert.equal(saved.password,undefined);assert.equal(saved.token,undefined);
+ await persistTakeatReports([{...source,totalRevenue:0,salao:0,syncedAt:'2026-09-16T21:00:00Z'}],'house190','all');
+ assert.equal((await getDoc(ref)).data().totalRevenue,0);
 });

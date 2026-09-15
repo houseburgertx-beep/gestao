@@ -9,14 +9,19 @@ export function subscribeTakeatReports(tenantId:string, unitId:string, next:(row
  if(unitId!=='all') filters.push(where('unitId','==',unitId));
  return onSnapshot(query(collection(db,'takeat_reports'),...filters),s=>next(s.docs.map(d=>d.data() as RecordData)),error);
 }
+const transferred = new Set<string>();
+const transfers = new Map<string, Promise<void>>();
 export async function persistTakeatReports(records:TakeatRevenueRecord[], tenantId:string, allowedUnit:string) {
  const uid=auth.currentUser?.uid;
  if(!uid) return;
  for(const record of records) {
   if(record.source!=='takeat' || !['teixeira','eunapolis','foodpark'].includes(record.unitId) || (allowedUnit!=='all' && record.unitId!==allowedUnit) || !/^\d{4}-\d{2}(-\d{2})?$/.test(record.date) || !Number.isFinite(record.totalRevenue) || !Number.isFinite(Date.parse(record.syncedAt))) continue;
   const id=`${tenantId}_${record.unitId}_${record.date}`;
+  const transferKey=`${uid}:${id}:${record.syncedAt}`;
+  if(transferred.has(transferKey)) continue;
+  if(transfers.has(transferKey)) { await transfers.get(transferKey); continue; }
   const ref=doc(db,'takeat_reports',id);
-  await runTransaction(db,async tx=>{
+  const transfer=runTransaction(db,async tx=>{
    const previous=await tx.get(ref);
    if(previous.exists() && previous.data().syncedAt>=record.syncedAt) return;
    // Explicit allowlist: never persist Takeat credentials or arbitrary local fields.
@@ -24,5 +29,7 @@ export async function persistTakeatReports(records:TakeatRevenueRecord[], tenant
    for(const key of ['salao','delivery','ifood','rawBalcony','rawTable','rawDelivery','rawIfood'] as const) if(Number.isFinite(record[key])) values[key]=record[key];
    tx.set(ref,values);
   });
+  transfers.set(transferKey,transfer);
+  try { await transfer; transferred.add(transferKey); } finally { transfers.delete(transferKey); }
  }
 }
