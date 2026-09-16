@@ -74,6 +74,23 @@ function lockId(record: RecordData) {
     ? `${record.tenantId}_${record.unitId}_${month}`
     : null;
 }
+export function sanitizeFirestoreData<T>(data: T): T {
+  if (data === null || data === undefined) return data;
+  if (Array.isArray(data)) {
+    return data.map(sanitizeFirestoreData) as unknown as T;
+  }
+  if (typeof data === "object" && !(data instanceof Date)) {
+    const clean: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        clean[key] = sanitizeFirestoreData(value);
+      }
+    }
+    return clean;
+  }
+  return data;
+}
+
 export async function saveManagement(
   record: RecordData,
   state: Database,
@@ -140,10 +157,10 @@ async function createRecords(records: RecordData[]) {
   const batch = writeBatch(db);
   const now = new Date().toISOString();
   records.forEach((record) => {
-    const saved = { ...record, version: 1, updatedAt: now };
+    const saved = sanitizeFirestoreData({ ...record, version: 1, updatedAt: now });
     batch.set(doc(db, col(record.kind), record.id), saved);
     const audit = doc(collection(db, "gestao_audit"));
-    batch.set(audit, {
+    batch.set(audit, sanitizeFirestoreData({
       id: audit.id,
       tenantId: record.tenantId,
       unitId: record.unitId,
@@ -155,7 +172,7 @@ async function createRecords(records: RecordData[]) {
       version: 1,
       before: null,
       after: saved,
-    });
+    }));
   });
   await batch.commit();
 }
@@ -286,23 +303,23 @@ export async function commitRecords(
     }
     const now = new Date().toISOString();
     if (uniqueRef && !uniqueSnapshot?.exists())
-      tx.set(uniqueRef, {
+      tx.set(uniqueRef, sanitizeFirestoreData({
         tenantId: origin.tenantId,
         unitId: origin.unitId,
         recordId: origin.id,
         updatedBy: origin.updatedBy,
-      });
+      }));
     records.forEach((r, i) => {
-      const data = {
+      const data = sanitizeFirestoreData({
         ...r,
         version: existing[i].exists()
           ? Number(existing[i].data()?.version || 0) + 1
           : 1,
         updatedAt: now,
-      };
+      });
       tx.set(refs[i], data);
       const audit = doc(collection(db, "gestao_audit"));
-      tx.set(audit, {
+      tx.set(audit, sanitizeFirestoreData({
         id: audit.id,
         tenantId: r.tenantId,
         unitId: r.unitId,
@@ -318,7 +335,7 @@ export async function commitRecords(
         version: data.version,
         before: existing[i].exists() ? existing[i].data() : null,
         after: data,
-      });
+      }));
     });
     if (payment && obligationRef && obligationSnapshot?.exists()) {
       const value = obligationSnapshot.data();
