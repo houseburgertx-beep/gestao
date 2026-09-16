@@ -2,7 +2,25 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DragDropContext, Draggable, Droppable, DropResult } from "@hello-pangea/dnd";
-import { AlertCircle, CalendarDays, CheckCircle2, Clock3, ListChecks, Plus, Search, UserRound } from "lucide-react";
+import {
+  AlertCircle,
+  AlignLeft,
+  Building2,
+  Calendar,
+  CalendarDays,
+  CheckCircle2,
+  CheckSquare,
+  Clock3,
+  FileText,
+  Flag,
+  ListChecks,
+  Plus,
+  Search,
+  Sparkles,
+  Tag,
+  User,
+  UserRound,
+} from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { RecordData, dateToday, str } from "@/domain/management/model";
@@ -249,157 +267,200 @@ function TaskModal({
         </header>
 
         <form className="task-modal-form" onSubmit={handleSave}>
-          {/* Top Unit & Status Row */}
-          <div className="task-modal-row-two">
-            <div className="task-field-group">
-              <label htmlFor="task-unit">Unidade responsável</label>
-              <select
-                id="task-unit"
-                value={unit}
-                disabled={allowedUnit !== "all"}
-                onChange={(e) => setUnit(e.target.value)}
-                required
-              >
-                {data.units
-                  .filter((u) => !u.archived && (allowedUnit === "all" || u.id === allowedUnit))
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {str(u, "name")}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            <div className="task-field-group">
-              <label>Status atual</label>
-              <div className="task-status-chips">
-                {COLUMNS.map((col) => (
-                  <button
-                    key={col.status}
-                    type="button"
-                    className={`task-chip-btn ${col.color} ${status === col.status ? "selected" : ""}`}
-                    onClick={() => setStatus(col.status)}
-                  >
-                    <span className={`task-column-dot ${col.color}`} />
-                    {col.label}
-                  </button>
-                ))}
+          {/* Section 1: Informações Principais da Tarefa */}
+          <section className="task-form-section">
+            <div className="task-section-header">
+              <div className="task-section-title">
+                <CheckSquare size={16} className="task-sec-icon" />
+                <span>1. Definição da Tarefa</span>
               </div>
+              <span className="task-section-badge">Essencial</span>
             </div>
-          </div>
 
-          {/* Title input */}
-          <div className="task-field-group full">
-            <label htmlFor="task-title">
-              Título da tarefa <span className="task-req">*</span>
-            </label>
-            <input
-              id="task-title"
-              type="text"
-              autoFocus
-              className="task-input-title"
-              placeholder="Ex.: Trocar filtro da coifa, conferir estoque de embalagens, fechar escala..."
-              value={problem}
-              onChange={(e) => setProblem(e.target.value)}
-              required
-            />
-          </div>
-
-          {/* Description */}
-          <div className="task-field-group full">
-            <label htmlFor="task-action">Descrição detalhada (como fazer, orientações)</label>
-            <textarea
-              id="task-action"
-              rows={3}
-              placeholder="Explique o que deve ser feito passo a passo, critérios de conclusão ou detalhes importantes..."
-              value={action}
-              onChange={(e) => setAction(e.target.value)}
-            />
-          </div>
-
-          {/* Priority, Owner, and Due Date Grid */}
-          <div className="task-modal-grid-details">
-            {/* Owner */}
-            <div className="task-field-group">
-              <label htmlFor="task-owner">
-                Responsável <span className="task-req">*</span>
-              </label>
-              <div className="task-input-with-icon">
-                <UserRound size={16} />
+            <div className="task-section-body">
+              <div className="task-field-group full">
+                <label htmlFor="task-title">
+                  O que precisa ser feito? <span className="task-req">*</span>
+                </label>
                 <input
-                  id="task-owner"
+                  id="task-title"
                   type="text"
-                  list="employee-owners"
-                  placeholder="Nome do colaborador ou gerente"
-                  value={owner}
-                  onChange={(e) => setOwner(e.target.value)}
-                  required
-                />
-                <datalist id="employee-owners">
-                  {employees.map((emp) => (
-                    <option key={emp} value={emp} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-
-            {/* Due Date & Quick Buttons */}
-            <div className="task-field-group">
-              <label htmlFor="task-duedate">
-                Prazo de entrega <span className="task-req">*</span>
-              </label>
-              <div className="task-input-with-icon">
-                <CalendarDays size={16} />
-                <input
-                  id="task-duedate"
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
+                  autoFocus
+                  className="task-input-title"
+                  placeholder="Ex.: Conferir validade dos insumos na câmara fria"
+                  value={problem}
+                  onChange={(e) => setProblem(e.target.value)}
                   required
                 />
               </div>
-              <div className="task-quick-dates">
-                <button type="button" onClick={() => setQuickDate(0)}>Hoje</button>
-                <button type="button" onClick={() => setQuickDate(1)}>Amanhã</button>
-                <button type="button" onClick={() => setQuickDate(3)}>Em 3 dias</button>
-                <button type="button" onClick={() => setQuickDate(7)}>1 semana</button>
+
+              <div className="task-field-group full">
+                <label htmlFor="task-action">
+                  <AlignLeft size={14} /> Detalhamento / Orientações práticas
+                </label>
+                <textarea
+                  id="task-action"
+                  rows={3}
+                  placeholder="Passo a passo, critérios para considerar concluído, alertas ou instruções para quem for executar..."
+                  value={action}
+                  onChange={(e) => setAction(e.target.value)}
+                />
               </div>
             </div>
+          </section>
 
-            {/* Priority Select with Badges */}
-            <div className="task-field-group">
-              <label>Nível de prioridade</label>
-              <div className="task-priority-chips">
-                {[
-                  { key: "Baixa", label: "Baixa", tone: "baixa" },
-                  { key: "Normal", label: "Normal", tone: "normal" },
-                  { key: "Alta", label: "Alta", tone: "alta" },
-                  { key: "Urgente", label: "Urgente", tone: "urgente" },
-                ].map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    className={`task-priority-chip ${item.tone} ${priority === item.key ? "selected" : ""}`}
-                    onClick={() => setPriority(item.key)}
+          {/* Section 2: Atribuição & Cronograma */}
+          <section className="task-form-section">
+            <div className="task-section-header">
+              <div className="task-section-title">
+                <User size={16} className="task-sec-icon" />
+                <span>2. Responsabilidade & Prazo</span>
+              </div>
+              <span className="task-section-badge">Planejamento</span>
+            </div>
+
+            <div className="task-section-body">
+              <div className="task-grid-columns-three">
+                {/* Unidade */}
+                <div className="task-field-group">
+                  <label htmlFor="task-unit">
+                    <Building2 size={13} /> Unidade / Loja
+                  </label>
+                  <select
+                    id="task-unit"
+                    value={unit}
+                    disabled={allowedUnit !== "all"}
+                    onChange={(e) => setUnit(e.target.value)}
+                    required
                   >
-                    {item.label}
-                  </button>
-                ))}
+                    {data.units
+                      .filter((u) => !u.archived && (allowedUnit === "all" || u.id === allowedUnit))
+                      .map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {str(u, "name")}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* Responsável com autocomplete */}
+                <div className="task-field-group">
+                  <label htmlFor="task-owner">
+                    <UserRound size={13} /> Responsável <span className="task-req">*</span>
+                  </label>
+                  <div className="task-input-with-icon">
+                    <input
+                      id="task-owner"
+                      type="text"
+                      list="employee-owners"
+                      placeholder="Selecione ou digite o nome"
+                      value={owner}
+                      onChange={(e) => setOwner(e.target.value)}
+                      required
+                    />
+                    <datalist id="employee-owners">
+                      {employees.map((emp) => (
+                        <option key={emp} value={emp} />
+                      ))}
+                    </datalist>
+                  </div>
+                </div>
+
+                {/* Data e atalhos */}
+                <div className="task-field-group">
+                  <label htmlFor="task-duedate">
+                    <Calendar size={13} /> Data Limite <span className="task-req">*</span>
+                  </label>
+                  <input
+                    id="task-duedate"
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    required
+                  />
+                  <div className="task-quick-dates">
+                    <button type="button" onClick={() => setQuickDate(0)}>Hoje</button>
+                    <button type="button" onClick={() => setQuickDate(1)}>Amanhã</button>
+                    <button type="button" onClick={() => setQuickDate(3)}>+3 dias</button>
+                    <button type="button" onClick={() => setQuickDate(7)}>+7 dias</button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* Internal notes */}
-          <div className="task-field-group full">
-            <label htmlFor="task-notes">Observações internas / checklist rápido</label>
-            <textarea
-              id="task-notes"
-              rows={2}
-              placeholder="Observações complementares, fornecedores a acionar ou links relevantes..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
+          {/* Section 3: Classificação & Status */}
+          <section className="task-form-section">
+            <div className="task-section-header">
+              <div className="task-section-title">
+                <Flag size={16} className="task-sec-icon" />
+                <span>3. Status & Prioridade</span>
+              </div>
+              <span className="task-section-badge">Controle</span>
+            </div>
+
+            <div className="task-section-body">
+              <div className="task-grid-columns-two">
+                {/* Coluna / Status no Quadro */}
+                <div className="task-field-group">
+                  <label>Status no Kanban</label>
+                  <div className="task-status-chips-grid">
+                    {COLUMNS.map((col) => (
+                      <button
+                        key={col.status}
+                        type="button"
+                        className={`task-chip-btn ${col.color} ${status === col.status ? "selected" : ""}`}
+                        onClick={() => setStatus(col.status)}
+                      >
+                        <span className={`task-column-dot ${col.color}`} />
+                        <span>{col.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Prioridade */}
+                <div className="task-field-group">
+                  <label>Nível de Urgência</label>
+                  <div className="task-priority-chips-grid">
+                    {[
+                      { key: "Baixa", label: "Baixa", tone: "baixa", desc: "Sem urgência" },
+                      { key: "Normal", label: "Normal", tone: "normal", desc: "Rotina normal" },
+                      { key: "Alta", label: "Alta", tone: "alta", desc: "Atenção necessária" },
+                      { key: "Urgente", label: "Urgente", tone: "urgente", desc: "Prioridade máxima" },
+                    ].map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        className={`task-priority-card ${item.tone} ${priority === item.key ? "selected" : ""}`}
+                        onClick={() => setPriority(item.key)}
+                      >
+                        <div className="task-priority-indicator" />
+                        <div className="task-priority-texts">
+                          <strong>{item.label}</strong>
+                          <small>{item.desc}</small>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Observações internas opcionais */}
+              <div className="task-field-group full" style={{ marginTop: "12px" }}>
+                <label htmlFor="task-notes">
+                  <FileText size={13} /> Observações internas / Anotações de apoio (opcional)
+                </label>
+                <textarea
+                  id="task-notes"
+                  rows={2}
+                  placeholder="Anotações de acompanhamento, links externos, telefones úteis..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
+            </div>
+          </section>
 
           {error && <div className="mg-error">{error}</div>}
 
