@@ -1,11 +1,22 @@
 "use client";
 
 import React, { useState } from "react";
-import { Modal } from "@/components/ui/Modal";
-import { Button } from "@/components/ui/Button";
 import { store } from "@/services/store";
 import { Employee, UnitId } from "@/types";
-import { UserPlus, Check, Building2 } from "lucide-react";
+import {
+  UserPlus,
+  User,
+  Briefcase,
+  CreditCard,
+  Calendar,
+  FileText,
+  Upload,
+  Building2,
+  Mail,
+  Phone,
+  MapPin,
+  CheckCircle2,
+} from "lucide-react";
 import { nameFileForDrive, uploadFileToDrive } from "@/services/driveService";
 
 interface NewEmployeeModalProps {
@@ -45,6 +56,8 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
   const [notes, setNotes] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
 
+  if (!isOpen) return null;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !role.trim()) return;
@@ -58,6 +71,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
       const storedPhoto = photoFile
         ? await uploadFileToDrive(nameFileForDrive(photoFile, `Foto - ${name.trim()}`), "employee_photos")
         : null;
+
       const employeeData: Omit<Employee, "documentsCount"> = {
         id: `emp-${Date.now()}`,
         name: name.trim(),
@@ -76,24 +90,41 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
         managerName: managerName.trim(),
         status: "active",
         bankData: bankData.trim(),
-        bankName: bankName.trim(), bankAgency: bankAgency.trim(), bankAccount: bankAccount.trim(), bankAccountType,
-        bankHolderCpf: bankHolderCpf.trim(), bankHolderName: bankHolderName.trim(), experienceEndDate, vacationStart, vacationEnd,
+        bankName: bankName.trim(),
+        bankAgency: bankAgency.trim(),
+        bankAccount: bankAccount.trim(),
+        bankAccountType,
+        bankHolderCpf: bankHolderCpf.trim(),
+        bankHolderName: bankHolderName.trim(),
+        experienceEndDate,
+        vacationStart,
+        vacationEnd,
         photoUrl: "",
         ...(storedPhoto ? { photoDriveFileId: storedPhoto.fileId } : {}),
         notes: notes.trim(),
       };
 
-      // Salva localmente e sincroniza com o Firestore e as notificações.
       store.addEmployee(employeeData);
 
-      // Limpa campos
+      // Reset
       setName("");
       setCpf("");
+      setBirthDate("");
+      setPhone("");
+      setEmail("");
+      setAddress("");
       setRole("");
       setSalary("");
-      setEmail("");
-      setPhone("");
       setBankData("");
+      setBankName("");
+      setBankAgency("");
+      setBankAccount("");
+      setBankHolderCpf("");
+      setBankHolderName("");
+      setExperienceEndDate("");
+      setVacationStart("");
+      setVacationEnd("");
+      setNotes("");
       setPhotoFile(null);
 
       if (onSuccess) onSuccess();
@@ -106,238 +137,423 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Cadastrar Novo Colaborador"
-      subtitle="Adicionar membro à equipe com registro em nuvem no Firestore"
-      maxWidth="lg"
+    <div
+      className="mg-modal-shade"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !loading) onClose();
+      }}
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Foto do colaborador
-          </label>
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(event) => setPhotoFile(event.target.files?.[0] || null)}
-            className="w-full text-xs rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 file:mr-3 file:border-0 file:bg-zinc-100 file:px-3 file:py-2 dark:file:bg-zinc-800"
-          />
-          <p className="mt-1 text-[10px] text-zinc-400">A foto será guardada no Google Drive, até 8 MB.</p>
-        </div>
+      <div className="mg-modal task-modal-modern" role="dialog" aria-modal="true" style={{ maxWidth: 840 }}>
+        {/* Header */}
+        <header className="task-modal-header">
+          <div className="task-modal-title-box">
+            <div className="task-modal-icon-badge">
+              <UserPlus size={20} />
+            </div>
+            <div>
+              <h2>Novo Colaborador</h2>
+              <p>Adicionar membro à equipe com registro sincronizado no Firestore</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="task-modal-close"
+            onClick={onClose}
+            disabled={loading}
+            title="Fechar"
+          >
+            ✕
+          </button>
+        </header>
 
-        {/* Dados Básicos */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Nome Completo *
-            </label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ex: Carlos Henrique de Jesus"
-              className="w-full text-xs px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
-            />
+        {/* Form Content */}
+        <form className="task-modal-form" onSubmit={handleSubmit}>
+          {/* Card 1: Identificação & Contato */}
+          <div className="task-compact-card">
+            <div className="flex items-center gap-2 mb-1">
+              <User size={15} className="task-sec-icon" />
+              <span className="text-xs font-bold text-slate-800">1. Identificação & Contato</span>
+            </div>
+
+            <div className="task-grid-columns-three">
+              <div className="task-field-group">
+                <label htmlFor="emp-name">
+                  Nome Completo <span className="task-req">*</span>
+                </label>
+                <input
+                  id="emp-name"
+                  type="text"
+                  required
+                  autoFocus
+                  placeholder="Ex: Carlos Henrique de Jesus"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-cpf">
+                  CPF <span className="task-req">*</span>
+                </label>
+                <input
+                  id="emp-cpf"
+                  type="text"
+                  required
+                  placeholder="000.000.000-00"
+                  value={cpf}
+                  onChange={(e) => setCpf(e.target.value)}
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-birth">Data de Nascimento</label>
+                <input
+                  id="emp-birth"
+                  type="date"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="task-grid-columns-three">
+              <div className="task-field-group">
+                <label htmlFor="emp-phone">
+                  <Phone size={12} /> WhatsApp / Telefone
+                </label>
+                <input
+                  id="emp-phone"
+                  type="text"
+                  placeholder="(73) 99999-0000"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-email">
+                  <Mail size={12} /> E-mail
+                </label>
+                <input
+                  id="emp-email"
+                  type="email"
+                  placeholder="colaborador@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-photo">
+                  <Upload size={12} /> Foto (Google Drive)
+                </label>
+                <input
+                  id="emp-photo"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(event) => setPhotoFile(event.target.files?.[0] || null)}
+                />
+              </div>
+            </div>
+
+            <div className="task-field-group full">
+              <label htmlFor="emp-address">
+                <MapPin size={12} /> Endereço Residencial (opcional)
+              </label>
+              <input
+                id="emp-address"
+                type="text"
+                placeholder="Rua, Número, Bairro, Cidade - UF"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              CPF *
-            </label>
-            <input
-              type="text"
-              required
-              value={cpf}
-              onChange={(e) => setCpf(e.target.value)}
-              placeholder="000.000.000-00"
-              className="w-full text-xs px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
-            />
-          </div>
-        </div>
+          {/* Card 2: Cargo & Contrato */}
+          <div className="task-compact-card">
+            <div className="flex items-center gap-2 mb-1">
+              <Briefcase size={15} className="task-sec-icon" />
+              <span className="text-xs font-bold text-slate-800">2. Lotação & Remuneração</span>
+            </div>
 
-        {/* Contato */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Telefone / WhatsApp
-            </label>
-            <input
-              type="text"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="(73) 99999-0000"
-              className="w-full text-xs px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
-            />
+            <div className="task-grid-columns-three">
+              <div className="task-field-group">
+                <label htmlFor="emp-unit">
+                  Unidade / Filial <span className="task-req">*</span>
+                </label>
+                <select
+                  id="emp-unit"
+                  value={unitId}
+                  onChange={(e) => setUnitId(e.target.value as Exclude<UnitId, "all">)}
+                  required
+                >
+                  <option value="teixeira">House 190 Teixeira de Freitas</option>
+                  <option value="eunapolis">House 190 Eunápolis</option>
+                  <option value="foodpark">House Food Park</option>
+                  <option value="central">Matriz / Central</option>
+                </select>
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-dept">
+                  Departamento <span className="task-req">*</span>
+                </label>
+                <select
+                  id="emp-dept"
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  required
+                >
+                  <option value="Cozinha / Produção">Cozinha / Produção</option>
+                  <option value="Salão / Atendimento">Salão / Atendimento</option>
+                  <option value="Bar / Bebidas">Bar / Bebidas</option>
+                  <option value="Estoque / Compras">Estoque / Compras</option>
+                  <option value="Gerência / Administrativo">Gerência / Administrativo</option>
+                  <option value="Limpeza / Apoio">Limpeza / Apoio</option>
+                </select>
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-role">
+                  Cargo / Função <span className="task-req">*</span>
+                </label>
+                <input
+                  id="emp-role"
+                  type="text"
+                  required
+                  placeholder="Ex: Chapeiro Líder"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="task-grid-columns-three">
+              <div className="task-field-group">
+                <label htmlFor="emp-contract">Tipo de Contrato</label>
+                <select
+                  id="emp-contract"
+                  value={contractType}
+                  onChange={(e) => setContractType(e.target.value as any)}
+                >
+                  <option value="CLT">CLT</option>
+                  <option value="PJ">PJ</option>
+                  <option value="Estagio">Estágio</option>
+                </select>
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-salary">Salário Base (R$)</label>
+                <input
+                  id="emp-salary"
+                  type="text"
+                  placeholder="Ex: 2.100,00"
+                  value={salary}
+                  onChange={(e) => setSalary(e.target.value)}
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-admission">Data de Admissão</label>
+                <input
+                  id="emp-admission"
+                  type="date"
+                  value={admissionDate}
+                  onChange={(e) => setAdmissionDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="task-grid-columns-two-compact">
+              <div className="task-field-group">
+                <label htmlFor="emp-workhours">Jornada / Escala</label>
+                <input
+                  id="emp-workhours"
+                  type="text"
+                  placeholder="Ex: 44h semanais (Escala 6x1)"
+                  value={workHours}
+                  onChange={(e) => setWorkHours(e.target.value)}
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-manager">Gestor / Responsável</label>
+                <input
+                  id="emp-manager"
+                  type="text"
+                  placeholder="Ex: Gerência Operacional"
+                  value={managerName}
+                  onChange={(e) => setManagerName(e.target.value)}
+                />
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              E-mail
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="colaborador@gmail.com"
-              className="w-full text-xs px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
-            />
-          </div>
-        </div>
+          {/* Card 3: Dados Bancários & PIX */}
+          <div className="task-compact-card">
+            <div className="flex items-center gap-2 mb-1">
+              <CreditCard size={15} className="task-sec-icon" />
+              <span className="text-xs font-bold text-slate-800">3. Pagamento & Dados Bancários</span>
+            </div>
 
-        {/* Filial e Cargo */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Unidade / Filial *
-            </label>
-            <select
-              value={unitId}
-              onChange={(e) => setUnitId(e.target.value as any)}
-              className="w-full text-xs px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
+            <div className="task-field-group full">
+              <label htmlFor="emp-pix">Chave PIX (opcional)</label>
+              <input
+                id="emp-pix"
+                type="text"
+                placeholder="Ex: (73) 99999-0000, CPF ou email@exemplo.com"
+                value={bankData}
+                onChange={(e) => setBankData(e.target.value)}
+              />
+            </div>
+
+            <div className="task-grid-columns-three">
+              <div className="task-field-group">
+                <label htmlFor="emp-bank-name">Instituição / Banco</label>
+                <input
+                  id="emp-bank-name"
+                  type="text"
+                  placeholder="Ex: Sicoob, Bradesco, Nubank"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-bank-agency">Agência</label>
+                <input
+                  id="emp-bank-agency"
+                  type="text"
+                  placeholder="0001"
+                  value={bankAgency}
+                  onChange={(e) => setBankAgency(e.target.value)}
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-bank-account">Conta com Dígito</label>
+                <input
+                  id="emp-bank-account"
+                  type="text"
+                  placeholder="12345-6"
+                  value={bankAccount}
+                  onChange={(e) => setBankAccount(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="task-grid-columns-three">
+              <div className="task-field-group">
+                <label htmlFor="emp-bank-type">Tipo de Conta</label>
+                <select
+                  id="emp-bank-type"
+                  value={bankAccountType}
+                  onChange={(e) => setBankAccountType(e.target.value as "corrente" | "poupanca")}
+                >
+                  <option value="corrente">Conta Corrente</option>
+                  <option value="poupanca">Conta Poupança</option>
+                </select>
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-holder-name">Nome do Titular</label>
+                <input
+                  id="emp-holder-name"
+                  type="text"
+                  placeholder="Se diferente do colaborador"
+                  value={bankHolderName}
+                  onChange={(e) => setBankHolderName(e.target.value)}
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-holder-cpf">CPF do Titular</label>
+                <input
+                  id="emp-holder-cpf"
+                  type="text"
+                  placeholder="000.000.000-00"
+                  value={bankHolderCpf}
+                  onChange={(e) => setBankHolderCpf(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Card 4: Prazos, Férias & Anotações */}
+          <div className="task-compact-card">
+            <div className="flex items-center gap-2 mb-1">
+              <Calendar size={15} className="task-sec-icon" />
+              <span className="text-xs font-bold text-slate-800">4. Prazos & Férias</span>
+            </div>
+
+            <div className="task-grid-columns-three">
+              <div className="task-field-group">
+                <label htmlFor="emp-exp">Fim da Experiência</label>
+                <input
+                  id="emp-exp"
+                  type="date"
+                  value={experienceEndDate}
+                  onChange={(e) => setExperienceEndDate(e.target.value)}
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-vac-start">Início das Próximas Férias</label>
+                <input
+                  id="emp-vac-start"
+                  type="date"
+                  value={vacationStart}
+                  onChange={(e) => setVacationStart(e.target.value)}
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="emp-vac-end">Fim das Próximas Férias</label>
+                <input
+                  id="emp-vac-end"
+                  type="date"
+                  value={vacationEnd}
+                  onChange={(e) => setVacationEnd(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="task-field-group full">
+              <label htmlFor="emp-notes">
+                <FileText size={12} /> Observações Internas (RH)
+              </label>
+              <input
+                id="emp-notes"
+                type="text"
+                placeholder="Uniforme, restrições, contatos de emergência..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Fixed Footer */}
+          <footer className="task-modal-footer">
+            <button
+              type="button"
+              className="mg-button secondary task-btn-cancel"
+              onClick={onClose}
+              disabled={loading}
             >
-              <option value="teixeira">House 190 Teixeira de Freitas</option>
-              <option value="eunapolis">House 190 Eunápolis</option>
-              <option value="foodpark">House Food Park</option>
-              <option value="central">Matriz / Central</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Departamento *
-            </label>
-            <select
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-              className="w-full text-xs px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="workspace-primary task-save-submit"
+              disabled={loading}
             >
-              <option value="Cozinha / Produção">Cozinha / Produção</option>
-              <option value="Salão / Atendimento">Salão / Atendimento</option>
-              <option value="Bar / Bebidas">Bar / Bebidas</option>
-              <option value="Estoque / Compras">Estoque / Compras</option>
-              <option value="Gerência / Administrativo">Gerência / Administrativo</option>
-              <option value="Limpeza / Apoio">Limpeza / Apoio</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Cargo / Função *
-            </label>
-            <input
-              type="text"
-              required
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              placeholder="Ex: Chapeiro Líder"
-              className="w-full text-xs px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
-            />
-          </div>
-        </div>
-
-        {/* Contrato e Remuneração */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Tipo de Contrato
-            </label>
-            <select
-              value={contractType}
-              onChange={(e) => setContractType(e.target.value as any)}
-              className="w-full text-xs px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
-            >
-              <option value="CLT">CLT</option>
-              <option value="PJ">PJ</option>
-              <option value="Estagio">Estágio</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Salário Base (R$)
-            </label>
-            <input
-              type="text"
-              value={salary}
-              onChange={(e) => setSalary(e.target.value)}
-              placeholder="Ex: 2.100,00"
-              className="w-full text-xs px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Data de Admissão
-            </label>
-            <input
-              type="date"
-              value={admissionDate}
-              onChange={(e) => setAdmissionDate(e.target.value)}
-              className="w-full text-xs px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
-            />
-          </div>
-        </div>
-
-        {/* Escala e Dados Bancários */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Jornada / Escala
-            </label>
-            <input
-              type="text"
-              value={workHours}
-              onChange={(e) => setWorkHours(e.target.value)}
-              placeholder="Ex: 44h semanais (Escala 6x1)"
-              className="w-full text-xs px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Chave PIX (opcional)
-            </label>
-            <input
-              type="text"
-              value={bankData}
-              onChange={(e) => setBankData(e.target.value)}
-              placeholder="PIX: 000.000.000-00 ou Banco Inter Ag 0001 C/C 1234-5"
-              className="w-full text-xs px-3 py-2 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-hidden focus:ring-1 focus:ring-zinc-900"
-            />
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-          <h3 className="mb-3 text-xs font-semibold text-zinc-800 dark:text-zinc-200">Dados bancários completos</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <label className="text-xs">Banco<input value={bankName} onChange={e=>setBankName(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-md border border-zinc-200"/></label>
-            <label className="text-xs">Agência<input value={bankAgency} onChange={e=>setBankAgency(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-md border border-zinc-200"/></label>
-            <label className="text-xs">Conta<input value={bankAccount} onChange={e=>setBankAccount(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-md border border-zinc-200"/></label>
-            <label className="text-xs">Tipo de conta<select value={bankAccountType} onChange={e=>setBankAccountType(e.target.value as "corrente"|"poupanca")} className="mt-1 w-full px-3 py-2 rounded-md border border-zinc-200 bg-white"><option value="corrente">Conta corrente</option><option value="poupanca">Poupança</option></select></label>
-            <label className="text-xs">CPF do titular<input value={bankHolderCpf} onChange={e=>setBankHolderCpf(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-md border border-zinc-200"/></label>
-            <label className="text-xs">Nome completo do titular<input value={bankHolderName} onChange={e=>setBankHolderName(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-md border border-zinc-200"/></label>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <label className="text-xs">Fim do período de experiência<input type="date" value={experienceEndDate} onChange={e=>setExperienceEndDate(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-md border border-zinc-200"/></label>
-          <label className="text-xs">Início das próximas férias<input type="date" value={vacationStart} onChange={e=>setVacationStart(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-md border border-zinc-200"/></label>
-          <label className="text-xs">Fim das próximas férias<input type="date" value={vacationEnd} onChange={e=>setVacationEnd(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-md border border-zinc-200"/></label>
-        </div>
-
-        <div className="border-t border-zinc-100 dark:border-zinc-800 pt-3 flex items-center justify-end gap-2">
-          <Button variant="ghost" size="sm" type="button" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button size="sm" type="submit" disabled={loading} className="gap-1.5">
-            <UserPlus className="h-3.5 w-3.5" />
-            <span>{loading ? "Salvando no Firestore..." : "Confirmar e Salvar"}</span>
-          </Button>
-        </div>
-      </form>
-    </Modal>
+              <UserPlus size={14} />
+              <span>{loading ? "Salvando no Firestore..." : "Confirmar e Salvar"}</span>
+            </button>
+          </footer>
+        </form>
+      </div>
+    </div>
   );
 }

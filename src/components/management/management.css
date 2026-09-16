@@ -2262,6 +2262,8 @@
 
 .task-field-group select,
 .task-field-group input[type="text"],
+.task-field-group input[type="email"],
+.task-field-group input[type="number"],
 .task-field-group input[type="date"],
 .task-field-group textarea {
   width: 100%;
@@ -2274,6 +2276,32 @@
   font-weight: 500;
   transition: all 0.15s ease;
   outline: none;
+}
+
+.task-field-group input[type="file"] {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.task-field-group input[type="file"]::file-selector-button {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  margin-right: 8px;
 }
 
 .task-field-group select:focus,
