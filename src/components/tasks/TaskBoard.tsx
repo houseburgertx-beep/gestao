@@ -267,207 +267,158 @@ function TaskModal({
         </header>
 
         <form className="task-modal-form" onSubmit={handleSave}>
-          {/* Section 1: Informações Principais da Tarefa */}
-          <section className="task-form-section">
-            <div className="task-section-header">
-              <div className="task-section-title">
-                <CheckSquare size={16} className="task-sec-icon" />
-                <span>1. Definição da Tarefa</span>
-              </div>
-              <span className="task-section-badge">Essencial</span>
+          {/* Section 1: Título e Detalhes da Tarefa */}
+          <div className="task-compact-card">
+            <div className="task-field-group full">
+              <label htmlFor="task-title">
+                <CheckSquare size={14} className="task-sec-icon" />
+                Título da Tarefa <span className="task-req">*</span>
+              </label>
+              <input
+                id="task-title"
+                type="text"
+                autoFocus
+                className="task-input-title"
+                placeholder="Ex.: Conferir validade dos insumos na câmara fria"
+                value={problem}
+                onChange={(e) => setProblem(e.target.value)}
+                required
+              />
             </div>
 
-            <div className="task-section-body">
-              <div className="task-field-group full">
-                <label htmlFor="task-title">
-                  O que precisa ser feito? <span className="task-req">*</span>
+            <div className="task-field-group full">
+              <label htmlFor="task-action">
+                <AlignLeft size={13} />
+                Como fazer / Orientações (opcional)
+              </label>
+              <textarea
+                id="task-action"
+                rows={2}
+                placeholder="Instruções passo a passo, critérios de conclusão ou avisos..."
+                value={action}
+                onChange={(e) => setAction(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Section 2: Unidade, Responsável e Prazo em Grid */}
+          <div className="task-compact-card">
+            <div className="task-grid-columns-three">
+              {/* Unidade */}
+              <div className="task-field-group">
+                <label htmlFor="task-unit">
+                  <Building2 size={13} /> Unidade
+                </label>
+                <select
+                  id="task-unit"
+                  value={unit}
+                  disabled={allowedUnit !== "all"}
+                  onChange={(e) => setUnit(e.target.value)}
+                  required
+                >
+                  {data.units
+                    .filter((u) => !u.archived && (allowedUnit === "all" || u.id === allowedUnit))
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {str(u, "name")}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Responsável */}
+              <div className="task-field-group">
+                <label htmlFor="task-owner">
+                  <UserRound size={13} /> Responsável <span className="task-req">*</span>
                 </label>
                 <input
-                  id="task-title"
+                  id="task-owner"
                   type="text"
-                  autoFocus
-                  className="task-input-title"
-                  placeholder="Ex.: Conferir validade dos insumos na câmara fria"
-                  value={problem}
-                  onChange={(e) => setProblem(e.target.value)}
+                  list="employee-owners"
+                  placeholder="Nome do colaborador"
+                  value={owner}
+                  onChange={(e) => setOwner(e.target.value)}
                   required
                 />
+                <datalist id="employee-owners">
+                  {employees.map((emp) => (
+                    <option key={emp} value={emp} />
+                  ))}
+                </datalist>
               </div>
 
-              <div className="task-field-group full">
-                <label htmlFor="task-action">
-                  <AlignLeft size={14} /> Detalhamento / Orientações práticas
+              {/* Data Limite */}
+              <div className="task-field-group">
+                <label htmlFor="task-duedate">
+                  <Calendar size={13} /> Prazo de Entrega <span className="task-req">*</span>
                 </label>
-                <textarea
-                  id="task-action"
-                  rows={3}
-                  placeholder="Passo a passo, critérios para considerar concluído, alertas ou instruções para quem for executar..."
-                  value={action}
-                  onChange={(e) => setAction(e.target.value)}
+                <input
+                  id="task-duedate"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  required
                 />
-              </div>
-            </div>
-          </section>
-
-          {/* Section 2: Atribuição & Cronograma */}
-          <section className="task-form-section">
-            <div className="task-section-header">
-              <div className="task-section-title">
-                <User size={16} className="task-sec-icon" />
-                <span>2. Responsabilidade & Prazo</span>
-              </div>
-              <span className="task-section-badge">Planejamento</span>
-            </div>
-
-            <div className="task-section-body">
-              <div className="task-grid-columns-three">
-                {/* Unidade */}
-                <div className="task-field-group">
-                  <label htmlFor="task-unit">
-                    <Building2 size={13} /> Unidade / Loja
-                  </label>
-                  <select
-                    id="task-unit"
-                    value={unit}
-                    disabled={allowedUnit !== "all"}
-                    onChange={(e) => setUnit(e.target.value)}
-                    required
-                  >
-                    {data.units
-                      .filter((u) => !u.archived && (allowedUnit === "all" || u.id === allowedUnit))
-                      .map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {str(u, "name")}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                {/* Responsável com autocomplete */}
-                <div className="task-field-group">
-                  <label htmlFor="task-owner">
-                    <UserRound size={13} /> Responsável <span className="task-req">*</span>
-                  </label>
-                  <div className="task-input-with-icon">
-                    <input
-                      id="task-owner"
-                      type="text"
-                      list="employee-owners"
-                      placeholder="Selecione ou digite o nome"
-                      value={owner}
-                      onChange={(e) => setOwner(e.target.value)}
-                      required
-                    />
-                    <datalist id="employee-owners">
-                      {employees.map((emp) => (
-                        <option key={emp} value={emp} />
-                      ))}
-                    </datalist>
-                  </div>
-                </div>
-
-                {/* Data e atalhos */}
-                <div className="task-field-group">
-                  <label htmlFor="task-duedate">
-                    <Calendar size={13} /> Data Limite <span className="task-req">*</span>
-                  </label>
-                  <input
-                    id="task-duedate"
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    required
-                  />
-                  <div className="task-quick-dates">
-                    <button type="button" onClick={() => setQuickDate(0)}>Hoje</button>
-                    <button type="button" onClick={() => setQuickDate(1)}>Amanhã</button>
-                    <button type="button" onClick={() => setQuickDate(3)}>+3 dias</button>
-                    <button type="button" onClick={() => setQuickDate(7)}>+7 dias</button>
-                  </div>
+                <div className="task-quick-dates">
+                  <button type="button" onClick={() => setQuickDate(0)}>Hoje</button>
+                  <button type="button" onClick={() => setQuickDate(1)}>Amanhã</button>
+                  <button type="button" onClick={() => setQuickDate(3)}>+3d</button>
+                  <button type="button" onClick={() => setQuickDate(7)}>+7d</button>
                 </div>
               </div>
             </div>
-          </section>
+          </div>
 
-          {/* Section 3: Classificação & Status */}
-          <section className="task-form-section">
-            <div className="task-section-header">
-              <div className="task-section-title">
-                <Flag size={16} className="task-sec-icon" />
-                <span>3. Status & Prioridade</span>
-              </div>
-              <span className="task-section-badge">Controle</span>
-            </div>
-
-            <div className="task-section-body">
-              <div className="task-grid-columns-two">
-                {/* Coluna / Status no Quadro */}
-                <div className="task-field-group">
-                  <label>Status no Kanban</label>
-                  <div className="task-status-chips-grid">
-                    {COLUMNS.map((col) => (
-                      <button
-                        key={col.status}
-                        type="button"
-                        className={`task-chip-btn ${col.color} ${status === col.status ? "selected" : ""}`}
-                        onClick={() => setStatus(col.status)}
-                      >
-                        <span className={`task-column-dot ${col.color}`} />
-                        <span>{col.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Prioridade */}
-                <div className="task-field-group">
-                  <label>Nível de Urgência</label>
-                  <div className="task-priority-chips-grid">
-                    {[
-                      { key: "Baixa", label: "Baixa", tone: "baixa", desc: "Sem urgência" },
-                      { key: "Normal", label: "Normal", tone: "normal", desc: "Rotina normal" },
-                      { key: "Alta", label: "Alta", tone: "alta", desc: "Atenção necessária" },
-                      { key: "Urgente", label: "Urgente", tone: "urgente", desc: "Prioridade máxima" },
-                    ].map((item) => (
-                      <button
-                        key={item.key}
-                        type="button"
-                        className={`task-priority-card ${item.tone} ${priority === item.key ? "selected" : ""}`}
-                        onClick={() => setPriority(item.key)}
-                      >
-                        <div className="task-priority-indicator" />
-                        <div className="task-priority-texts">
-                          <strong>{item.label}</strong>
-                          <small>{item.desc}</small>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Observações internas opcionais */}
-              <div className="task-field-group full" style={{ marginTop: "12px" }}>
-                <label htmlFor="task-notes">
-                  <FileText size={13} /> Observações internas / Anotações de apoio (opcional)
+          {/* Section 3: Prioridade e Observações */}
+          <div className="task-compact-card">
+            <div className="task-grid-columns-two-compact">
+              {/* Prioridade */}
+              <div className="task-field-group">
+                <label>
+                  <Flag size={13} /> Prioridade
                 </label>
-                <textarea
+                <div className="task-priority-inline-chips">
+                  {[
+                    { key: "Baixa", label: "Baixa", tone: "baixa" },
+                    { key: "Normal", label: "Normal", tone: "normal" },
+                    { key: "Alta", label: "Alta", tone: "alta" },
+                    { key: "Urgente", label: "Urgente", tone: "urgente" },
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      className={`task-priority-pill ${item.tone} ${priority === item.key ? "selected" : ""}`}
+                      onClick={() => setPriority(item.key)}
+                    >
+                      <span className="task-priority-dot" />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Observações internas */}
+              <div className="task-field-group">
+                <label htmlFor="task-notes">
+                  <FileText size={13} /> Observações / Links (opcional)
+                </label>
+                <input
                   id="task-notes"
-                  rows={2}
-                  placeholder="Anotações de acompanhamento, links externos, telefones úteis..."
+                  type="text"
+                  placeholder="Anotações internas, contatos..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </div>
             </div>
-          </section>
+          </div>
 
           {error && <div className="mg-error">{error}</div>}
 
           <footer className="task-modal-footer">
             <button
               type="button"
-              className="mg-button secondary"
+              className="mg-button secondary task-btn-cancel"
               onClick={onClose}
               disabled={busy}
             >
@@ -478,7 +429,7 @@ function TaskModal({
               className="workspace-primary task-save-submit"
               disabled={busy}
             >
-              {busy ? "Salvando tarefa..." : isNew ? "Criar Tarefa" : "Salvar Alterações"}
+              {busy ? "Salvando..." : isNew ? "Criar Tarefa" : "Salvar Alterações"}
             </button>
           </footer>
         </form>
