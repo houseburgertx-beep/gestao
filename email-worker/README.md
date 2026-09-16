@@ -1,6 +1,6 @@
 # E-mails das notificações
 
-Este Cloudflare Worker recebe notificações autenticadas pelo Firebase, busca os usuários ativos e envia o e-mail por um Google Apps Script da conta HOUSE 190.
+Este Cloudflare Worker recebe notificações autenticadas pelo Firebase e envia o e-mail ao endereço confirmado no token da pessoa conectada, por um Google Apps Script da conta HOUSE 190. Assim, o envio não depende da cota de leitura do Firestore.
 
 ## Configuração
 
@@ -22,4 +22,4 @@ npm run check
 npm run deploy
 ```
 
-O Worker busca os e-mails ativos na coleção `users` do Firebase. A URL e o segredo do Apps Script ficam armazenados como segredos no Cloudflare e não entram no repositório nem no site público.
+O endereço do destinatário vem do token autenticado do Firebase. A URL e o segredo do Apps Script ficam armazenados como segredos no Cloudflare e não entram no repositório nem no site público.

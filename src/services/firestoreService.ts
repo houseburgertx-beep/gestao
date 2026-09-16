@@ -216,14 +216,15 @@ export async function addNotificationToFirestore(
 ): Promise<string> {
   try {
     const colRef = collection(db, "notifications");
-    const docRef = await addDoc(colRef, {
+    const docRef = doc(colRef);
+    const results = await Promise.allSettled([setDoc(docRef, {
       ...notification,
+      id: docRef.id,
       timestamp: notification.timestamp || new Date().toISOString(),
       read: false,
       readBy: [],
-    });
-    await updateDoc(docRef, { id: docRef.id });
-    await sendNotificationEmail(docRef.id, notification);
+    }), sendNotificationEmail(docRef.id, notification)]);
+    results.forEach((result) => { if (result.status === "rejected") console.warn("Falha em um canal de notificação:", result.reason); });
     return docRef.id;
   } catch (error) {
     console.warn("Erro ao salvar notificação:", error);

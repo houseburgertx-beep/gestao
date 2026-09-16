@@ -33,6 +33,8 @@ import {
 } from "@/services/driveService";
 import { backupPayablesSpreadsheet } from "@/services/payablesBackupService";
 import { addNotificationToFirestore } from "@/services/firestoreService";
+import { parseDebtDocument } from "@/domain/management/documentParsing";
+import { readDocumentText } from "@/services/documentTextReader";
 
 function readBrazilianAmount(value: string) {
   const normalized = value.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
@@ -41,11 +43,12 @@ function readBrazilianAmount(value: string) {
 }
 
 function documentFields(text: string, suppliers: RecordData[]) {
+  const parsed = parseDebtDocument(text);
   const compact = text.replace(/\s+/g, " ").trim();
   const lines = text.split(/\r?\n/).map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
   const barcode = compact.match(/(?:\d[ .-]?){44,48}/)?.[0]?.replace(/\D/g, "") || "";
   const supplierDocument = compact.match(/(?:CNPJ|CPF)\s*[:.-]?\s*([\d./-]{11,18})/i)?.[1]?.replace(/\D/g, "") || "";
-  const dateMatch = compact.match(/(?:vencimento|vence em|data de vencimento).{0,35}?(\d{2}[/-]\d{2}[/-]\d{4})/i) || compact.match(/\d{2}[/-]\d{2}[/-]\d{4}/);
+  const dateMatch = compact.match(/(?:vencimento|vence em|data de vencimento).{0,35}?(\d{2}[/-]\d{2}[/-]\d{4})/i);
   const dueDate = dateMatch?.[1] || dateMatch?.[0] || "";
   const valueMatch = compact.match(/(?:valor(?:\s+(?:do\s+)?documento|\s+a\s+pagar)?|total).{0,35}?(R?\$?\s*[\d.]+,\d{2})/i) || compact.match(/R?\$?\s*[\d.]+,\d{2}/);
   const supplier = suppliers.find((item) => {
@@ -57,12 +60,13 @@ function documentFields(text: string, suppliers: RecordData[]) {
   const candidateName = documentLine > 0 ? lines.slice(Math.max(0, documentLine - 3), documentLine).reverse().find((line) => /[A-Za-zÀ-ÿ]{3}/.test(line) && !/banco|agência|beneficiário|pagador|sacado|boleto|nota fiscal/i.test(line)) : "";
   const supplierName = supplier ? str(supplier, "name") : candidateName || "";
   return {
-    documentNumber: barcode,
-    dueDate: dueDate ? dueDate.replace(/(\d{2})[/-](\d{2})[/-](\d{4})/, "$3-$2-$1") : "",
-    amount: valueMatch ? readBrazilianAmount(valueMatch[1] || valueMatch[0]) : 0,
+    documentNumber: parsed.documentNumber || (!parsed.isInvoice ? barcode : ""),
+    dueDate: parsed.dueDate || (dueDate ? dueDate.replace(/(\d{2})[/-](\d{2})[/-](\d{4})/, "$3-$2-$1") : ""),
+    amount: parsed.amount || (!parsed.isInvoice && valueMatch ? readBrazilianAmount(valueMatch[1] || valueMatch[0]) : 0),
     supplier,
-    supplierName,
-    supplierDocument,
+    supplierName: parsed.supplierName || supplierName,
+    supplierDocument: parsed.supplierDocument || supplierDocument,
+    obligationType: parsed.obligationType,
   };
 }
 const fieldDisplay = (r: RecordData, f: Field, db: Database) => {
@@ -500,16 +504,10 @@ export function RecordForm({
   const [scannedSupplier, setScannedSupplier] = useState({ name: "", document: "" });
   const formRef = useRef<HTMLFormElement>(null);
   const scanPayableDocument = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setDocumentReadMessage("Para preencher automaticamente, envie uma foto legível do boleto ou da nota fiscal.");
-      return;
-    }
     setReadingDocument(true);
     setDocumentReadMessage("Lendo documento…");
     try {
-      const { recognize } = await import("tesseract.js");
-      const result = await recognize(file, "por");
-      const found = documentFields(result.data.text, data.suppliers);
+      const found = documentFields(await readDocumentText(file), data.suppliers);
       const form = formRef.current;
       if (!form) return;
       const setValue = (name: string, value: string) => {
@@ -529,11 +527,11 @@ export function RecordForm({
         setScannedSupplier({ name: found.supplierName, document: found.supplierDocument });
         setValue("description", `Documento de ${found.supplierName}`);
       }
-      setValue("obligationType", found.documentNumber ? "Boleto" : "Outros");
+      setValue("obligationType", found.obligationType);
       const filled = [(found.supplier || found.supplierName) && "fornecedor", found.dueDate && "vencimento", found.amount && "valor", found.documentNumber && "código"].filter(Boolean);
       setDocumentReadMessage(filled.length ? `Preenchido automaticamente: ${filled.join(", ")}. Confira antes de salvar.` : "Não encontrei os dados com segurança. Preencha os campos manualmente.");
-    } catch {
-      setDocumentReadMessage("Não foi possível ler esta imagem. Tente uma foto mais nítida, sem reflexos e com todo o boleto visível.");
+    } catch (error) {
+      setDocumentReadMessage(error instanceof Error ? error.message : "Não foi possível ler. Envie uma imagem nítida ou um PDF com texto.");
     } finally {
       setReadingDocument(false);
     }
@@ -589,23 +587,19 @@ export function RecordForm({
       if (savedRows.some((row) => row.kind === "payables")) {
         const dueDate = str(next, "dueDate");
         const today = dateToday();
-        if (dueDate && dueDate <= today) {
-          await addNotificationToFirestore({
+        if (!record || (dueDate && dueDate <= today)) {
+          void addNotificationToFirestore({
             type: str(next, "obligationType") === "Imposto" ? "tax" : "payable",
-            title: dueDate < today ? "Conta já vencida incluída" : "Conta vence hoje",
+            title: dueDate < today ? "Conta já vencida incluída" : dueDate === today ? "Conta vence hoje" : "Nova conta cadastrada",
             message: `${str(next, "description")} · ${currency(Number(next.amount || 0))} · vencimento ${dueDate.split("-").reverse().join("/")}.`,
             link: "/contas-a-pagar/",
-            severity: dueDate < today ? "danger" : "warning",
+            severity: dueDate < today ? "danger" : dueDate === today ? "warning" : "info",
             read: false,
             timestamp: new Date().toISOString(),
           });
         }
-        try {
-          await backupPayablesSpreadsheet(data, savedRows);
-          onSaved("Conta salva e planilha de backup criada no Google Drive.");
-        } catch {
-          onSaved("Conta salva no sistema. O backup em planilha não pôde ser criado agora.");
-        }
+        void backupPayablesSpreadsheet(data, savedRows).catch((error) => console.warn("Backup em planilha pendente:", error));
+        onSaved("Conta salva. E-mail e backup estão sendo processados em segundo plano.");
       } else onSaved();
     } catch (err) {
       const message = err instanceof Error ? `${err.name} ${err.message}` : "";
@@ -721,9 +715,9 @@ export function RecordForm({
             <Paperclip size={20} />
             <span>
               <strong>{readingDocument ? "Lendo o documento…" : "Ler boleto ou nota fiscal"}</strong>
-              <small>{documentReadMessage || "Adicione uma foto nítida. O sistema preencherá fornecedor, vencimento, valor e código automaticamente."}</small>
+              <small>{documentReadMessage || "Adicione um PDF ou foto nítida. Fornecedor, vencimento, valor e número serão preenchidos automaticamente."}</small>
             </span>
-            <b>{readingDocument ? "AGUARDE" : "ESCOLHER FOTO"}</b>
+            <b>{readingDocument ? "AGUARDE" : "ADICIONAR DOCUMENTO"}</b>
             <input name="documentFile" type="file" accept="image/*,.pdf" capture="environment" disabled={readingDocument} onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) scanPayableDocument(file); }} />
           </label>
         )}
@@ -772,8 +766,8 @@ export function RecordForm({
           >
             Cancelar
           </button>
-          <button className="mg-button" disabled={busy}>
-            {busy ? "Salvando…" : "Salvar na nuvem"}
+          <button className="mg-button" disabled={busy || readingDocument}>
+            {readingDocument ? "Lendo documento…" : busy ? "Salvando…" : "Salvar na nuvem"}
           </button>
         </footer>
       </form>

@@ -22,13 +22,6 @@ type NotificationPayload = {
   severity?: "info" | "warning" | "danger" | "success";
 };
 
-type FirestoreDocument = {
-  fields?: {
-    email?: { stringValue?: string };
-    active?: { booleanValue?: boolean };
-  };
-};
-
 type UploadPayload = {
   fileName: string;
   mimeType: string;
@@ -82,7 +75,7 @@ function escapeHtml(value: string): string {
   });
 }
 
-async function verifyFirebaseToken(authorization: string | null): Promise<{ token: string; userId: string }> {
+async function verifyFirebaseToken(authorization: string | null): Promise<{ userId: string; email: string }> {
   if (!authorization?.startsWith("Bearer ")) throw new Error("missing_token");
   const token = authorization.slice(7);
   const { payload } = await jwtVerify(token, FIREBASE_JWKS, {
@@ -90,30 +83,9 @@ async function verifyFirebaseToken(authorization: string | null): Promise<{ toke
     issuer: FIREBASE_ISSUER,
     algorithms: ["RS256"],
   });
-  if (!payload.sub) throw new Error("invalid_subject");
-  return { token, userId: payload.sub };
-}
-
-function emailFromDocument(document: FirestoreDocument): string | null {
-  const email = document.fields?.email?.stringValue?.trim().toLowerCase();
-  if (!email || document.fields?.active?.booleanValue === false) return null;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
-}
-
-async function fetchRecipients(token: string, userId: string): Promise<string[]> {
-  const baseUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/users`;
-  const headers = { Authorization: `Bearer ${token}` };
-  const listResponse = await fetch(`${baseUrl}?pageSize=100`, { headers });
-  if (listResponse.ok) {
-    const result = (await listResponse.json()) as { documents?: FirestoreDocument[] };
-    const emails = (result.documents || []).map(emailFromDocument).filter((email): email is string => Boolean(email));
-    if (emails.length) return Array.from(new Set(emails)).slice(0, 50);
-  }
-  const ownResponse = await fetch(`${baseUrl}/${encodeURIComponent(userId)}`, { headers });
-  if (!ownResponse.ok) throw new Error("recipients_unavailable");
-  const ownEmail = emailFromDocument((await ownResponse.json()) as FirestoreDocument);
-  if (!ownEmail) throw new Error("recipient_unavailable");
-  return [ownEmail];
+  const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
+  if (!payload.sub || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("invalid_identity");
+  return { userId: payload.sub, email };
 }
 
 async function callGoogleScript(env: EmailEnv, body: object): Promise<Record<string, unknown>> {
@@ -193,7 +165,7 @@ export default {
     const maxRequestSize = url.pathname === "/files/upload" ? 11250000 : 8192;
     if (contentLength > maxRequestSize) return jsonResponse({ error: "payload_too_large" }, 413, origin);
 
-    let verifiedUser: { token: string; userId: string };
+    let verifiedUser: { userId: string; email: string };
     try {
       verifiedUser = await verifyFirebaseToken(request.headers.get("Authorization"));
     } catch {
@@ -206,7 +178,7 @@ export default {
     try {
       if (url.pathname === "/notifications/email") {
         if (!isValidNotification(payload)) return jsonResponse({ error: "invalid_payload" }, 400, origin);
-        const recipients = await fetchRecipients(verifiedUser.token, verifiedUser.userId);
+        const recipients = [verifiedUser.email];
         await sendEmail(env, payload, recipients);
         console.log(JSON.stringify({ event: "email_sent", eventId: payload.eventId, userId: verifiedUser.userId, recipients: recipients.length }));
         return jsonResponse({ ok: true }, 200, origin);

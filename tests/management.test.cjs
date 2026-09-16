@@ -14,6 +14,17 @@ require.extensions[".ts"] = (module, filename) =>
     }).outputText,
     filename,
   );
+test("NF-e OESA reconhece a duplicata e não confunde produtos ou chave com boleto", () => {
+  const { parseDebtDocument } = require("../src/domain/management/documentParsing.ts");
+  const result = parseDebtDocument("Recebemos de OESA COMERCIO E REPRESENTACOES SA os produtos constantes na Nota Fiscal Eletrônica NF-e Nº: 177985 Emissão: 01/09/2026 DANFE CHAVE DE ACESSO 2926.0981.6119.3100.4549.5500.1000.1779.8515.3531.8567 CNPJ/CPF 81.611.931/0045-49 DESTINATÁRIO/REMETENTE A.M. GOURMET 42.549.171/0001-14 FATURAS DUPLICATAS FATURA VALOR ORIGINAL VALOR DESCONTO VALOR LÍQUIDO DUPLICATA VENCIMENTO VALOR 177985 1.705,09 0,00 1.705,09 001 22/09/2026 1.705,09 CÁLCULO DE IMPOSTO VALOR TOTAL DOS PRODUTOS 1.685,60");
+  assert.equal(result.supplierName, "OESA COMERCIO E REPRESENTACOES SA");
+  assert.equal(result.supplierDocument, "81.611.931/0045-49");
+  assert.equal(result.amount, 170509);
+  assert.equal(result.dueDate, "2026-09-22");
+  assert.equal(result.documentNumber, "NF-e 177985");
+  assert.equal(result.obligationType, "Débito");
+  assert.equal(parseDebtDocument("NF-e Nº: Série: Emissão: 177985 1 01/09/2026 DANFE").documentNumber, "NF-e 177985");
+});
 const {
   calculate,
   isCovered,

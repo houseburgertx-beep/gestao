@@ -9,7 +9,7 @@ export async function sendNotificationEmail(
   notification: Omit<AppNotification, "id">
 ): Promise<void> {
   const user = auth.currentUser;
-  if (!user) return;
+  if (!user) throw new Error("Faça login para enviar a notificação por e-mail.");
 
   try {
     const token = await user.getIdToken();
@@ -29,9 +29,10 @@ export async function sendNotificationEmail(
     });
 
     if (!response.ok) {
-      console.warn("O e-mail da notificação não pôde ser enviado.");
+      throw new Error(`Falha no envio de e-mail (${response.status}).`);
     }
   } catch (error) {
     console.warn("Serviço de e-mail temporariamente indisponível.", error);
+    throw error;
   }
 }
