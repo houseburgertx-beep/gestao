@@ -131,7 +131,14 @@ async function callGoogleScript(env: EmailEnv, body: object): Promise<Record<str
     if (destination.protocol !== "https:" || destination.hostname !== "script.googleusercontent.com") {
       throw new Error("google_script_invalid_response");
     }
-    response = await fetch(destination.toString(), { method: "GET", redirect: "manual" });
+    // ContentService can briefly return 404 while its response becomes available.
+    // Retry only the read: repeating the POST could create files or send emails twice.
+    for (let attempt = 0; attempt < 4; attempt++) {
+      response = await fetch(destination.toString(), { method: "GET", redirect: "manual", headers: { "Cache-Control": "no-cache" } });
+      if (![404, 429, 500, 502, 503, 504].includes(response.status) || attempt === 3) break;
+      await response.body?.cancel();
+      await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
+    }
   }
   if (!response.ok) throw new Error(`google_script_http_${response.status}`);
   const text = await response.text();

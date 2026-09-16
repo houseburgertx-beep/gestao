@@ -28,6 +28,22 @@ test("Apps Script: o redirecionamento busca a resposta por GET sem repetir o env
   assert.equal(calls[1].init.method, "GET");
   assert.equal(calls[1].init.body, undefined);
 });
+test("Apps Script: recupera 404 temporário lendo novamente sem duplicar o POST", async () => {
+  const worker = fs.readFileSync(path.join(__dirname, "../email-worker/src/index.ts"), "utf8");
+  const source = worker.slice(worker.indexOf("async function callGoogleScript("), worker.indexOf("async function sendEmail("));
+  const compiled = ts.transpileModule(source, {compilerOptions: {target: ts.ScriptTarget.ES2020}}).outputText;
+  const calls = [];
+  const call = new Function("fetch", "setTimeout", compiled + ";return callGoogleScript;")(async (url, init) => {
+    calls.push(init);
+    if (calls.length === 1) return new Response(null, {status:302,headers:{Location:"https://script.googleusercontent.com/macros/echo?test=1"}});
+    if (calls.length < 4) return new Response("Unavailable", {status:404});
+    return Response.json({ok:true,fileId:"saved-file"});
+  }, (callback) => callback());
+  assert.equal((await call({GOOGLE_SCRIPT_URL:"https://script.google.com/macros/s/test/exec",GOOGLE_SCRIPT_SECRET:"test"},{action:"upload"})).fileId,"saved-file");
+  assert.equal(calls.filter(c => c.method === "POST").length,1);
+  assert.equal(calls.filter(c => c.method === "GET").length,3);
+  assert.ok(calls.slice(1).every(c => !c.body));
+});
 require.extensions[".ts"] = (module, filename) =>
   module._compile(
     ts.transpileModule(fs.readFileSync(filename, "utf8"), {
