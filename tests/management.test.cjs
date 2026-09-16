@@ -4,6 +4,15 @@ const fs = require("node:fs");
 const ts = require("typescript");
 const Module = require("node:module");
 const path = require("node:path");
+test("E-mails: operador excluído; gerente recebe apenas nova tarefa da própria unidade", () => {
+  const source = ts.transpileModule(fs.readFileSync(path.join(__dirname,"../email-worker/src/recipients.ts"),"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+  const module={exports:{}};new Function("module","exports",source)(module,module.exports);
+  const users=[{id:"1",email:"admin@example.com",role:"admin",active:true},{id:"2",email:"finance@example.com",role:"accountant",active:true},{id:"3",email:"manager@example.com",role:"manager",unitId:"teixeira",active:true},{id:"4",email:"operator@example.com",role:"operator",unitId:"teixeira",active:true},{id:"5",email:"inactive@example.com",role:"admin",active:false}];
+  assert.deepEqual(module.exports.recipientsFor(users,{kind:"cash_closing"}),["admin@example.com","finance@example.com"]);
+  assert.deepEqual(module.exports.recipientsFor(users,{kind:"task_created",unitId:"teixeira"}),["admin@example.com","finance@example.com","manager@example.com"]);
+  assert.deepEqual(module.exports.recipientsFor(users,{kind:"task_completed",unitId:"teixeira"}),["admin@example.com","finance@example.com"]);
+  assert.deepEqual(module.exports.recipientsFor(users,{kind:"task_created",unitId:"foodpark"}),["admin@example.com","finance@example.com"]);
+});
 test("Apps Script: o redirecionamento busca a resposta por GET sem repetir o envio", async () => {
   const worker = fs.readFileSync(path.join(__dirname, "../email-worker/src/index.ts"), "utf8");
   const functionSource = worker.slice(worker.indexOf("async function callGoogleScript("), worker.indexOf("async function sendEmail("));

@@ -9,6 +9,8 @@ import { UnitProvider } from "@/contexts/UnitContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
+import { EmployeeDeadlineAlerts } from "@/components/layout/EmployeeDeadlineAlerts";
+import { EmailDirectorySync } from "@/components/layout/EmailDirectorySync";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Drawer } from "@/components/ui/Drawer";
 import { AuthModal } from "@/components/layout/AuthModal";
@@ -66,6 +68,8 @@ function ProtectedShell({
 
   return (
     <ManagementProvider><UnitProvider>
+            <EmployeeDeadlineAlerts />
+            <EmailDirectorySync />
             {/* Desktop Fixed Sidebar */}
             <Sidebar />
 

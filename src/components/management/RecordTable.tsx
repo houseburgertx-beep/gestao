@@ -313,8 +313,7 @@ export function RecordTable({
                           }
                           if (!confirm("Excluir esta conta do painel? O histórico e o anexo serão preservados.")) return;
                           try {
-                            const source = r.sourceKind ? data[str(r, "sourceKind")]?.find((item) => item.id === r.sourceId) || r : r;
-                            const rows = await saveManagement({...source, updatedBy:user.uid, updatedAt:new Date().toISOString()}, data, true);
+                            const rows = await saveManagement({...r, updatedBy:user.uid, updatedAt:new Date().toISOString()}, data, true);
                             void backupPayablesSpreadsheet(data, rows).catch(console.warn);
                             setMessage("Conta excluída. Histórico preservado.");
                           } catch (error) { setMessage(error instanceof Error ? error.message : "Não foi possível excluir. A conta foi mantida."); }
@@ -604,6 +603,7 @@ export function RecordForm({
           void addNotificationToFirestore({
             type: str(next, "obligationType") === "Imposto" ? "tax" : "payable",
             title: dueDate < today ? "Conta já vencida incluída" : dueDate === today ? "Conta vence hoje" : "Nova conta cadastrada",
+            details: [{label:"Conta",value:str(next,"description")},{label:"Fornecedor",value:String(data.suppliers.find((item) => item.id === next.supplierId)?.name || scannedSupplier.name || "DADO PENDENTE")},{label:"Valor",value:currency(Number(next.amount || 0))},{label:"Vencimento",value:dueDate.split("-").reverse().join("/") || "DADO PENDENTE"},{label:"Unidade",value:String(data.units.find((item) => item.id === next.unitId)?.name || "DADO PENDENTE")}],
             message: `${str(next, "description")} · ${currency(Number(next.amount || 0))} · vencimento ${dueDate.split("-").reverse().join("/")}.`,
             link: "/contas-a-pagar/",
             severity: dueDate < today ? "danger" : dueDate === today ? "warning" : "info",

@@ -225,6 +225,7 @@ export async function addNotificationToFirestore(
       readBy: [],
     }), sendNotificationEmail(docRef.id, notification)]);
     results.forEach((result) => { if (result.status === "rejected") console.warn("Falha em um canal de notificação:", result.reason); });
+    if (results[1].status === "rejected") return "";
     return docRef.id;
   } catch (error) {
     console.warn("Erro ao salvar notificação:", error);

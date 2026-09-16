@@ -634,6 +634,7 @@ class DataStore {
     this.addNotification({
       type: "vacation",
       title: "Novo colaborador cadastrado",
+      details: [{label:"Funcionário",value:newEmp.name},{label:"Cargo",value:newEmp.role},{label:"Unidade",value:newEmp.unitId}],
       message: `${newEmp.name} foi adicionado(a) como ${newEmp.role}.`,
       link: "/rh",
       severity: "success",
@@ -709,18 +710,19 @@ class DataStore {
     this.set(STORAGE_KEYS.DOCS, item.archived ? documents : [item, ...documents]);
   }
 
-  addDocument(doc: Omit<DocumentItem, "id" | "uploadDate">): DocumentItem {
+  async addDocument(doc: Omit<DocumentItem, "id" | "uploadDate">): Promise<DocumentItem> {
     const docs = this.getDocuments();
     const newDoc: DocumentItem = {
       ...doc,
       id: `doc-${Date.now()}`,
       uploadDate: new Date().toISOString().split("T")[0],
     };
+    await saveDocumentToFirestore(newDoc);
     this.set(STORAGE_KEYS.DOCS, [newDoc, ...docs]);
-    saveDocumentToFirestore(newDoc).catch(() => {});
     this.addNotification({
       type: "doc",
       title: "Documento salvo no Drive",
+      details: [{label:"Documento",value:doc.title},{label:"Unidade",value:doc.unitId === "all" ? "Todas as unidades" : doc.unitId},{label:"Arquivo",value:doc.originalFileName || doc.title},{label:"Armazenamento",value:"Google Drive"}],
       message: `${doc.originalFileName || doc.title} foi salvo na pasta Documentos e já está disponível no painel.`,
       link: "/documentos",
       severity: "success",

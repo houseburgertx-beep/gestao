@@ -295,6 +295,9 @@ export interface ActivityLog {
 }
 
 export interface AppNotification {
+  eventKind?: string;
+  unitId?: string;
+  details?: { label: string; value: string }[];
   id: string;
   type: 'payable' | 'approval' | 'tax' | 'task' | 'goal' | 'vacation' | 'doc';
   title: string;

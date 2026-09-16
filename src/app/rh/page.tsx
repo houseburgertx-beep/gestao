@@ -124,7 +124,20 @@ export default function RhPage() {
   );
 }
 
-function EmployeeFiles({employee,documents,onSaved}:{employee:Employee;documents:DocumentItem[];onSaved:()=>void}){const [busy,setBusy]=useState(false);return <section><h3>Documentos do funcionário</h3><label className="employee-file-upload"><Upload size={15}/><span>{busy?"Salvando no Drive…":"Enviar documento"}</span><input type="file" className="sr-only" disabled={busy} onChange={async e=>{const file=e.target.files?.[0];if(!file)return;setBusy(true);try{const saved=await uploadFileToDrive(nameFileForDrive(file,`${employee.name} - documento`),"documents");store.addDocument({title:file.name,category:"employees",unitId:employee.unitId,employeeId:employee.id,size:formatFileSize(saved.size),format:file.name.split(".").pop()||"arquivo",url:`drive:${saved.fileId}`,driveFileId:saved.fileId,originalFileName:saved.fileName,mimeType:saved.mimeType,tags:["Funcionário","Google Drive"]});onSaved();}finally{setBusy(false);}}}/></label>{documents.length?documents.map(doc=><button className="employee-document" key={doc.id} onClick={()=>doc.driveFileId&&downloadFileFromDrive(doc.driveFileId,doc.originalFileName||doc.title)}><FileText size={14}/><span>{doc.title}</span><Download size={13}/></button>):<p>Nenhum documento enviado.</p>}</section>}
+function EmployeeFiles({employee,documents,onSaved}:{employee:Employee;documents:DocumentItem[];onSaved:()=>void}) {
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState("");
+  return <section><h3>Documentos do funcionário</h3><label className="employee-file-upload"><Upload size={15}/><span>{busy?"Salvando no Drive…":"Enviar documento"}</span><input type="file" className="sr-only" disabled={busy} onChange={async e=>{
+    const file=e.target.files?.[0];if(!file)return;
+    setBusy(true);setError("");
+    try {
+      const saved=await uploadFileToDrive(nameFileForDrive(file,`${employee.name} - documento`),"documents");
+      await store.addDocument({title:file.name,category:"employees",unitId:employee.unitId,employeeId:employee.id,size:formatFileSize(saved.size),format:file.name.split(".").pop()||"arquivo",url:`drive:${saved.fileId}`,driveFileId:saved.fileId,originalFileName:saved.fileName,mimeType:saved.mimeType,tags:["Funcionário","Google Drive"]});
+      onSaved();
+    } catch (cause) { setError(cause instanceof Error?cause.message:"Não foi possível salvar o documento."); }
+    finally {setBusy(false);}
+  }}/></label>{error&&<p className="text-rose-600" role="alert">{error}</p>}{documents.length?documents.map(doc=><button className="employee-document" key={doc.id} onClick={()=>doc.driveFileId&&downloadFileFromDrive(doc.driveFileId,doc.originalFileName||doc.title)}><FileText size={14}/><span>{doc.title}</span><Download size={13}/></button>):<p>Nenhum documento enviado.</p>}</section>;
+}
 
 function Metric({ icon: Icon, tone, label, value, compact = false }: { icon: typeof UsersRound; tone: string; label: string; value: string; compact?: boolean }) {
   return <div className={`workspace-metric ${tone}`}><span><Icon size={18} /></span><div><small>{label}</small><strong className={compact ? "compact" : ""}>{value}</strong></div></div>;

@@ -84,7 +84,7 @@ export default function DocumentosPage() {
       const driveFile = nameFileForDrive(selectedFile, newTitle);
       const stored = await uploadFileToDrive(driveFile, "documents");
       const extension = selectedFile.name.split(".").pop()?.toLowerCase() || "arquivo";
-      store.addDocument({
+      await store.addDocument({
         title: newTitle,
         category: newCategory,
         unitId: currentUnit === "all" ? "all" : currentUnit,

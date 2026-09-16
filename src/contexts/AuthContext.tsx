@@ -140,6 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       try {
         await setDoc(doc(db, "users", cred.user.uid), newProfile);
+        window.dispatchEvent(new Event("house190-users-updated"));
       } catch (error) {
         await deleteUser(cred.user).catch(() => {});
         throw error;
