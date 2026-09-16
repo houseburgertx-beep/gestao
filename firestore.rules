@@ -112,11 +112,19 @@ service cloud.firestore {
           || (userProfile().role == 'manager' && name in ['gestao_actions','gestao_goals','gestao_revenues','gestao_sales'] && data.unitId == userProfile().unitId)
           || (userProfile().role == 'operator' && name == 'gestao_cashClosings' && data.unitId == userProfile().unitId));
     }
-    function writer(name) {
+    function operatorPixRequest(name, data) {
+      return userProfile().role == 'operator' && name == 'gestao_payables'
+        && data.unitId == userProfile().unitId
+        && data.get('sourceId', '') != ''
+        && data.get('paymentMethod', '') == 'PIX'
+        && data.get('status', '') == 'Pendente';
+    }
+    function writer(name, data) {
       return (name in ['gestao_policies', 'gestao_companies', 'gestao_brands', 'gestao_units'] ? adminUser()
         : directorOrAccountant()
           || (userProfile().role == 'manager' && name == 'gestao_actions')
-          || (userProfile().role == 'operator' && name == 'gestao_cashClosings'));
+          || (userProfile().role == 'operator' && name == 'gestao_cashClosings')
+          || operatorPixRequest(name, data));
     }
     function recordMonth(data) {
       return data.get('competence', '') != '' ? data.competence
@@ -138,7 +146,7 @@ service cloud.firestore {
       return !('amount' in data) || data.amount == null || (data.amount is int && data.amount >= 0);
     }
     function validManagement(name, id, data) {
-      return managementCollection(name) && canReadManagement(name, data) && writer(name)
+      return managementCollection(name) && (canReadManagement(name, data) || operatorPixRequest(name, data)) && writer(name, data)
         && data.id == id && name == 'gestao_' + data.kind
         && data.updatedBy == request.auth.uid && data.version is int
         && validUnit(name, data) && validMoney(data) && openPeriod(name, data);
