@@ -874,6 +874,45 @@ export function RecordTable({
                           >
                             <Pencil size={13} /> Editar
                           </button>
+                          {canWrite && !r.obligationId && (
+                            <button
+                              className="mg-button danger"
+                              title={kind === "suppliers" ? "Excluir fornecedor" : "Excluir registro"}
+                              onClick={async () => {
+                                if (!user) return;
+                                if (kind === "suppliers") {
+                                  const linked = (data.payables || []).filter(
+                                    (p) => !p.archived && p.supplierId === r.id
+                                  );
+                                  if (linked.length > 0) {
+                                    const hasOpen = linked.some(
+                                      (p) => outstanding(p, data, filters.today) > 0
+                                    );
+                                    if (hasOpen) {
+                                      alert(
+                                        `Não é possível excluir o fornecedor "${r.name}": existem ${linked.length} conta(s) vinculadas, sendo que algumas ainda estão em aberto. Remova ou quite as contas antes de excluir.`
+                                      );
+                                      return;
+                                    }
+                                  }
+                                }
+                                const name = r.name || r.description || "este registro";
+                                if (!confirm(`Tem certeza que deseja excluir "${name}"?`)) return;
+                                try {
+                                  await saveManagement(
+                                    { ...r, archived: true, updatedBy: user.uid, updatedAt: new Date().toISOString() },
+                                    data,
+                                    true
+                                  );
+                                  setMessage(`"${name}" foi excluído com sucesso.`);
+                                } catch (error) {
+                                  setMessage(error instanceof Error ? error.message : "Não foi possível excluir.");
+                                }
+                              }}
+                            >
+                              <Trash2 size={13} /> Excluir
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1343,6 +1382,61 @@ export function RecordForm({
             {error && <div className="mg-error">{error}</div>}
 
             <footer className="task-modal-footer">
+              {record && (
+                <button
+                  type="button"
+                  className="mg-button danger"
+                  style={{
+                    marginRight: "auto",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "#fef2f2",
+                    color: "#dc2626",
+                    border: "1px solid #fecaca",
+                    padding: "9px 14px",
+                    borderRadius: "8px",
+                    fontWeight: 600,
+                    fontSize: "13px",
+                    cursor: "pointer",
+                  }}
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!user) return;
+                    const linked = (data.payables || []).filter(
+                      (p) => !p.archived && p.supplierId === record.id
+                    );
+                    if (linked.length > 0) {
+                      const hasOpen = linked.some(
+                        (p) => outstanding(p, data, dateToday()) > 0
+                      );
+                      if (hasOpen) {
+                        alert(
+                          `Não é possível excluir o fornecedor "${record.name}": existem ${linked.length} conta(s) vinculadas, sendo que algumas ainda estão em aberto. Remova ou quite as contas antes de excluir.`
+                        );
+                        return;
+                      }
+                    }
+                    if (!confirm(`Tem certeza que deseja excluir o fornecedor "${record.name}"?`)) return;
+                    setBusy(true);
+                    try {
+                      await saveManagement(
+                        { ...record, archived: true, updatedBy: user.uid, updatedAt: new Date().toISOString() },
+                        data,
+                        true
+                      );
+                      onSaved(`Fornecedor "${record.name}" excluído.`);
+                      onClose();
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Erro ao excluir.");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  <Trash2 size={13} /> Excluir Fornecedor
+                </button>
+              )}
               <button
                 type="button"
                 className="mg-button secondary task-btn-cancel"

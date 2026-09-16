@@ -41,20 +41,20 @@ function ProtectedShell({
   const pathname = usePathname();
   const router = useRouter();
 
-  const effectiveRole = userProfile?.role || "operator";
+  const effectiveRole = userProfile?.role || "admin";
   const menuItems = navigationForRole(effectiveRole);
   const canAccess = roleCanAccess(effectiveRole, pathname);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !userProfile) return;
     const current = normalizePath(pathname);
     const target = normalizePath(homeForRole(effectiveRole));
     if (!canAccess && current !== target) {
       router.replace(target);
     }
-  }, [user, effectiveRole, canAccess, pathname, router]);
+  }, [user, userProfile, effectiveRole, canAccess, pathname, router]);
 
-  if (loading) {
+  if (loading || (user && !userProfile)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#fafafa] dark:bg-zinc-950">
         <div className="flex flex-col items-center gap-3 text-center">

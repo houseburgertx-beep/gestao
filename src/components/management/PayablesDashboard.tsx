@@ -259,16 +259,17 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
         </div>
         <div className="payables-hero-actions">
           <button
-            className="mg-button-fixed"
+            className="payables-hero-btn-fixed"
             onClick={() => window.dispatchEvent(new CustomEvent("open-fixed-expense-form"))}
+            title="Lançar conta ou despesa fixa recorrente"
           >
             <Repeat size={16} /> Lançar Despesa Fixa
           </button>
-          <button className="workspace-secondary" onClick={() => setInstantOpen(true)}>
-            <ReceiptText size={17} /> Pagamento instantâneo
+          <button className="payables-hero-btn-instant" onClick={() => setInstantOpen(true)} title="Registrar baixa rápida">
+            <ReceiptText size={16} /> Pagamento instantâneo
           </button>
-          <button className="payables-backup-button" onClick={createBackup} disabled={backingUp}>
-            <FileSpreadsheet size={18} /> {backingUp ? "Criando…" : "Gerar backup agora"}
+          <button className="payables-hero-btn-backup" onClick={createBackup} disabled={backingUp} title="Sincronizar planilha no Google Drive">
+            <FileSpreadsheet size={16} /> {backingUp ? "Criando…" : "Gerar backup agora"}
           </button>
         </div>
       </section>

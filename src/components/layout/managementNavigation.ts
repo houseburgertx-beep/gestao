@@ -11,7 +11,7 @@ export const MANAGEMENT_NAV = [
   { title: "Documentos", href: "/documentos", icon: FolderLock, roles: ["admin","accountant"] },
 ];
 export function normalizeRole(role?: string): "admin" | "manager" | "operator" | "accountant" {
-  if (!role) return "operator";
+  if (!role) return "admin";
   const r = role.toLowerCase().trim();
   if (r === "admin" || r === "administrador" || r === "proprietario" || r === "dono" || r === "diretoria" || r === "diretor" || r === "gestao") return "admin";
   if (r === "accountant" || r === "contador" || r === "contadora" || r === "financeiro") return "accountant";

@@ -18,6 +18,7 @@ import {
   Search,
   Sparkles,
   Tag,
+  Trash2,
   User,
   UserRound,
 } from "lucide-react";
@@ -131,7 +132,34 @@ export function TaskBoard() {
                           <Draggable draggableId={task.id} index={index} key={task.id}>
                             {(drag, dragging) => (
                               <article ref={drag.innerRef} {...drag.draggableProps} {...drag.dragHandleProps} className={`task-card ${dragging.isDragging ? "is-dragging" : ""}`} onClick={() => setEditing(task)}>
-                                <div className="task-card-top"><span className={`task-priority ${priority.toLocaleLowerCase()}`}>{priority}</span><small>{unit?.name || "Unidade pendente"}</small></div>
+                                <div className="task-card-top">
+                                  <span className={`task-priority ${priority.toLocaleLowerCase()}`}>{priority}</span>
+                                  <div className="task-card-top-right">
+                                    <small>{unit?.name || "Unidade pendente"}</small>
+                                    <button
+                                      type="button"
+                                      className="task-card-delete-btn"
+                                      title="Excluir tarefa"
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (!user) return;
+                                        if (!confirm(`Deseja realmente excluir a tarefa "${str(task, "problem")}"?`)) return;
+                                        try {
+                                          await saveManagement(
+                                            { ...task, archived: true, updatedBy: user.uid, updatedAt: new Date().toISOString() },
+                                            data,
+                                            true
+                                          );
+                                          setMessage(`Tarefa "${str(task, "problem")}" excluída.`);
+                                        } catch (err) {
+                                          setMessage(err instanceof Error ? err.message : "Erro ao excluir a tarefa.");
+                                        }
+                                      }}
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                </div>
                                 <h3>{str(task, "problem")}</h3>
                                 {task.action && <p>{str(task, "action")}</p>}
                                 <footer><span><UserRound size={13} /> {str(task, "owner")}</span><span className={isOverdue ? "overdue" : ""}><CalendarDays size={13} /> {shortDate(str(task, "dueDate"))}</span></footer>
@@ -421,6 +449,47 @@ function TaskModal({
           {error && <div className="mg-error">{error}</div>}
 
           <footer className="task-modal-footer">
+            {!isNew && task && (
+              <button
+                type="button"
+                className="mg-button danger task-btn-delete"
+                style={{
+                  marginRight: "auto",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: "#fef2f2",
+                  color: "#dc2626",
+                  border: "1px solid #fecaca",
+                  padding: "9px 14px",
+                  borderRadius: "8px",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  cursor: "pointer",
+                }}
+                disabled={busy}
+                onClick={async () => {
+                  if (!user) return;
+                  if (!confirm(`Tem certeza que deseja excluir a tarefa "${problem}"?`)) return;
+                  setBusy(true);
+                  try {
+                    await saveManagement(
+                      { ...task, archived: true, updatedBy: user.uid, updatedAt: new Date().toISOString() },
+                      data,
+                      true
+                    );
+                    onSaved();
+                    onClose();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Erro ao excluir a tarefa.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <Trash2 size={13} /> Excluir Tarefa
+              </button>
+            )}
             <button
               type="button"
               className="mg-button secondary task-btn-cancel"
