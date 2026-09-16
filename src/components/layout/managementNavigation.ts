@@ -10,6 +10,31 @@ export const MANAGEMENT_NAV = [
   { title: "Equipe", href: "/rh", icon: Users, roles: ["admin","accountant"] },
   { title: "Documentos", href: "/documentos", icon: FolderLock, roles: ["admin","accountant"] },
 ];
-export const navigationForRole=(role?:string)=>MANAGEMENT_NAV.filter(item=>!role||item.roles.includes(role));
-export function homeForRole(role?:string){return role==="manager"?"/faturamento":role==="operator"?"/fechamento-caixa":"/"}
-export function roleCanAccess(role:string|undefined,pathname:string){if(role==="admin"||role==="accountant")return true;if(role==="manager")return pathname.startsWith("/tarefas")||pathname.startsWith("/faturamento")||pathname.startsWith("/integracoes/takeat");if(role==="operator")return pathname.startsWith("/fechamento-caixa");return false}
+export const navigationForRole = (role?: string) =>
+  MANAGEMENT_NAV.filter((item) => !role || item.roles.includes(role));
+
+export function homeForRole(role?: string) {
+  return role === "manager"
+    ? "/faturamento"
+    : role === "operator"
+      ? "/fechamento-caixa"
+      : "/";
+}
+
+export function normalizePath(pathname?: string | null): string {
+  if (!pathname) return "/";
+  let clean = pathname.replace(/^\/gestao/, "");
+  if (!clean.startsWith("/")) clean = "/" + clean;
+  return clean;
+}
+
+export function roleCanAccess(role: string | undefined, pathname: string) {
+  if (!role) return false;
+  if (role === "admin" || role === "accountant") return true;
+  const path = normalizePath(pathname);
+  if (role === "manager")
+    return path.startsWith("/tarefas") || path.startsWith("/faturamento") || path.startsWith("/integracoes/takeat");
+  if (role === "operator")
+    return path.startsWith("/fechamento-caixa");
+  return false;
+}
