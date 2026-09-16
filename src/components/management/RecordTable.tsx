@@ -404,12 +404,12 @@ export function RecordTable({
             <table className="mg-table mg-table-payables">
               <thead>
                 <tr>
-                  <th style={{ width: "120px" }}>Vencimento</th>
+                  <th style={{ width: "110px", minWidth: "110px" }}>Vencimento</th>
                   <th>Conta / Descrição</th>
-                  <th style={{ width: "140px" }}>Unidade</th>
-                  <th style={{ width: "125px", textAlign: "right" }}>Valor</th>
-                  <th style={{ width: "120px", textAlign: "center" }}>Status</th>
-                  <th style={{ width: "190px", textAlign: "right" }}>Ações</th>
+                  <th style={{ width: "135px", minWidth: "135px" }}>Unidade</th>
+                  <th style={{ width: "125px", minWidth: "125px", textAlign: "right" }}>Valor</th>
+                  <th style={{ width: "115px", minWidth: "115px", textAlign: "center" }}>Status</th>
+                  <th style={{ width: "220px", minWidth: "220px", textAlign: "right" }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -459,12 +459,12 @@ export function RecordTable({
                             )}
                           </div>
                         </td>
-                        <td style={{ textAlign: "center" }}>
+                        <td className="payables-cell-status">
                           <span className={`mg-status-badge ${statusClass}`}>
                             {statusText}
                           </span>
                         </td>
-                        <td style={{ textAlign: "right" }}>
+                        <td className="payables-cell-actions">
                           <div className="payables-actions-cluster">
                             {r.documentFileId && (
                               <button

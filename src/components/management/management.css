@@ -1403,12 +1403,13 @@
 /* Payables Table & Cells */
 .mg-table-payables {
   width: 100%;
-  table-layout: fixed;
+  min-width: 960px;
+  table-layout: auto;
   border-collapse: separate;
   border-spacing: 0;
 }
 .mg-table-payables th {
-  padding: 10px 14px;
+  padding: 10px 16px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -1416,13 +1417,24 @@
   color: #64748b;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
 }
 .mg-table-payables td {
-  padding: 12px 14px;
+  padding: 12px 16px;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
-  white-space: normal;
+  white-space: nowrap;
   transition: background 0.15s ease;
+}
+.mg-table-payables td.payables-cell-status {
+  text-align: center;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.mg-table-payables td.payables-cell-actions {
+  text-align: right;
+  padding-left: 12px;
+  padding-right: 16px;
 }
 .payables-row:hover td {
   background: #fbfcfe;
