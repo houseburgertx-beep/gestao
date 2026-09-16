@@ -8,7 +8,7 @@ import {
   monthEnd,
   cents,
 } from "@/domain/management/model";
-import { saveManagement, subscribeManagement } from "@/services/managementService";
+import { flushManagementQueue, saveManagement, subscribeManagement } from "@/services/managementService";
 import { store } from "@/services/store";
 import { persistTakeatReports, subscribeTakeatReports } from "@/services/takeatManagementService";
 import type { RecordData } from "@/domain/management/model";
@@ -123,6 +123,20 @@ export function ManagementProvider({
       },
     );
   }, [user?.uid, userProfile?.role, tenantId, allowedUnit, revision]);
+  useEffect(() => {
+    if (!user || pending.length) return;
+    const syncPending = () => {
+      flushManagementQueue(data).then((saved) => { if (saved) setRevision((value) => value + 1); }).catch(() => {});
+    };
+    const timer = window.setTimeout(syncPending, 1500);
+    const interval = window.setInterval(syncPending, 15 * 60 * 1000);
+    window.addEventListener("online", syncPending);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(interval);
+      window.removeEventListener("online", syncPending);
+    };
+  }, [user?.uid, pending.length, revision]);
   useEffect(() => {
     if(!user || !userProfile || !allowedUnit) return;
     let stopped=false;

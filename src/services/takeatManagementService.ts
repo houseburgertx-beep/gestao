@@ -30,6 +30,10 @@ export async function persistTakeatReports(records:TakeatRevenueRecord[], tenant
    tx.set(ref,values);
   });
   transfers.set(transferKey,transfer);
-  try { await transfer; transferred.add(transferKey); } finally { transfers.delete(transferKey); }
+  try { await transfer; transferred.add(transferKey); }
+  catch (error) {
+   if(error instanceof Error && /quota|resource-exhausted/i.test(`${error.name} ${error.message}`)) transferred.add(transferKey);
+   throw error;
+  } finally { transfers.delete(transferKey); }
  }
 }

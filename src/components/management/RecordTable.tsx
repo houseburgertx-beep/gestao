@@ -21,6 +21,7 @@ import {
 } from "@/domain/management/engine";
 import {
   saveManagement,
+  queueManagementRecord,
   commitRecords,
   reverseSettlement,
 } from "@/services/managementService";
@@ -41,19 +42,27 @@ function readBrazilianAmount(value: string) {
 
 function documentFields(text: string, suppliers: RecordData[]) {
   const compact = text.replace(/\s+/g, " ").trim();
+  const lines = text.split(/\r?\n/).map((line) => line.replace(/\s+/g, " ").trim()).filter(Boolean);
   const barcode = compact.match(/(?:\d[ .-]?){44,48}/)?.[0]?.replace(/\D/g, "") || "";
+  const supplierDocument = compact.match(/(?:CNPJ|CPF)\s*[:.-]?\s*([\d./-]{11,18})/i)?.[1]?.replace(/\D/g, "") || "";
   const dateMatch = compact.match(/(?:vencimento|vence em|data de vencimento).{0,35}?(\d{2}[/-]\d{2}[/-]\d{4})/i) || compact.match(/\d{2}[/-]\d{2}[/-]\d{4}/);
   const dueDate = dateMatch?.[1] || dateMatch?.[0] || "";
   const valueMatch = compact.match(/(?:valor(?:\s+(?:do\s+)?documento|\s+a\s+pagar)?|total).{0,35}?(R?\$?\s*[\d.]+,\d{2})/i) || compact.match(/R?\$?\s*[\d.]+,\d{2}/);
   const supplier = suppliers.find((item) => {
     const name = str(item, "name").trim().toLowerCase();
-    return name.length > 2 && compact.toLowerCase().includes(name);
+    const document = str(item, "document").replace(/\D/g, "");
+    return (supplierDocument && document === supplierDocument) || (name.length > 2 && compact.toLowerCase().includes(name));
   });
+  const documentLine = lines.findIndex((line) => /CNPJ|CPF/i.test(line));
+  const candidateName = documentLine > 0 ? lines.slice(Math.max(0, documentLine - 3), documentLine).reverse().find((line) => /[A-Za-zÀ-ÿ]{3}/.test(line) && !/banco|agência|beneficiário|pagador|sacado|boleto|nota fiscal/i.test(line)) : "";
+  const supplierName = supplier ? str(supplier, "name") : candidateName || "";
   return {
     documentNumber: barcode,
     dueDate: dueDate ? dueDate.replace(/(\d{2})[/-](\d{2})[/-](\d{4})/, "$3-$2-$1") : "",
     amount: valueMatch ? readBrazilianAmount(valueMatch[1] || valueMatch[0]) : 0,
     supplier,
+    supplierName,
+    supplierDocument,
   };
 }
 const fieldDisplay = (r: RecordData, f: Field, db: Database) => {
@@ -488,6 +497,7 @@ export function RecordForm({
   const [error, setError] = useState("");
   const [readingDocument, setReadingDocument] = useState(false);
   const [documentReadMessage, setDocumentReadMessage] = useState("");
+  const [scannedSupplier, setScannedSupplier] = useState({ name: "", document: "" });
   const formRef = useRef<HTMLFormElement>(null);
   const scanPayableDocument = async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -515,8 +525,12 @@ export function RecordForm({
       if (found.supplier) {
         setValue("supplierId", found.supplier.id);
         setValue("description", `Documento de ${str(found.supplier, "name")}`);
+      } else if (found.supplierName) {
+        setScannedSupplier({ name: found.supplierName, document: found.supplierDocument });
+        setValue("description", `Documento de ${found.supplierName}`);
       }
-      const filled = [found.supplier && "fornecedor", found.dueDate && "vencimento", found.amount && "valor", found.documentNumber && "código"].filter(Boolean);
+      setValue("obligationType", found.documentNumber ? "Boleto" : "Outros");
+      const filled = [(found.supplier || found.supplierName) && "fornecedor", found.dueDate && "vencimento", found.amount && "valor", found.documentNumber && "código"].filter(Boolean);
       setDocumentReadMessage(filled.length ? `Preenchido automaticamente: ${filled.join(", ")}. Confira antes de salvar.` : "Não encontrei os dados com segurança. Preencha os campos manualmente.");
     } catch {
       setDocumentReadMessage("Não foi possível ler esta imagem. Tente uma foto mais nítida, sem reflexos e com todo o boleto visível.");
@@ -529,6 +543,7 @@ export function RecordForm({
     if (!user) return;
     setBusy(true);
     setError("");
+    let pendingRecord: RecordData | null = null;
     try {
       const form = new FormData(e.currentTarget);
       const now = new Date().toISOString();
@@ -546,6 +561,10 @@ export function RecordForm({
       };
       for (const field of def.fields)
         next[field.key] = parseField(field, form.get(field.key));
+      if (kind === "payables" && !next.supplierId && scannedSupplier.name) {
+        next.scannedSupplierName = scannedSupplier.name;
+        next.scannedSupplierDocument = scannedSupplier.document;
+      }
       if (kind === "units") next.unitId = "";
       if (kind === "payables") {
         next.competence = next.competence || str(next, "dueDate").slice(0, 7);
@@ -565,6 +584,7 @@ export function RecordForm({
           next.documentSize = stored.size;
         }
       }
+      pendingRecord = next;
       const savedRows = await saveManagement(next, data);
       if (savedRows.some((row) => row.kind === "payables")) {
         const dueDate = str(next, "dueDate");
@@ -588,7 +608,11 @@ export function RecordForm({
         }
       } else onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar.");
+      const message = err instanceof Error ? `${err.name} ${err.message}` : "";
+      if (pendingRecord && /quota|resource-exhausted/i.test(message)) {
+        queueManagementRecord(pendingRecord);
+        onSaved("Conta guardada neste dispositivo. A sincronização será concluída automaticamente quando o Firebase liberar a cota.");
+      } else setError(err instanceof Error ? err.message : "Não foi possível salvar.");
     } finally {
       setBusy(false);
     }
@@ -692,20 +716,23 @@ export function RecordForm({
             </select>
           </label>
         )}
+        {kind === "payables" && (
+          <label className={`full mg-document-reader ${readingDocument ? "is-reading" : ""}`}>
+            <Paperclip size={20} />
+            <span>
+              <strong>{readingDocument ? "Lendo o documento…" : "Ler boleto ou nota fiscal"}</strong>
+              <small>{documentReadMessage || "Adicione uma foto nítida. O sistema preencherá fornecedor, vencimento, valor e código automaticamente."}</small>
+            </span>
+            <b>{readingDocument ? "AGUARDE" : "ESCOLHER FOTO"}</b>
+            <input name="documentFile" type="file" accept="image/*,.pdf" capture="environment" disabled={readingDocument} onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) scanPayableDocument(file); }} />
+          </label>
+        )}
         {(kind === "payables"
           ? def.fields.filter((field) => payableMainFields.has(field.key))
           : def.fields
         ).map(renderField)}
         {kind === "payables" && (
           <>
-            <label className="full mg-file-field">
-              <span><Paperclip size={15} /> Anexar boleto, guia ou comprovante</span>
-              <input name="documentFile" type="file" accept=".pdf,image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) scanPayableDocument(file); }} />
-              {record?.documentFileName && (
-                <small>Arquivo atual: {str(record, "documentFileName")}</small>
-              )}
-              <small>{readingDocument ? "Lendo a foto…" : documentReadMessage || "Envie uma foto do boleto ou da nota fiscal para preencher fornecedor, vencimento, valor e código."}</small>
-            </label>
             <details className="full mg-form-advanced">
               <summary>Mais detalhes</summary>
               <div className="mg-form">

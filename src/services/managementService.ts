@@ -6,6 +6,7 @@ import {
   query,
   where,
   runTransaction,
+  writeBatch,
   Unsubscribe,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -17,6 +18,32 @@ import {
 } from "@/domain/management/model";
 import { buildRecords, validate } from "@/domain/management/operations";
 const col = (kind: string) => "gestao_" + kind;
+const PENDING_RECORDS_KEY = "house190_pending_management_records";
+
+export function queueManagementRecord(record: RecordData) {
+  if (typeof window === "undefined") return;
+  const current = JSON.parse(localStorage.getItem(PENDING_RECORDS_KEY) || "[]") as RecordData[];
+  const next = [...current.filter((item) => item.id !== record.id), record];
+  localStorage.setItem(PENDING_RECORDS_KEY, JSON.stringify(next));
+}
+
+export async function flushManagementQueue(state: Database) {
+  if (typeof window === "undefined") return 0;
+  const pending = JSON.parse(localStorage.getItem(PENDING_RECORDS_KEY) || "[]") as RecordData[];
+  let saved = 0;
+  for (const record of pending) {
+    try {
+      await saveManagement(record, state);
+      const remaining = (JSON.parse(localStorage.getItem(PENDING_RECORDS_KEY) || "[]") as RecordData[]).filter((item) => item.id !== record.id);
+      localStorage.setItem(PENDING_RECORDS_KEY, JSON.stringify(remaining));
+      saved += 1;
+    } catch (error) {
+      if (error instanceof Error && /quota|resource-exhausted/i.test(`${error.name} ${error.message}`)) break;
+      throw error;
+    }
+  }
+  return saved;
+}
 export function subscribeManagement(
   tenantId: string,
   unitId: string,
@@ -50,10 +77,41 @@ export async function saveManagement(
   state: Database,
   archive = false,
 ) {
-  if (!archive) validate(record, state);
+  let prepared = { ...record };
+  let scannedSupplier: RecordData | null = null;
+  if (!archive && prepared.kind === "payables" && !prepared.supplierId && str(prepared, "scannedSupplierName")) {
+    const supplierName = str(prepared, "scannedSupplierName").trim();
+    const supplierDocument = str(prepared, "scannedSupplierDocument").replace(/\D/g, "");
+    const existingSupplier = state.suppliers.find((item) =>
+      (supplierDocument && str(item, "document").replace(/\D/g, "") === supplierDocument) ||
+      str(item, "name").trim().toLocaleLowerCase("pt-BR") === supplierName.toLocaleLowerCase("pt-BR"),
+    );
+    if (existingSupplier) prepared.supplierId = existingSupplier.id;
+    else {
+      const supplierId = `scan-${supplierDocument || supplierName.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").slice(0, 60)}`;
+      scannedSupplier = {
+        id: supplierId,
+        kind: "suppliers",
+        tenantId: prepared.tenantId,
+        unitId: "",
+        version: 0,
+        createdAt: prepared.createdAt,
+        updatedAt: prepared.updatedAt,
+        createdBy: prepared.createdBy,
+        updatedBy: prepared.updatedBy,
+        name: supplierName,
+        document: supplierDocument,
+      };
+      prepared.supplierId = supplierId;
+    }
+  }
+  delete prepared.scannedSupplierName;
+  delete prepared.scannedSupplierDocument;
+  if (!archive) validate(prepared, state);
   const outgoing = archive
-    ? [{ ...record, archived: true }]
-    : buildRecords(record);
+    ? [{ ...prepared, archived: true }]
+    : buildRecords(prepared);
+  if (scannedSupplier) outgoing.unshift(scannedSupplier);
   if (!archive) validate(outgoing[0], state);
   const obsolete = (state.payables || []).filter(
     (p) => p.sourceId === record.id && !outgoing.some((x) => x.id === p.id),
@@ -65,8 +123,34 @@ export async function saveManagement(
         .map((p) => ({ ...p, archived: true })),
     );
   else outgoing.push(...obsolete.map((p) => ({ ...p, archived: true })));
-  await commitRecords(outgoing, state, record);
+  const allNew = !archive && outgoing.every((item) => !(state[item.kind] || []).some((saved) => saved.id === item.id));
+  if (prepared.kind === "payables" && allNew) await createRecords(outgoing);
+  else await commitRecords(outgoing, state, prepared);
   return outgoing;
+}
+
+async function createRecords(records: RecordData[]) {
+  const batch = writeBatch(db);
+  const now = new Date().toISOString();
+  records.forEach((record) => {
+    const saved = { ...record, version: 1, updatedAt: now };
+    batch.set(doc(db, col(record.kind), record.id), saved);
+    const audit = doc(collection(db, "gestao_audit"));
+    batch.set(audit, {
+      id: audit.id,
+      tenantId: record.tenantId,
+      unitId: record.unitId,
+      kind: record.kind,
+      recordId: record.id,
+      operation: "create",
+      updatedBy: record.updatedBy,
+      updatedAt: now,
+      version: 1,
+      before: null,
+      after: saved,
+    });
+  });
+  await batch.commit();
 }
 export async function commitRecords(
   records: RecordData[],
