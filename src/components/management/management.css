@@ -3100,45 +3100,68 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  justify-content: flex-start;
+  width: 100%;
 }
 .fixed-expense-field-group.full {
   grid-column: 1 / -1;
 }
 .fixed-expense-field-group label {
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 13px;
+  font-weight: 600;
   color: #334155;
   display: flex;
+  flex-direction: row;
   align-items: center;
+  justify-content: flex-start;
+  text-align: left;
   gap: 4px;
+  margin: 0;
+  min-height: 20px;
+  line-height: 1.3;
 }
 .fixed-expense-field-group label .req {
   color: #e11d48;
+  font-size: 13px;
+  font-weight: 700;
+  display: inline-block;
+  margin-left: 2px;
 }
 .fixed-expense-field-group input,
 .fixed-expense-field-group select,
 .fixed-expense-field-group textarea {
   width: 100%;
-  padding: 10px 12px;
+  height: 42px;
+  padding: 9px 12px;
   border-radius: 8px;
   border: 1px solid #cbd5e1;
   background: #ffffff;
   color: #0f172a;
-  font-size: 13px;
+  font-size: 13.5px;
+  font-family: inherit;
   transition: all 0.15s ease;
   box-sizing: border-box;
+}
+.fixed-expense-field-group select {
+  cursor: pointer;
+}
+.fixed-expense-field-group textarea {
+  height: auto;
+  min-height: 70px;
 }
 .fixed-expense-field-group input:focus,
 .fixed-expense-field-group select:focus,
 .fixed-expense-field-group textarea:focus {
   outline: none;
   border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 .fixed-expense-helper {
-  font-size: 11px;
+  font-size: 11.5px;
   color: #64748b;
   margin-top: 2px;
+  line-height: 1.3;
+  text-align: left;
 }
 .fixed-expense-helper strong {
   color: #4338ca;
@@ -3210,49 +3233,14 @@
   font-size: 12px;
 }
 
-.fixed-expense-form {
-  display: flex;
-  flex-direction: column;
-  padding: 24px;
-  gap: 20px;
-  overflow-y: auto;
-  max-height: calc(90vh - 170px);
-}
 .fixed-expense-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 16px 20px;
+  align-items: start;
 }
 .fixed-expense-fields .full {
   grid-column: 1 / -1;
-}
-.fixed-expense-fields label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #334155;
-}
-.fixed-expense-fields input,
-.fixed-expense-fields select,
-.fixed-expense-fields textarea {
-  width: 100%;
-  padding: 10px 13px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  font-size: 14px;
-  background: #ffffff;
-  color: #0f172a;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-  box-sizing: border-box;
-}
-.fixed-expense-fields input:focus,
-.fixed-expense-fields select:focus,
-.fixed-expense-fields textarea:focus {
-  outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 }
 .fixed-expense-recurrence-hint {
   display: flex;
