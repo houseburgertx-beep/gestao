@@ -29,7 +29,8 @@ export async function sendNotificationEmail(
     });
 
     if (!response.ok) {
-      throw new Error(`Falha no envio de e-mail (${response.status}).`);
+      const result = await response.json().catch(() => null);
+      throw new Error(result?.message || `Falha no envio de e-mail (${response.status}).`);
     }
   } catch (error) {
     console.warn("Serviço de e-mail temporariamente indisponível.", error);

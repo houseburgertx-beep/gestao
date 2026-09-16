@@ -97,7 +97,10 @@ async function callGoogleScript(env: EmailEnv, body: object): Promise<Record<str
     redirect: "follow",
   });
   if (!response.ok) throw new Error(`google_script_http_${response.status}`);
-  const result = (await response.json()) as Record<string, unknown>;
+  const text = await response.text();
+  let result: Record<string, unknown>;
+  try { result = JSON.parse(text); }
+  catch { throw new Error("google_script_invalid_response"); }
   if (!result.ok) throw new Error(String(result.error || "google_script_failed"));
   return result;
 }
@@ -209,7 +212,15 @@ export default {
       });
     } catch (error) {
       console.error(JSON.stringify({ event: "service_error", reason: error instanceof Error ? error.message : "unknown", userId: verifiedUser.userId }));
-      return jsonResponse({ error: "service_unavailable" }, 503, origin);
+      const reason = error instanceof Error ? error.message : "unknown";
+      const messages: Record<string, string> = {
+        google_script_not_configured: "A conexão com o Google Apps Script não está configurada.",
+        google_script_invalid_response: "O Google Apps Script não retornou uma resposta válida. Verifique a publicação do aplicativo e suas permissões.",
+        unauthorized: "A chave de conexão entre o serviço e o Google Apps Script não confere.",
+        daily_quota_exceeded: "O limite diário de envio de e-mails do Google foi atingido.",
+        request_failed: "O Google Apps Script falhou. Verifique suas execuções e autorizações do Gmail e Google Drive.",
+      };
+      return jsonResponse({ error: "service_unavailable", message: messages[reason] || "O Google Apps Script está indisponível. O envio não foi concluído." }, 503, origin);
     }
   },
 } satisfies ExportedHandler<EmailEnv>;

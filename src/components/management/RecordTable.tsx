@@ -306,6 +306,19 @@ export function RecordTable({
                               ? "Origem"
                               : "Editar"}
                         </button>
+                        {kind === "payables" && <button className="mg-button secondary" disabled={!canWrite} onClick={async () => {
+                          if (!user) return;
+                          if (data.transactions.some((item) => item.obligationId === r.id && !item.reversalOf && !data.transactions.some((other) => other.reversalOf === item.id))) {
+                            setMessage("Esta conta tem pagamentos registrados. Estorne os pagamentos antes de excluir."); return;
+                          }
+                          if (!confirm("Excluir esta conta do painel? O histórico e o anexo serão preservados.")) return;
+                          try {
+                            const source = r.sourceKind ? data[str(r, "sourceKind")]?.find((item) => item.id === r.sourceId) || r : r;
+                            const rows = await saveManagement({...source, updatedBy:user.uid, updatedAt:new Date().toISOString()}, data, true);
+                            void backupPayablesSpreadsheet(data, rows).catch(console.warn);
+                            setMessage("Conta excluída. Histórico preservado.");
+                          } catch (error) { setMessage(error instanceof Error ? error.message : "Não foi possível excluir. A conta foi mantida."); }
+                        }}>Excluir</button>}
                         {["payables", "receivables"].includes(kind) &&
                           outstanding(r, data, filters.today) > 0 && (
                             <button

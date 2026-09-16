@@ -700,7 +700,13 @@ class DataStore {
 
   // DOCUMENTS
   getDocuments(): DocumentItem[] {
-    return this.get(STORAGE_KEYS.DOCS, INITIAL_DOCUMENTS);
+    return this.get<DocumentItem[]>(STORAGE_KEYS.DOCS, INITIAL_DOCUMENTS).filter((item) => !item.archived);
+  }
+
+  async updateDocument(item: DocumentItem): Promise<void> {
+    await saveDocumentToFirestore(item);
+    const documents = this.getDocuments().filter((doc) => doc.id !== item.id);
+    this.set(STORAGE_KEYS.DOCS, item.archived ? documents : [item, ...documents]);
   }
 
   addDocument(doc: Omit<DocumentItem, "id" | "uploadDate">): DocumentItem {

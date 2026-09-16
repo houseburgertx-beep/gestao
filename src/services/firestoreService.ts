@@ -328,7 +328,7 @@ export async function saveDocumentToFirestore(item: DocumentItem): Promise<strin
 export function subscribeDocuments(callback: (items: DocumentItem[]) => void): Unsubscribe {
   return onSnapshot(
     collection(db, "documents"),
-    (snapshot) => callback(snapshot.docs.map((item) => ({ ...item.data(), id: item.id } as DocumentItem))),
+    (snapshot) => callback(snapshot.docs.map((item) => ({ ...item.data(), id: item.id } as DocumentItem)).filter((item) => !item.archived)),
     (error) => console.warn("Erro ao sincronizar documentos:", error)
   );
 }

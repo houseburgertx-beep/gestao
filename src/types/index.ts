@@ -266,6 +266,7 @@ export interface Task {
 }
 
 export interface DocumentItem {
+  archived?: boolean;
   id: string;
   title: string;
   category: 'finance' | 'fiscal' | 'hr' | 'contracts' | 'suppliers' | 'employees' | 'companies' | 'other';

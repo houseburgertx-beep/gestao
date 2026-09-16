@@ -7,6 +7,8 @@ import {
   Upload,
   FileText,
   Download,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { store } from "@/services/store";
 import { useUnit } from "@/contexts/UnitContext";
@@ -23,6 +25,7 @@ export default function DocumentosPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
 
   // New Doc Form
   const [newTitle, setNewTitle] = useState("");
@@ -65,11 +68,19 @@ export default function DocumentosPage() {
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle || !selectedFile) return;
+    if (!newTitle || (!selectedFile && !editingDocument)) return;
 
     setUploading(true);
     setUploadError("");
     try {
+      if (editingDocument) {
+        await store.updateDocument({...editingDocument, title: newTitle, category: newCategory});
+        setEditingDocument(null);
+        setIsUploadModalOpen(false);
+        setNewTitle("");
+        return;
+      }
+      if (!selectedFile) return;
       const driveFile = nameFileForDrive(selectedFile, newTitle);
       const stored = await uploadFileToDrive(driveFile, "documents");
       const extension = selectedFile.name.split(".").pop()?.toLowerCase() || "arquivo";
@@ -118,7 +129,7 @@ export default function DocumentosPage() {
         </div>
         <Button
           size="sm"
-          onClick={() => setIsUploadModalOpen(true)}
+          onClick={() => { setEditingDocument(null); setNewTitle(""); setSelectedFile(null); setUploadError(""); setIsUploadModalOpen(true); }}
           className="gap-1.5"
         >
           <Upload className="h-3.5 w-3.5" />
@@ -201,6 +212,13 @@ export default function DocumentosPage() {
                     {doc.size}
                   </td>
                   <td className="py-3 px-4 text-right">
+                    <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="outline" onClick={() => { setEditingDocument(doc); setNewTitle(doc.title); setNewCategory(doc.category); setSelectedFile(null); setUploadError(""); setIsUploadModalOpen(true); }}><Pencil className="h-3 w-3" /> Editar</Button>
+                    <Button size="sm" variant="outline" onClick={async () => {
+                      if (!confirm(`Excluir “${doc.title}” do painel? O arquivo será preservado no Google Drive como backup.`)) return;
+                      try { await store.updateDocument({...doc, archived: true}); setDocuments((items) => items.filter((item) => item.id !== doc.id)); }
+                      catch (error) { alert(error instanceof Error ? error.message : "Não foi possível excluir. O documento foi mantido."); }
+                    }}><Trash2 className="h-3 w-3" /> Excluir</Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -211,6 +229,7 @@ export default function DocumentosPage() {
                       <Download className="h-3 w-3" />
                       <span>Baixar</span>
                     </Button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -230,7 +249,7 @@ export default function DocumentosPage() {
       <Modal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
-        title="Enviar Novo Documento"
+        title={editingDocument ? "Editar documento" : "Enviar Novo Documento"}
         subtitle="O arquivo será armazenado com segurança no Google Drive"
       >
         <form onSubmit={handleUploadSubmit} className="space-y-4 text-xs">
@@ -267,7 +286,7 @@ export default function DocumentosPage() {
 
           </div>
 
-          <label className="block border-2 border-dashed border-zinc-200 rounded-lg p-6 text-center text-zinc-500 hover:border-zinc-400 transition-colors cursor-pointer dark:border-zinc-700">
+          {!editingDocument && <label className="block border-2 border-dashed border-zinc-200 rounded-lg p-6 text-center text-zinc-500 hover:border-zinc-400 transition-colors cursor-pointer dark:border-zinc-700">
             <Upload className="h-6 w-6 mx-auto text-zinc-400 mb-2" />
             <p className="font-medium">{selectedFile ? selectedFile.name : "Clique para selecionar o arquivo"}</p>
             <p className="text-[11px] text-zinc-400 mt-1">PDF, foto, planilha ou documento até 8 MB</p>
@@ -278,7 +297,7 @@ export default function DocumentosPage() {
               accept=".pdf,.xlsx,.xls,.docx,.doc,.png,.jpg,.jpeg,.webp,.zip"
               onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
             />
-          </label>
+          </label>}
 
           {uploadError && <p className="text-xs text-rose-600">{uploadError}</p>}
 
@@ -286,8 +305,8 @@ export default function DocumentosPage() {
             <Button type="button" variant="outline" size="sm" onClick={() => setIsUploadModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" size="sm" disabled={uploading || !selectedFile}>
-              {uploading ? "Salvando no Drive..." : "Concluir Upload"}
+            <Button type="submit" size="sm" disabled={uploading || (!selectedFile && !editingDocument)}>
+              {uploading ? "Salvando..." : editingDocument ? "Salvar alterações" : "Concluir Upload"}
             </Button>
           </div>
         </form>
