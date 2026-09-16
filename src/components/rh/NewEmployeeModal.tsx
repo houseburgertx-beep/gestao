@@ -16,8 +16,11 @@ import {
   Phone,
   MapPin,
   CheckCircle2,
+  Paperclip,
 } from "lucide-react";
-import { nameFileForDrive, uploadFileToDrive } from "@/services/driveService";
+import { formatFileSize, nameFileForDrive, uploadFileToDrive } from "@/services/driveService";
+import { readDocumentText } from "@/services/documentTextReader";
+import { parseEmployeeDocument } from "@/domain/management/documentParsing";
 
 interface NewEmployeeModalProps {
   isOpen: boolean;
@@ -55,6 +58,56 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
   const [vacationEnd, setVacationEnd] = useState("");
   const [notes, setNotes] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [readingDocument, setReadingDocument] = useState(false);
+  const [documentReadMessage, setDocumentReadMessage] = useState("");
+  const [scannedDocumentFile, setScannedDocumentFile] = useState<File | null>(null);
+
+  const handleDocumentScan = async (file: File) => {
+    setReadingDocument(true);
+    setDocumentReadMessage("Lendo documento do colaborador…");
+    setScannedDocumentFile(file);
+    try {
+      const text = await readDocumentText(file);
+      const parsed = parseEmployeeDocument(text);
+
+      if (parsed.name) setName(parsed.name);
+      if (parsed.cpf) setCpf(parsed.cpf);
+      if (parsed.birthDate) setBirthDate(parsed.birthDate);
+      if (parsed.address) setAddress(parsed.address);
+      if (parsed.role) setRole(parsed.role);
+      if (parsed.salaryFormatted) setSalary(parsed.salaryFormatted);
+      if (parsed.admissionDate) setAdmissionDate(parsed.admissionDate);
+      if (parsed.workHours) setWorkHours(parsed.workHours);
+      if (parsed.unitId) setUnitId(parsed.unitId);
+      if (parsed.department) setDepartment(parsed.department);
+      if (parsed.contractType) setContractType(parsed.contractType);
+      if (parsed.notes) setNotes(parsed.notes);
+
+      const filled = [
+        parsed.name && "nome",
+        parsed.cpf && "CPF",
+        parsed.birthDate && "nascimento",
+        parsed.role && "cargo",
+        parsed.salaryFormatted && "salário",
+        parsed.admissionDate && "admissão",
+        parsed.workHours && "horário",
+        parsed.address && "endereço",
+      ].filter(Boolean);
+
+      setDocumentReadMessage(
+        filled.length
+          ? `Preenchido automaticamente: ${filled.join(", ")}. Confira antes de salvar.`
+          : "Não foi possível identificar todos os campos com certeza. Complete manualmente."
+      );
+    } catch (error) {
+      console.error("Erro ao ler documento:", error);
+      setDocumentReadMessage(
+        error instanceof Error ? error.message : "Não foi possível ler o documento."
+      );
+    } finally {
+      setReadingDocument(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -106,6 +159,30 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
 
       store.addEmployee(employeeData);
 
+      if (scannedDocumentFile) {
+        try {
+          const saved = await uploadFileToDrive(
+            nameFileForDrive(scannedDocumentFile, `${name.trim()} - Ficha de Registro`),
+            "documents"
+          );
+          await store.addDocument({
+            title: scannedDocumentFile.name,
+            category: "employees",
+            unitId,
+            employeeId: employeeData.id,
+            size: formatFileSize(saved.size),
+            format: scannedDocumentFile.name.split(".").pop() || "pdf",
+            url: `drive:${saved.fileId}`,
+            driveFileId: saved.fileId,
+            originalFileName: saved.fileName,
+            mimeType: saved.mimeType,
+            tags: ["Funcionário", "Registro", "Google Drive"],
+          });
+        } catch (fileErr) {
+          console.warn("Erro ao salvar documento escaneado no Drive:", fileErr);
+        }
+      }
+
       // Reset
       setName("");
       setCpf("");
@@ -126,6 +203,8 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
       setVacationEnd("");
       setNotes("");
       setPhotoFile(null);
+      setScannedDocumentFile(null);
+      setDocumentReadMessage("");
 
       if (onSuccess) onSuccess();
       onClose();
@@ -168,6 +247,28 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
 
         {/* Form Content */}
         <form className="task-modal-form" onSubmit={handleSubmit}>
+          {/* Leitor de Documento / PDF Automático */}
+          <label className={`mg-document-reader ${readingDocument ? "is-reading" : ""}`} style={{ marginBottom: 14 }}>
+            <Paperclip size={20} />
+            <span>
+              <strong>{readingDocument ? "Lendo documento do colaborador…" : "Cadastrar por PDF ou Foto"}</strong>
+              <small>
+                {documentReadMessage || "Adicione o PDF ou foto do Registro de Empregado / Carteira. Nome, CPF, nascimento, cargo, admissão, salário e horário serão preenchidos sozinhos."}
+              </small>
+            </span>
+            <b>{readingDocument ? "AGUARDE" : "ADICIONAR PDF / FOTO"}</b>
+            <input
+              type="file"
+              accept="image/*,.pdf"
+              capture="environment"
+              disabled={readingDocument || loading}
+              onChange={(e) => {
+                const file = e.currentTarget.files?.[0];
+                if (file) handleDocumentScan(file);
+              }}
+            />
+          </label>
+
           {/* Card 1: Identificação & Contato */}
           <div className="task-compact-card">
             <div className="flex items-center gap-2 mb-1">

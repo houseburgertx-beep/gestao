@@ -65,6 +65,128 @@ test("NF-e OESA reconhece a duplicata e não confunde produtos ou chave com bole
   assert.equal(result.obligationType, "Débito");
   assert.equal(parseDebtDocument("NF-e Nº: Série: Emissão: 177985 1 01/09/2026 DANFE").documentNumber, "NF-e 177985");
 });
+test("Registro de empregado (PDF): extrai colaborador, CPF, cargo, admissão, salário e notas", () => {
+  const { parseEmployeeDocument } = require("../src/domain/management/documentParsing.ts");
+  const samplePdfText = `
+Categoria
+Doc. militar 
+DOMINGOS PEREIRA DE SOUZA
+NAIR DIAS FARIAS 
+Empregado
+Residência
+Beneficiários 
+GLEUCE DIAS DE SOUZA
+Rua PROFESSORA MARIA ANTUNES, JARDIM LIBERDADE, TEIXEIRA
+DE FREITAS, BA, - CEP: 45994-390 
+FILIAÇÃO
+Pai
+Mãe 
+0868043 
+CTPS 
+1508 
+02/05/2000 
+086.804.315-08 
+CPF 
+BA 
+TEIXEIRA DE FREITAS - BA   BRASIL   Solteiro 
+Título Eleitoral   Inscr. Órgão de Classe
+Estado civil País da nacionalidade Local do nascimento Data de nascimento
+Cart. Nac. Habilitação UF CTPS
+Cédula de Identidade   Data de emissão   Órgão/UF emissor
+Data de expedição da CTPS
+Zona
+Série
+Seção 
+FGTS   Opção em 
+01/04/2026 
+Data de Admissão 
+01/04/2026 
+Salário   Por 
+Mês 
+Horário de Trabalho 
+das 16:00 as 00:00 
+Horário de Intervalo
+Conta vinculada no banco   Data da Retificação
+PROGRAMA DE INTEGRAÇÃO SOCIAL - PIS
+Cadastrado em   Sob nº   Domicílio bancário
+Nº banco   Agência código
+ALTERAÇÕES DE SALÁRIO, CARGO E/OU FUNÇÃO
+FÉRIAS - PERÍODO AQUISITIVO   FÉRIAS - PERÍODO DE GOZO   Obs.: (Anotar advertências, suspensões, transferências, etc.)
+RESCISÃO DE CONTRATO DE TRABALHO ACIDENTES DE TRABALHO, DOENÇAS OU DOENÇAS PROFISSIONAIS
+CONTRIBUIÇÃO SINDICAL
+End. da agência 
+GLEUCE DIAS DE SOUZA 
+OBSERVAÇÕES 
+Tipo do desligamento:
+Data da saída: 
+2.000,00 R$ 
+Categoria   Cor 
+Preta   Sexo 
+Masculino   Grau de instrução 
+Ensino Médio Completo 
+Telefone Celular Telefone Residencial 
+Não 
+Deficiência
+Cargo 
+SUPERVISOR GERAL   Função   C.B.O. 
+520110 
+FÉRIAS - PERÍODO ABONO PECUNIÁRIO 
+000037
+PC CASTRO ALVES, 436, CENTRO, TEIXEIRA DE FREITAS, BA,
+52.910.864/0001-44 
+Endereço
+Nº Autenticar 
+CNPJ 
+REGISTRO DE EMPREGADO 
+HOUSE BURGUER 190 HAMBURGUERIA LTDA
+37 
+Empregador
+Matrícula eSocial 
+SSP 
+`;
+  const result = parseEmployeeDocument(samplePdfText);
+  assert.equal(result.name, "GLEUCE DIAS DE SOUZA");
+  assert.equal(result.cpf, "086.804.315-08");
+  assert.equal(result.birthDate, "2000-05-02");
+  assert.equal(result.admissionDate, "2026-04-01");
+  assert.equal(result.role, "SUPERVISOR GERAL");
+  assert.equal(result.salary, 2000);
+  assert.equal(result.salaryCents, 200000);
+  assert.equal(result.salaryFormatted, "2.000,00");
+  assert.equal(result.workHours, "das 16:00 as 00:00");
+  assert.equal(result.unitId, "teixeira");
+  assert.equal(result.department, "Gerência / Administrativo");
+  assert.equal(result.contractType, "CLT");
+  assert.equal(result.cbo, "520110");
+  assert.equal(result.ctps, "0868043");
+  assert.equal(result.serie, "1508");
+  assert.equal(result.esocial, "37");
+  assert.equal(result.motherName, "NAIR DIAS FARIAS");
+  assert.equal(result.fatherName, "DOMINGOS PEREIRA DE SOUZA");
+  assert.ok(result.notes.includes("CTPS: 0868043"));
+  assert.ok(result.notes.includes("CBO: 520110"));
+
+  const labeled = parseEmployeeDocument(`
+    FICHA CADASTRAL DE COLABORADOR
+    Nome do Empregado: João Carlos da Silva
+    CPF: 123.456.789-10
+    Data de Nascimento: 15/08/1996
+    Cargo: Chapeiro Especialista
+    Data de Admissão: 10/01/2026
+    Salário Base: R$ 1.850,00
+    Horário de Trabalho: 44h semanais
+    Endereço: Av. Santos Dumont, 120, Eunápolis - BA - CEP: 45820-000
+  `);
+  assert.equal(labeled.name, "João Carlos da Silva");
+  assert.equal(labeled.cpf, "123.456.789-10");
+  assert.equal(labeled.birthDate, "1996-08-15");
+  assert.equal(labeled.admissionDate, "2026-01-10");
+  assert.equal(labeled.role, "Chapeiro Especialista");
+  assert.equal(labeled.salary, 1850);
+  assert.equal(labeled.salaryCents, 185000);
+  assert.equal(labeled.unitId, "eunapolis");
+  assert.equal(labeled.department, "Cozinha / Produção");
+});
 const {
   calculate,
   isCovered,

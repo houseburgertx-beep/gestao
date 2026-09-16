@@ -58,7 +58,7 @@ import {
 } from "@/services/driveService";
 import { backupPayablesSpreadsheet } from "@/services/payablesBackupService";
 import { addNotificationToFirestore } from "@/services/firestoreService";
-import { parseDebtDocument } from "@/domain/management/documentParsing";
+import { parseDebtDocument, parseEmployeeDocument } from "@/domain/management/documentParsing";
 import { readDocumentText } from "@/services/documentTextReader";
 import { FixedExpenseModal } from "./FixedExpenseModal";
 
@@ -1149,6 +1149,50 @@ export function RecordForm({
       setReadingDocument(false);
     }
   };
+  const scanEmployeeDocument = async (file: File) => {
+    setReadingDocument(true);
+    setDocumentReadMessage("Lendo ficha de registro de empregado…");
+    try {
+      const text = await readDocumentText(file);
+      const parsed = parseEmployeeDocument(text);
+      const form = formRef.current;
+      if (!form) return;
+      const setValue = (name: string, value: string) => {
+        const field = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;
+        if (field && value) field.value = value;
+      };
+      setValue("name", parsed.name);
+      setValue("role", parsed.role);
+      setValue("department", parsed.department);
+      setValue("admissionDate", parsed.admissionDate);
+      if (parsed.salaryCents) {
+        setValue("salary", (parsed.salaryCents / 100).toFixed(2));
+      }
+      setValue("status", "Ativo");
+      setValue("notes", parsed.notes);
+      if (parsed.unitId) {
+        setValue("unitId", parsed.unitId);
+      }
+      const filled = [
+        parsed.name && "nome",
+        parsed.role && "cargo",
+        parsed.department && "setor",
+        parsed.admissionDate && "admissão",
+        parsed.salary && "salário",
+      ].filter(Boolean);
+      setDocumentReadMessage(
+        filled.length
+          ? `Preenchido automaticamente: ${filled.join(", ")}. Confira antes de salvar.`
+          : "Não encontrei os dados com segurança. Preencha os campos manualmente."
+      );
+    } catch (error) {
+      setDocumentReadMessage(
+        error instanceof Error ? error.message : "Não foi possível ler. Envie um PDF ou foto nítida do documento."
+      );
+    } finally {
+      setReadingDocument(false);
+    }
+  };
   const save = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) return;
@@ -1524,15 +1568,39 @@ export function RecordForm({
             </select>
           </label>
         )}
-        {kind === "payables" && (
+        {(kind === "payables" || kind === "employees") && (
           <label className={`full mg-document-reader ${readingDocument ? "is-reading" : ""}`}>
             <Paperclip size={20} />
             <span>
-              <strong>{readingDocument ? "Lendo o documento…" : "Ler boleto ou nota fiscal"}</strong>
-              <small>{documentReadMessage || "Adicione um PDF ou foto nítida. Fornecedor, vencimento, valor e número serão preenchidos automaticamente."}</small>
+              <strong>
+                {readingDocument
+                  ? "Lendo o documento…"
+                  : kind === "employees"
+                  ? "Ler Ficha de Registro de Empregado (PDF / Foto)"
+                  : "Ler boleto ou nota fiscal"}
+              </strong>
+              <small>
+                {documentReadMessage ||
+                  (kind === "employees"
+                    ? "Adicione o PDF ou foto do registro. Nome, cargo, setor, admissão e salário serão preenchidos automaticamente."
+                    : "Adicione um PDF ou foto nítida. Fornecedor, vencimento, valor e número serão preenchidos automaticamente.")}
+              </small>
             </span>
             <b>{readingDocument ? "AGUARDE" : "ADICIONAR DOCUMENTO"}</b>
-            <input name="documentFile" type="file" accept="image/*,.pdf" capture="environment" disabled={readingDocument} onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) scanPayableDocument(file); }} />
+            <input
+              name="documentFile"
+              type="file"
+              accept="image/*,.pdf"
+              capture="environment"
+              disabled={readingDocument}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                if (file) {
+                  if (kind === "employees") scanEmployeeDocument(file);
+                  else scanPayableDocument(file);
+                }
+              }}
+            />
           </label>
         )}
         {(kind === "payables"

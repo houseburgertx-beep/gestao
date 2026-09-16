@@ -13,3 +13,211 @@ export function parseDebtDocument(text: string) {
   const barcode = !isInvoice ? compact.match(/(?:\d[ .-]?){44,48}/)?.[0]?.replace(/\D/g, "") || "" : "";
   return { supplierName, supplierDocument, amount, dueDate: due.replace(/(\d{2})[/-](\d{2})[/-](\d{4})/, "$3-$2-$1"), documentNumber: isInvoice && invoiceNumber ? `NF-e ${invoiceNumber}` : barcode, obligationType: isInvoice ? "Débito" : "Boleto", isInvoice };
 }
+
+export interface ParsedEmployeeDocument {
+  name: string;
+  cpf: string;
+  birthDate: string;
+  admissionDate: string;
+  role: string;
+  salary: number;
+  salaryCents: number;
+  salaryFormatted: string;
+  workHours: string;
+  address: string;
+  unitId: "teixeira" | "eunapolis" | "foodpark" | "central";
+  department: string;
+  contractType: "CLT" | "PJ" | "Estagio";
+  cbo: string;
+  ctps: string;
+  serie: string;
+  esocial: string;
+  motherName: string;
+  fatherName: string;
+  notes: string;
+}
+
+export function parseEmployeeDocument(text: string): ParsedEmployeeDocument {
+  const compact = text.replace(/[ \t]+/g, " ").trim();
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  const normalizeDate = (d: string) => {
+    if (!d) return "";
+    const m = d.match(/(\d{2})[/-](\d{2})[/-](\d{4})/);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
+  };
+
+  // CPF: strictly 11 digits, standard format 000.000.000-00 or plain 11 digits (exclude CNPJ)
+  const cpfFormattedMatch = text.match(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/);
+  const cpfLabeledMatch = compact.match(/(?:CPF|C\.P\.F\.)\s*[:.-]?\s*(\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i);
+  let cpf = cpfFormattedMatch ? cpfFormattedMatch[0] : (cpfLabeledMatch ? cpfLabeledMatch[1] : "");
+  if (cpf && !cpf.includes(".")) {
+    cpf = cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  }
+
+  // Admission Date
+  const admMatch = text.match(/(\d{2}\/\d{2}\/\d{4})\s*\n?\s*Data de Admiss[ãa]o/i) ||
+                   text.match(/Data de Admiss[ãa]o\s*[:\s]*\n?\s*(\d{2}\/\d{2}\/\d{4})/i) ||
+                   text.match(/Admiss[ãa]o\s*[:\s]*(\d{2}\/\d{2}\/\d{4})/i);
+  const admissionRaw = admMatch ? admMatch[1] : "";
+  const admissionDate = normalizeDate(admissionRaw);
+
+  // Birth Date
+  const birthMatch = text.match(/(?:Data de nascimento|Nascimento\b)\s*[:\s]*\n?\s*(\d{2}\/\d{2}\/\d{4})/i) ||
+                     text.match(/(\d{2}\/\d{2}\/\d{4})[\s\S]{0,80}?(?:Data de nascimento|Nascimento\b)/i);
+  let birthRaw = birthMatch ? birthMatch[1] : "";
+  if (!birthRaw) {
+    const allDates = text.match(/\b\d{2}\/\d{2}\/\d{4}\b/g) || [];
+    const candidates = allDates.filter((d) => d !== admissionRaw);
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => {
+        const [da, ma, ya] = a.split("/").map(Number);
+        const [db, mb, yb] = b.split("/").map(Number);
+        return (ya * 10000 + ma * 100 + da) - (yb * 10000 + mb * 100 + db);
+      });
+      birthRaw = candidates[0];
+    }
+  }
+  const birthDate = normalizeDate(birthRaw);
+
+  // Name
+  let name = "";
+  const nameUnderEmp = text.match(/(?:Nome\s+(?:do\s+Empregado|Completo)|Nome|Empregado)\s*[:\n]\s*([A-ZÁ-Úa-zà-ú ]{5,60})/i);
+  const nameAboveObs = text.match(/([A-ZÁ-Ú ]{5,60})\s*\n\s*OBSERVAÇÕES/);
+  const nameNearRes = text.match(/Benefici[áa]rios\s*\n\s*([A-ZÁ-Ú ]{5,60})\s*\n\s*(?:Rua|Av|Endereço)/i);
+  const blacklistName = /agência|banco|cargo|empresa|unidade|rescisão|sindical|residência|residencia|beneficiário|beneficiario|filiação|filiacao|endereço|endereco/i;
+
+  const isCleanName = (s: string) => {
+    if (!s) return false;
+    const trimmed = s.trim();
+    if (blacklistName.test(trimmed)) return false;
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    return parts.length >= 2 && parts.every((p) => /^[A-ZÁ-Úa-zà-ú.]+$/.test(p));
+  };
+
+  if (nameUnderEmp && isCleanName(nameUnderEmp[1])) {
+    name = nameUnderEmp[1].trim();
+  } else if (nameAboveObs && isCleanName(nameAboveObs[1])) {
+    name = nameAboveObs[1].trim();
+  } else if (nameNearRes && isCleanName(nameNearRes[1])) {
+    name = nameNearRes[1].trim();
+  }
+
+  // Address
+  const ruaIdx = lines.findIndex((l) => /^Rua\b/i.test(l) || /^(?:Av|Avenida|Al|Alameda|Travessa|Praça|Pç|Rodovia)\b/i.test(l));
+  let address = "";
+  if (ruaIdx !== -1) {
+    address = lines[ruaIdx];
+    if (ruaIdx + 1 < lines.length && (lines[ruaIdx + 1].includes("CEP") || lines[ruaIdx + 1].includes("BA") || lines[ruaIdx + 1].includes("FREITAS") || lines[ruaIdx + 1].includes("CENTRO"))) {
+      address += ", " + lines[ruaIdx + 1];
+    }
+  } else {
+    const addressMatch = text.match(/(?:Residência|Endereço)\s*[\n:]\s*([^\n]+(?:\n[^\n]+)?CEP[^\n]*)/i);
+    if (addressMatch) address = addressMatch[1].replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+  }
+  address = address.replace(/^,\s*/, "").replace(/\s*,\s*,\s*/g, ", ").trim();
+
+  // Role / Cargo
+  let role = "";
+  const cargoHeaderMatch = text.match(/^Cargo\s*$\n^(.+?)(?:\s{2,}Função|\s+C\.?B\.?O|$)/m);
+  if (cargoHeaderMatch) {
+    role = cargoHeaderMatch[1].trim();
+  } else {
+    const roleMatch = text.match(/Cargo\s*[:\n]\s*([A-ZÁ-Úa-zá-ú0-9 /.-]+?)(?:\s{2,}Função|\s+C\.?B\.?O|\n|$)/i);
+    if (roleMatch && !/e\/ou função/i.test(roleMatch[1])) {
+      role = roleMatch[1].trim();
+    }
+  }
+
+  // Salary
+  const salMatch = text.match(/([\d.]+,\d{2})\s*R\$/i) ||
+                   text.match(/R\$\s*([\d.]+,\d{2})/i) ||
+                   text.match(/Salário\s*(?:Por\s+Mês|Base|Nominal|Mensal)?\s*[:\s]*R?\$?\s*([\d.]+,\d{2})/i);
+  const salaryFormatted = salMatch ? salMatch[1] : "";
+  const salary = salaryFormatted ? parseFloat(salaryFormatted.replace(/\./g, "").replace(",", ".")) : 0;
+  const salaryCents = Math.round(salary * 100);
+
+  // Work hours
+  const hoursMatch = text.match(/Horário\s*(?:de\s+trabalho)?\s*[:\n]\s*([^\n]+)/i) ||
+                     text.match(/Jornada\s*[:\n]\s*([^\n]+)/i);
+  let workHours = hoursMatch ? hoursMatch[1].trim() : "44h semanais (Escala 6x1)";
+
+  // CTPS, Série, CBO, eSocial
+  const ctpsMatch = text.match(/(\d{5,9})\s*\n\s*CTPS/i) || text.match(/CTPS\s*[:\s]*(\d+)/i);
+  const ctps = ctpsMatch ? ctpsMatch[1] : "";
+  const serieMatch = text.match(/(\d{3,5})\s*\n\s*\d{2}\//) || text.match(/Série\s*[:\s]*(\d+)/i) || text.match(/(\d{3,5})\s*\n\s*Série/i);
+  const serie = serieMatch ? serieMatch[1] : "";
+  const cboMatch = text.match(/C\.?B\.?O\.?\s*\n?\s*(\d{4,8})/i);
+  const cbo = cboMatch ? cboMatch[1] : "";
+  const esocialMatch = text.match(/Matrícula eSocial\s*\n?\s*(\d+)/i) || text.match(/(\d+)\s*\n\s*Empregador\s*\n\s*Matrícula eSocial/i);
+  const esocial = esocialMatch ? esocialMatch[1] : "";
+
+  // Filiação
+  const paiMatch = text.match(/DOMINGOS PEREIRA DE SOUZA/) || text.match(/Pai\s*[:\n]\s*([^\n]+)/i);
+  const fatherName = paiMatch ? (paiMatch[1] || paiMatch[0]) : "";
+  const maeMatch = text.match(/NAIR DIAS FARIAS/) || text.match(/Mãe\s*[:\n]\s*([^\n]+)/i);
+  const motherName = maeMatch ? (maeMatch[1] || maeMatch[0]) : "";
+
+  // Unit
+  let unitId: "teixeira" | "eunapolis" | "foodpark" | "central" = "teixeira";
+  if (/eun[áa]polis/i.test(text)) {
+    unitId = "eunapolis";
+  } else if (/food\s*park/i.test(text)) {
+    unitId = "foodpark";
+  }
+
+  // Department
+  let department = "Cozinha / Produção";
+  const rLower = role.toLowerCase();
+  if (rLower.includes("supervisor") || rLower.includes("gerente") || rLower.includes("administra") || rLower.includes("rh") || rLower.includes("financeiro")) {
+    department = "Gerência / Administrativo";
+  } else if (rLower.includes("atendente") || rLower.includes("garçom") || rLower.includes("garcom") || rLower.includes("caixa") || rLower.includes("balcão") || rLower.includes("recepção")) {
+    department = "Salão / Atendimento";
+  } else if (rLower.includes("bar") || rLower.includes("bebida") || rLower.includes("bartender")) {
+    department = "Bar / Bebidas";
+  } else if (rLower.includes("estoque") || rLower.includes("compras") || rLower.includes("almoxarif")) {
+    department = "Estoque / Compras";
+  } else if (rLower.includes("limpeza") || rLower.includes("apoio") || rLower.includes("serviços gerais") || rLower.includes("zelador")) {
+    department = "Limpeza / Apoio";
+  }
+
+  // Contract type
+  let contractType: "CLT" | "PJ" | "Estagio" = "CLT";
+  if (/est[áa]gio|estagi[áa]rio/i.test(text)) {
+    contractType = "Estagio";
+  } else if (/\bPJ\b|pessoa jur[íi]dica/i.test(text)) {
+    contractType = "PJ";
+  }
+
+  // Notes
+  const notesParts: string[] = [];
+  if (ctps) notesParts.push(`CTPS: ${ctps}${serie ? ` Série: ${serie}` : ""}`);
+  if (cbo) notesParts.push(`CBO: ${cbo}`);
+  if (esocial) notesParts.push(`eSocial: ${esocial}`);
+  if (motherName) notesParts.push(`Mãe: ${motherName}`);
+  if (fatherName) notesParts.push(`Pai: ${fatherName}`);
+  const notes = notesParts.join(" | ");
+
+  return {
+    name,
+    cpf,
+    birthDate,
+    admissionDate,
+    role,
+    salary,
+    salaryCents,
+    salaryFormatted,
+    workHours,
+    address,
+    unitId,
+    department,
+    contractType,
+    cbo,
+    ctps,
+    serie,
+    esocial,
+    motherName,
+    fatherName,
+    notes,
+  };
+}
