@@ -514,12 +514,20 @@ export function RecordForm({
   const [readingDocument, setReadingDocument] = useState(false);
   const [documentReadMessage, setDocumentReadMessage] = useState("");
   const [scannedSupplier, setScannedSupplier] = useState({ name: "", document: "" });
+  const [supplierDraftOpen, setSupplierDraftOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (!supplierDraftOpen) return;
+    const field = formRef.current?.elements.namedItem("supplierId") as HTMLSelectElement | null;
+    if (field) field.value = "__new_supplier__";
+  }, [supplierDraftOpen, scannedSupplier]);
   const scanPayableDocument = async (file: File) => {
     setReadingDocument(true);
     setDocumentReadMessage("Lendo documento…");
     try {
       const found = documentFields(await readDocumentText(file), data.suppliers);
+      setScannedSupplier({ name: "", document: "" });
+      setSupplierDraftOpen(false);
       const form = formRef.current;
       if (!form) return;
       const setValue = (name: string, value: string) => {
@@ -537,7 +545,11 @@ export function RecordForm({
         setValue("description", `Documento de ${str(found.supplier, "name")}`);
       } else if (found.supplierName) {
         setScannedSupplier({ name: found.supplierName, document: found.supplierDocument });
+        setSupplierDraftOpen(true);
         setValue("description", `Documento de ${found.supplierName}`);
+      } else {
+        const supplierField = form.elements.namedItem("supplierId") as HTMLSelectElement | null;
+        if (supplierField) supplierField.value = "";
       }
       setValue("obligationType", found.obligationType);
       const filled = [(found.supplier || found.supplierName) && "fornecedor", found.dueDate && "vencimento", found.amount && "valor", found.documentNumber && "código"].filter(Boolean);
@@ -571,7 +583,9 @@ export function RecordForm({
       };
       for (const field of def.fields)
         next[field.key] = parseField(field, form.get(field.key));
-      if (kind === "payables" && !next.supplierId && scannedSupplier.name) {
+      if (kind === "payables" && next.supplierId === "__new_supplier__") {
+        if (!scannedSupplier.name.trim()) throw new Error("Informe o nome do fornecedor.");
+        next.supplierId = "";
         next.scannedSupplierName = scannedSupplier.name;
         next.scannedSupplierDocument = scannedSupplier.document;
       }
@@ -664,6 +678,9 @@ export function RecordForm({
         ) : field.type === "ref" ? (
           <select name={field.key} required={field.required} defaultValue={String(value || "")}>
             <option value="">Selecione</option>
+            {field.key === "supplierId" && supplierDraftOpen && (
+              <option value="__new_supplier__">{scannedSupplier.name || "Novo fornecedor"} — cadastrar ao salvar</option>
+            )}
             {data[field.ref!]
               ?.filter((item) => !item.archived && (DEFINITIONS[field.ref!].global || item.unitId === unit))
               .map((item) => (
@@ -738,6 +755,20 @@ export function RecordForm({
           ? def.fields.filter((field) => payableMainFields.has(field.key))
           : def.fields
         ).map(renderField)}
+        {kind === "payables" && (
+          <div className="full mg-form-advanced">
+            <button type="button" className="mg-button secondary" disabled={busy || readingDocument} onClick={() => {
+              setSupplierDraftOpen(true);
+              const field = formRef.current?.elements.namedItem("supplierId") as HTMLSelectElement | null;
+              if (field && supplierDraftOpen) field.value = "__new_supplier__";
+            }}><Plus size={16} /> Cadastrar fornecedor nesta nota</button>
+            {supplierDraftOpen && <div className="mg-form">
+              <label>Nome do fornecedor *<input value={scannedSupplier.name} onChange={(event) => setScannedSupplier((current) => ({ ...current, name: event.target.value }))} /></label>
+              <label>CNPJ / CPF<input value={scannedSupplier.document} onChange={(event) => setScannedSupplier((current) => ({ ...current, document: event.target.value }))} /></label>
+              <small className="full">Confira os dados. O fornecedor será cadastrado e vinculado automaticamente ao salvar a conta, sem duplicar um cadastro existente.</small>
+            </div>}
+          </div>
+        )}
         {kind === "payables" && (
           <>
             <details className="full mg-form-advanced">
