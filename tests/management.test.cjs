@@ -4,6 +4,21 @@ const fs = require("node:fs");
 const ts = require("typescript");
 const Module = require("node:module");
 const path = require("node:path");
+test("Apps Script: o redirecionamento busca a resposta por GET sem repetir o envio", async () => {
+  const worker = fs.readFileSync(path.join(__dirname, "../email-worker/src/index.ts"), "utf8");
+  const functionSource = worker.slice(worker.indexOf("async function callGoogleScript("), worker.indexOf("async function sendEmail("));
+  const compiled = ts.transpileModule(functionSource, {compilerOptions: {target: ts.ScriptTarget.ES2020}}).outputText;
+  const calls = [];
+  const callGoogleScript = new Function("fetch", compiled + "; return callGoogleScript;")(async (url, init) => {
+    calls.push({url, init});
+    return calls.length === 1 ? new Response(null, {status: 302, headers: {Location: "https://script.googleusercontent.com/macros/echo?test=1"}}) : Response.json({ok: true, fileId: "test-file"});
+  });
+  assert.equal((await callGoogleScript({GOOGLE_SCRIPT_URL: "https://script.google.com/macros/s/test/exec", GOOGLE_SCRIPT_SECRET: "test"}, {action: "upload"})).fileId, "test-file");
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].init.method, "POST");
+  assert.equal(calls[1].init.method, "GET");
+  assert.equal(calls[1].init.body, undefined);
+});
 require.extensions[".ts"] = (module, filename) =>
   module._compile(
     ts.transpileModule(fs.readFileSync(filename, "utf8"), {

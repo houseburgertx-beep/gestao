@@ -90,12 +90,21 @@ async function verifyFirebaseToken(authorization: string | null): Promise<{ user
 
 async function callGoogleScript(env: EmailEnv, body: object): Promise<Record<string, unknown>> {
   if (!env.GOOGLE_SCRIPT_URL || !env.GOOGLE_SCRIPT_SECRET) throw new Error("google_script_not_configured");
-  const response = await fetch(env.GOOGLE_SCRIPT_URL, {
+  let response = await fetch(env.GOOGLE_SCRIPT_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ secret: env.GOOGLE_SCRIPT_SECRET, ...body }),
-    redirect: "follow",
+    redirect: "manual",
   });
+  for (let count = 0; count < 3 && [301, 302, 303, 307, 308].includes(response.status); count++) {
+    const location = response.headers.get("Location");
+    if (!location) throw new Error("google_script_invalid_response");
+    const destination = new URL(location, env.GOOGLE_SCRIPT_URL);
+    if (destination.protocol !== "https:" || destination.hostname !== "script.googleusercontent.com") {
+      throw new Error("google_script_invalid_response");
+    }
+    response = await fetch(destination.toString(), { method: "GET", redirect: "manual" });
+  }
   if (!response.ok) throw new Error(`google_script_http_${response.status}`);
   const text = await response.text();
   let result: Record<string, unknown>;
