@@ -36,31 +36,235 @@ export function BankWorkspace() {
   const [message, setMessage] = useState("");
   const today = dateToday();
   const accounts = data.bankAccounts.filter((row) => !row.archived);
-  const balances = useMemo(() => accounts.map((account) => ({ account, balance: currentBalance(account, data.transactions, data.bankTransfers || []) })), [accounts, data.transactions, data.bankTransfers]);
-  const total = balances.every((item) => item.balance !== null) ? balances.reduce((sum, item) => sum + Number(item.balance), 0) : null;
-  const paidToday = data.transactions.filter((row) => !row.archived && row.direction === "Saída" && str(row, "date") === today && !row.reversalOf);
-  const paidTotal = paidToday.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const balances = useMemo(
+    () =>
+      accounts.map((account) => ({
+        account,
+        balance: currentBalance(account, data.transactions, data.bankTransfers || []),
+      })),
+    [accounts, data.transactions, data.bankTransfers],
+  );
+  const total = useMemo(() => {
+    return balances.reduce(
+      (sum, item) => sum + (item.balance !== null ? Number(item.balance) : 0),
+      0,
+    );
+  }, [balances]);
+  const missingCount = balances.filter((item) => item.balance === null).length;
+  const paidToday = data.transactions.filter(
+    (row) =>
+      !row.archived &&
+      row.direction === "Saída" &&
+      str(row, "date") === today &&
+      !row.reversalOf,
+  );
+  const paidTotal = paidToday.reduce(
+    (sum, row) => sum + Number(row.amount || 0),
+    0,
+  );
 
   const share = (type: "banks" | "paid") => {
-    const text = type === "banks"
-      ? [`*SALDOS BANCÁRIOS — ${today.split("-").reverse().join("/")}*`, ...balances.map(({ account, balance }) => `${str(account, "name")}: ${balance===null?"Não informado":currency(balance)}`), `*TOTAL: ${total===null?"Não informado":currency(total)}*`].join("\n")
-      : [`*PAGAMENTOS DO DIA — ${today.split("-").reverse().join("/")}*`, ...paidToday.map((row) => `• ${str(row, "description").replace(/^Baixa:\s*/, "")} — ${currency(Number(row.amount || 0))}`), `*TOTAL PAGO: ${currency(paidTotal)}*`].join("\n");
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+    const text =
+      type === "banks"
+        ? [
+            `*SALDOS BANCÁRIOS — ${today.split("-").reverse().join("/")}*`,
+            ...balances.map(
+              ({ account, balance }) =>
+                `• ${str(account, "name")} (${str(account, "bank") || "Conta"}): ${balance === null ? "R$ 0,00 (não informado)" : currency(balance)}`,
+            ),
+            `*TOTAL GERAL DOS BANCOS: ${currency(total)}*`,
+          ].join("\n")
+        : [
+            `*PAGAMENTOS DO DIA — ${today.split("-").reverse().join("/")}*`,
+            ...paidToday.map(
+              (row) =>
+                `• ${str(row, "description").replace(/^Baixa:\s*/, "")} — ${currency(Number(row.amount || 0))}`,
+            ),
+            `*TOTAL PAGO: ${currency(paidTotal)}*`,
+          ].join("\n");
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   };
 
-  return <div className="workspace-shell banking-workspace">
-    <header className="workspace-header">
-      <div><span className="workspace-eyebrow">TESOURARIA</span><h1>Bancos e movimentações</h1><p>Saldos, transferências internas e relatórios diários em um só lugar.</p></div>
-      <div className="bank-actions"><button className="workspace-secondary" onClick={() => share("banks")}><MessageCircle size={16}/> Saldos no WhatsApp</button><button className="workspace-secondary" onClick={() => setInstantOpen(true)}><Zap size={16}/> Pagamento instantâneo</button><button className="workspace-primary" onClick={() => setTransferOpen(true)}><ArrowRightLeft size={16}/> Transferir</button></div>
-    </header>
-    <section className="bank-total-card"><div><span>SALDO TOTAL DO GRUPO</span><strong>{total===null?"Não informado":currency(total)}</strong><small>{total === null ? "Informe os valores dos bancos para calcular o total" : `Posição calculada em ${today.split("-").reverse().join("/")}`}</small></div><WalletCards size={38}/></section>
-    <section className="bank-grid">
-      {balances.map(({ account, balance }) => <article className="bank-card" key={account.id}><div className="bank-card-icon"><Landmark size={19}/></div><div><span>{str(account, "bank") || "Conta bancária"}</span><h3>{str(account, "name")}</h3><strong>{balance===null?"Não informado":currency(balance)}</strong><small>{str(account, "balanceDate") ? `Atualizado em ${str(account, "balanceDate").split("-").reverse().join("/")}` : "Informe o primeiro valor"}</small><button className="bank-edit" onClick={()=>setEditingBank(account)}><Pencil size={13}/> Incluir valor</button></div></article>)}
-      {!accounts.length && <div className="bank-empty">Os sete bancos estão sendo preparados. Nenhum saldo foi inventado.</div>}
-    </section>
-    <section className="bank-report-row"><div><CalendarDays size={20}/><div><span>PAGAMENTOS REGISTRADOS HOJE</span><strong>{currency(paidTotal)}</strong><small>{paidToday.length} pagamento(s)</small></div></div><button className="workspace-secondary" onClick={() => share("paid")}><MessageCircle size={16}/> Enviar relatório do dia</button></section>
-    {message && <p className="workspace-message">{message}</p>}
-    <section className="mg-panel"><div className="mg-toolbar"><h2>Contas cadastradas <span className="mg-tag">{accounts.length}</span></h2><button className="mg-button" onClick={() => setEditingBank(false)}><Plus size={15}/> Nova conta</button></div></section>
+  return (
+    <div className="workspace-shell banking-workspace">
+      <header className="workspace-header">
+        <div>
+          <span className="workspace-eyebrow">TESOURARIA</span>
+          <h1>Bancos e movimentações</h1>
+          <p>Saldos, transferências internas e relatórios diários em um só lugar.</p>
+        </div>
+        <div className="bank-actions">
+          <button className="workspace-secondary" onClick={() => share("banks")}>
+            <MessageCircle size={16} /> Saldos no WhatsApp
+          </button>
+          <button className="workspace-secondary" onClick={() => setInstantOpen(true)}>
+            <Zap size={16} /> Pagamento instantâneo
+          </button>
+          <button className="workspace-primary" onClick={() => setTransferOpen(true)}>
+            <ArrowRightLeft size={16} /> Transferir
+          </button>
+        </div>
+      </header>
+      <section className="bank-total-card">
+        <div>
+          <span>SALDO TOTAL DO GRUPO (TODOS OS BANCOS)</span>
+          <strong>{accounts.length ? currency(total) : "Nenhum banco cadastrado"}</strong>
+          <small>
+            {accounts.length === 0
+              ? "Cadastre as contas bancárias abaixo para iniciar a conciliação"
+              : missingCount > 0
+                ? `${accounts.length - missingCount} de ${accounts.length} contas com saldo informado (${missingCount} pendente(s))`
+                : `Total consolidado de todas as ${accounts.length} contas em ${today.split("-").reverse().join("/")}`}
+          </small>
+        </div>
+        <WalletCards size={38} />
+      </section>
+      <section className="bank-grid">
+        {balances.map(({ account, balance }) => (
+          <article className="bank-card" key={account.id}>
+            <div className="bank-card-icon">
+              <Landmark size={19} />
+            </div>
+            <div>
+              <span>{str(account, "bank") || "Conta bancária"}</span>
+              <h3>{str(account, "name")}</h3>
+              <strong>{balance === null ? "Não informado" : currency(balance)}</strong>
+              <small>
+                {str(account, "balanceDate")
+                  ? `Atualizado em ${str(account, "balanceDate").split("-").reverse().join("/")}`
+                  : "Informe o primeiro valor"}
+              </small>
+              <button className="bank-edit" onClick={() => setEditingBank(account)}>
+                <Pencil size={13} /> Incluir valor
+              </button>
+            </div>
+          </article>
+        ))}
+        {!accounts.length && (
+          <div className="bank-empty">
+            Os sete bancos estão sendo preparados. Nenhum saldo foi inventado.
+          </div>
+        )}
+      </section>
+      <section className="bank-report-row">
+        <div>
+          <CalendarDays size={20} />
+          <div>
+            <span>PAGAMENTOS REGISTRADOS HOJE</span>
+            <strong>{currency(paidTotal)}</strong>
+            <small>{paidToday.length} pagamento(s)</small>
+          </div>
+        </div>
+        <button className="workspace-secondary" onClick={() => share("paid")}>
+          <MessageCircle size={16} /> Enviar relatório do dia
+        </button>
+      </section>
+      {message && <p className="workspace-message">{message}</p>}
+      <section className="mg-panel">
+        <div className="mg-toolbar">
+          <h2>
+            Contas cadastradas <span className="mg-tag">{accounts.length}</span>
+          </h2>
+          <button className="mg-button" onClick={() => setEditingBank(false)}>
+            <Plus size={15} /> Nova conta
+          </button>
+        </div>
+        {accounts.length > 0 ? (
+          <div className="mg-table-wrap">
+            <table className="mg-table bank-accounts-table">
+              <thead>
+                <tr>
+                  <th>Banco / Instituição</th>
+                  <th>Nome da Conta</th>
+                  <th>Unidade</th>
+                  <th style={{ textAlign: "right" }}>Taxas (C / D / PIX)</th>
+                  <th style={{ textAlign: "right" }}>Saldo Atual</th>
+                  <th style={{ textAlign: "center" }}>Última Atualização</th>
+                  <th style={{ textAlign: "right" }}>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {balances.map(({ account, balance }) => {
+                  const unit = data.units.find((u) => u.id === account.unitId);
+                  const fees =
+                    [
+                      account.creditFeePct ? `${account.creditFeePct}% C` : null,
+                      account.debitFeePct ? `${account.debitFeePct}% D` : null,
+                      account.pixFeePct ? `${account.pixFeePct}% PIX` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "0%";
+                  return (
+                    <tr key={account.id}>
+                      <td>
+                        <strong>{str(account, "bank") || "Conta bancária"}</strong>
+                        {account.isSangriaAccount ? (
+                          <span className="bank-sangria-tag" style={{ marginLeft: "8px" }}>
+                            Conta de Sangria
+                          </span>
+                        ) : null}
+                      </td>
+                      <td>{str(account, "name")}</td>
+                      <td>
+                        <span className="payables-unit-badge">
+                          {unit?.name || "Todas / Matriz"}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: "right", fontSize: "12px", color: "#64748b" }}>
+                        {fees}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <strong
+                          style={{
+                            fontSize: "14px",
+                            color: balance !== null && balance < 0 ? "#dc2626" : "#16a34a",
+                          }}
+                        >
+                          {balance === null ? "Não informado" : currency(balance)}
+                        </strong>
+                      </td>
+                      <td style={{ textAlign: "center", fontSize: "12px" }}>
+                        {str(account, "balanceDate")
+                          ? str(account, "balanceDate").split("-").reverse().join("/")
+                          : "Pendente"}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <button
+                          type="button"
+                          className="workspace-secondary"
+                          style={{ padding: "4px 10px", fontSize: "12px" }}
+                          onClick={() => setEditingBank(account)}
+                        >
+                          <Pencil size={12} /> Editar
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="bank-table-total-row">
+                  <td colSpan={4}>
+                    <strong>TOTAL GERAL DE TODOS OS BANCOS CADASTRADOS</strong>
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    <strong className="bank-total-sum">{currency(total)}</strong>
+                  </td>
+                  <td colSpan={2} style={{ textAlign: "center", fontSize: "12px" }}>
+                    {accounts.length} conta(s)
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        ) : (
+          <div className="bank-empty">Nenhuma conta cadastrada no momento.</div>
+        )}
+      </section>
     {editingBank !== null && (
       <BankAccountModal
         account={editingBank || undefined}
@@ -73,7 +277,8 @@ export function BankWorkspace() {
     )}
     {transferOpen && <TransferModal accounts={accounts} tenantId={tenantId} onClose={() => setTransferOpen(false)} onSaved={() => {setTransferOpen(false);setMessage("Transferência registrada nas duas contas.");}}/>}
     {instantOpen && <InstantPaymentModal accounts={accounts} tenantId={tenantId} onClose={()=>setInstantOpen(false)} onSaved={()=>{setInstantOpen(false);setMessage("Pagamento instantâneo registrado e incluído no relatório do dia.");}}/>}
-  </div>;
+    </div>
+  );
 }
 
 function BankAccountModal({

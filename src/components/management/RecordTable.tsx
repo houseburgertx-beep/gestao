@@ -19,6 +19,7 @@ import {
   Phone,
   Mail,
   FileText,
+  Repeat,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,6 +32,9 @@ import {
   dateToday,
   addDays,
   str,
+  PRIMARY_OBLIGATION_TYPES,
+  PRIMARY_PAYMENT_METHODS,
+  normalizeObligationType,
 } from "@/domain/management/model";
 import { parseField, settlement } from "@/domain/management/operations";
 import {
@@ -54,6 +58,7 @@ import { backupPayablesSpreadsheet } from "@/services/payablesBackupService";
 import { addNotificationToFirestore } from "@/services/firestoreService";
 import { parseDebtDocument } from "@/domain/management/documentParsing";
 import { readDocumentText } from "@/services/documentTextReader";
+import { FixedExpenseModal } from "./FixedExpenseModal";
 
 const safeUUID = () =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -83,6 +88,10 @@ function documentFields(text: string, suppliers: RecordData[]) {
   const documentLine = lines.findIndex((line) => /CNPJ|CPF/i.test(line));
   const candidateName = documentLine > 0 ? lines.slice(Math.max(0, documentLine - 3), documentLine).reverse().find((line) => /[A-Za-zÀ-ÿ]{3}/.test(line) && !/banco|agência|beneficiário|pagador|sacado|boleto|nota fiscal/i.test(line)) : "";
   const supplierName = supplier ? str(supplier, "name") : candidateName || "";
+  const rawObligation = parsed.obligationType;
+  const isInvoiceOrBoleto = rawObligation === "Débito" || rawObligation === "Boleto";
+  const obligationType = isInvoiceOrBoleto ? "Fornecedor / Mercadoria" : (rawObligation || "Fornecedor / Mercadoria");
+  const paymentMethod = rawObligation === "Débito" ? "Débito automático" : "Boleto";
   return {
     documentNumber: parsed.documentNumber || (!parsed.isInvoice ? barcode : ""),
     dueDate: parsed.dueDate || (dueDate ? dueDate.replace(/(\d{2})[/-](\d{2})[/-](\d{4})/, "$3-$2-$1") : ""),
@@ -90,7 +99,8 @@ function documentFields(text: string, suppliers: RecordData[]) {
     supplier,
     supplierName: parsed.supplierName || supplierName,
     supplierDocument: parsed.supplierDocument || supplierDocument,
-    obligationType: parsed.obligationType,
+    obligationType,
+    paymentMethod,
   };
 }
 const formatDateBR = (dateStr: string) => {
@@ -137,6 +147,7 @@ export function RecordTable({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Todos");
   const [editing, setEditing] = useState<RecordData | false | null>(null);
+  const [fixedExpenseOpen, setFixedExpenseOpen] = useState(false);
   const [paying, setPaying] = useState<RecordData | null>(null);
   const [message, setMessage] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -152,10 +163,18 @@ export function RecordTable({
       setMessage("");
       setEditing(false);
     };
+    const openFixed = () => {
+      setMessage("");
+      setFixedExpenseOpen(true);
+    };
     const eventName = kind === "payables" ? "open-payable-form" : kind === "suppliers" ? "open-supplier-form" : `open-${kind}-form`;
     window.addEventListener(eventName, open);
+    window.addEventListener("open-fixed-expense-form", openFixed);
     if (new URLSearchParams(window.location.search).get("novo") === "1") open();
-    return () => window.removeEventListener(eventName, open);
+    return () => {
+      window.removeEventListener(eventName, open);
+      window.removeEventListener("open-fixed-expense-form", openFixed);
+    };
   }, [kind]);
   const unitIds = new Set(
     data.units
@@ -183,6 +202,13 @@ export function RecordTable({
           !r.unitId ||
           r.unitId === filters.unitId ||
           unitIds.has(r.unitId)),
+    );
+    const fixedList = baseList.filter(
+      (r) => normalizeObligationType(str(r, "obligationType")) === "Despesa Fixa",
+    );
+    const fixedTotal = fixedList.reduce(
+      (acc, r) => acc + outstanding(r, data, filters.today),
+      0,
     );
     const todayList = baseList.filter(
       (r) =>
@@ -213,6 +239,8 @@ export function RecordTable({
     );
     return {
       all: baseList.length,
+      fixed: fixedList,
+      fixedTotal,
       today: todayList,
       todayTotal,
       overdue: overdueList,
@@ -248,6 +276,9 @@ export function RecordTable({
     )
     .filter((r) => {
       if (kind !== "payables" || statusFilter === "Todos") return true;
+      if (statusFilter === "Despesas Fixas") {
+        return normalizeObligationType(str(r, "obligationType")) === "Despesa Fixa";
+      }
       if (statusFilter === "Hoje") {
         return (
           outstanding(r, data, filters.today) > 0 &&
@@ -297,6 +328,18 @@ export function RecordTable({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        {kind === "payables" && (
+          <button
+            className="mg-button mg-button-fixed"
+            disabled={!canWrite || !!errors[kind]}
+            onClick={() => {
+              setMessage("");
+              setFixedExpenseOpen(true);
+            }}
+          >
+            <Repeat size={16} /> Lançar Despesa Fixa
+          </button>
+        )}
         <button
           className="mg-button"
           disabled={!canWrite || !!errors[kind]}
@@ -385,6 +428,13 @@ export function RecordTable({
           </button>
           <button
             type="button"
+            className={`payables-tab-fixed ${statusFilter === "Despesas Fixas" ? "active" : ""}`}
+            onClick={() => setStatusFilter("Despesas Fixas")}
+          >
+            📌 Despesas Fixas <span className="payables-tab-count">{payablesCounts.fixed.length}</span>
+          </button>
+          <button
+            type="button"
             className={`${statusFilter === "Hoje" ? "active" : ""} ${payablesCounts.today.length > 0 ? "has-today" : ""}`}
             onClick={() => setStatusFilter("Hoje")}
           >
@@ -419,6 +469,29 @@ export function RecordTable({
           </button>
         </nav>
       )}
+      {kind === "payables" && statusFilter === "Despesas Fixas" && payablesCounts && (
+        <div className="payables-fixed-banner">
+          <div className="payables-fixed-banner-left">
+            <div className="payables-fixed-banner-icon">
+              <Repeat size={18} />
+            </div>
+            <div>
+              <strong>Visualizando exclusivamente Despesas Fixas</strong>
+              <p>
+                {payablesCounts.fixed.length} conta(s) fixa(s) encontrada(s) · Total em aberto:{" "}
+                <strong>{currency(payablesCounts.fixedTotal)}</strong>
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="workspace-primary payables-fixed-banner-btn"
+            onClick={() => setFixedExpenseOpen(true)}
+          >
+            <Repeat size={14} /> + Nova Despesa Fixa
+          </button>
+        </div>
+      )}
       {list.length ? (
         <div className="mg-table-wrap">
           {kind === "payables" ? (
@@ -441,9 +514,12 @@ export function RecordTable({
                   const statusText = isPaid ? "Pago" : isToday ? "Vence hoje" : isOverdue ? "Vencido" : "A vencer";
                   const statusClass = isPaid ? "paid" : isToday ? "today" : isOverdue ? "overdue" : "pending";
                   const unit = data.units.find((u) => u.id === r.unitId);
-                  const typeParts = [str(r, "obligationType"), str(r, "paymentMethod")]
-                    .filter((x) => Boolean(x) && x !== "DADO PENDENTE");
-                  const typeStr = typeParts.length > 0 ? typeParts.join(" · ") : "";
+                  const rawObligation = str(r, "obligationType");
+                  const normObligation = normalizeObligationType(rawObligation);
+                  const isFixed = normObligation === "Despesa Fixa";
+                  const isTax = normObligation === "Imposto / Tributo" || r.sourceKind === "taxes";
+                  const methodStr = str(r, "paymentMethod");
+                  const hasMethod = Boolean(methodStr && methodStr !== "DADO PENDENTE");
                   const proof = data.transactions.find((item) => item.obligationId === r.id && item.paymentProofFileId && !item.reversalOf);
                   const isExpanded = expandedId === r.id;
 
@@ -460,7 +536,19 @@ export function RecordTable({
                             <span className="payables-desc-title" title={str(r, "description")}>
                               {str(r, "description")}
                             </span>
-                            {typeStr && <span className="payables-desc-sub">{typeStr}</span>}
+                            <div className="payables-badges-row">
+                              <span
+                                className={`payables-badge-type ${isFixed ? "badge-type-fixed" : isTax ? "badge-type-tax" : "badge-type-default"}`}
+                                title={`Tipo de Conta: ${normObligation}`}
+                              >
+                                {isFixed ? "📌 Despesa Fixa" : normObligation}
+                              </span>
+                              {hasMethod && (
+                                <span className="payables-badge-method" title={`Forma de Pagamento: ${methodStr}`}>
+                                  {methodStr === "PIX" ? "⚡ PIX" : methodStr === "Boleto" ? "📄 Boleto" : methodStr === "Débito automático" ? "🏦 Débito auto" : methodStr}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td>
@@ -728,6 +816,17 @@ export function RecordTable({
           }}
         />
       )}
+      {fixedExpenseOpen && (
+        <FixedExpenseModal
+          initialUnitId={filters.unitId || (allowedUnit === "all" ? "" : allowedUnit)}
+          onClose={() => setFixedExpenseOpen(false)}
+          onSaved={(savedMessage) => {
+            setFixedExpenseOpen(false);
+            setStatusFilter("Despesas Fixas");
+            setMessage(savedMessage || "Despesa fixa cadastrada com sucesso!");
+          }}
+        />
+      )}
     </section>
   );
 }
@@ -965,14 +1064,40 @@ export function RecordForm({
       <label key={field.key} className={field.type === "textarea" ? "full" : ""}>
         {field.label}{field.required ? " *" : ""}
         {field.type === "select" ? (
-          <select
-            name={field.key}
-            required={field.required}
-            defaultValue={String(value || (field.key === "status" ? "Pendente" : ""))}
-          >
-            <option value="">Selecione</option>
-            {field.options?.map((option) => <option key={option}>{option}</option>)}
-          </select>
+          (() => {
+            let options = field.options;
+            if (kind === "payables" && field.key === "obligationType") {
+              options = Array.from(
+                new Set([
+                  ...PRIMARY_OBLIGATION_TYPES,
+                  ...(value ? [String(value)] : []),
+                ]),
+              );
+            } else if (kind === "payables" && field.key === "paymentMethod") {
+              options = Array.from(
+                new Set([
+                  ...PRIMARY_PAYMENT_METHODS,
+                  ...(value ? [String(value)] : []),
+                ]),
+              );
+            }
+            return (
+              <select
+                name={field.key}
+                required={field.required}
+                defaultValue={String(
+                  value || (field.key === "status" ? "Pendente" : ""),
+                )}
+              >
+                <option value="">Selecione</option>
+                {options?.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            );
+          })()
         ) : field.type === "ref" ? (
           <select name={field.key} required={field.required} defaultValue={String(value || "")}>
             <option value="">Selecione</option>

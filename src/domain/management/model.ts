@@ -281,13 +281,21 @@ export const DEFINITIONS: Record<string, Definition> = {
     dated: "dueDate",
     fields: [
       opt("obligationType", "Tipo da conta", [
+        "Despesa Fixa",
+        "Fornecedor / Mercadoria",
+        "Imposto / Tributo",
+        "Serviço / Terceirizado",
+        "Folha / Pessoal",
+        "Pró-labore / Sócios",
+        "Empréstimo / Financiamento",
+        "Outros",
+        // Compatibilidade com registros legados e testes
+        "Conta fixa",
         "Boleto",
         "Débito",
         "Imposto",
-        "Conta fixa",
         "Cheque",
         "Empréstimo",
-        "Outros",
       ]),
       f("description", "Descrição"),
       ref("supplierId", "Fornecedor", "suppliers", false),
@@ -297,13 +305,18 @@ export const DEFINITIONS: Record<string, Definition> = {
       f("amount", "Valor a pagar (R$)", "money"),
       opt("paymentMethod", "Forma de pagamento", [
         "Boleto",
-        "Débito automático",
         "PIX",
-        "Transferência",
+        "Débito automático",
+        "Cartão de Crédito",
+        "Cartão de Débito",
+        "Transferência bancária",
+        "Dinheiro em espécie",
         "Cheque",
+        "Outros",
+        // Compatibilidade com registros legados
+        "Transferência",
         "Dinheiro",
         "Cartão",
-        "Outros",
       ], false),
       f("documentNumber", "Código / número do boleto", "text", false),
       opt("nature", "Natureza", [
@@ -736,3 +749,36 @@ export function addMonths(date: string, n: number) {
 export function emptyDatabase(): Database {
   return Object.fromEntries(Object.keys(DEFINITIONS).map((k) => [k, []]));
 }
+
+export const PRIMARY_OBLIGATION_TYPES = [
+  "Despesa Fixa",
+  "Fornecedor / Mercadoria",
+  "Imposto / Tributo",
+  "Serviço / Terceirizado",
+  "Folha / Pessoal",
+  "Pró-labore / Sócios",
+  "Empréstimo / Financiamento",
+  "Outros",
+] as const;
+
+export const PRIMARY_PAYMENT_METHODS = [
+  "Boleto",
+  "PIX",
+  "Débito automático",
+  "Cartão de Crédito",
+  "Cartão de Débito",
+  "Transferência bancária",
+  "Dinheiro em espécie",
+  "Cheque",
+  "Outros",
+] as const;
+
+export function normalizeObligationType(type?: string): string {
+  if (!type) return "Outros";
+  if (type === "Conta fixa" || type === "Despesa Fixa") return "Despesa Fixa";
+  if (type === "Boleto" || type === "Débito") return "Fornecedor / Mercadoria";
+  if (type === "Imposto" || type === "Imposto / Tributo") return "Imposto / Tributo";
+  if (type === "Empréstimo" || type === "Empréstimo / Financiamento") return "Empréstimo / Financiamento";
+  return type;
+}
+

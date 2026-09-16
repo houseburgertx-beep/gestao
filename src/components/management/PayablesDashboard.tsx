@@ -10,6 +10,7 @@ import {
   Landmark,
   ArrowDown,
   ReceiptText,
+  Repeat,
 } from "lucide-react";
 import {
   Bar,
@@ -25,7 +26,7 @@ import {
   YAxis,
 } from "recharts";
 import { useManagement } from "@/contexts/ManagementContext";
-import { addDays, currency, RecordData, str } from "@/domain/management/model";
+import { addDays, currency, normalizeObligationType, RecordData, str } from "@/domain/management/model";
 import { Filters, outstanding, payableStatus } from "@/domain/management/engine";
 import { backupPayablesSpreadsheet } from "@/services/payablesBackupService";
 import { RecordTable } from "./RecordTable";
@@ -80,6 +81,9 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
   const taxRows = open.filter(
     (row) => (str(row, "obligationType") === "Imposto" || row.sourceKind === "taxes") && str(row, "dueDate") <= addDays(today, 30),
   );
+  const fixedRows = open.filter((row) => normalizeObligationType(str(row, "obligationType")) === "Despesa Fixa");
+  const fixedThisMonth = fixedRows.filter((row) => str(row, "dueDate").slice(0, 7) === filters.start.slice(0, 7));
+  const fixedAmount = sum(fixedThisMonth, data, today);
   const paidThisMonth = rows.filter((row) => {
     const payments = data.transactions.filter(
       (item) =>
@@ -119,7 +123,8 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
   ];
   const byType = Array.from(
     open.reduce((map, row) => {
-      const type = str(row, "obligationType") || (row.sourceKind === "taxes" ? "Imposto" : "Outros");
+      const raw = str(row, "obligationType");
+      const type = normalizeObligationType(raw) || (row.sourceKind === "taxes" ? "Imposto / Tributo" : "Outros");
       map.set(type, (map.get(type) || 0) + outstanding(row, data, today));
       return map;
     }, new Map<string, number>()),
@@ -159,13 +164,27 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
           <h2>O que precisa ser pago agora</h2>
           <p>Boletos, débitos e impostos organizados por vencimento e loja.</p>
         </div>
-        <div className="bank-actions"><button className="workspace-secondary" onClick={()=>setInstantOpen(true)}><ReceiptText size={17}/> Pagamento instantâneo</button><button className="payables-backup-button" onClick={createBackup} disabled={backingUp}><FileSpreadsheet size={18} /> {backingUp ? "Criando…" : "Gerar backup agora"}</button></div>
+        <div className="bank-actions">
+          <button
+            className="workspace-secondary"
+            onClick={() => window.dispatchEvent(new CustomEvent("open-fixed-expense-form"))}
+          >
+            <Repeat size={16} /> Lançar Despesa Fixa
+          </button>
+          <button className="workspace-secondary" onClick={() => setInstantOpen(true)}>
+            <ReceiptText size={17} /> Pagamento instantâneo
+          </button>
+          <button className="payables-backup-button" onClick={createBackup} disabled={backingUp}>
+            <FileSpreadsheet size={18} /> {backingUp ? "Criando…" : "Gerar backup agora"}
+          </button>
+        </div>
       </section>
 
       <div className="payables-summary-grid">
         <SummaryCard tone="danger" icon={AlertTriangle} label="Vencidos" value={currency(sum(overdue, data, today))} detail={`${overdue.length} conta(s)`} />
         <SummaryCard tone="warning" icon={CalendarClock} label="Vence hoje" value={currency(sum(todayRows, data, today))} detail={`${todayRows.length} conta(s)`} />
         <SummaryCard tone="purple" icon={ReceiptText} label="Próximos 7 dias" value={currency(sum(next7, data, today))} detail={`${next7.length} conta(s)`} />
+        <SummaryCard tone="cyan" icon={Repeat} label="Despesas Fixas (mês)" value={currency(fixedAmount)} detail={`${fixedThisMonth.length} conta(s) fixa(s)`} />
         <SummaryCard tone="blue" icon={Landmark} label="Impostos até 30 dias" value={currency(sum(taxRows, data, today))} detail={`${taxRows.length} imposto(s)`} />
         <SummaryCard tone="green" icon={CheckCircle2} label="Pago no mês" value={currency(paidAmount)} detail={`${paidThisMonth.length} conta(s)`} />
       </div>
