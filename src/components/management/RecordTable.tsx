@@ -1,6 +1,19 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
-import { Plus, X, Pencil, Paperclip, Download, Cloud, Zap } from "lucide-react";
+import {
+  Plus,
+  X,
+  Pencil,
+  Paperclip,
+  Download,
+  Cloud,
+  Zap,
+  AlertTriangle,
+  AlertCircle,
+  CalendarClock,
+  CheckCircle2,
+  Trash2,
+} from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -69,16 +82,33 @@ function documentFields(text: string, suppliers: RecordData[]) {
     obligationType: parsed.obligationType,
   };
 }
+const formatDateBR = (dateStr: string) => {
+  if (!dateStr || dateStr === "DADO PENDENTE") return "—";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split("-");
+    return `${d}/${m}/${y}`;
+  }
+  return dateStr;
+};
+
+const formatShortUnit = (unitName: string) => {
+  if (!unitName || unitName === "DADO PENDENTE") return "—";
+  return unitName.replace(/^House\s+190\s+/i, "").replace(/^House\s+/i, "");
+};
+
 const fieldDisplay = (r: RecordData, f: Field, db: Database) => {
   const v = r[f.key];
-  if (v === null || v === undefined || v === "") return "DADO PENDENTE";
+  if (v === null || v === undefined || v === "" || v === "DADO PENDENTE") return "—";
   if (f.type === "money") return currency(Number(v));
   if (f.type === "check") return v ? "Sim" : "Não";
+  if (f.type === "date" || (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v))) {
+    return formatDateBR(String(v));
+  }
   if (f.type === "ref") {
     const ref = db[f.ref!]?.find((x) => x.id === v);
     return ref
       ? String(ref.name || ref.description || ref.contract || ref.bank || v)
-      : "Referência pendente";
+      : "—";
   }
   return String(v);
 };
@@ -130,6 +160,49 @@ export function RecordTable({
       )
       .map((u) => u.id),
   );
+  const payablesCounts = React.useMemo(() => {
+    if (kind !== "payables") return null;
+    const baseList = (data.payables || []).filter(
+      (r) => !r.archived && (def.global || unitIds.has(r.unitId)),
+    );
+    const todayList = baseList.filter(
+      (r) =>
+        outstanding(r, data, filters.today) > 0 &&
+        str(r, "dueDate") === filters.today,
+    );
+    const overdueList = baseList.filter(
+      (r) =>
+        outstanding(r, data, filters.today) > 0 &&
+        str(r, "dueDate") < filters.today,
+    );
+    const next7List = baseList.filter(
+      (r) =>
+        outstanding(r, data, filters.today) > 0 &&
+        str(r, "dueDate") > filters.today &&
+        str(r, "dueDate") <= addDays(filters.today, 7),
+    );
+    const paidList = baseList.filter(
+      (r) => outstanding(r, data, filters.today) === 0,
+    );
+    const todayTotal = todayList.reduce(
+      (acc, r) => acc + outstanding(r, data, filters.today),
+      0,
+    );
+    const overdueTotal = overdueList.reduce(
+      (acc, r) => acc + outstanding(r, data, filters.today),
+      0,
+    );
+    return {
+      all: baseList.length,
+      today: todayList,
+      todayTotal,
+      overdue: overdueList,
+      overdueTotal,
+      next7: next7List,
+      paid: paidList,
+    };
+  }, [data.payables, data.transactions, unitIds, filters.today, kind, def.global]);
+
   const list = (data[kind] || [])
     .filter(
       (r) =>
@@ -151,9 +224,29 @@ export function RecordTable({
     )
     .filter((r) => {
       if (kind !== "payables" || statusFilter === "Todos") return true;
+      if (statusFilter === "Hoje") {
+        return (
+          outstanding(r, data, filters.today) > 0 &&
+          str(r, "dueDate") === filters.today
+        );
+      }
+      if (statusFilter === "Vencidos" || statusFilter === "Vencido") {
+        return (
+          outstanding(r, data, filters.today) > 0 &&
+          str(r, "dueDate") < filters.today
+        );
+      }
+      if (statusFilter === "Próximos 7 dias") {
+        return (
+          outstanding(r, data, filters.today) > 0 &&
+          str(r, "dueDate") > filters.today &&
+          str(r, "dueDate") <= addDays(filters.today, 7)
+        );
+      }
+      if (statusFilter === "Pagos" || statusFilter === "Pago") {
+        return outstanding(r, data, filters.today) === 0;
+      }
       const status = payableStatus(r, data, filters.today);
-      if (statusFilter === "Próximos 7 dias")
-        return outstanding(r, data, filters.today) > 0 && str(r, "dueDate") >= filters.today && str(r, "dueDate") <= addDays(filters.today, 7);
       return status === statusFilter;
     });
   const columns = (kind === "payables"
@@ -196,203 +289,378 @@ export function RecordTable({
           {message}
         </p>
       )}
-      {kind === "payables" && (
+      {kind === "payables" && payablesCounts && (
+        <div className="payables-alert-section">
+          {payablesCounts.today.length > 0 ? (
+            <div className="payables-today-alert-card warning">
+              <div className="payables-alert-icon warning">
+                <CalendarClock size={20} />
+              </div>
+              <div className="payables-alert-body">
+                <h3>
+                  {payablesCounts.today.length === 1
+                    ? "1 boleto vence HOJE!"
+                    : `${payablesCounts.today.length} boletos vencem HOJE!`}
+                </h3>
+                <p>
+                  Total com vencimento hoje ({formatDateBR(filters.today)}):{" "}
+                  <strong>{currency(payablesCounts.todayTotal)}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                className={`payables-alert-action ${statusFilter === "Hoje" ? "active" : ""}`}
+                onClick={() => setStatusFilter(statusFilter === "Hoje" ? "Todos" : "Hoje")}
+              >
+                {statusFilter === "Hoje" ? "Exibir todos os boletos" : "Filtrar boletos de hoje"}
+              </button>
+            </div>
+          ) : payablesCounts.overdue.length > 0 ? (
+            <div className="payables-today-alert-card danger">
+              <div className="payables-alert-icon danger">
+                <AlertTriangle size={20} />
+              </div>
+              <div className="payables-alert-body">
+                <h3>
+                  {payablesCounts.overdue.length === 1
+                    ? "1 conta vencida aguardando pagamento!"
+                    : `${payablesCounts.overdue.length} contas vencidas aguardando pagamento!`}
+                </h3>
+                <p>
+                  Total em atraso: <strong>{currency(payablesCounts.overdueTotal)}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                className={`payables-alert-action danger ${statusFilter === "Vencidos" ? "active" : ""}`}
+                onClick={() => setStatusFilter(statusFilter === "Vencidos" ? "Todos" : "Vencidos")}
+              >
+                {statusFilter === "Vencidos" ? "Exibir todas as contas" : "Ver contas vencidas"}
+              </button>
+            </div>
+          ) : (
+            <div className="payables-today-alert-card clean">
+              <div className="payables-alert-icon clean">
+                <CheckCircle2 size={17} />
+              </div>
+              <div className="payables-alert-body">
+                <p>
+                  Nenhum boleto vence hoje ({formatDateBR(filters.today)}). Suas contas estão em dia!
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {kind === "payables" && payablesCounts && (
         <nav className="payables-table-filters" aria-label="Filtrar contas por situação">
-          {["Todos", "Vencido", "Vencendo", "Próximos 7 dias", "Pago"].map((status) => (
-            <button
-              key={status}
-              className={statusFilter === status ? "active" : ""}
-              onClick={() => setStatusFilter(status)}
-            >
-              {status}
-            </button>
-          ))}
+          <button
+            type="button"
+            className={statusFilter === "Todos" ? "active" : ""}
+            onClick={() => setStatusFilter("Todos")}
+          >
+            Todos <span className="payables-tab-count">{payablesCounts.all}</span>
+          </button>
+          <button
+            type="button"
+            className={`${statusFilter === "Hoje" ? "active" : ""} ${payablesCounts.today.length > 0 ? "has-today" : ""}`}
+            onClick={() => setStatusFilter("Hoje")}
+          >
+            Hoje{" "}
+            <span className={`payables-tab-count ${payablesCounts.today.length > 0 ? "count-warning" : ""}`}>
+              {payablesCounts.today.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`${statusFilter === "Vencidos" ? "active" : ""} ${payablesCounts.overdue.length > 0 ? "has-overdue" : ""}`}
+            onClick={() => setStatusFilter("Vencidos")}
+          >
+            Vencidos{" "}
+            <span className={`payables-tab-count ${payablesCounts.overdue.length > 0 ? "count-danger" : ""}`}>
+              {payablesCounts.overdue.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={statusFilter === "Próximos 7 dias" ? "active" : ""}
+            onClick={() => setStatusFilter("Próximos 7 dias")}
+          >
+            Próximos 7 dias <span className="payables-tab-count">{payablesCounts.next7.length}</span>
+          </button>
+          <button
+            type="button"
+            className={statusFilter === "Pagos" ? "active" : ""}
+            onClick={() => setStatusFilter("Pagos")}
+          >
+            Pagos <span className="payables-tab-count">{payablesCounts.paid.length}</span>
+          </button>
         </nav>
       )}
       {list.length ? (
         <div className="mg-table-wrap">
-          <table className="mg-table">
-            <thead>
-              <tr>
-                {!def.global && <th>Unidade</th>}
-                {columns.map((f) => (
-                  <th key={f.key}>{f.label}</th>
-                ))}
-                {["payables", "receivables"].includes(kind) && (
-                  <>
-                    <th>Em aberto</th>
-                    <th>Status</th>
-                  </>
-                )}
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((r) => (
-                <React.Fragment key={r.id}>
-                  <tr id={`record-${r.id}`}>
-                    {!def.global && (
-                      <td>
-                        {String(
-                          data.units.find((u) => u.id === r.unitId)?.name ||
-                            "DADO PENDENTE",
-                        )}
-                      </td>
-                    )}
-                    {columns.map((f) => (
-                      <td key={f.key}>{fieldDisplay(r, f, data)}</td>
-                    ))}
-                    {["payables", "receivables"].includes(kind) && (
-                      <>
-                        <td>{currency(outstanding(r, data, filters.today))}</td>
+          {kind === "payables" ? (
+            <table className="mg-table mg-table-payables">
+              <thead>
+                <tr>
+                  <th style={{ width: "135px" }}>Vencimento</th>
+                  <th>Conta / Descrição</th>
+                  <th style={{ width: "155px" }}>Unidade</th>
+                  <th style={{ width: "135px", textAlign: "right" }}>Valor</th>
+                  <th style={{ width: "115px", textAlign: "center" }}>Status</th>
+                  <th style={{ width: "175px", textAlign: "right" }}>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((r) => {
+                  const isToday = str(r, "dueDate") === filters.today;
+                  const isOverdue = str(r, "dueDate") < filters.today && outstanding(r, data, filters.today) > 0;
+                  const isPaid = outstanding(r, data, filters.today) === 0;
+                  const statusText = isPaid ? "Pago" : isToday ? "Vence hoje" : isOverdue ? "Vencido" : "A vencer";
+                  const statusClass = isPaid ? "paid" : isToday ? "today" : isOverdue ? "overdue" : "pending";
+                  const unit = data.units.find((u) => u.id === r.unitId);
+                  const typeParts = [str(r, "obligationType"), str(r, "paymentMethod")]
+                    .filter((x) => Boolean(x) && x !== "DADO PENDENTE");
+                  const typeStr = typeParts.length > 0 ? typeParts.join(" · ") : "";
+                  const proof = data.transactions.find((item) => item.obligationId === r.id && item.paymentProofFileId && !item.reversalOf);
+
+                  return (
+                    <React.Fragment key={r.id}>
+                      <tr id={`record-${r.id}`} className={`payables-row ${statusClass}`}>
                         <td>
-                          <span
-                            className={
-                              "mg-tag " +
-                              (payableStatus(r, data, filters.today) ===
-                              "Vencido"
-                                ? "bad"
-                                : payableStatus(r, data, filters.today) ===
-                                    "Pago"
-                                  ? "good"
-                                  : "")
-                            }
-                          >
-                            {kind === "receivables" &&
-                            payableStatus(r, data, filters.today) === "Pago"
-                              ? "Recebido"
-                              : payableStatus(r, data, filters.today)}
+                          <div className="payables-due-cell">
+                            <strong>{formatDateBR(str(r, "dueDate"))}</strong>
+                            <span className={`payables-due-chip ${statusClass}`}>{statusText}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="payables-desc-cell">
+                            <span className="payables-desc-title" title={str(r, "description")}>
+                              {str(r, "description")}
+                            </span>
+                            {typeStr && <span className="payables-desc-sub">{typeStr}</span>}
+                          </div>
+                        </td>
+                        <td>
+                          <span className="payables-unit-badge" title={String(unit?.name || "Unidade")}>
+                            {formatShortUnit(String(unit?.name || ""))}
                           </span>
                         </td>
-                      </>
-                    )}
-                    <td>
-                      <div className="flex gap-2">
-                        {kind === "payables" && r.documentFileId && (
+                        <td style={{ textAlign: "right" }}>
+                          <div className="payables-amount-cell">
+                            <strong className="payables-amount-val">
+                              {currency(Number(r.amount || 0))}
+                            </strong>
+                            {outstanding(r, data, filters.today) < Number(r.amount || 0) && outstanding(r, data, filters.today) > 0 && (
+                              <small className="payables-amount-rest">
+                                Restam: {currency(outstanding(r, data, filters.today))}
+                              </small>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          <span className={`mg-status-badge ${statusClass}`}>
+                            {statusText}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          <div className="payables-actions-cluster">
+                            {r.documentFileId && (
+                              <button
+                                className="mg-icon-act-btn"
+                                title={str(r, "documentFileName") || "Baixar boleto"}
+                                onClick={() =>
+                                  downloadFileFromDrive(
+                                    str(r, "documentFileId"),
+                                    str(r, "documentFileName") || "boleto",
+                                  )
+                                }
+                              >
+                                <Download size={13} />
+                                <span>Boleto</span>
+                              </button>
+                            )}
+                            {proof && (
+                              <button
+                                className="mg-icon-act-btn"
+                                title="Baixar comprovante"
+                                onClick={() =>
+                                  downloadFileFromDrive(
+                                    str(proof, "paymentProofFileId"),
+                                    str(proof, "paymentProofFileName") || "comprovante",
+                                  )
+                                }
+                              >
+                                <Download size={13} />
+                                <span>Recibo</span>
+                              </button>
+                            )}
+                            {outstanding(r, data, filters.today) > 0 && (
+                              <button
+                                className="mg-pay-act-btn"
+                                disabled={!canWrite}
+                                onClick={() => setPaying(r)}
+                                title="Registrar pagamento"
+                              >
+                                <Zap size={12} /> Pagar
+                              </button>
+                            )}
+                            <button
+                              className="mg-mini-btn"
+                              disabled={!canWrite || Boolean(r.obligationId)}
+                              title="Editar conta"
+                              onClick={() =>
+                                setEditing(
+                                  r.sourceKind
+                                    ? data[str(r, "sourceKind")]?.find((x) => x.id === r.sourceId) || r
+                                    : r,
+                                )
+                              }
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              className="mg-mini-btn danger"
+                              disabled={!canWrite}
+                              title="Excluir conta"
+                              onClick={async () => {
+                                if (!user) return;
+                                if (data.transactions.some((item) => item.obligationId === r.id && !item.reversalOf && !data.transactions.some((other) => other.reversalOf === item.id))) {
+                                  setMessage("Esta conta tem pagamentos registrados. Estorne os pagamentos antes de excluir."); return;
+                                }
+                                if (!confirm("Excluir esta conta do painel? O histórico e o anexo serão preservados.")) return;
+                                try {
+                                  const rows = await saveManagement({...r, updatedBy:user.uid, updatedAt:new Date().toISOString()}, data, true);
+                                  void backupPayablesSpreadsheet(data, rows).catch(console.warn);
+                                  setMessage("Conta excluída. Histórico preservado.");
+                                } catch (error) { setMessage(error instanceof Error ? error.message : "Não foi possível excluir. A conta foi mantida."); }
+                              }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colSpan={6} style={{ padding: 0 }}>
+                          <details className="payables-details-fold">
+                            <summary>Detalhes e origem</summary>
+                            <div className="mg-form py-3">
+                              {def.fields.map((f) => (
+                                <div key={f.key}>
+                                  <span className="mg-label">{f.label}</span>
+                                  <p>{fieldDisplay(r, f, data)}</p>
+                                </div>
+                              ))}
+                              <div>
+                                <span className="mg-label">Identificação</span>
+                                <p>{r.id}</p>
+                              </div>
+                              <div>
+                                <span className="mg-label">Última atualização</span>
+                                <p>{formatDateBR(str(r, "updatedAt").slice(0, 10))}</p>
+                              </div>
+                            </div>
+                          </details>
+                        </td>
+                      </tr>
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <table className="mg-table">
+              <thead>
+                <tr>
+                  {!def.global && <th>Unidade</th>}
+                  {columns.map((f) => (
+                    <th key={f.key}>{f.label}</th>
+                  ))}
+                  {kind === "receivables" && (
+                    <>
+                      <th>Em aberto</th>
+                      <th>Status</th>
+                    </>
+                  )}
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((r) => (
+                  <React.Fragment key={r.id}>
+                    <tr id={`record-${r.id}`}>
+                      {!def.global && (
+                        <td>
+                          {formatShortUnit(
+                            String(data.units.find((u) => u.id === r.unitId)?.name || "—")
+                          )}
+                        </td>
+                      )}
+                      {columns.map((f) => (
+                        <td key={f.key}>{fieldDisplay(r, f, data)}</td>
+                      ))}
+                      {kind === "receivables" && (
+                        <>
+                          <td>{currency(outstanding(r, data, filters.today))}</td>
+                          <td>
+                            <span
+                              className={
+                                "mg-tag " +
+                                (payableStatus(r, data, filters.today) === "Pago"
+                                  ? "good"
+                                  : payableStatus(r, data, filters.today) === "Vencido"
+                                  ? "bad"
+                                  : "")
+                              }
+                            >
+                              {payableStatus(r, data, filters.today) === "Pago"
+                                ? "Recebido"
+                                : payableStatus(r, data, filters.today)}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                      <td>
+                        <div className="flex gap-2">
                           <button
                             className="mg-button secondary"
-                            title={str(r, "documentFileName") || "Baixar boleto"}
+                            disabled={!canWrite || Boolean(r.obligationId)}
                             onClick={() =>
-                              downloadFileFromDrive(
-                                str(r, "documentFileId"),
-                                str(r, "documentFileName") || "boleto",
+                              setEditing(
+                                r.sourceKind
+                                  ? data[str(r, "sourceKind")]?.find(
+                                      (x) => x.id === r.sourceId,
+                                    ) || r
+                                  : r,
                               )
                             }
                           >
-                            <Download size={13} /> Boleto
+                            <Pencil size={13} /> Editar
                           </button>
-                        )}
-                        {kind === "payables" && (() => {
-                          const proof = data.transactions.find((item) => item.obligationId === r.id && item.paymentProofFileId && !item.reversalOf);
-                          return proof ? <button className="mg-button secondary" onClick={() => downloadFileFromDrive(str(proof, "paymentProofFileId"), str(proof, "paymentProofFileName") || "comprovante")}><Download size={13}/> Comprovante</button> : null;
-                        })()}
-                        <button
-                          className="mg-button secondary"
-                          disabled={!canWrite || Boolean(r.obligationId)}
-                          onClick={() =>
-                            setEditing(
-                              r.sourceKind
-                                ? data[str(r, "sourceKind")]?.find(
-                                    (x) => x.id === r.sourceId,
-                                  ) || r
-                                : r,
-                            )
-                          }
-                        >
-                          <Pencil size={13} />{" "}
-                          {r.obligationId
-                            ? "Liquidação"
-                            : r.sourceKind
-                              ? "Origem"
-                              : "Editar"}
-                        </button>
-                        {kind === "payables" && <button className="mg-button secondary" disabled={!canWrite} onClick={async () => {
-                          if (!user) return;
-                          if (data.transactions.some((item) => item.obligationId === r.id && !item.reversalOf && !data.transactions.some((other) => other.reversalOf === item.id))) {
-                            setMessage("Esta conta tem pagamentos registrados. Estorne os pagamentos antes de excluir."); return;
-                          }
-                          if (!confirm("Excluir esta conta do painel? O histórico e o anexo serão preservados.")) return;
-                          try {
-                            const rows = await saveManagement({...r, updatedBy:user.uid, updatedAt:new Date().toISOString()}, data, true);
-                            void backupPayablesSpreadsheet(data, rows).catch(console.warn);
-                            setMessage("Conta excluída. Histórico preservado.");
-                          } catch (error) { setMessage(error instanceof Error ? error.message : "Não foi possível excluir. A conta foi mantida."); }
-                        }}>Excluir</button>}
-                        {["payables", "receivables"].includes(kind) &&
-                          outstanding(r, data, filters.today) > 0 && (
-                            <button
-                              className="mg-button instant"
-                              disabled={!canWrite}
-                              onClick={() => setPaying(r)}
-                            >
-                              <Zap size={13}/> Pagar agora
-                            </button>
-                          )}
-                        {r.obligationId &&
-                          !r.reversalOf &&
-                          !data.transactions.some(
-                            (t) => t.reversalOf === r.id,
-                          ) && (
-                            <button
-                              className="mg-button secondary"
-                              disabled={!canWrite}
-                              onClick={async () => {
-                                if (!user) return;
-                                try {
-                                  const reversal = await reverseSettlement(
-                                    r,
-                                    data,
-                                    user.uid,
-                                    dateToday(),
-                                  );
-                                  try {
-                                    await backupPayablesSpreadsheet(data, [reversal]);
-                                    setMessage("Estorno registrado e planilha de backup atualizada.");
-                                  } catch {
-                                    setMessage("Estorno registrado. O backup em planilha não pôde ser criado agora.");
-                                  }
-                                } catch (error) {
-                                  setMessage(
-                                    error instanceof Error
-                                      ? error.message
-                                      : "Não foi possível estornar.",
-                                  );
-                                }
-                              }}
-                            >
-                              Estornar hoje
-                            </button>
-                          )}
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td colSpan={10}>
-                      <details>
-                        <summary>Detalhes e origem</summary>
-                        <div className="mg-form py-3">
-                          {def.fields.map((f) => (
-                            <div key={f.key}>
-                              <span className="mg-label">{f.label}</span>
-                              <p>{fieldDisplay(r, f, data)}</p>
-                            </div>
-                          ))}
-                          <div>
-                            <span className="mg-label">Identificação</span>
-                            <p>{r.id}</p>
-                          </div>
-                          <div>
-                            <span className="mg-label">Última atualização</span>
-                            <p>{r.updatedAt}</p>
-                          </div>
                         </div>
-                      </details>
-                    </td>
-                  </tr>
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={10}>
+                        <details>
+                          <summary>Detalhes e origem</summary>
+                          <div className="mg-form py-3">
+                            {def.fields.map((f) => (
+                              <div key={f.key}>
+                                <span className="mg-label">{f.label}</span>
+                                <p>{fieldDisplay(r, f, data)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      </td>
+                    </tr>
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       ) : (
         <Empty
