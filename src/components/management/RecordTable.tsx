@@ -13,6 +13,8 @@ import {
   CalendarClock,
   CheckCircle2,
   Trash2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -128,6 +130,7 @@ export function RecordTable({
   const [editing, setEditing] = useState<RecordData | false | null>(null);
   const [paying, setPaying] = useState<RecordData | null>(null);
   const [message, setMessage] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const def = {...DEFINITIONS[kind],label:kind === "revenues" ? "Lançamentos manuais de faturamento" : DEFINITIONS[kind].label};
   const canWrite =
     userProfile?.role === "admin" ||
@@ -292,64 +295,62 @@ export function RecordTable({
       {kind === "payables" && payablesCounts && (
         <div className="payables-alert-section">
           {payablesCounts.today.length > 0 ? (
-            <div className="payables-today-alert-card warning">
-              <div className="payables-alert-icon warning">
-                <CalendarClock size={20} />
-              </div>
-              <div className="payables-alert-body">
-                <h3>
-                  {payablesCounts.today.length === 1
-                    ? "1 boleto vence HOJE!"
-                    : `${payablesCounts.today.length} boletos vencem HOJE!`}
-                </h3>
-                <p>
-                  Total com vencimento hoje ({formatDateBR(filters.today)}):{" "}
-                  <strong>{currency(payablesCounts.todayTotal)}</strong>
-                </p>
+            <div className="payables-today-alert-card has-today">
+              <div className="payables-alert-content">
+                <div className="payables-alert-icon-box">
+                  <CalendarClock size={20} />
+                </div>
+                <div className="payables-alert-text">
+                  <strong>
+                    {payablesCounts.today.length === 1
+                      ? "1 boleto vence hoje!"
+                      : `${payablesCounts.today.length} boletos vencem hoje!`}
+                  </strong>
+                  <p>
+                    Total para hoje ({formatDateBR(filters.today)}):{" "}
+                    <strong>{currency(payablesCounts.todayTotal)}</strong>
+                    {payablesCounts.overdue.length > 0 && (
+                      <span className="payables-alert-badge-overdue">
+                        +{payablesCounts.overdue.length} vencido(s) ({currency(payablesCounts.overdueTotal)})
+                      </span>
+                    )}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
-                className={`payables-alert-action ${statusFilter === "Hoje" ? "active" : ""}`}
+                className="payables-alert-btn"
                 onClick={() => setStatusFilter(statusFilter === "Hoje" ? "Todos" : "Hoje")}
               >
-                {statusFilter === "Hoje" ? "Exibir todos os boletos" : "Filtrar boletos de hoje"}
+                {statusFilter === "Hoje" ? "Ver todos" : "Filtrar hoje"}
               </button>
             </div>
           ) : payablesCounts.overdue.length > 0 ? (
-            <div className="payables-today-alert-card danger">
-              <div className="payables-alert-icon danger">
-                <AlertTriangle size={20} />
-              </div>
-              <div className="payables-alert-body">
-                <h3>
-                  {payablesCounts.overdue.length === 1
-                    ? "1 conta vencida aguardando pagamento!"
-                    : `${payablesCounts.overdue.length} contas vencidas aguardando pagamento!`}
-                </h3>
-                <p>
-                  Total em atraso: <strong>{currency(payablesCounts.overdueTotal)}</strong>
-                </p>
+            <div className="payables-today-alert-card has-overdue-only">
+              <div className="payables-alert-content">
+                <div className="payables-alert-icon-box">
+                  <AlertTriangle size={20} />
+                </div>
+                <div className="payables-alert-text">
+                  <strong>
+                    {payablesCounts.overdue.length === 1
+                      ? "1 conta vencida pendente"
+                      : `${payablesCounts.overdue.length} contas vencidas pendentes`}
+                  </strong>
+                  <p>
+                    Total em atraso: <strong>{currency(payablesCounts.overdueTotal)}</strong>
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
-                className={`payables-alert-action danger ${statusFilter === "Vencidos" ? "active" : ""}`}
+                className="payables-alert-btn danger"
                 onClick={() => setStatusFilter(statusFilter === "Vencidos" ? "Todos" : "Vencidos")}
               >
-                {statusFilter === "Vencidos" ? "Exibir todas as contas" : "Ver contas vencidas"}
+                {statusFilter === "Vencidos" ? "Ver todos" : "Ver vencidos"}
               </button>
             </div>
-          ) : (
-            <div className="payables-today-alert-card clean">
-              <div className="payables-alert-icon clean">
-                <CheckCircle2 size={17} />
-              </div>
-              <div className="payables-alert-body">
-                <p>
-                  Nenhum boleto vence hoje ({formatDateBR(filters.today)}). Suas contas estão em dia!
-                </p>
-              </div>
-            </div>
-          )}
+          ) : null}
         </div>
       )}
       {kind === "payables" && payablesCounts && (
@@ -405,7 +406,7 @@ export function RecordTable({
                 <tr>
                   <th style={{ width: "135px" }}>Vencimento</th>
                   <th>Conta / Descrição</th>
-                  <th style={{ width: "155px" }}>Unidade</th>
+                  <th style={{ width: "150px" }}>Unidade</th>
                   <th style={{ width: "135px", textAlign: "right" }}>Valor</th>
                   <th style={{ width: "115px", textAlign: "center" }}>Status</th>
                   <th style={{ width: "175px", textAlign: "right" }}>Ações</th>
@@ -423,10 +424,11 @@ export function RecordTable({
                     .filter((x) => Boolean(x) && x !== "DADO PENDENTE");
                   const typeStr = typeParts.length > 0 ? typeParts.join(" · ") : "";
                   const proof = data.transactions.find((item) => item.obligationId === r.id && item.paymentProofFileId && !item.reversalOf);
+                  const isExpanded = expandedId === r.id;
 
                   return (
                     <React.Fragment key={r.id}>
-                      <tr id={`record-${r.id}`} className={`payables-row ${statusClass}`}>
+                      <tr id={`record-${r.id}`} className={`payables-row ${statusClass} ${isExpanded ? "is-expanded" : ""}`}>
                         <td>
                           <div className="payables-due-cell">
                             <strong>{formatDateBR(str(r, "dueDate"))}</strong>
@@ -538,32 +540,40 @@ export function RecordTable({
                             >
                               <Trash2 size={12} />
                             </button>
+                            <button
+                              className={`mg-mini-btn toggle-details ${isExpanded ? "active" : ""}`}
+                              title={isExpanded ? "Ocultar detalhes" : "Ver detalhes"}
+                              onClick={() => setExpandedId(isExpanded ? null : r.id)}
+                            >
+                              {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                            </button>
                           </div>
                         </td>
                       </tr>
-                      <tr>
-                        <td colSpan={6} style={{ padding: 0 }}>
-                          <details className="payables-details-fold">
-                            <summary>Detalhes e origem</summary>
-                            <div className="mg-form py-3">
-                              {def.fields.map((f) => (
-                                <div key={f.key}>
-                                  <span className="mg-label">{f.label}</span>
-                                  <p>{fieldDisplay(r, f, data)}</p>
+                      {isExpanded && (
+                        <tr className="payables-details-row">
+                          <td colSpan={6} style={{ padding: 0 }}>
+                            <div className="payables-details-container">
+                              <div className="payables-details-grid">
+                                {def.fields.map((f) => (
+                                  <div key={f.key} className="payables-detail-item">
+                                    <span className="payables-detail-label">{f.label}</span>
+                                    <span className="payables-detail-value">{fieldDisplay(r, f, data)}</span>
+                                  </div>
+                                ))}
+                                <div className="payables-detail-item">
+                                  <span className="payables-detail-label">Identificação ID</span>
+                                  <span className="payables-detail-value monospace">{r.id}</span>
                                 </div>
-                              ))}
-                              <div>
-                                <span className="mg-label">Identificação</span>
-                                <p>{r.id}</p>
-                              </div>
-                              <div>
-                                <span className="mg-label">Última atualização</span>
-                                <p>{formatDateBR(str(r, "updatedAt").slice(0, 10))}</p>
+                                <div className="payables-detail-item">
+                                  <span className="payables-detail-label">Última atualização</span>
+                                  <span className="payables-detail-value">{formatDateBR(str(r, "updatedAt").slice(0, 10))}</span>
+                                </div>
                               </div>
                             </div>
-                          </details>
-                        </td>
-                      </tr>
+                          </td>
+                        </tr>
+                      )}
                     </React.Fragment>
                   );
                 })}

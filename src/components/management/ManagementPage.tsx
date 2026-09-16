@@ -364,7 +364,7 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
         <ExtendedView view={view} result={result} filters={filters} />
       )}
       <footer className="mg-footer">
-        Valores não informados aparecem como <span>DADO PENDENTE.</span>
+        <span>Gestão House 190 · Dados sincronizados e consolidados por competência e caixa.</span>
       </footer>
     </div>
   );
