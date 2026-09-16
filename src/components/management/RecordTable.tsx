@@ -20,6 +20,7 @@ import {
   Mail,
   FileText,
   Repeat,
+  ReceiptText,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -103,7 +104,7 @@ function documentFields(text: string, suppliers: RecordData[]) {
     paymentMethod,
   };
 }
-const formatDateBR = (dateStr: string) => {
+export const formatDateBR = (dateStr: string) => {
   if (!dateStr || dateStr === "DADO PENDENTE") return "—";
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     const [y, m, d] = dateStr.split("-");
@@ -112,7 +113,7 @@ const formatDateBR = (dateStr: string) => {
   return dateStr;
 };
 
-const formatShortUnit = (unitName: string) => {
+export const formatShortUnit = (unitName: string) => {
   if (!unitName || unitName === "DADO PENDENTE") return "—";
   return unitName.replace(/^House\s+190\s+/i, "").replace(/^House\s+/i, "");
 };
@@ -229,6 +230,15 @@ export function RecordTable({
     const paidList = baseList.filter(
       (r) => outstanding(r, data, filters.today) === 0,
     );
+    const partialList = baseList.filter((r) => {
+      const out = outstanding(r, data, filters.today);
+      const total = Number(r.amount || 0);
+      return out > 0 && out < total;
+    });
+    const partialTotal = partialList.reduce(
+      (acc, r) => acc + outstanding(r, data, filters.today),
+      0,
+    );
     const todayTotal = todayList.reduce(
       (acc, r) => acc + outstanding(r, data, filters.today),
       0,
@@ -246,6 +256,8 @@ export function RecordTable({
       overdue: overdueList,
       overdueTotal,
       next7: next7List,
+      partial: partialList,
+      partialTotal,
       paid: paidList,
     };
   }, [data.payables, data.transactions, unitIds, filters.today, filters.unitId, kind, def.global]);
@@ -297,6 +309,11 @@ export function RecordTable({
           str(r, "dueDate") > filters.today &&
           str(r, "dueDate") <= addDays(filters.today, 7)
         );
+      }
+      if (statusFilter === "Parciais" || statusFilter === "Parcial") {
+        const out = outstanding(r, data, filters.today);
+        const total = Number(r.amount || 0);
+        return out > 0 && out < total;
       }
       if (statusFilter === "Pagos" || statusFilter === "Pago") {
         return outstanding(r, data, filters.today) === 0;
@@ -462,6 +479,13 @@ export function RecordTable({
           </button>
           <button
             type="button"
+            className={`payables-tab-partial ${statusFilter === "Parciais" ? "active" : ""}`}
+            onClick={() => setStatusFilter("Parciais")}
+          >
+            ⏳ Parciais <span className="payables-tab-count">{payablesCounts.partial.length}</span>
+          </button>
+          <button
+            type="button"
             className={statusFilter === "Pagos" ? "active" : ""}
             onClick={() => setStatusFilter("Pagos")}
           >
@@ -492,6 +516,22 @@ export function RecordTable({
           </button>
         </div>
       )}
+      {kind === "payables" && statusFilter === "Parciais" && payablesCounts && (
+        <div className="payables-fixed-banner" style={{ background: "#fffbeb", borderColor: "#fde68a" }}>
+          <div className="payables-fixed-banner-left">
+            <div className="payables-fixed-banner-icon" style={{ background: "#fef3c7", color: "#d97706" }}>
+              <Zap size={18} />
+            </div>
+            <div>
+              <strong style={{ color: "#92400e" }}>Visualizando Contas com Pagamento Parcial em Andamento</strong>
+              <p style={{ color: "#b45309" }}>
+                {payablesCounts.partial.length} conta(s) com abatimentos parciais registrados · Saldo restante a quitar:{" "}
+                <strong>{currency(payablesCounts.partialTotal)}</strong>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       {list.length ? (
         <div className="mg-table-wrap">
           {kind === "payables" ? (
@@ -508,11 +548,31 @@ export function RecordTable({
               </thead>
               <tbody>
                 {list.map((r) => {
+                  const outAmt = outstanding(r, data, filters.today);
+                  const totalAmt = Number(r.amount || 0);
+                  const paidAmt = Math.max(0, totalAmt - outAmt);
+                  const isPaid = outAmt === 0;
+                  const isPartial = outAmt > 0 && paidAmt > 0;
                   const isToday = str(r, "dueDate") === filters.today;
-                  const isOverdue = str(r, "dueDate") < filters.today && outstanding(r, data, filters.today) > 0;
-                  const isPaid = outstanding(r, data, filters.today) === 0;
-                  const statusText = isPaid ? "Pago" : isToday ? "Vence hoje" : isOverdue ? "Vencido" : "A vencer";
-                  const statusClass = isPaid ? "paid" : isToday ? "today" : isOverdue ? "overdue" : "pending";
+                  const isOverdue = str(r, "dueDate") < filters.today && outAmt > 0;
+                  const statusText = isPaid
+                    ? "Pago"
+                    : isPartial
+                      ? "Parcial"
+                      : isToday
+                        ? "Vence hoje"
+                        : isOverdue
+                          ? "Vencido"
+                          : "A vencer";
+                  const statusClass = isPaid
+                    ? "paid"
+                    : isPartial
+                      ? "partial"
+                      : isToday
+                        ? "today"
+                        : isOverdue
+                          ? "overdue"
+                          : "pending";
                   const unit = data.units.find((u) => u.id === r.unitId);
                   const rawObligation = str(r, "obligationType");
                   const normObligation = normalizeObligationType(rawObligation);
@@ -559,12 +619,15 @@ export function RecordTable({
                         <td style={{ textAlign: "right" }}>
                           <div className="payables-amount-cell">
                             <strong className="payables-amount-val">
-                              {currency(Number(r.amount || 0))}
+                              {currency(totalAmt)}
                             </strong>
-                            {outstanding(r, data, filters.today) < Number(r.amount || 0) && outstanding(r, data, filters.today) > 0 && (
-                              <small className="payables-amount-rest">
-                                Restam: {currency(outstanding(r, data, filters.today))}
-                              </small>
+                            {isPartial && (
+                              <span
+                                className="payables-amount-partial-pill"
+                                title={`Valor total: ${currency(totalAmt)} · Já abatido: ${currency(paidAmt)} · Saldo restante: ${currency(outAmt)}`}
+                              >
+                                Restam: {currency(outAmt)} <small>(Pago: {currency(paidAmt)})</small>
+                              </span>
                             )}
                           </div>
                         </td>
@@ -605,14 +668,14 @@ export function RecordTable({
                                 <span>Recibo</span>
                               </button>
                             )}
-                            {outstanding(r, data, filters.today) > 0 && (
+                            {outAmt > 0 && (
                               <button
-                                className="mg-pay-act-btn"
+                                className={`mg-pay-act-btn ${isPartial ? "partial-act" : ""}`}
                                 disabled={!canWrite}
                                 onClick={() => setPaying(r)}
-                                title="Registrar pagamento"
+                                title={isPartial ? `Pagar saldo restante de ${currency(outAmt)}` : "Registrar pagamento"}
                               >
-                                <Zap size={12} /> Pagar
+                                <Zap size={12} /> {isPartial ? "Pagar restante" : "Pagar"}
                               </button>
                             )}
                             <button
@@ -678,6 +741,61 @@ export function RecordTable({
                                   <span className="payables-detail-value">{formatDateBR(str(r, "updatedAt").slice(0, 10))}</span>
                                 </div>
                               </div>
+
+                              {(() => {
+                                const settlements = data.transactions.filter(
+                                  (t) => !t.archived && t.obligationId === r.id && !t.reversalOf,
+                                );
+                                if (!settlements.length) return null;
+                                return (
+                                  <div className="payables-settlements-history">
+                                    <h4>
+                                      <ReceiptText size={15} /> Histórico de Pagamentos e Abatimentos ({settlements.length})
+                                    </h4>
+                                    <table className="payables-settlements-table">
+                                      <thead>
+                                        <tr>
+                                          <th>Data</th>
+                                          <th>Valor Pago</th>
+                                          <th>Conta Bancária</th>
+                                          <th>Comprovante</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {settlements.map((tx) => {
+                                          const bank = data.bankAccounts.find((b) => b.id === tx.bankAccountId);
+                                          return (
+                                            <tr key={tx.id}>
+                                              <td>{formatDateBR(str(tx, "date"))}</td>
+                                              <td><strong style={{ color: "#16a34a" }}>{currency(Number(tx.amount || 0))}</strong></td>
+                                              <td>{bank ? str(bank, "name") : "Conta padrão"}</td>
+                                              <td>
+                                                {tx.paymentProofFileId ? (
+                                                  <button
+                                                    type="button"
+                                                    className="mg-icon-act-btn"
+                                                    title="Baixar comprovante deste abatimento"
+                                                    onClick={() =>
+                                                      downloadFileFromDrive(
+                                                        str(tx, "paymentProofFileId"),
+                                                        str(tx, "paymentProofFileName") || "comprovante",
+                                                      )
+                                                    }
+                                                  >
+                                                    <Download size={12} /> Recibo
+                                                  </button>
+                                                ) : (
+                                                  <span style={{ color: "#94a3b8" }}>—</span>
+                                                )}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </td>
                         </tr>
@@ -1355,7 +1473,7 @@ export function RecordForm({
     </ModalShell>
   );
 }
-function SettlementForm({
+export function SettlementForm({
   record,
   onClose,
   onSaved,
@@ -1370,20 +1488,57 @@ function SettlementForm({
   const [busy, setBusy] = useState(false);
   const [id] = useState(() => safeUUID());
   const today = dateToday();
+
+  const totalCents = Number(record.amount || 0);
+  const outCents = outstanding(record, data, today);
+  const alreadyPaidCents = Math.max(0, totalCents - outCents);
+
+  const [paymentMode, setPaymentMode] = useState<"total" | "partial">("total");
+  const [amountStr, setAmountStr] = useState<string>(() => (outCents / 100).toFixed(2));
+
+  const handleModeChange = (mode: "total" | "partial") => {
+    setPaymentMode(mode);
+    if (mode === "total") {
+      setAmountStr((outCents / 100).toFixed(2));
+    } else {
+      const currentVal = Number(amountStr.replace(",", "."));
+      if (isNaN(currentVal) || currentVal >= outCents / 100 || currentVal <= 0) {
+        const half = Math.round(outCents / 2) / 100;
+        setAmountStr(half > 0 ? half.toFixed(2) : (outCents / 100).toFixed(2));
+      }
+    }
+  };
+
+  const parsedAmount = Number(amountStr.replace(",", "."));
+  const currentPayCents = Math.round((isNaN(parsedAmount) || parsedAmount < 0 ? 0 : parsedAmount) * 100);
+  const remainingAfterCents = Math.max(0, outCents - currentPayCents);
+  const isCompletePay = currentPayCents === outCents;
+  const isValidAmount = currentPayCents > 0 && currentPayCents <= outCents;
+
+  const supplier = data.suppliers.find((s) => s.id === record.supplierId);
+  const supplierName = supplier ? str(supplier, "name") : str(record, "scannedSupplierName") || "";
+  const unit = data.units.find((u) => u.id === record.unitId);
+
   return (
     <ModalShell
       title={
         record.kind === "receivables"
           ? "Registrar recebimento"
-          : "Registrar pagamento"
+          : isCompletePay
+            ? "Quitar Conta (100%)"
+            : "Registrar Pagamento Parcial (Abatimento)"
       }
       onClose={() => !busy && onClose()}
     >
       <form
-        className="mg-form"
+        className="mg-form settlement-modal"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!user) return;
+          if (!isValidAmount) {
+            setError("Informe um valor válido e positivo para a baixa, não excedendo o saldo pendente.");
+            return;
+          }
           setBusy(true);
           setError("");
           try {
@@ -1391,7 +1546,7 @@ function SettlementForm({
             const row = settlement(
               record,
               data,
-              Math.round(Number(form.get("amount")) * 100),
+              currentPayCents,
               String(form.get("date")),
               String(form.get("bank")),
               user.uid,
@@ -1399,7 +1554,10 @@ function SettlementForm({
             );
             const proof = form.get("paymentProof");
             if (proof instanceof File && proof.size > 0) {
-              const named = nameFileForDrive(proof, `Comprovante - ${str(record, "description")} - ${String(form.get("date"))}`);
+              const named = nameFileForDrive(
+                proof,
+                `Comprovante - ${str(record, "description")} - ${String(form.get("date"))}`,
+              );
               const stored = await uploadFileToDrive(named, "payment_proofs");
               row.paymentProofFileId = stored.fileId;
               row.paymentProofFileName = stored.fileName;
@@ -1409,9 +1567,17 @@ function SettlementForm({
             await commitRecords([row], data, row);
             try {
               await backupPayablesSpreadsheet(data, [row]);
-              onSaved("Pagamento registrado e planilha de backup atualizada no Google Drive.");
+              onSaved(
+                isCompletePay
+                  ? `Conta quitada 100%! Baixa de ${currency(currentPayCents)} confirmada e backup atualizado.`
+                  : `Pagamento parcial de ${currency(currentPayCents)} abatido com sucesso! Saldo restante: ${currency(remainingAfterCents)}.`,
+              );
             } catch {
-              onSaved("Pagamento registrado. O backup em planilha não pôde ser criado agora.");
+              onSaved(
+                isCompletePay
+                  ? `Conta quitada 100%! Baixa de ${currency(currentPayCents)} confirmada.`
+                  : `Pagamento parcial de ${currency(currentPayCents)} abatido! Saldo restante: ${currency(remainingAfterCents)}.`,
+              );
             }
           } catch (err) {
             setError(
@@ -1422,55 +1588,151 @@ function SettlementForm({
           }
         }}
       >
-        <p className="full">
-          {str(record, "description")} · em aberto:{" "}
-          <b>{currency(outstanding(record, data, today))}</b>
-        </p>
-        <label>
-          Valor da baixa
+        <div className="full settlement-overview-card">
+          <div className="settlement-overview-header">
+            <div className="settlement-overview-title">
+              <strong>{str(record, "description")}</strong>
+              <span>
+                {unit?.name || "Todas as unidades"} {supplierName ? `· ${supplierName}` : ""}
+              </span>
+            </div>
+            <span className="payables-due-cell">
+              Vencimento: <strong>{formatDateBR(str(record, "dueDate"))}</strong>
+            </span>
+          </div>
+          <div className="settlement-metrics-grid">
+            <div className="settlement-metric-box">
+              <span>Valor Total da Conta</span>
+              <strong>{currency(totalCents)}</strong>
+            </div>
+            <div className="settlement-metric-box">
+              <span>Total Já Quitado</span>
+              <strong style={{ color: alreadyPaidCents > 0 ? "#16a34a" : "#64748b" }}>
+                {currency(alreadyPaidCents)}
+              </strong>
+            </div>
+            <div className="settlement-metric-box highlight">
+              <span>Saldo Pendente Atual</span>
+              <strong>{currency(outCents)}</strong>
+            </div>
+          </div>
+        </div>
+
+        {record.kind === "payables" && outCents > 0 && (
+          <div className="full settlement-type-toggle">
+            <button
+              type="button"
+              className={`settlement-mode-btn ${paymentMode === "total" ? "active" : ""}`}
+              onClick={() => handleModeChange("total")}
+            >
+              <strong>⚡ Quitar Valor Total (100%)</strong>
+              <small>Pagar saldo integral de {currency(outCents)}</small>
+            </button>
+            <button
+              type="button"
+              className={`settlement-mode-btn ${paymentMode === "partial" ? "active" : ""}`}
+              onClick={() => handleModeChange("partial")}
+            >
+              <strong>✂️ Pagamento Parcial (Abatimento)</strong>
+              <small>Pagar uma parte agora e abater do valor</small>
+            </button>
+          </div>
+        )}
+
+        <label className={paymentMode === "partial" ? "full" : ""}>
+          {paymentMode === "partial" ? "Valor do Abatimento a Pagar Agora (R$) *" : "Valor da Baixa (R$) *"}
           <input
             type="number"
             name="amount"
             step="0.01"
             min="0.01"
-            max={outstanding(record, data, today) / 100}
-            defaultValue={outstanding(record, data, today) / 100}
+            max={outCents / 100}
+            value={amountStr}
+            onChange={(e) => setAmountStr(e.target.value)}
+            disabled={paymentMode === "total"}
             required
           />
         </label>
-        <label>
-          Data efetiva
-          <input
-            name="date"
-            type="date"
-            max={today}
-            defaultValue={today}
-            required
-          />
-        </label>
+
+        {paymentMode === "total" && (
+          <label>
+            Data efetiva do pagamento *
+            <input
+              name="date"
+              type="date"
+              max={today}
+              defaultValue={today}
+              required
+            />
+          </label>
+        )}
+
+        {paymentMode === "partial" && (
+          <>
+            <div className="full settlement-calc-panel">
+              <div className="settlement-calc-row">
+                <span>Saldo antes deste pagamento:</span>
+                <strong>{currency(outCents)}</strong>
+              </div>
+              <div className="settlement-calc-row">
+                <span>(-) Abatimento a pagar agora:</span>
+                <strong style={{ color: "#d97706" }}>-{currency(currentPayCents)}</strong>
+              </div>
+              <div className="settlement-calc-row remaining">
+                <span>(=) Saldo restante que continuará em aberto:</span>
+                <strong style={{ color: remainingAfterCents > 0 ? "#b45309" : "#16a34a" }}>
+                  {currency(remainingAfterCents)}
+                </strong>
+              </div>
+              <div className={`settlement-calc-alert ${remainingAfterCents > 0 ? "warn" : ""}`}>
+                {remainingAfterCents > 0 ? (
+                  <>⏳ <strong>Atenção:</strong> Esta conta permanecerá em aberto como <strong>Parcial</strong> com saldo restante de <strong>{currency(remainingAfterCents)}</strong> até atingir 100% de quitação.</>
+                ) : (
+                  <>✅ <strong>Aviso:</strong> Este valor liquidará 100% da conta e o status passará para <strong>Pago</strong>.</>
+                )}
+              </div>
+            </div>
+
+            <label className="full">
+              Data efetiva do pagamento *
+              <input
+                name="date"
+                type="date"
+                max={today}
+                defaultValue={today}
+                required
+              />
+            </label>
+          </>
+        )}
+
         <label className="full">
-          Conta bancária
+          Conta bancária de saída *
           <select name="bank" required>
-            <option value="">Selecione</option>
+            <option value="">Selecione a conta bancária</option>
             {data.bankAccounts
               .filter((b) => !b.archived && b.unitId === record.unitId)
               .map((b) => (
                 <option value={b.id} key={b.id}>
-                  {str(b, "name")}
+                  {str(b, "name")} {b.bankCode ? `(${b.bankCode})` : ""}
                 </option>
               ))}
           </select>
         </label>
+
         <label className="full mg-file-field">
           <span><Paperclip size={15}/> Comprovante de pagamento no Google Drive</span>
           <input name="paymentProof" type="file" accept=".pdf,image/*" />
-          <small>Opcional. O arquivo fica no Drive e vinculado permanentemente a esta baixa.</small>
+          <small>Opcional. O arquivo é arquivado no Google Drive e vinculado permanentemente a esta baixa.</small>
         </label>
+
         <p className="full mg-method">
           Esta ação registra uma liquidação já realizada. O sistema não faz
           transferência bancária.
         </p>
+
         {error && <p className="mg-error">{error}</p>}
+
         <footer>
           <button
             type="button"
@@ -1480,8 +1742,17 @@ function SettlementForm({
           >
             Cancelar
           </button>
-          <button className="mg-button" disabled={busy}>
-            {busy ? "Registrando…" : "Confirmar registro da baixa"}
+          <button
+            type="submit"
+            className="mg-button"
+            disabled={busy || !isValidAmount}
+            style={paymentMode === "partial" && !isCompletePay ? { background: "linear-gradient(135deg, #d97706, #f59e0b)" } : {}}
+          >
+            {busy
+              ? "Registrando…"
+              : isCompletePay
+                ? `⚡ Quitar Totalmente (${currency(currentPayCents)})`
+                : `✂️ Confirmar Abatimento de ${currency(currentPayCents)}`}
           </button>
         </footer>
       </form>

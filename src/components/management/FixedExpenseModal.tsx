@@ -125,6 +125,7 @@ export function FixedExpenseModal({
         : data.units[0]?.id || "",
   );
 
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [selectedSupplierId, setSelectedSupplierId] = useState("");
   const [customSupplierName, setCustomSupplierName] = useState("");
@@ -154,6 +155,7 @@ export function FixedExpenseModal({
   };
 
   const applyPreset = (preset: QuickPreset) => {
+    setSelectedPresetId(preset.id);
     setDescription(preset.defaultDesc);
     setPaymentMethod(preset.defaultMethod);
     // Find matching supplier if exists
@@ -310,11 +312,12 @@ export function FixedExpenseModal({
           <div className="fixed-expense-presets-list">
             {PRESETS.map((p) => {
               const Icon = p.icon;
+              const isActive = selectedPresetId === p.id;
               return (
                 <button
                   type="button"
                   key={p.id}
-                  className="fixed-preset-pill"
+                  className={`fixed-preset-pill ${isActive ? "active" : ""}`}
                   onClick={() => applyPreset(p)}
                   title={`Preencher dados de ${p.label}`}
                 >
@@ -325,8 +328,8 @@ export function FixedExpenseModal({
           </div>
         </div>
 
-        <form className="mg-form" onSubmit={handleSubmit}>
-          <div className="mg-form-grid">
+        <form className="fixed-expense-form" onSubmit={handleSubmit}>
+          <div className="fixed-expense-fields">
             <label>
               Unidade / Loja *
               <select
@@ -343,17 +346,6 @@ export function FixedExpenseModal({
                     </option>
                   ))}
               </select>
-            </label>
-
-            <label className="full">
-              Descrição da Despesa Fixa *
-              <input
-                type="text"
-                placeholder="Ex: Aluguel Loja Centro ou Energia Elétrica Neoenergia"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                required
-              />
             </label>
 
             <label>
@@ -375,8 +367,8 @@ export function FixedExpenseModal({
             </label>
 
             {selectedSupplierId === "__new__" && (
-              <label>
-                Nome do Favorecido / Empresa
+              <label className="full">
+                Nome do Favorecido / Empresa *
                 <input
                   type="text"
                   placeholder="Ex: Imobiliária Central ou Coelba"
@@ -386,6 +378,17 @@ export function FixedExpenseModal({
                 />
               </label>
             )}
+
+            <label className="full">
+              Descrição da Despesa Fixa *
+              <input
+                type="text"
+                placeholder="Ex: Aluguel Loja Centro ou Energia Elétrica Neoenergia"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                required
+              />
+            </label>
 
             <label>
               Valor Mensal Estimado ou Fixo (R$) *
@@ -453,7 +456,7 @@ export function FixedExpenseModal({
               Código de barras / Chave PIX / Referência
               <input
                 type="text"
-                placeholder="Opcional: código da conta contrato ou chave PIX"
+                placeholder="Opcional: conta contrato ou chave PIX"
                 value={documentNumber}
                 onChange={(e) => setDocumentNumber(e.target.value)}
               />
@@ -471,7 +474,7 @@ export function FixedExpenseModal({
           </div>
 
           <div className="fixed-expense-recurrence-hint">
-            <CheckCircle2 size={16} />
+            <CheckCircle2 size={18} />
             <span>
               Ao selecionar <strong>{recurrenceCount} meses</strong>, o sistema criará
               automaticamente as {recurrenceCount} contas mensais programadas para todo dia{" "}
@@ -479,7 +482,7 @@ export function FixedExpenseModal({
             </span>
           </div>
 
-          <footer>
+          <footer className="fixed-expense-footer">
             <button
               type="button"
               className="workspace-secondary"
