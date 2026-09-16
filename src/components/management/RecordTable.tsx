@@ -15,6 +15,10 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
+  Truck,
+  Phone,
+  Mail,
+  FileText,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -987,6 +991,120 @@ export function RecordForm({
       </label>
     );
   };
+
+  if (kind === "suppliers") {
+    return (
+      <div className="mg-modal-shade" onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+        <div className="mg-modal task-modal-modern" role="dialog" aria-modal="true">
+          <header className="task-modal-header">
+            <div className="task-modal-title-box">
+              <div className="task-modal-icon-badge">
+                <Truck size={20} />
+              </div>
+              <div>
+                <h2>{record ? "Editar Fornecedor" : "Novo Fornecedor"}</h2>
+                <p>{record ? `Atualizando dados de ${record.name || "fornecedor"}` : "Cadastre uma empresa, distribuidora ou prestador de serviço."}</p>
+              </div>
+            </div>
+            <button type="button" className="task-modal-close" onClick={onClose} disabled={busy} title="Fechar">
+              ✕
+            </button>
+          </header>
+
+          <form ref={formRef} className="task-modal-form" onSubmit={save}>
+            {/* Card 1: Identificação Principal */}
+            <div className="task-compact-card">
+              <div className="task-grid-columns-two-compact">
+                <div className="task-field-group">
+                  <label htmlFor="sup-name">
+                    <Truck size={13} className="task-sec-icon" />
+                    Razão Social / Nome Fantasia <span className="task-req">*</span>
+                  </label>
+                  <input
+                    id="sup-name"
+                    name="name"
+                    type="text"
+                    autoFocus
+                    placeholder="Ex.: Distribuidora de Carnes Bela Vista"
+                    defaultValue={String(record?.name || "")}
+                    required
+                  />
+                </div>
+
+                <div className="task-field-group">
+                  <label htmlFor="sup-doc">
+                    <FileText size={13} />
+                    CNPJ ou CPF (opcional)
+                  </label>
+                  <input
+                    id="sup-doc"
+                    name="document"
+                    type="text"
+                    placeholder="00.000.000/0000-00 ou CPF"
+                    defaultValue={String(record?.document || "")}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: Canais de Contato & Comunicação */}
+            <div className="task-compact-card">
+              <div className="task-grid-columns-two-compact">
+                <div className="task-field-group">
+                  <label htmlFor="sup-email">
+                    <Mail size={13} />
+                    E-mail para envio de comprovantes
+                  </label>
+                  <input
+                    id="sup-email"
+                    name="email"
+                    type="email"
+                    placeholder="financeiro@fornecedor.com.br"
+                    defaultValue={String(record?.email || "")}
+                  />
+                </div>
+
+                <div className="task-field-group">
+                  <label htmlFor="sup-phone">
+                    <Phone size={13} />
+                    Telefone / WhatsApp Comercial
+                  </label>
+                  <input
+                    id="sup-phone"
+                    name="phone"
+                    type="text"
+                    placeholder="(00) 00000-0000"
+                    defaultValue={String(record?.phone || "")}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {error && <div className="mg-error">{error}</div>}
+
+            <footer className="task-modal-footer">
+              <button
+                type="button"
+                className="mg-button secondary task-btn-cancel"
+                onClick={onClose}
+                disabled={busy}
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="workspace-primary task-save-submit"
+                disabled={busy}
+              >
+                {busy ? "Salvando..." : record ? "Salvar Alterações" : "Cadastrar Fornecedor"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ModalShell
       title={`${record ? "Editar" : "Cadastrar"} ${def.singular}`}

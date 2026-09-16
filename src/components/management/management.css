@@ -2428,6 +2428,36 @@
   cursor: pointer;
 }
 
+/* Bank Modal Specifics */
+.bank-fee-header {
+  margin-bottom: 2px;
+}
+
+.bank-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+.bank-check-item {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #334155 !important;
+  cursor: pointer;
+}
+
+.bank-check-item input[type="checkbox"] {
+  width: 15px !important;
+  height: 15px !important;
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+
 @media (max-width: 680px) {
   .task-grid-columns-three,
   .task-grid-columns-two-compact {
