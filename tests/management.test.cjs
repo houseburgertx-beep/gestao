@@ -144,7 +144,7 @@ test("Conta com fornecedor novo valida e grava ambos no mesmo lote; cadastro exi
   const writes = [];
   const save = new Function("str","validate","buildRecords","createRecords","commitRecords",compiled + ";return saveManagement;")((r,k)=>String(r[k]||""),validate,buildRecords,async rows=>writes.push(rows),async rows=>writes.push(rows));
   const state = fixture();
-  const payable = record("payables",{description:"Nota do fornecedor",dueDate:"2026-09-22",amount:170509,scannedSupplierName:"OESA",scannedSupplierDocument:"81.611.931/0045-49"});
+  const payable = record("payables",{obligationType:"Boleto",status:"Pendente",description:"Nota do fornecedor",dueDate:"2026-09-22",amount:170509,scannedSupplierName:"OESA",scannedSupplierDocument:"81.611.931/0045-49"});
   await save(payable,state);
   assert.equal(writes.length,1);
   const supplier = writes[0].find(r=>r.kind === "suppliers");
