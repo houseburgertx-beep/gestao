@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import {homeForRole, navigationForRole, roleCanAccess} from "@/components/layout/managementNavigation";
 import { usePathname, useRouter } from "next/navigation";
 import "./globals.css";
+import "@/components/management/management.css";
 import { ManagementProvider } from "@/contexts/ManagementContext";
 import { UnitProvider } from "@/contexts/UnitContext";
 import { AuthProvider } from "@/contexts/AuthContext";

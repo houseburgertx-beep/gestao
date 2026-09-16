@@ -52,12 +52,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [accessError, setAccessError] = useState("");
 
   useEffect(() => {
+    let resolved = false;
+
+    // Safety fallback: if Firebase auth or Firestore takes longer than 4s, stop loading so user can log in
+    const fallbackTimer = setTimeout(() => {
+      if (!resolved) {
+        setLoading(false);
+      }
+    }, 4000);
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         try {
           const userDocRef = doc(db, "users", currentUser.uid);
-          const snap = await getDoc(userDocRef);
+          
+          // Fetch with 4s timeout to prevent hanging on slow connection
+          const snap = await Promise.race([
+            getDoc(userDocRef),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("Timeout ao buscar perfil")), 4000)
+            ),
+          ]);
+
           if (snap.exists()) {
             const profile = snap.data() as UserProfile;
             if (profile.active === false) {
@@ -89,15 +106,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {
           console.warn("Erro ao buscar perfil do usuário no Firestore:", e);
           setAccessError("Não foi possível validar seu perfil no Firebase. Tente novamente.");
-          await fbSignOut(auth);
+          try { await fbSignOut(auth); } catch {}
+        } finally {
+          resolved = true;
+          setLoading(false);
         }
       } else {
         setUserProfile(null);
+        resolved = true;
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(fallbackTimer);
+      unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, pass: string) => {
