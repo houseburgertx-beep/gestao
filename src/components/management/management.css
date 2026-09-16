@@ -589,6 +589,8 @@
 .workspace-header p { color: #747b90; font-size: 13px; }
 .workspace-eyebrow { color: #6258cc; font-size: 10px; font-weight: 800; letter-spacing: 1.4px; }
 .workspace-primary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 15px; border-radius: 9px; background: linear-gradient(135deg,#5046bd,#7163df); color: #fff; font-size: 12px; font-weight: 720; box-shadow: 0 8px 18px rgba(79,70,189,.22); }
+.workspace-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 13px; border-radius: 8px; background: #ffffff; color: #334155; border: 1px solid #cbd5e1; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; line-height: 1; box-shadow: 0 1px 2px rgba(0,0,0,0.04); transition: all 0.15s ease; }
+.workspace-secondary:hover { background: #f8fafc; color: #0f172a; border-color: #94a3b8; }
 .workspace-metrics { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 12px; }
 .workspace-metric { display: flex; align-items: center; gap: 12px; padding: 15px; border: 1px solid #e5e7ef; border-radius: 13px; background: #fff; box-shadow: 0 6px 18px rgba(37,41,64,.04); }
 .workspace-metric > span { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; }
@@ -1486,6 +1488,14 @@
   gap: 18px;
 }
 
+.banking-workspace .workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .bank-actions {
   display: flex;
   align-items: center;
@@ -1493,23 +1503,77 @@
   flex-wrap: wrap;
 }
 
-.bank-btn-whatsapp {
+.bank-action-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  background: #f0fdf4;
-  color: #166534;
-  border: 1px solid #bbf7d0;
-  padding: 8px 14px;
-  border-radius: 9px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   transition: all 0.15s ease;
+  box-sizing: border-box;
 }
-.bank-btn-whatsapp:hover {
+.bank-action-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.bank-action-btn.is-add {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+  font-weight: 650;
+}
+.bank-action-btn.is-add:hover {
   background: #dcfce7;
   border-color: #86efac;
+  color: #166534;
+}
+
+.bank-btn-whatsapp,
+.bank-action-btn.is-whatsapp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+.bank-btn-whatsapp:hover,
+.bank-action-btn.is-whatsapp:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.banking-workspace .workspace-primary {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  white-space: nowrap;
+  box-sizing: border-box;
 }
 
 /* KPI Summary Cards Grid */
@@ -1803,27 +1867,46 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding-top: 10px;
   border-top: 1px solid #f1f5f9;
   font-size: 11px;
   color: #64748b;
+  flex-wrap: nowrap;
+}
+.bank-card-date {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.bank-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 .bank-quick-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  gap: 4px;
   border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #334155;
-  border-radius: 7px;
-  padding: 5px 9px;
+  background: #ffffff;
+  color: #475569;
+  border-radius: 6px;
+  padding: 4px 8px;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
   transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 .bank-quick-btn:hover {
-  background: #f1f5f9;
+  background: #f8fafc;
   color: #0f172a;
   border-color: #cbd5e1;
 }
@@ -1836,15 +1919,23 @@
   background: #4338ca;
 }
 .bank-quick-btn.add {
-  background: #ecfdf5;
-  color: #047857;
-  border-color: #a7f3d0;
-  font-weight: 700;
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+  font-weight: 650;
 }
 .bank-quick-btn.add:hover {
-  background: #d1fae5;
-  border-color: #6ee7b7;
-  color: #065f46;
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+.bank-quick-btn.icon-only {
+  padding: 4px 6px;
+  color: #64748b;
+}
+.bank-quick-btn.icon-only:hover {
+  color: #0f172a;
+  background: #f1f5f9;
 }
 
 /* Modal Mode Tabs */

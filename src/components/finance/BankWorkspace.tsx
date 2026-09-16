@@ -357,42 +357,38 @@ export function BankWorkspace() {
             onClick={() => share("banks")}
             title="Compartilhar resumo executivo no WhatsApp"
           >
-            <MessageCircle size={15} /> WhatsApp
+            <MessageCircle size={14} /> WhatsApp
           </button>
           <button
             type="button"
-            className="workspace-secondary"
+            className="bank-action-btn is-add"
             onClick={() => setQuickModal({ mode: "add" })}
-            style={{
-              background: "#ecfdf5",
-              color: "#047857",
-              borderColor: "#a7f3d0",
-              fontWeight: 700,
-            }}
             title="Incluir mais valor ou entrada em qualquer banco"
           >
-            <PlusCircle size={15} /> Incluir Valor
+            <PlusCircle size={14} /> Incluir Valor
           </button>
           <button
             type="button"
-            className="workspace-secondary"
+            className="bank-action-btn"
             onClick={() => setInstantOpen(true)}
+            title="Registrar pagamento instantâneo de conta"
           >
-            <Zap size={15} /> Pagamento Instantâneo
+            <Zap size={14} /> Pagamento
           </button>
           <button
             type="button"
-            className="workspace-secondary"
+            className="bank-action-btn"
             onClick={() => setTransferOpen(true)}
+            title="Transferência entre contas"
           >
-            <ArrowRightLeft size={15} /> Transferir
+            <ArrowRightLeft size={14} /> Transferir
           </button>
           <button
             type="button"
             className="workspace-primary"
             onClick={() => setEditingBank(false)}
           >
-            <Plus size={15} /> Nova Conta
+            <Plus size={14} /> Nova Conta
           </button>
         </div>
       </header>
@@ -665,19 +661,26 @@ export function BankWorkspace() {
                 </div>
 
                 <div className="bank-card-footer">
-                  <span>
+                  <span
+                    className="bank-card-date"
+                    title={
+                      str(account, "balanceDate")
+                        ? `Última atualização: ${str(account, "balanceDate").split("-").reverse().join("/")}`
+                        : "Sem saldo registrado"
+                    }
+                  >
                     {str(account, "balanceDate")
-                      ? `Atualizado: ${str(account, "balanceDate").split("-").reverse().join("/")}`
-                      : "Sem saldo registrado"}
+                      ? str(account, "balanceDate").split("-").reverse().join("/")
+                      : "Sem saldo"}
                   </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                  <div className="bank-card-actions">
                     <button
                       type="button"
                       className="bank-quick-btn add"
                       onClick={() => setQuickModal({ account, mode: "add" })}
                       title="Incluir mais valor / somar a esta conta"
                     >
-                      <Plus size={12} /> Incluir Valor
+                      <Plus size={11} /> Incluir
                     </button>
                     <button
                       type="button"
@@ -685,15 +688,15 @@ export function BankWorkspace() {
                       onClick={() => setQuickModal({ account, mode: "set" })}
                       title="Ajustar saldo total"
                     >
-                      <Zap size={11} /> Saldo
+                      <Zap size={10} /> Saldo
                     </button>
                     <button
                       type="button"
-                      className="bank-quick-btn"
+                      className="bank-quick-btn icon-only"
                       onClick={() => setEditingBank(account)}
                       title="Configurações completas da conta"
                     >
-                      <Pencil size={11} /> Detalhes
+                      <Pencil size={11} />
                     </button>
                   </div>
                 </div>
@@ -829,13 +832,7 @@ export function BankWorkspace() {
                         )}
                       </td>
                       <td style={{ textAlign: "right" }}>
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px",
-                          }}
-                        >
+                        <div className="bank-card-actions">
                           <button
                             type="button"
                             className="bank-quick-btn add"
@@ -850,15 +847,15 @@ export function BankWorkspace() {
                             onClick={() => setQuickModal({ account, mode: "set" })}
                             title="Ajustar saldo total"
                           >
-                            <Zap size={11} /> Saldo
+                            <Zap size={10} /> Saldo
                           </button>
                           <button
                             type="button"
-                            className="bank-quick-btn"
+                            className="bank-quick-btn icon-only"
                             onClick={() => setEditingBank(account)}
                             title="Editar configurações da conta"
                           >
-                            <Pencil size={11} /> Editar
+                            <Pencil size={11} />
                           </button>
                         </div>
                       </td>
@@ -917,11 +914,11 @@ export function BankWorkspace() {
         </div>
         <button
           type="button"
-          className="workspace-secondary"
+          className="bank-action-btn"
           onClick={() => share("paid")}
           title="Compartilhar lista de pagamentos do dia no WhatsApp"
         >
-          <MessageCircle size={15} /> Relatório de Pagamentos
+          <MessageCircle size={14} /> Relatório de Pagamentos
         </button>
       </section>
 
