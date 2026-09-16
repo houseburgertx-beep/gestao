@@ -14,6 +14,8 @@ import {
   Download,
   Zap,
   X,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   Bar,
@@ -55,6 +57,7 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
   type RecorteKey = "overdue" | "today" | "next7" | "fixed" | "taxes" | "paid";
   const [selectedRecorte, setSelectedRecorte] = useState<RecorteKey | null>(null);
   const [payingRecord, setPayingRecord] = useState<RecordData | null>(null);
+  const [attentionOpen, setAttentionOpen] = useState(false);
   const dedicatedRef = useRef<HTMLDivElement>(null);
 
   const toggleRecorte = (key: RecorteKey) => {
@@ -230,6 +233,11 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
       return priority(a) - priority(b) || str(a, "dueDate").localeCompare(str(b, "dueDate"));
     })
     .slice(0, 12);
+
+  const attentionTotal = useMemo(
+    () => attention.reduce((sum, row) => sum + outstanding(row, data, today), 0),
+    [attention, data, today],
+  );
 
   const goToAccount = (id: string) => {
     document.getElementById(`record-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -541,34 +549,83 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
         </section>
       </div>
 
-      <section className="mg-panel payables-attention">
-        <div className="payables-panel-heading">
-          <div><span>ALERTAS</span><h2>Vencimentos que precisam de atenção</h2></div>
-          <b>{attention.length} prioridade(s)</b>
-        </div>
-        {attention.length ? (
-          <div className="payables-alert-list">
-            {attention.map((row) => {
-              const status = payableStatus(row, data, today);
-              const isTax = str(row, "obligationType") === "Imposto" || row.sourceKind === "taxes";
-              const unit = data.units.find((item) => item.id === row.unitId);
-              return (
-                <button className="payables-alert-row" key={row.id} onClick={() => goToAccount(row.id)} title="Abrir esta conta na lista">
-                  <span className={`payables-status-dot ${status === "Vencido" ? "danger" : status === "Vencendo" ? "warning" : "normal"}`} />
-                  <div className="payables-alert-description">
-                    <strong>{str(row, "description")}</strong>
-                    <span>{unit?.name || "DADO PENDENTE"} · {isTax ? "Imposto" : str(row, "obligationType") || "Conta"}</span>
-                  </div>
-                  <span className={`payables-status ${status.toLowerCase()}`}>{status}</span>
-                  <span className="payables-due">{formatDate(str(row, "dueDate"))}</span>
-                  <strong className="payables-amount">{currency(outstanding(row, data, today))}</strong>
-                  <ArrowDown size={15} className="payables-alert-open" />
-                </button>
-              );
-            })}
+      <section className={`mg-panel payables-attention ${attentionOpen ? "is-open" : "is-collapsed"}`}>
+        <div
+          className="payables-panel-heading clickable"
+          onClick={() => setAttentionOpen((prev) => !prev)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setAttentionOpen((prev) => !prev);
+            }
+          }}
+          aria-expanded={attentionOpen}
+        >
+          <div className="payables-heading-left">
+            <span className="payables-attention-eyebrow">ALERTAS</span>
+            <div className="payables-title-cluster">
+              <h2>Vencimentos que precisam de atenção</h2>
+              {attention.length > 0 && (
+                <b className="payables-attention-badge">{attention.length} prioridade(s)</b>
+              )}
+            </div>
+            {!attentionOpen && attention.length > 0 && (
+              <small className="payables-collapsed-hint">
+                {attention.length === 1
+                  ? `1 conta pendente (${currency(attentionTotal)}) · Clique para expandir`
+                  : `${attention.length} contas pendentes (${currency(attentionTotal)}) · Clique para expandir`}
+              </small>
+            )}
           </div>
-        ) : (
-          <div className="payables-no-data">Nenhum vencimento urgente. Tudo em dia neste recorte.</div>
+          <button
+            type="button"
+            className="payables-collapse-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              setAttentionOpen((prev) => !prev);
+            }}
+            aria-label={attentionOpen ? "Recolher alertas" : "Expandir alertas"}
+          >
+            {attentionOpen ? (
+              <>
+                <span>Recolher</span>
+                <ChevronUp size={15} />
+              </>
+            ) : (
+              <>
+                <span>Ver alertas ({attention.length})</span>
+                <ChevronDown size={15} />
+              </>
+            )}
+          </button>
+        </div>
+        {attentionOpen && (
+          attention.length ? (
+            <div className="payables-alert-list">
+              {attention.map((row) => {
+                const status = payableStatus(row, data, today);
+                const isTax = str(row, "obligationType") === "Imposto" || row.sourceKind === "taxes";
+                const unit = data.units.find((item) => item.id === row.unitId);
+                return (
+                  <button className="payables-alert-row" key={row.id} onClick={() => goToAccount(row.id)} title="Abrir esta conta na lista">
+                    <span className={`payables-status-dot ${status === "Vencido" ? "danger" : status === "Vencendo" ? "warning" : "normal"}`} />
+                    <div className="payables-alert-description">
+                      <strong>{str(row, "description")}</strong>
+                      <span>{unit?.name || "DADO PENDENTE"} · {isTax ? "Imposto" : str(row, "obligationType") || "Conta"}</span>
+                    </div>
+                    <span className={`payables-status ${status.toLowerCase()}`}>{status}</span>
+                    <span className="payables-due">{formatDate(str(row, "dueDate"))}</span>
+                    <strong className="payables-amount">{currency(outstanding(row, data, today))}</strong>
+                    <ArrowDown size={15} className="payables-alert-open" />
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="payables-no-data">Nenhum vencimento urgente. Tudo em dia neste recorte.</div>
+          )
         )}
       </section>
 

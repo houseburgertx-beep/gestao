@@ -21,6 +21,7 @@ import {
   FileText,
   Repeat,
   ReceiptText,
+  Search,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -152,6 +153,7 @@ export function RecordTable({
   const [paying, setPaying] = useState<RecordData | null>(null);
   const [message, setMessage] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const def = {...DEFINITIONS[kind],label:kind === "revenues" ? "Lançamentos manuais de faturamento" : DEFINITIONS[kind].label};
   const canWrite =
     userProfile?.role === "admin" ||
@@ -335,104 +337,137 @@ export function RecordTable({
     .slice(0, 5));
   return (
     <section className="mg-panel">
-      <div className="mg-toolbar">
-        <h2>
-          {def.label} <span className="mg-tag">{list.length}</span>
-        </h2>
-        <input
-          aria-label={`Buscar em ${def.label}`}
-          placeholder="Buscar registros…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        {kind === "payables" && (
+      <div className="mg-toolbar payables-clean-toolbar">
+        <div className="payables-toolbar-title">
+          <h2>{def.label}</h2>
+          <span className="payables-count-pill">{list.length}</span>
+        </div>
+        <div className="payables-toolbar-search">
+          <Search size={14} className="payables-search-icon" />
+          <input
+            aria-label={`Buscar em ${def.label}`}
+            placeholder="Buscar registros…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <button
+              type="button"
+              className="payables-search-clear"
+              onClick={() => setSearch("")}
+              title="Limpar busca"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        <div className="payables-toolbar-actions">
+          {kind === "payables" && (
+            <button
+              type="button"
+              className="payables-btn-fixed-minimal"
+              disabled={!canWrite || !!errors[kind]}
+              onClick={() => {
+                setMessage("");
+                setFixedExpenseOpen(true);
+              }}
+            >
+              <Repeat size={14} />
+              <span>Lançar Despesa Fixa</span>
+            </button>
+          )}
           <button
-            className="mg-button mg-button-fixed"
+            type="button"
+            className="payables-btn-new-minimal"
             disabled={!canWrite || !!errors[kind]}
             onClick={() => {
               setMessage("");
-              setFixedExpenseOpen(true);
+              setEditing(false);
             }}
           >
-            <Repeat size={16} /> Lançar Despesa Fixa
+            <Plus size={15} />
+            <span>{kind === "payables" ? "Nova conta" : "Novo registro"}</span>
           </button>
-        )}
-        <button
-          className="mg-button"
-          disabled={!canWrite || !!errors[kind]}
-          onClick={() => {
-            setMessage("");
-            setEditing(false);
-          }}
-        >
-          <Plus size={16} /> {kind === "payables" ? "Nova conta" : "Novo registro"}
-        </button>
+        </div>
       </div>
       {message && (
         <p role="status" className="mg-status-message">
           {message}
         </p>
       )}
-      {kind === "payables" && payablesCounts && (
-        <div className="payables-alert-section">
-          {payablesCounts.today.length > 0 ? (
-            <div className="payables-today-alert-card has-today">
-              <div className="payables-alert-content">
-                <div className="payables-alert-icon-box">
-                  <CalendarClock size={20} />
-                </div>
-                <div className="payables-alert-text">
-                  <strong>
-                    {payablesCounts.today.length === 1
-                      ? "1 boleto vence hoje!"
-                      : `${payablesCounts.today.length} boletos vencem hoje!`}
-                  </strong>
-                  <p>
-                    Total para hoje ({formatDateBR(filters.today)}):{" "}
-                    <strong>{currency(payablesCounts.todayTotal)}</strong>
-                    {payablesCounts.overdue.length > 0 && (
-                      <span className="payables-alert-badge-overdue">
-                        +{payablesCounts.overdue.length} vencido(s) ({currency(payablesCounts.overdueTotal)})
+      {kind === "payables" && payablesCounts && !bannerDismissed && (
+        (payablesCounts.today.length > 0 || payablesCounts.overdue.length > 0) ? (
+          <div className="payables-alert-section">
+            <div className={`payables-banner-minimal ${payablesCounts.today.length > 0 ? "today" : "overdue"}`}>
+              <div className="payables-banner-left">
+                {payablesCounts.today.length > 0 ? (
+                  <CalendarClock size={16} className="payables-banner-icon today" />
+                ) : (
+                  <AlertTriangle size={16} className="payables-banner-icon overdue" />
+                )}
+                <div className="payables-banner-info">
+                  {payablesCounts.today.length > 0 ? (
+                    <>
+                      <span className="payables-banner-main">
+                        <strong>
+                          {payablesCounts.today.length === 1
+                            ? "1 boleto vence hoje"
+                            : `${payablesCounts.today.length} boletos vencem hoje`}
+                        </strong>
+                        <span className="payables-banner-value">({currency(payablesCounts.todayTotal)})</span>
                       </span>
-                    )}
-                  </p>
+                      {payablesCounts.overdue.length > 0 && (
+                        <>
+                          <span className="payables-banner-divider">·</span>
+                          <span className="payables-banner-overdue">
+                            +{payablesCounts.overdue.length} em atraso ({currency(payablesCounts.overdueTotal)})
+                          </span>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <span className="payables-banner-main">
+                      <strong>
+                        {payablesCounts.overdue.length === 1
+                          ? "1 conta vencida pendente"
+                          : `${payablesCounts.overdue.length} contas vencidas pendentes`}
+                      </strong>
+                      <span className="payables-banner-value">({currency(payablesCounts.overdueTotal)})</span>
+                    </span>
+                  )}
                 </div>
               </div>
-              <button
-                type="button"
-                className="payables-alert-btn"
-                onClick={() => setStatusFilter(statusFilter === "Hoje" ? "Todos" : "Hoje")}
-              >
-                {statusFilter === "Hoje" ? "Ver todos" : "Filtrar hoje"}
-              </button>
-            </div>
-          ) : payablesCounts.overdue.length > 0 ? (
-            <div className="payables-today-alert-card has-overdue-only">
-              <div className="payables-alert-content">
-                <div className="payables-alert-icon-box">
-                  <AlertTriangle size={20} />
-                </div>
-                <div className="payables-alert-text">
-                  <strong>
-                    {payablesCounts.overdue.length === 1
-                      ? "1 conta vencida pendente"
-                      : `${payablesCounts.overdue.length} contas vencidas pendentes`}
-                  </strong>
-                  <p>
-                    Total em atraso: <strong>{currency(payablesCounts.overdueTotal)}</strong>
-                  </p>
-                </div>
+              <div className="payables-banner-right">
+                {payablesCounts.today.length > 0 ? (
+                  <button
+                    type="button"
+                    className={`payables-banner-action-btn ${statusFilter === "Hoje" ? "active" : ""}`}
+                    onClick={() => setStatusFilter(statusFilter === "Hoje" ? "Todos" : "Hoje")}
+                  >
+                    {statusFilter === "Hoje" ? "Ver todos" : "Filtrar hoje"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={`payables-banner-action-btn danger ${statusFilter === "Vencidos" ? "active" : ""}`}
+                    onClick={() => setStatusFilter(statusFilter === "Vencidos" ? "Todos" : "Vencidos")}
+                  >
+                    {statusFilter === "Vencidos" ? "Ver todos" : "Ver vencidos"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="payables-banner-close-btn"
+                  onClick={() => setBannerDismissed(true)}
+                  title="Ocultar aviso"
+                  aria-label="Ocultar aviso"
+                >
+                  <X size={14} />
+                </button>
               </div>
-              <button
-                type="button"
-                className="payables-alert-btn danger"
-                onClick={() => setStatusFilter(statusFilter === "Vencidos" ? "Todos" : "Vencidos")}
-              >
-                {statusFilter === "Vencidos" ? "Ver todos" : "Ver vencidos"}
-              </button>
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : null
       )}
       {kind === "payables" && payablesCounts && (
         <nav className="payables-table-filters" aria-label="Filtrar contas por situação">

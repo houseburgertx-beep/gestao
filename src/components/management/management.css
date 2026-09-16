@@ -1218,8 +1218,85 @@
 .payables-panel-heading h2 { margin-top: 3px; }
 .payables-panel-heading > strong { text-align: right; color: #2f3762; font-size: 18px; }
 .payables-panel-heading > strong small { display: block; font-size: 10px; color: #8a91a6; font-weight: 500; }
-.payables-attention { border-radius: 14px; }
-.payables-attention .payables-panel-heading > b { padding: 6px 9px; border-radius: 999px; background: #fff1e6; color: #b65d19; font-size: 11px; }
+.payables-attention {
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  transition: all 0.2s ease;
+}
+.payables-attention.is-collapsed {
+  padding-bottom: 0;
+  margin-bottom: 12px;
+}
+.payables-attention .payables-panel-heading.clickable {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+.payables-attention .payables-panel-heading.clickable:hover {
+  background: #f8fafc;
+}
+.payables-attention-eyebrow {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #6366f1;
+  text-transform: uppercase;
+  display: block;
+}
+.payables-title-cluster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.payables-title-cluster h2 {
+  font-size: 16px;
+  font-weight: 750;
+  color: #0f172a;
+  margin: 2px 0 0;
+}
+.payables-attention-badge {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #fff1e6;
+  color: #b65d19;
+  font-size: 11px;
+  font-weight: 700;
+}
+.payables-collapsed-hint {
+  display: block;
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 3px;
+}
+.payables-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.payables-collapse-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
 .payables-alert-list { margin-top: 10px; }
 .payables-alert-row { display: grid; grid-template-columns: 10px minmax(220px,1fr) 90px 100px 130px; align-items: center; gap: 12px; padding: 13px 4px; border-top: 1px solid #edf0f4; }
 .payables-status-dot { width: 8px; height: 8px; border-radius: 50%; background: #665bd0; }
@@ -1415,101 +1492,277 @@
 .identification-fields{grid-template-columns:1.2fr .85fr 1fr}.cash-money-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.cash-outflows,.pix-request-list{margin-top:13px;border:1px solid #e2e4ed;border-radius:11px;background:#fff}.cash-outflows>header,.pix-request-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border-bottom:1px solid #eceef3}.cash-outflows>header strong,.pix-request-heading h3{display:block;color:#353a51;font-size:12px}.cash-outflows>header small,.pix-request-heading p{display:block;margin-top:3px;color:#8a90a2;font-size:9px}.cash-add{border:0;border-radius:7px;background:#eeecff;color:#5e54bf;padding:7px 10px;font-size:10px;font-weight:900;white-space:nowrap}.cash-outflow-row{display:grid;grid-template-columns:minmax(0,1fr) 145px 28px;gap:9px;align-items:end;padding:10px 14px;border-bottom:1px solid #eff0f4}.cash-outflow-row label,.pix-request-row label{display:grid;gap:5px;color:#72788d;font-size:9px;font-weight:800}.cash-outflow-row input,.pix-request-row input{height:37px;border:1px solid #d9dce7;border-radius:8px;padding:8px 10px;color:#34384e;font-size:12px;outline:0}.cash-remove{width:28px;height:28px;border:0;border-radius:7px;background:#fff0f1;color:#bd4252;font-size:17px;line-height:1}.cash-outflows>footer{display:flex;justify-content:space-between;padding:10px 14px;color:#777d91;font-size:10px}.cash-outflows>footer b{color:#363a51;font-size:12px}.pix-request-heading{margin-top:0;padding:0 0 12px;border-bottom:0}.pix-request-heading h3{margin:0}.pix-request-heading p{margin-bottom:0}.pix-request-list{margin-top:0}.pix-request-row{display:grid;grid-template-columns:1fr 1.25fr 1.5fr 140px 28px;gap:9px;align-items:end;padding:11px 13px;border-bottom:1px solid #eff0f4}.pix-request-row:last-child,.cash-outflow-row:last-of-type{border-bottom:0}.audit-grid{align-items:stretch}.audit-grid article{grid-template-columns:repeat(3,minmax(0,1fr));padding:15px;background:linear-gradient(180deg,#fff 0%,#fbfbff 100%)}.audit-grid article:first-child{grid-template-columns:repeat(2,minmax(0,1fr))}.audit-grid article b{margin-top:4px;padding-top:10px;border-top:1px solid #e8e9f1;color:#5b51b9}.audit-grid+.employee-file-upload{margin-top:12px}.cash-form>section:has(.audit-grid)>h3{margin-bottom:4px}.cash-form>section:has(.audit-grid)>.cash-hint{margin:0 0 12px;text-align:left;padding:0}
 @media(max-width:900px){.cash-fields,.cash-fields.five{grid-template-columns:repeat(2,minmax(0,1fr))}.machine-grid,.conference-banks,.reconciliation-grid,.cash-primary-grid,.cash-money-grid{grid-template-columns:1fr 1fr}.cash-extra-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.pix-request-row{grid-template-columns:1fr 1fr 1fr 120px 28px}.cash-list>article{grid-template-columns:36px 1fr auto}.cash-list>article>div:nth-child(3),.cash-list>article>div:nth-child(4){display:none}}@media(max-width:620px){.cash-fields,.cash-fields.five,.machine-grid,.audit-grid,.conference-banks,.closing-result,.reconciliation-grid,.cash-primary-grid,.cash-extra-grid,.cash-money-grid,.identification-fields{grid-template-columns:1fr}.machine-grid article,.audit-grid article{grid-template-columns:1fr}.cash-list>article{grid-template-columns:34px 1fr}.cash-list>article>.cash-badge,.cash-list>article>.workspace-primary{grid-column:2}.cash-section-title{align-items:stretch;flex-direction:column}.entry-total{width:100%}.cash-system-section .other-receipts summary{align-items:flex-start;flex-wrap:wrap}.cash-system-section .other-receipts summary small{margin-left:22px}.cash-equation{align-items:flex-start;flex-direction:column}.cash-outflows>header,.pix-request-heading{align-items:flex-start;flex-direction:column}.cash-outflow-row,.pix-request-row{grid-template-columns:1fr}.cash-remove{justify-self:end}.conference-table .head{display:none}.conference-table .line{grid-template-columns:1fr 1fr}.conference-table .line>*:last-child{grid-column:1/-1}}
 
-/* Payables Alert Banner & Redesigned Table */
-.payables-alert-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-.payables-today-alert-card {
+/* ==========================================================================
+   TOOLBAR LIMPA & MINIMALISTA DO CONTAS A PAGAR
+   ========================================================================== */
+.payables-clean-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 18px;
-  border-radius: 12px;
-  border: 1px solid;
-  transition: all 0.2s ease;
+  flex-wrap: wrap;
+  padding: 4px 0 12px;
 }
-.payables-today-alert-card.has-today {
-  background: #fffbf0;
-  border-color: #fce19a;
-  box-shadow: 0 3px 12px rgba(217, 119, 6, 0.06);
-}
-.payables-today-alert-card.has-overdue-only {
-  background: #fff5f5;
-  border-color: #fecaca;
-  box-shadow: 0 3px 12px rgba(220, 38, 38, 0.05);
-}
-.payables-alert-content {
+.payables-toolbar-title {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
 }
-.payables-alert-icon-box {
+.payables-toolbar-title h2 {
+  font-size: 18px;
+  font-weight: 750;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+.payables-count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.payables-toolbar-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 240px;
+  flex: 1;
+  max-width: 360px;
+}
+.payables-search-icon {
+  position: absolute;
+  left: 11px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+.payables-toolbar-search input {
+  width: 100%;
+  height: 38px;
+  padding: 8px 30px 8px 33px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #0f172a;
+  background: #f8fafc;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+.payables-toolbar-search input:focus {
+  background: #ffffff;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  outline: none;
+}
+.payables-search-clear {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  flex-shrink: 0;
+  border-radius: 4px;
 }
-.has-today .payables-alert-icon-box {
-  background: #fef3c7;
-  color: #b45309;
+.payables-search-clear:hover {
+  color: #475569;
+  background: #f1f5f9;
 }
-.has-overdue-only .payables-alert-icon-box {
-  background: #fee2e2;
-  color: #b91c1c;
+
+.payables-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.payables-alert-text strong {
-  display: block;
-  font-size: 14px;
-  font-weight: 700;
-  color: #1e293b;
-  margin-bottom: 2px;
-}
-.payables-alert-text p {
-  margin: 0;
-  font-size: 12px;
-  color: #64748b;
-}
-.payables-alert-badge-overdue {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 2px 7px;
-  background: #fee2e2;
-  color: #991b1b;
-  border-radius: 6px;
-  font-weight: 700;
-  font-size: 11px;
-}
-.payables-alert-btn {
+.payables-btn-fixed-minimal {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
-  background: #b45309;
-  color: #ffffff;
-  border: 0;
+  height: 38px;
+  padding: 0 14px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #4338ca;
   cursor: pointer;
-  white-space: nowrap;
   transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  white-space: nowrap;
 }
-.payables-alert-btn:hover {
-  background: #92400e;
+.payables-btn-fixed-minimal:hover {
+  background: #f5f3ff;
+  border-color: #c7d2fe;
   transform: translateY(-1px);
 }
-.payables-alert-btn.danger {
-  background: #b91c1c;
+.payables-btn-new-minimal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 15px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #0f172a;
+  background: #0f172a;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  white-space: nowrap;
 }
-.payables-alert-btn.danger:hover {
-  background: #991b1b;
+.payables-btn-new-minimal:hover {
+  background: #1e293b;
+  border-color: #1e293b;
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   BANNER DE AVISO MINIMALISTA (COMPACTO & DISCRETO)
+   ========================================================================== */
+.payables-alert-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.payables-banner-minimal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  font-size: 12.5px;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+.payables-banner-minimal.today {
+  background: #fffdf5;
+  border-color: #fef08a;
+  color: #92400e;
+}
+.payables-banner-minimal.overdue {
+  background: #fff8f8;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.payables-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.payables-banner-icon.today {
+  color: #d97706;
+  flex-shrink: 0;
+}
+.payables-banner-icon.overdue {
+  color: #dc2626;
+  flex-shrink: 0;
+}
+.payables-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.payables-banner-main strong {
+  font-weight: 700;
+  color: #1e293b;
+}
+.payables-banner-value {
+  margin-left: 4px;
+  font-weight: 700;
+  color: #b45309;
+}
+.payables-banner-minimal.overdue .payables-banner-value {
+  color: #b91c1c;
+}
+.payables-banner-divider {
+  color: #cbd5e1;
+}
+.payables-banner-overdue {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.payables-banner-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.payables-banner-action-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: #ffffff;
+  border: 1px solid #fde047;
+  color: #92400e;
+}
+.payables-banner-action-btn:hover {
+  background: #fef9c3;
+  border-color: #eab308;
+}
+.payables-banner-action-btn.active {
+  background: #b45309;
+  color: #ffffff;
+  border-color: #b45309;
+}
+.payables-banner-action-btn.danger {
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+.payables-banner-action-btn.danger:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
+}
+.payables-banner-action-btn.danger.active {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+.payables-banner-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+.payables-banner-close-btn:hover {
+  color: #475569;
+  background: rgba(0, 0, 0, 0.05);
 }
 
 /* Tab filter bar */
