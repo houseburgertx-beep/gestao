@@ -41,22 +41,35 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
   const { data } = useManagement(); const { userProfile }=useAuth();
   const [closingOpen,setClosingOpen]=useState(false); const [reviewing,setReviewing]=useState<RecordData|null>(null); const [message,setMessage]=useState("");
   const [confTab,setConfTab]=useState<"queue"|"audit"|"rates">("queue");
+  const [queueFilter,setQueueFilter]=useState<string>("all");
   useEffect(()=>{if(mode!=="closing")return;const open=()=>setClosingOpen(true);window.addEventListener("open-cashClosings-form",open);return()=>window.removeEventListener("open-cashClosings-form",open);},[mode]);
   const today=dateToday(); const closings=data.cashClosings.filter(row=>!row.archived).sort((a,b)=>str(b,"date").localeCompare(str(a,"date")));
   const visible=mode==="closing"?(userProfile?.role==="operator"?closings.filter(r=>r.unitId===userProfile.unitId):closings):closings.filter(r=>r.status!=="Rascunho");
   const todayRows=visible.filter(r=>str(r,"date")===today); const difference=todayRows.reduce((sum,row)=>sum+Number(row.difference||0),0); const pending=closings.filter(row=>row.status==="Aguardando conferência"||row.status==="Com divergência");
+  const filteredQueue=visible.filter(row=>{
+    if(queueFilter==="pending")return row.status==="Aguardando conferência";
+    if(queueFilter==="divergent")return row.status==="Com divergência";
+    if(queueFilter==="reviewed")return row.status==="Conferido";
+    return true;
+  });
+
   return <div className="workspace-shell cash-workspace">
-    <header className="workspace-header"><div><span className="workspace-eyebrow">FECHAMENTO DE CAIXA HOUSE 190</span><h1>{mode==="closing"?"Fechamento de caixa":"Conferência financeira"}</h1><p>{mode==="closing"?"Entrada total e conciliação objetiva de Dinheiro, Crédito, Débito e PIX.":"Compare os valores, revise divergências, confira auditorias e confirme os saldos líquidos dos bancos."}</p></div>{mode==="closing"&&<button className="workspace-primary" onClick={()=>setClosingOpen(true)}><Plus size={16}/> Novo fechamento</button>}</header>
-    <section className="workspace-metrics"><Metric icon={Wallet} tone="purple" label="Registros de hoje" value={String(todayRows.length)}/><Metric icon={Calculator} tone="blue" label="Diferença do dia" value={brl(difference)}/><Metric icon={AlertTriangle} tone="red" label="Aguardando financeiro" value={String(pending.length)}/><Metric icon={CheckCircle2} tone="green" label="Conferidos" value={String(closings.filter(r=>r.status==="Conferido").length)}/></section>
+    <header className="workspace-header"><div><span className="workspace-eyebrow">FECHAMENTO DE CAIXA HOUSE 190</span><h1>{mode==="closing"?"Fechamento de caixa":"Conferência financeira"}</h1><p>{mode==="closing"?"Entrada total e conciliação objetiva de Dinheiro, Crédito, Débito e PIX.":"Compare os valores apurados, revise divergências, audite motoboys e aprove os saldos líquidos dos bancos."}</p></div>{mode==="closing"&&<button className="workspace-primary" onClick={()=>setClosingOpen(true)}><Plus size={16}/> Novo fechamento</button>}</header>
+    <section className="workspace-metrics">
+      <Metric icon={Wallet} tone="purple" label="Registros de hoje" value={String(todayRows.length)}/>
+      <Metric icon={Calculator} tone={difference===0?"green":"red"} label="Diferença do dia" value={brl(difference)}/>
+      <Metric icon={AlertTriangle} tone={pending.length>0?"red":"blue"} label="Aguardando financeiro" value={String(pending.length)}/>
+      <Metric icon={CheckCircle2} tone="green" label="Conferidos" value={String(closings.filter(r=>r.status==="Conferido").length)}/>
+    </section>
     {message&&<p className="workspace-message">{message}</p>}
 
     {mode==="conference"&&(
       <div className="cash-subtabs">
         <button className={`cash-subtab ${confTab==="queue"?"active":""}`} onClick={()=>setConfTab("queue")}>
-          <ClipboardCheck size={16}/> Caixas para conferência ({pending.length})
+          <ClipboardCheck size={16}/> Caixas para conferência <b>{pending.length}</b>
         </button>
         <button className={`cash-subtab ${confTab==="audit"?"active":""}`} onClick={()=>setConfTab("audit")}>
-          <FileText size={16}/> Auditoria de Motoboys & Notas ({closings.length})
+          <FileText size={16}/> Auditoria de Motoboys & Notas <b>{closings.length}</b>
         </button>
         <button className={`cash-subtab ${confTab==="rates"?"active":""}`} onClick={()=>setConfTab("rates")}>
           <Percent size={16}/> Taxas das Máquinas & Bancos
@@ -69,8 +82,56 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
     ):mode==="conference"&&confTab==="rates"?(
       <BankRatesTab />
     ):(
-      <section className="cash-list"><header><div><span>{mode==="closing"?"HISTÓRICO":"FILA FINANCEIRA"}</span><h2>{mode==="closing"?"Fechamentos registrados":"Caixas para conferência"}</h2></div><b>{visible.length}</b></header>
-        {visible.length?visible.map(row=>{const unit=data.units.find(u=>u.id===row.unitId);return <article key={row.id}><div className="cash-status-icon"><ClipboardCheck size={18}/></div><div><strong>{unit?.name||"Unidade"}</strong><span>{str(row,"date").split("-").reverse().join("/")} · {str(row,"shift")} · {str(row,"operatorName")}</span>{Number(row.sangriaAmount||0)>0&&<small className="cash-sangria-badge">Sangria: {brl(Number(row.sangriaAmount))} ({str(row,"sangriaStatus")||"Registrada"})</small>}</div><div><small>Entrada total</small><b>{currency(Number(row.systemTotal||0))}</b></div><div><small>Diferença total</small><b className={Number(row.difference||0)===0?"ok":"bad"}>{currency(Number(row.difference||0))}</b></div><span className={`cash-badge ${str(row,"status").toLowerCase().replace(/\s+/g,"-")}`}>{str(row,"status")}</span>{mode==="conference"&&<button className="workspace-primary" onClick={()=>setReviewing(row)}><BadgeCheck size={15}/> {row.status==="Conferido"?"Rever":"Conferir"}</button>}</article>}):<div className="people-empty"><FileCheck2 size={30}/><strong>Nenhum fechamento encontrado</strong><span>{mode==="closing"?"Use “Novo fechamento” para iniciar.":"Nenhum caixa aguardando conferência."}</span></div>}
+      <section className="cash-list">
+        <header>
+          <div>
+            <span>{mode==="closing"?"HISTÓRICO":"FILA FINANCEIRA"}</span>
+            <h2>{mode==="closing"?"Fechamentos registrados":"Caixas para conferência"}</h2>
+          </div>
+          {mode==="conference"&&(
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${queueFilter==="all"?"bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300":"text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`} onClick={()=>setQueueFilter("all")}>
+                Todos ({visible.length})
+              </button>
+              <button className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${queueFilter==="pending"?"bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300":"text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`} onClick={()=>setQueueFilter("pending")}>
+                Pendentes ({visible.filter(r=>r.status==="Aguardando conferência").length})
+              </button>
+              <button className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${queueFilter==="divergent"?"bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300":"text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`} onClick={()=>setQueueFilter("divergent")}>
+                Divergências ({visible.filter(r=>r.status==="Com divergência").length})
+              </button>
+              <button className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${queueFilter==="reviewed"?"bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300":"text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`} onClick={()=>setQueueFilter("reviewed")}>
+                Conferidos ({visible.filter(r=>r.status==="Conferido").length})
+              </button>
+            </div>
+          )}
+          <b>{filteredQueue.length}</b>
+        </header>
+        {filteredQueue.length?filteredQueue.map(row=>{
+          const unit=data.units.find(u=>u.id===row.unitId);
+          const hasDiff=Number(row.difference||0)!==0;
+          return <article key={row.id}>
+            <div className="cash-status-icon"><ClipboardCheck size={18}/></div>
+            <div>
+              <strong>{unit?.name||"Unidade"}</strong>
+              <span>{str(row,"date").split("-").reverse().join("/")} · Turno {str(row,"shift")} · {str(row,"operatorName")}</span>
+              {Number(row.sangriaAmount||0)>0&&(
+                <small className="cash-sangria-badge">
+                  Sangria: {brl(Number(row.sangriaAmount))} ({str(row,"sangriaStatus")||"Registrada"}{str(row,"sangriaRecipient")?` · ${str(row,"sangriaRecipient")}`:""})
+                </small>
+              )}
+            </div>
+            <div>
+              <small>Entrada total</small>
+              <b>{currency(Number(row.systemTotal||0))}</b>
+            </div>
+            <div>
+              <small>Diferença total</small>
+              <b className={!hasDiff?"ok":"bad"}>{currency(Number(row.difference||0))}</b>
+            </div>
+            <span className={`cash-badge ${str(row,"status").toLowerCase().replace(/\s+/g,"-")}`}>{str(row,"status")}</span>
+            {mode==="conference"&&<button className="workspace-primary" onClick={()=>setReviewing(row)}><BadgeCheck size={15}/> {row.status==="Conferido"?"Rever":"Conferir Caixa"}</button>}
+          </article>;
+        }):<div className="people-empty"><FileCheck2 size={30}/><strong>Nenhum fechamento encontrado</strong><span>{mode==="closing"?"Use “Novo fechamento” para iniciar.":"Nenhum caixa encontrado para este filtro."}</span></div>}
       </section>
     )}
 
@@ -551,6 +612,11 @@ function AuditHistoryTab({closings}:{closings:RecordData[]}){
     }
   };
 
+  const totalMotoboyPaid = filtered.reduce((s, r) => s + closingValue(r, "motoboyPaid"), 0);
+  const totalMotoboyDiff = filtered.reduce((s, r) => s + closingValue(r, "motoboyDifference"), 0);
+  const totalInvoiceIssued = filtered.reduce((s, r) => s + closingValue(r, "invoiceIssued"), 0);
+  const totalInvoiceDiff = filtered.reduce((s, r) => s + closingValue(r, "invoiceDifference"), 0);
+
   return (
     <section className="cash-audit-history-section">
       <header className="cash-audit-header">
@@ -569,6 +635,25 @@ function AuditHistoryTab({closings}:{closings:RecordData[]}){
           </div>
         </div>
       </header>
+
+      <div className="cash-audit-kpis">
+        <div className="cash-audit-kpi-pill">
+          <span>Motoboy Total Pago</span>
+          <strong>{brl(totalMotoboyPaid)}</strong>
+        </div>
+        <div className={`cash-audit-kpi-pill ${totalMotoboyDiff === 0 ? "ok" : "bad"}`}>
+          <span>Diferença Motoboys</span>
+          <strong>{brl(totalMotoboyDiff)}</strong>
+        </div>
+        <div className="cash-audit-kpi-pill">
+          <span>Notas Emitidas</span>
+          <strong>{brl(totalInvoiceIssued)}</strong>
+        </div>
+        <div className={`cash-audit-kpi-pill ${totalInvoiceDiff === 0 ? "ok" : "bad"}`}>
+          <span>Diferença Notas</span>
+          <strong>{brl(totalInvoiceDiff)}</strong>
+        </div>
+      </div>
 
       <div className="cash-audit-table-wrap">
         <table className="cash-audit-table">

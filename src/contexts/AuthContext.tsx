@@ -11,8 +11,9 @@ import {
   deleteUser,
 } from "firebase/auth";
 import { deleteApp, getApps, initializeApp } from "firebase/app";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { auth, db, firebaseConfig } from "@/lib/firebase";
+import { normalizeRole } from "@/components/layout/managementNavigation";
 
 export interface UserProfile {
   uid: string;
@@ -31,6 +32,8 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   registerUser: (email: string, pass: string, name: string, role?: string, unitId?: string) => Promise<void>;
+  updateUserProfile: (uid: string, patch: Partial<UserProfile>) => Promise<void>;
+  deleteUserProfile: (uid: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
 }
 
@@ -42,6 +45,8 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   logout: async () => {},
   registerUser: async () => {},
+  updateUserProfile: async () => {},
+  deleteUserProfile: async () => {},
   resetPassword: async () => {},
 });
 
@@ -142,8 +147,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     role: string = "manager",
     unitId: string = "all"
   ) => {
-    if (!user || userProfile?.role !== "admin") {
-      throw new Error("Apenas administradores podem cadastrar usuários.");
+    const norm = normalizeRole(userProfile?.role);
+    if (!user || (norm !== "admin" && norm !== "accountant")) {
+      throw new Error("Apenas administradores e gestores financeiros podem cadastrar usuários.");
     }
 
     const secondaryName = "house190-user-management";
@@ -175,6 +181,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateUserProfile = async (uid: string, patch: Partial<UserProfile>) => {
+    const norm = normalizeRole(userProfile?.role);
+    if (!user || (norm !== "admin" && norm !== "accountant")) {
+      throw new Error("Apenas administradores e gestores financeiros podem alterar usuários.");
+    }
+    await setDoc(doc(db, "users", uid), patch, { merge: true });
+    window.dispatchEvent(new Event("house190-users-updated"));
+  };
+
+  const deleteUserProfile = async (uid: string) => {
+    const norm = normalizeRole(userProfile?.role);
+    if (!user || (norm !== "admin" && norm !== "accountant")) {
+      throw new Error("Apenas administradores e gestores financeiros podem excluir usuários.");
+    }
+    if (uid === user.uid) {
+      throw new Error("Você não pode excluir o seu próprio usuário enquanto estiver conectado.");
+    }
+    await deleteDoc(doc(db, "users", uid));
+    window.dispatchEvent(new Event("house190-users-updated"));
+  };
+
   const resetPassword = async (email: string) => {
     await sendPasswordResetEmail(auth, email);
   };
@@ -189,6 +216,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         logout,
         registerUser,
+        updateUserProfile,
+        deleteUserProfile,
         resetPassword,
       }}
     >

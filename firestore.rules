@@ -19,14 +19,18 @@ service cloud.firestore {
       return activeUser() && userProfile().role == "admin";
     }
 
+    function canManageUsers() {
+      return activeUser() && userProfile().role in ['admin', 'accountant'];
+    }
+
     match /users/{userId} {
-      allow read: if (signedIn() && request.auth.uid == userId) || adminUser();
-      allow create: if adminUser()
+      allow read: if (signedIn() && request.auth.uid == userId) || canManageUsers();
+      allow create: if canManageUsers()
         || (signedIn()
           && request.auth.uid == userId
           && request.auth.uid == "X3rPLrYN6OediKCZnn1cI8GHmVm2"
           && request.resource.data.role == "admin");
-      allow update, delete: if adminUser();
+      allow update, delete: if canManageUsers();
     }
 
     match /employees/{documentId} {

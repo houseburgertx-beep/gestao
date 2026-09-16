@@ -175,7 +175,14 @@ export function RecordTable({
   const payablesCounts = React.useMemo(() => {
     if (kind !== "payables") return null;
     const baseList = (data.payables || []).filter(
-      (r) => !r.archived && (def.global || unitIds.has(r.unitId)),
+      (r) =>
+        !r.archived &&
+        (def.global ||
+          !filters.unitId ||
+          filters.unitId === "all" ||
+          !r.unitId ||
+          r.unitId === filters.unitId ||
+          unitIds.has(r.unitId)),
     );
     const todayList = baseList.filter(
       (r) =>
@@ -213,13 +220,18 @@ export function RecordTable({
       next7: next7List,
       paid: paidList,
     };
-  }, [data.payables, data.transactions, unitIds, filters.today, kind, def.global]);
+  }, [data.payables, data.transactions, unitIds, filters.today, filters.unitId, kind, def.global]);
 
   const list = (data[kind] || [])
     .filter(
       (r) =>
         !r.archived &&
-        (def.global || unitIds.has(r.unitId)) &&
+        (def.global ||
+          !filters.unitId ||
+          filters.unitId === "all" ||
+          !r.unitId ||
+          r.unitId === filters.unitId ||
+          unitIds.has(r.unitId)) &&
         (!filters.channel || !r.channel || r.channel === filters.channel) &&
         (!search ||
           Object.values(r).some((v) =>

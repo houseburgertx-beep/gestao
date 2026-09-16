@@ -13,6 +13,7 @@ import { store } from "@/services/store";
 import { persistTakeatReports, subscribeTakeatReports } from "@/services/takeatManagementService";
 import type { RecordData } from "@/domain/management/model";
 import type { Filters } from "@/domain/management/engine";
+import { normalizeRole } from "@/components/layout/managementNavigation";
 import { useAuth } from "./AuthContext";
 interface State {
   data: Database;
@@ -92,15 +93,14 @@ export function ManagementProvider({
   const tenantId =
     (userProfile as typeof userProfile & { tenantId?: string })?.tenantId ||
     "house190";
-  const allowedUnit =
-    userProfile?.role === "admin" || userProfile?.role === "accountant"
-      ? "all"
-      : userProfile?.unitId || "";
+  const normRole = normalizeRole(userProfile?.role);
+  const isFinanceOrAdmin = normRole === "admin" || normRole === "accountant";
+  const allowedUnit = isFinanceOrAdmin ? "all" : (userProfile?.unitId || "all");
   useEffect(() => {
     setData(emptyDatabase());
     setErrors({});
     setPending(Object.keys(DEFINITIONS));
-    if (!user || !userProfile || !allowedUnit) return;
+    if (!user || !userProfile) return;
     return subscribeManagement(
       tenantId,
       allowedUnit,
@@ -122,7 +122,7 @@ export function ManagementProvider({
         setPending((p) => p.filter((k) => k !== kind));
       },
     );
-  }, [user?.uid, userProfile?.role, tenantId, allowedUnit, revision]);
+  }, [user?.uid, userProfile?.role, userProfile?.unitId, tenantId, allowedUnit, revision]);
   useEffect(() => {
     if (!user || pending.length) return;
     const syncPending = () => {

@@ -13,7 +13,7 @@ export const MANAGEMENT_NAV = [
 export function normalizeRole(role?: string): "admin" | "manager" | "operator" | "accountant" {
   if (!role) return "operator";
   const r = role.toLowerCase().trim();
-  if (r === "admin" || r === "administrador" || r === "proprietario" || r === "dono") return "admin";
+  if (r === "admin" || r === "administrador" || r === "proprietario" || r === "dono" || r === "diretoria" || r === "diretor" || r === "gestao") return "admin";
   if (r === "accountant" || r === "contador" || r === "contadora" || r === "financeiro") return "accountant";
   if (r === "manager" || r === "gerente") return "manager";
   return "operator";

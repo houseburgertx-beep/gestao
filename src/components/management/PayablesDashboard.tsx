@@ -52,17 +52,25 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
     () =>
       new Set(
         data.units
-          .filter((unit) => !unit.archived && (!filters.unitId || unit.id === filters.unitId))
+          .filter((unit) => !unit.archived && (!filters.unitId || filters.unitId === "all" || unit.id === filters.unitId))
           .map((unit) => unit.id),
       ),
     [data.units, filters.unitId],
   );
   const rows = useMemo(
     () =>
-      data.payables
-        .filter((row) => !row.archived && unitIds.has(row.unitId))
+      (data.payables || [])
+        .filter(
+          (row) =>
+            !row.archived &&
+            (!filters.unitId ||
+              filters.unitId === "all" ||
+              !row.unitId ||
+              row.unitId === filters.unitId ||
+              unitIds.has(row.unitId)),
+        )
         .sort((a, b) => str(a, "dueDate").localeCompare(str(b, "dueDate"))),
-    [data.payables, unitIds],
+    [data.payables, filters.unitId, unitIds],
   );
   const open = rows.filter((row) => outstanding(row, data, today) > 0);
   const overdue = open.filter((row) => str(row, "dueDate") < today);

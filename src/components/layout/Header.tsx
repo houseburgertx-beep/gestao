@@ -2,15 +2,17 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Search, Plus, Bell, Menu, User as UserIcon } from "lucide-react";
+import { Search, Plus, Bell, Menu, User as UserIcon, Users } from "lucide-react";
 import { UnitSelector } from "@/components/layout/UnitSelector";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { QuickCreateModal } from "@/components/layout/QuickCreateModal";
 import { NotificationCenter } from "@/components/layout/NotificationCenter";
 import { AuthModal } from "@/components/layout/AuthModal";
+import { UserManagementModal } from "@/components/users/UserManagementModal";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
 import { subscribeNotifications } from "@/services/firestoreService";
+import { normalizeRole } from "@/components/layout/managementNavigation";
 import { AppNotification } from "@/types";
 
 export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void }) {
@@ -23,8 +25,15 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const seenNotificationIds = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    const openUserMgmt = () => setIsUserManagementOpen(true);
+    window.addEventListener("open-user-management", openUserMgmt);
+    return () => window.removeEventListener("open-user-management", openUserMgmt);
+  }, []);
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
@@ -178,7 +187,17 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
           </button>
 
           {/* Profile Badge / Auth Trigger */}
-          <div className="flex items-center pl-2 border-l border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center gap-1.5 pl-2 border-l border-zinc-200 dark:border-zinc-800">
+            {user && ["admin", "accountant"].includes(normalizeRole(userProfile?.role)) && (
+              <button
+                onClick={() => setIsUserManagementOpen(true)}
+                title="Gerenciar Usuários"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-purple-700 dark:hover:text-purple-300 transition"
+              >
+                <Users className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                <span className="hidden sm:inline font-semibold">Usuários</span>
+              </button>
+            )}
             {user ? (
               <button
                 onClick={() => setIsAuthOpen(true)}
@@ -226,6 +245,10 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
+      />
+      <UserManagementModal
+        isOpen={isUserManagementOpen}
+        onClose={() => setIsUserManagementOpen(false)}
       />
     </>
   );
