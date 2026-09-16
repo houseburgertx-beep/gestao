@@ -4,14 +4,6 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   X,
   Repeat,
-  Building2,
-  Zap,
-  Droplets,
-  Wifi,
-  Monitor,
-  FileSpreadsheet,
-  ShieldCheck,
-  Sparkles,
   CheckCircle2,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
@@ -19,7 +11,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   currency,
   dateToday,
-  monthEnd,
   PRIMARY_PAYMENT_METHODS,
   RecordData,
   str,
@@ -39,74 +30,6 @@ interface FixedExpenseModalProps {
   onSaved: (message?: string) => void;
 }
 
-interface QuickPreset {
-  id: string;
-  label: string;
-  icon: React.ElementType;
-  defaultDesc: string;
-  defaultMethod: string;
-  supplierHint?: string;
-}
-
-const PRESETS: QuickPreset[] = [
-  {
-    id: "rent",
-    label: "Aluguel",
-    icon: Building2,
-    defaultDesc: "Aluguel do Ponto Comercial",
-    defaultMethod: "Boleto",
-    supplierHint: "Locador do Imóvel",
-  },
-  {
-    id: "energy",
-    label: "Energia Elétrica",
-    icon: Zap,
-    defaultDesc: "Conta de Energia Elétrica - Coelba/Neoenergia",
-    defaultMethod: "Débito automático",
-    supplierHint: "Neoenergia Coelba",
-  },
-  {
-    id: "water",
-    label: "Água / Esgoto",
-    icon: Droplets,
-    defaultDesc: "Conta de Água e Esgoto - Embasa",
-    defaultMethod: "Débito automático",
-    supplierHint: "Embasa",
-  },
-  {
-    id: "internet",
-    label: "Internet / Telefonia",
-    icon: Wifi,
-    defaultDesc: "Link de Internet e Telefonia",
-    defaultMethod: "Boleto",
-    supplierHint: "Operadora de Internet",
-  },
-  {
-    id: "software",
-    label: "Sistemas & PDV",
-    icon: Monitor,
-    defaultDesc: "Mensalidade Sistema PDV / BEEP / Gestão",
-    defaultMethod: "Cartão de Crédito",
-    supplierHint: "Provedor de Software",
-  },
-  {
-    id: "accounting",
-    label: "Contabilidade",
-    icon: FileSpreadsheet,
-    defaultDesc: "Honorários Contábeis",
-    defaultMethod: "PIX",
-    supplierHint: "Assessoria Contábil",
-  },
-  {
-    id: "security",
-    label: "Segurança / Monitoramento",
-    icon: ShieldCheck,
-    defaultDesc: "Alarme e Monitoramento Patrimonial",
-    defaultMethod: "Boleto",
-    supplierHint: "Empresa de Segurança",
-  },
-];
-
 export function FixedExpenseModal({
   initialUnitId = "",
   onClose,
@@ -125,17 +48,17 @@ export function FixedExpenseModal({
         : data.units[0]?.id || "",
   );
 
-  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [selectedSupplierId, setSelectedSupplierId] = useState("");
   const [customSupplierName, setCustomSupplierName] = useState("");
   const [amountInput, setAmountInput] = useState("");
-  const [dueDay, setDueDay] = useState(10);
+  
+  // Default first due date to 10th of this month
   const [firstDueDate, setFirstDueDate] = useState(() => {
     const [y, m] = today.split("-");
-    const d = "10";
-    return `${y}-${m}-${d}`;
+    return `${y}-${m}-10`;
   });
+  
   const [paymentMethod, setPaymentMethod] = useState("Boleto");
   const [recurrenceCount, setRecurrenceCount] = useState(12);
   const [documentNumber, setDocumentNumber] = useState("");
@@ -143,35 +66,8 @@ export function FixedExpenseModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // Update initial firstDueDate whenever dueDay changes
-  const handleDueDayChange = (day: number) => {
-    const cleanDay = Math.min(31, Math.max(1, day));
-    setDueDay(cleanDay);
-    const [y, m] = firstDueDate.split("-");
-    const padDay = String(cleanDay).padStart(2, "0");
-    const maxInMonth = Number(monthEnd(`${y}-${m}-01`).slice(8, 10));
-    const validDay = Math.min(cleanDay, maxInMonth);
-    setFirstDueDate(`${y}-${m}-${String(validDay).padStart(2, "0")}`);
-  };
-
-  const applyPreset = (preset: QuickPreset) => {
-    setSelectedPresetId(preset.id);
-    setDescription(preset.defaultDesc);
-    setPaymentMethod(preset.defaultMethod);
-    // Find matching supplier if exists
-    if (preset.supplierHint) {
-      const match = data.suppliers.find((s) =>
-        str(s, "name").toLowerCase().includes(preset.supplierHint!.toLowerCase()),
-      );
-      if (match) {
-        setSelectedSupplierId(match.id);
-        setCustomSupplierName("");
-      } else {
-        setSelectedSupplierId("__new__");
-        setCustomSupplierName(preset.supplierHint);
-      }
-    }
-  };
+  // Day is intuitively derived from firstDueDate
+  const dueDay = Number(firstDueDate ? firstDueDate.split("-")[2] : 10);
 
   // Keyboard escape
   useEffect(() => {
@@ -292,107 +188,43 @@ export function FixedExpenseModal({
             <span className="fixed-expense-tag">
               <Repeat size={13} /> DESPESA FIXA / RECORRENTE
             </span>
-            <h2 id="fixed-expense-title">Lançar Despesa Fixa</h2>
+            <h2 id="fixed-expense-title">Cadastrar Despesa Fixa</h2>
             <p>
-              Cadastre contas recorrentes da loja (aluguel, luz, água, internet, sistemas e
-              contabilidade) com repetição automática.
+              Lançamento de contas recorrentes (aluguel, energia, água, internet, contabilidade) com repetição automática.
             </p>
           </div>
-          <button type="button" aria-label="Fechar" onClick={onClose}>
-            <X size={22} />
+          <button type="button" aria-label="Fechar" onClick={onClose} disabled={busy}>
+            <X size={20} />
           </button>
         </header>
 
         {error && <div className="mg-error-banner">{error}</div>}
 
-        <div className="fixed-expense-presets-bar">
-          <span className="fixed-expense-presets-label">
-            <Sparkles size={14} /> Atalhos rápidos:
-          </span>
-          <div className="fixed-expense-presets-list">
-            {PRESETS.map((p) => {
-              const Icon = p.icon;
-              const isActive = selectedPresetId === p.id;
-              return (
-                <button
-                  type="button"
-                  key={p.id}
-                  className={`fixed-preset-pill ${isActive ? "active" : ""}`}
-                  onClick={() => applyPreset(p)}
-                  title={`Preencher dados de ${p.label}`}
-                >
-                  <Icon size={13} /> {p.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <form className="fixed-expense-form" onSubmit={handleSubmit}>
+        <form className="fixed-expense-form clean" onSubmit={handleSubmit}>
           <div className="fixed-expense-fields">
-            <label>
-              Unidade / Loja *
-              <select
-                value={unitId}
-                onChange={(e) => setUnitId(e.target.value)}
-                required
-              >
-                <option value="">Geral / Matriz (Todas as lojas)</option>
-                {data.units
-                  .filter((u) => !u.archived)
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-
-            <label>
-              Fornecedor / Favorecido
-              <select
-                value={selectedSupplierId}
-                onChange={(e) => setSelectedSupplierId(e.target.value)}
-              >
-                <option value="">Selecione ou deixe em aberto</option>
-                <option value="__new__">+ Digitar outro fornecedor / favorecido</option>
-                {data.suppliers
-                  .filter((s) => !s.archived)
-                  .map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {str(s, "name")}
-                    </option>
-                  ))}
-              </select>
-            </label>
-
-            {selectedSupplierId === "__new__" && (
-              <label className="full">
-                Nome do Favorecido / Empresa *
-                <input
-                  type="text"
-                  placeholder="Ex: Imobiliária Central ou Coelba"
-                  value={customSupplierName}
-                  onChange={(e) => setCustomSupplierName(e.target.value)}
-                  required
-                />
+            {/* Descrição */}
+            <div className="fixed-expense-field-group full">
+              <label htmlFor="fe-desc">
+                Nome da Conta / Descrição <span className="req">*</span>
               </label>
-            )}
-
-            <label className="full">
-              Descrição da Despesa Fixa *
               <input
+                id="fe-desc"
                 type="text"
-                placeholder="Ex: Aluguel Loja Centro ou Energia Elétrica Neoenergia"
+                autoFocus
+                placeholder="Ex.: Aluguel Loja Centro, Energia Elétrica Neoenergia ou Link de Internet"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 required
               />
-            </label>
+            </div>
 
-            <label>
-              Valor Mensal Estimado ou Fixo (R$) *
+            {/* Valor Mensal */}
+            <div className="fixed-expense-field-group">
+              <label htmlFor="fe-amount">
+                Valor Mensal Estimado (R$) <span className="req">*</span>
+              </label>
               <input
+                id="fe-amount"
                 type="number"
                 step="0.01"
                 min="0.01"
@@ -401,33 +233,54 @@ export function FixedExpenseModal({
                 onChange={(e) => setAmountInput(e.target.value)}
                 required
               />
-            </label>
+            </div>
 
-            <label>
-              Dia de Vencimento Fixo (todo mês) *
-              <input
-                type="number"
-                min={1}
-                max={31}
-                value={dueDay}
-                onChange={(e) => handleDueDayChange(Number(e.target.value))}
+            {/* Unidade */}
+            <div className="fixed-expense-field-group">
+              <label htmlFor="fe-unit">
+                Unidade / Loja <span className="req">*</span>
+              </label>
+              <select
+                id="fe-unit"
+                value={unitId}
+                onChange={(e) => setUnitId(e.target.value)}
                 required
-              />
-            </label>
+              >
+                <option value="">Geral / Todas as Unidades</option>
+                {data.units
+                  .filter((u) => !u.archived)
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
 
-            <label>
-              Primeiro Vencimento *
+            {/* Data do 1º Vencimento */}
+            <div className="fixed-expense-field-group">
+              <label htmlFor="fe-first-date">
+                Data do 1º Vencimento <span className="req">*</span>
+              </label>
               <input
+                id="fe-first-date"
                 type="date"
                 value={firstDueDate}
                 onChange={(e) => setFirstDueDate(e.target.value)}
                 required
               />
-            </label>
+              <span className="fixed-expense-helper">
+                O dia <strong>{dueDay}</strong> será o vencimento fixo dos meses seguintes.
+              </span>
+            </div>
 
-            <label>
-              Forma de Pagamento Prevista
+            {/* Forma de Pagamento */}
+            <div className="fixed-expense-field-group">
+              <label htmlFor="fe-method">
+                Forma de Pagamento Prevista
+              </label>
               <select
+                id="fe-method"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
               >
@@ -437,48 +290,107 @@ export function FixedExpenseModal({
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
 
-            <label>
-              Meses para pré-gerar automaticamente
+            {/* Fornecedor / Favorecido */}
+            <div className="fixed-expense-field-group full">
+              <label htmlFor="fe-supplier">
+                Fornecedor ou Favorecido (opcional)
+              </label>
               <select
-                value={recurrenceCount}
-                onChange={(e) => setRecurrenceCount(Number(e.target.value))}
+                id="fe-supplier"
+                value={selectedSupplierId}
+                onChange={(e) => setSelectedSupplierId(e.target.value)}
               >
-                <option value={1}>Apenas 1 mês (Competência atual)</option>
-                <option value={3}>Próximos 3 meses (Trimestre)</option>
-                <option value={6}>Próximos 6 meses (Semestre)</option>
-                <option value={12}>Próximos 12 meses (1 ano completo - Recomendado)</option>
+                <option value="">Selecione um fornecedor cadastrado (opcional)</option>
+                <option value="__new__">+ Digitar outro fornecedor / favorecido</option>
+                {data.suppliers
+                  .filter((s) => !s.archived)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {str(s, "name")}
+                    </option>
+                  ))}
               </select>
-            </label>
+            </div>
 
-            <label>
-              Código de barras / Chave PIX / Referência
+            {selectedSupplierId === "__new__" && (
+              <div className="fixed-expense-field-group full">
+                <label htmlFor="fe-custom-supplier">
+                  Nome da Empresa ou Prestador <span className="req">*</span>
+                </label>
+                <input
+                  id="fe-custom-supplier"
+                  type="text"
+                  placeholder="Ex.: Imobiliária Central, Coelba, Embasa..."
+                  value={customSupplierName}
+                  onChange={(e) => setCustomSupplierName(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
+            {/* Programação de Recorrência */}
+            <div className="fixed-expense-field-group full">
+              <label>Programação de Recorrência Automática</label>
+              <div className="fixed-recurrence-selector">
+                {[
+                  { count: 1, label: "1 mês", sub: "Competência atual" },
+                  { count: 3, label: "3 meses", sub: "Trimestre" },
+                  { count: 6, label: "6 meses", sub: "Semestre" },
+                  { count: 12, label: "12 meses", sub: "1 ano completo", badge: "Recomendado" },
+                ].map((opt) => (
+                  <button
+                    type="button"
+                    key={opt.count}
+                    className={`fixed-recurrence-card ${recurrenceCount === opt.count ? "active" : ""}`}
+                    onClick={() => setRecurrenceCount(opt.count)}
+                  >
+                    <div className="fixed-recurrence-card-head">
+                      <strong>{opt.label}</strong>
+                      {opt.badge && <span className="fixed-rec-badge">{opt.badge}</span>}
+                    </div>
+                    <small>{opt.sub}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Código do Contrato / Referência */}
+            <div className="fixed-expense-field-group">
+              <label htmlFor="fe-doc">
+                Nº Contrato / Código (opcional)
+              </label>
               <input
+                id="fe-doc"
                 type="text"
-                placeholder="Opcional: conta contrato ou chave PIX"
+                placeholder="Ex.: Conta contrato nº 123456"
                 value={documentNumber}
                 onChange={(e) => setDocumentNumber(e.target.value)}
               />
-            </label>
+            </div>
 
-            <label className="full">
-              Observações / Contrato / Informações adicionais
-              <textarea
-                rows={2}
-                placeholder="Ex: Contrato assinado em 2026, reajuste pelo IPCA em outubro, conta contrato nº 123456"
+            {/* Observações */}
+            <div className="fixed-expense-field-group">
+              <label htmlFor="fe-notes">
+                Observações internas (opcional)
+              </label>
+              <input
+                id="fe-notes"
+                type="text"
+                placeholder="Ex.: Reajuste em outubro pelo IPCA"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
-            </label>
+            </div>
           </div>
 
-          <div className="fixed-expense-recurrence-hint">
+          <div className="fixed-expense-recurrence-hint clean">
             <CheckCircle2 size={18} />
             <span>
-              Ao selecionar <strong>{recurrenceCount} meses</strong>, o sistema criará
-              automaticamente as {recurrenceCount} contas mensais programadas para todo dia{" "}
-              <strong>{dueDay}</strong>, mantendo as competências e vencimentos organizados.
+              {recurrenceCount > 1
+                ? `Serão geradas ${recurrenceCount} contas mensais no valor de ${amountInput ? currency(Math.round(Number(amountInput.replace(",", ".")) * 100)) : "R$ 0,00"}, com vencimento no dia ${dueDay} de cada mês.`
+                : `Será gerada 1 conta com vencimento em ${firstDueDate.split("-").reverse().join("/")}.`}
             </span>
           </div>
 
@@ -497,7 +409,7 @@ export function FixedExpenseModal({
               disabled={busy}
             >
               <Repeat size={16} />
-              {busy ? "Salvando despesa..." : "Salvar Despesa Fixa"}
+              {busy ? "Salvando despesa..." : "Confirmar Despesa Fixa"}
             </button>
           </footer>
         </form>
