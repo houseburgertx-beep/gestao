@@ -601,7 +601,7 @@ test("provisões explicitam férias, terço e décimo terceiro", () => {
   assert.equal(r.thirteenth, 10000);
   assert.equal(r.fgts, 9600);
 });
-test("baixa acima do saldo ou em conta de outra unidade é bloqueada", () => {
+test("baixa acima do saldo ou conta inexistente é bloqueada; permite contas do grupo", () => {
   const db = fixture();
   const r = record("payables", { id: "p", amount: 10000 });
   db.payables = [r];
@@ -613,8 +613,11 @@ test("baixa acima do saldo ou em conta de outra unidade é bloqueada", () => {
     settlement(r, db, 10001, "2026-09-20", "bank", "test", "tx"),
   );
   assert.throws(() =>
-    settlement(r, db, 1, "2026-09-20", "other", "test", "tx"),
+    settlement(r, db, 1, "2026-09-20", "invalid_bank_id", "test", "tx"),
   );
+  const ok = settlement(r, db, 5000, "2026-09-20", "other", "test", "tx");
+  assert.equal(ok.amount, 5000);
+  assert.equal(ok.bankAccountId, "other");
 });
 test("score não redistribui pesos na falta de posição patrimonial", () => {
   const db = complete(fixture());

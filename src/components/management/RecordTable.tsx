@@ -1905,15 +1905,47 @@ export function SettlementForm({
 
         <label className="full">
           Conta bancária de saída *
-          <select name="bank" required>
-            <option value="">Selecione a conta bancária</option>
-            {data.bankAccounts
-              .filter((b) => !b.archived && b.unitId === record.unitId)
-              .map((b) => (
-                <option value={b.id} key={b.id}>
-                  {str(b, "name")} {b.bankCode ? `(${b.bankCode})` : ""}
-                </option>
-              ))}
+          <select name="bank" required defaultValue="">
+            <option value="">Selecione a conta bancária para baixa</option>
+            {(() => {
+              const currentUnitAccounts = data.bankAccounts.filter(
+                (b) => !b.archived && b.unitId === record.unitId,
+              );
+              const otherAccounts = data.bankAccounts.filter(
+                (b) => !b.archived && b.unitId !== record.unitId,
+              );
+              const currentUnitObj = data.units.find((u) => u.id === record.unitId);
+              const currentUnitName = currentUnitObj
+                ? str(currentUnitObj, "name")
+                : "Desta Unidade";
+
+              return (
+                <>
+                  {currentUnitAccounts.length > 0 && (
+                    <optgroup label={`Contas da Unidade (${currentUnitName})`}>
+                      {currentUnitAccounts.map((b) => (
+                        <option value={b.id} key={b.id}>
+                          {str(b, "name")} ({str(b, "bank") || "Conta"})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {otherAccounts.length > 0 && (
+                    <optgroup label="Outras Contas do Grupo (Todas as Lojas / Matriz)">
+                      {otherAccounts.map((b) => {
+                        const u = data.units.find((unit) => unit.id === b.unitId);
+                        const uName = u ? str(u, "name") : "Matriz / Geral";
+                        return (
+                          <option value={b.id} key={b.id}>
+                            {str(b, "name")} ({str(b, "bank") || "Conta"} · {uName})
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  )}
+                </>
+              );
+            })()}
           </select>
         </label>
 

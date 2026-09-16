@@ -1552,12 +1552,14 @@
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
 }
 .bank-kpi-card.is-total {
-  background: #0f172a;
-  border-color: #1e293b;
-  color: #ffffff;
+  background: linear-gradient(135deg, #ffffff 0%, #f5f7ff 100%);
+  border: 1.5px solid #6366f1;
+  color: #0f172a;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.08);
 }
 .bank-kpi-card.is-total:hover {
-  border-color: #334155;
+  border-color: #4f46e5;
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.14);
 }
 .bank-kpi-header {
   display: flex;
@@ -1573,7 +1575,9 @@
   color: #64748b;
 }
 .bank-kpi-card.is-total .bank-kpi-header span {
-  color: #94a3b8;
+  color: #4f46e5;
+  font-weight: 800;
+  letter-spacing: 0.6px;
 }
 .bank-kpi-icon {
   width: 28px;
@@ -1586,8 +1590,8 @@
   color: #475569;
 }
 .bank-kpi-card.is-total .bank-kpi-icon {
-  background: rgba(255, 255, 255, 0.1);
-  color: #38bdf8;
+  background: #eef2ff;
+  color: #4f46e5;
 }
 .bank-kpi-value {
   font-size: 24px;
@@ -1598,7 +1602,8 @@
   font-variant-numeric: tabular-nums;
 }
 .bank-kpi-card.is-total .bank-kpi-value {
-  color: #ffffff;
+  color: #1e1b4b;
+  font-weight: 850;
 }
 .bank-kpi-footer {
   font-size: 11px;
@@ -1608,7 +1613,8 @@
   gap: 6px;
 }
 .bank-kpi-card.is-total .bank-kpi-footer {
-  color: #94a3b8;
+  color: #4f46e5;
+  font-weight: 600;
 }
 
 /* Controls Bar */
@@ -1828,6 +1834,102 @@
 }
 .bank-quick-btn.primary:hover {
   background: #4338ca;
+}
+.bank-quick-btn.add {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+  font-weight: 700;
+}
+.bank-quick-btn.add:hover {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+
+/* Modal Mode Tabs */
+.bank-modal-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 10px;
+}
+.bank-modal-mode-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.bank-modal-mode-btn.active {
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 750;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.bank-modal-mode-btn.active.add {
+  color: #047857;
+}
+
+/* Live Calc Preview Card */
+.bank-calc-preview {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.bank-calc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.bank-calc-row.result {
+  padding-top: 8px;
+  border-top: 1px dashed #cbd5e1;
+  font-weight: 700;
+}
+.bank-calc-row.result strong {
+  font-size: 16px;
+  color: #047857;
+}
+
+/* Incremental Pills */
+.bank-quick-increments {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.bank-increment-pill {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+.bank-increment-pill:hover {
+  background: #e0e7ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
 }
 
 /* Modern Bank Table */

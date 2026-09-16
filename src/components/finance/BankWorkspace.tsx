@@ -11,6 +11,7 @@ import {
   MessageCircle,
   Pencil,
   Plus,
+  PlusCircle,
   Search,
   ShoppingBag,
   Store,
@@ -140,10 +141,12 @@ function getUnitShortName(unitName: string) {
 }
 
 export function BankWorkspace() {
-  const { data, tenantId, allowedUnit } = useManagement();
-  const { user } = useAuth();
+  const { data, tenantId } = useManagement();
   const [editingBank, setEditingBank] = useState<RecordData | false | null>(null);
-  const [quickBank, setQuickBank] = useState<{ account: RecordData; balance: number | null } | null>(null);
+  const [quickModal, setQuickModal] = useState<{
+    account?: RecordData;
+    mode: "add" | "set";
+  } | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
   const [instantOpen, setInstantOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -359,6 +362,20 @@ export function BankWorkspace() {
           <button
             type="button"
             className="workspace-secondary"
+            onClick={() => setQuickModal({ mode: "add" })}
+            style={{
+              background: "#ecfdf5",
+              color: "#047857",
+              borderColor: "#a7f3d0",
+              fontWeight: 700,
+            }}
+            title="Incluir mais valor ou entrada em qualquer banco"
+          >
+            <PlusCircle size={15} /> Incluir Valor
+          </button>
+          <button
+            type="button"
+            className="workspace-secondary"
             onClick={() => setInstantOpen(true)}
           >
             <Zap size={15} /> Pagamento Instantâneo
@@ -382,7 +399,7 @@ export function BankWorkspace() {
 
       {/* KPI Cards Grid (Clickable store filter) */}
       <section className="bank-kpi-grid">
-        {/* Consolidated Total Card */}
+        {/* Consolidated Total Card (Light Executive Style) */}
         <div
           className={`bank-kpi-card is-total ${unitFilter === "all" ? "is-active-filter" : ""}`}
           onClick={() => setUnitFilter("all")}
@@ -653,12 +670,20 @@ export function BankWorkspace() {
                       ? `Atualizado: ${str(account, "balanceDate").split("-").reverse().join("/")}`
                       : "Sem saldo registrado"}
                   </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
                     <button
                       type="button"
-                      className="bank-quick-btn primary"
-                      onClick={() => setQuickBank({ account, balance })}
-                      title="Atualizar saldo rapidamente"
+                      className="bank-quick-btn add"
+                      onClick={() => setQuickModal({ account, mode: "add" })}
+                      title="Incluir mais valor / somar a esta conta"
+                    >
+                      <Plus size={12} /> Incluir Valor
+                    </button>
+                    <button
+                      type="button"
+                      className="bank-quick-btn"
+                      onClick={() => setQuickModal({ account, mode: "set" })}
+                      title="Ajustar saldo total"
                     >
                       <Zap size={11} /> Saldo
                     </button>
@@ -713,7 +738,7 @@ export function BankWorkspace() {
                   <th style={{ textAlign: "center", width: "150px" }}>
                     Última Atualização
                   </th>
-                  <th style={{ textAlign: "right", width: "160px" }}>Ações</th>
+                  <th style={{ textAlign: "right", width: "190px" }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -808,14 +833,22 @@ export function BankWorkspace() {
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
-                            gap: "5px",
+                            gap: "4px",
                           }}
                         >
                           <button
                             type="button"
-                            className="bank-quick-btn primary"
-                            onClick={() => setQuickBank({ account, balance })}
-                            title="Atualizar saldo"
+                            className="bank-quick-btn add"
+                            onClick={() => setQuickModal({ account, mode: "add" })}
+                            title="Incluir mais valor nesta conta"
+                          >
+                            <Plus size={11} /> Incluir
+                          </button>
+                          <button
+                            type="button"
+                            className="bank-quick-btn"
+                            onClick={() => setQuickModal({ account, mode: "set" })}
+                            title="Ajustar saldo total"
                           >
                             <Zap size={11} /> Saldo
                           </button>
@@ -892,15 +925,16 @@ export function BankWorkspace() {
         </button>
       </section>
 
-      {/* Modals */}
-      {quickBank !== null && (
+      {/* Quick Balance Modal (Incluir Valor ou Substituir Saldo) */}
+      {quickModal !== null && (
         <QuickBalanceModal
-          account={quickBank.account}
-          currentBal={quickBank.balance}
-          onClose={() => setQuickBank(null)}
-          onSaved={() => {
-            setQuickBank(null);
-            setMessage("Saldo atualizado com sucesso no Firebase.");
+          initialAccount={quickModal.account}
+          initialMode={quickModal.mode}
+          accounts={accounts}
+          onClose={() => setQuickModal(null)}
+          onSaved={(msg) => {
+            setQuickModal(null);
+            setMessage(msg);
           }}
         />
       )}
@@ -946,60 +980,122 @@ export function BankWorkspace() {
 }
 
 /**
- * Fast 2-field modal to update bank balance and reference date
+ * Fast modal to include more value (somar) OR replace total balance
  */
 function QuickBalanceModal({
-  account,
-  currentBal,
+  initialAccount,
+  initialMode = "add",
+  accounts,
   onClose,
   onSaved,
 }: {
-  account: RecordData;
-  currentBal: number | null;
+  initialAccount?: RecordData;
+  initialMode?: "add" | "set";
+  accounts: RecordData[];
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (msg: string) => void;
 }) {
-  const { data } = useManagement();
+  const { data, tenantId } = useManagement();
   const { user } = useAuth();
-  const [balanceInput, setBalanceInput] = useState(() =>
-    currentBal !== null ? (currentBal / 100).toFixed(2) : "",
+  const [mode, setMode] = useState<"add" | "set">(initialMode);
+  const [selectedBankId, setSelectedBankId] = useState(
+    initialAccount?.id || accounts[0]?.id || "",
   );
-  const [balanceDate, setBalanceDate] = useState(() => dateToday());
+  const [valueInput, setValueInput] = useState("");
+  const [date, setDate] = useState(() => dateToday());
+  const [notes, setNotes] = useState("");
+  const [recordTransaction, setRecordTransaction] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const unit = data.units.find((u) => u.id === account.unitId);
+  const targetAccount = useMemo(() => {
+    return (
+      accounts.find((a) => a.id === selectedBankId) ||
+      initialAccount ||
+      accounts[0]
+    );
+  }, [accounts, selectedBankId, initialAccount]);
+
+  const targetBal = useMemo(() => {
+    if (!targetAccount) return null;
+    return currentBalance(targetAccount, data.transactions, data.bankTransfers || []);
+  }, [targetAccount, data.transactions, data.bankTransfers]);
+
+  const targetUnit = data.units.find((u) => u.id === targetAccount?.unitId);
+
+  // Live calculation of new balance
+  const parsedVal = Number(valueInput.replace(",", "."));
+  const inputCents = !isNaN(parsedVal) && parsedVal > 0 ? Math.round(parsedVal * 100) : 0;
+  const currentCents = targetBal !== null ? Number(targetBal) : 0;
+  const resultingCents = mode === "add" ? currentCents + inputCents : inputCents;
+
+  const handleAddIncrement = (inc: number) => {
+    const current = !isNaN(parsedVal) && parsedVal > 0 ? parsedVal : 0;
+    setValueInput((current + inc).toFixed(2));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
-    if (balanceInput.trim() === "") {
-      setError("Por favor, digite o valor do novo saldo.");
-      return;
-    }
-    const num = Number(balanceInput.replace(",", "."));
-    if (isNaN(num)) {
-      setError("Valor de saldo numérico inválido.");
+    if (!user || !targetAccount) return;
+    if (valueInput.trim() === "" || isNaN(parsedVal) || parsedVal <= 0) {
+      setError("Por favor, digite um valor numérico válido maior que zero.");
       return;
     }
 
     setBusy(true);
     setError("");
+
     try {
       const now = new Date().toISOString();
-      const updated: RecordData = {
-        ...account,
-        balance: Math.round(num * 100),
-        balanceDate: balanceDate || dateToday(),
+      const updatedBalance = resultingCents;
+
+      // 1. Update account balance and reference date
+      const updatedAccount: RecordData = {
+        ...targetAccount,
+        balance: updatedBalance,
+        balanceDate: date || dateToday(),
         reconciled: true,
-        version: (account.version || 0) + 1,
+        version: (targetAccount.version || 0) + 1,
         updatedAt: now,
         updatedBy: user.uid,
       };
-      await saveManagement(updated, data);
-      onSaved();
+      await saveManagement(updatedAccount, data);
+
+      // 2. If in add mode and user requested recording movement, create entry transaction
+      if (mode === "add" && recordTransaction) {
+        const tx: RecordData = {
+          id: safeUUID(),
+          kind: "transactions",
+          tenantId,
+          unitId: targetAccount.unitId,
+          version: 0,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: user.uid,
+          updatedBy: user.uid,
+          description:
+            notes.trim() ||
+            `Entrada de valor em ${str(targetAccount, "name")}`,
+          date: date || dateToday(),
+          competence: (date || dateToday()).slice(0, 7),
+          direction: "Entrada",
+          amount: inputCents,
+          bankAccountId: targetAccount.id,
+          nature: "Operacional",
+          paymentMethod: "Dinheiro",
+          externalId: safeUUID(),
+        };
+        await saveManagement(tx, data);
+      }
+
+      const accName = str(targetAccount, "name");
+      const msg =
+        mode === "add"
+          ? `+${currency(inputCents)} incluído com sucesso em ${accName}! Novo saldo: ${currency(updatedBalance)}.`
+          : `Saldo de ${accName} atualizado para ${currency(updatedBalance)}.`;
+      onSaved(msg);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao salvar saldo.");
+      setError(err instanceof Error ? err.message : "Erro ao salvar movimentação.");
     } finally {
       setBusy(false);
     }
@@ -1015,9 +1111,10 @@ function QuickBalanceModal({
       <div className="bank-quick-modal" role="dialog" aria-modal="true">
         <header className="bank-quick-modal-header">
           <div>
-            <h3>Atualizar Saldo</h3>
+            <h3>{mode === "add" ? "Incluir Mais Valor no Banco" : "Ajustar Saldo Total"}</h3>
             <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#64748b" }}>
-              {str(account, "name")} · {unit ? str(unit, "name") : "Todas as Lojas"}
+              {targetAccount ? str(targetAccount, "name") : "Selecione a conta"} ·{" "}
+              {targetUnit ? str(targetUnit, "name") : "Todas as Lojas"}
             </p>
           </div>
           <button
@@ -1036,65 +1133,179 @@ function QuickBalanceModal({
           </button>
         </header>
 
-        <form onSubmit={handleSubmit}>
-          <div className="bank-quick-modal-body">
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "10px 12px",
-                background: "#f8fafc",
-                borderRadius: "8px",
-                border: "1px solid #e2e8f0",
-                fontSize: "12px",
+        {/* Mode Selector Tabs */}
+        <div style={{ padding: "12px 20px 0" }}>
+          <div className="bank-modal-mode-tabs">
+            <button
+              type="button"
+              className={`bank-modal-mode-btn ${mode === "add" ? "active add" : ""}`}
+              onClick={() => {
+                setMode("add");
+                setError("");
               }}
             >
-              <span style={{ color: "#64748b" }}>Saldo atual registrado:</span>
-              <strong style={{ color: currentBal !== null ? "#0f172a" : "#94a3b8" }}>
-                {currentBal !== null ? currency(currentBal) : "Pendente de informe"}
-              </strong>
+              <Plus size={13} /> Incluir Mais Valor
+            </button>
+            <button
+              type="button"
+              className={`bank-modal-mode-btn ${mode === "set" ? "active" : ""}`}
+              onClick={() => {
+                setMode("set");
+                setError("");
+              }}
+            >
+              <Zap size={13} /> Substituir Saldo
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className="bank-quick-modal-body">
+            {/* Account Selector (if not pre-locked to single account) */}
+            {accounts.length > 1 && (
+              <div className="task-field-group">
+                <label
+                  htmlFor="bank-target-select"
+                  style={{ fontSize: "11px", fontWeight: 700, color: "#475569" }}
+                >
+                  Conta / Caixa de Destino
+                </label>
+                <select
+                  id="bank-target-select"
+                  value={selectedBankId}
+                  onChange={(e) => setSelectedBankId(e.target.value)}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                  }}
+                >
+                  {accounts.map((b) => {
+                    const u = data.units.find((unit) => unit.id === b.unitId);
+                    const uName = u ? str(u, "name") : "Matriz";
+                    return (
+                      <option key={b.id} value={b.id}>
+                        {str(b, "name")} ({str(b, "bank") || "Conta"} · {uName})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
+
+            {/* Calculation Preview Card */}
+            <div className="bank-calc-preview">
+              <div className="bank-calc-row">
+                <span style={{ color: "#64748b" }}>Saldo atual na conta:</span>
+                <strong>
+                  {targetBal !== null ? currency(targetBal) : "R$ 0,00"}
+                </strong>
+              </div>
+
+              {mode === "add" && (
+                <div className="bank-calc-row">
+                  <span style={{ color: "#047857" }}>(+) Valor a incluir agora:</span>
+                  <strong style={{ color: "#047857" }}>
+                    {inputCents > 0 ? `+${currency(inputCents)}` : "R$ 0,00"}
+                  </strong>
+                </div>
+              )}
+
+              <div className="bank-calc-row result">
+                <span>(=) Saldo final após confirmação:</span>
+                <strong>
+                  {currency(resultingCents)}
+                </strong>
+              </div>
             </div>
 
+            {/* Amount Field */}
             <div className="task-field-group">
               <label
-                htmlFor="quick-balance-input"
+                htmlFor="quick-value-input"
                 style={{ fontSize: "12px", fontWeight: 700, color: "#334155" }}
               >
-                Novo Saldo em Caixa / Banco (R$) <span style={{ color: "#ef4444" }}>*</span>
+                {mode === "add" ? "Valor a Incluir / Aporte (R$)" : "Novo Saldo Total (R$)"}{" "}
+                <span style={{ color: "#ef4444" }}>*</span>
               </label>
               <input
-                id="quick-balance-input"
+                id="quick-value-input"
                 type="number"
                 step="0.01"
+                min="0.01"
                 autoFocus
                 placeholder="0,00"
-                value={balanceInput}
-                onChange={(e) => setBalanceInput(e.target.value)}
+                value={valueInput}
+                onChange={(e) => setValueInput(e.target.value)}
                 style={{
-                  fontSize: "18px",
-                  fontWeight: 700,
-                  padding: "10px 12px",
+                  fontSize: "20px",
+                  fontWeight: 800,
+                  padding: "10px 14px",
                   borderRadius: "8px",
-                  border: "1px solid #cbd5e1",
+                  border: mode === "add" ? "1.5px solid #10b981" : "1.5px solid #6366f1",
                   width: "100%",
                 }}
                 required
               />
+
+              {/* Quick Add Increment Pills (in add mode) */}
+              {mode === "add" && (
+                <div className="bank-quick-increments">
+                  <span style={{ fontSize: "11px", color: "#64748b" }}>Atalhos:</span>
+                  <button
+                    type="button"
+                    className="bank-increment-pill"
+                    onClick={() => handleAddIncrement(50)}
+                  >
+                    + R$ 50
+                  </button>
+                  <button
+                    type="button"
+                    className="bank-increment-pill"
+                    onClick={() => handleAddIncrement(100)}
+                  >
+                    + R$ 100
+                  </button>
+                  <button
+                    type="button"
+                    className="bank-increment-pill"
+                    onClick={() => handleAddIncrement(200)}
+                  >
+                    + R$ 200
+                  </button>
+                  <button
+                    type="button"
+                    className="bank-increment-pill"
+                    onClick={() => handleAddIncrement(500)}
+                  >
+                    + R$ 500
+                  </button>
+                  <button
+                    type="button"
+                    className="bank-increment-pill"
+                    onClick={() => handleAddIncrement(1000)}
+                  >
+                    + R$ 1.000
+                  </button>
+                </div>
+              )}
             </div>
 
+            {/* Date Field */}
             <div className="task-field-group">
               <label
-                htmlFor="quick-balance-date"
+                htmlFor="quick-date-input"
                 style={{ fontSize: "12px", fontWeight: 700, color: "#334155" }}
               >
-                Data da Posição
+                Data da Movimentação
               </label>
               <input
-                id="quick-balance-date"
+                id="quick-date-input"
                 type="date"
-                value={balanceDate}
-                onChange={(e) => setBalanceDate(e.target.value)}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
                 style={{
                   padding: "8px 10px",
                   borderRadius: "8px",
@@ -1105,6 +1316,53 @@ function QuickBalanceModal({
                 required
               />
             </div>
+
+            {/* Description and Transaction Checkbox in Add Mode */}
+            {mode === "add" && (
+              <>
+                <div className="task-field-group">
+                  <label
+                    htmlFor="quick-notes-input"
+                    style={{ fontSize: "12px", fontWeight: 700, color: "#334155" }}
+                  >
+                    Motivo / Observação (opcional)
+                  </label>
+                  <input
+                    id="quick-notes-input"
+                    type="text"
+                    placeholder="Ex.: Entrada de vendas balcão, depósito em dinheiro, aporte..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: "8px",
+                      border: "1px solid #cbd5e1",
+                      width: "100%",
+                      fontSize: "12px",
+                    }}
+                  />
+                </div>
+
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontSize: "12px",
+                    color: "#334155",
+                    cursor: "pointer",
+                    padding: "4px 0",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={recordTransaction}
+                    onChange={(e) => setRecordTransaction(e.target.checked)}
+                  />
+                  <span>Registrar como entrada no histórico de movimentações</span>
+                </label>
+              </>
+            )}
 
             {error && (
               <div
@@ -1134,10 +1392,19 @@ function QuickBalanceModal({
             <button
               type="submit"
               className="workspace-primary"
-              disabled={busy}
-              style={{ fontSize: "12px", padding: "8px 16px" }}
+              disabled={busy || inputCents <= 0}
+              style={{
+                fontSize: "12px",
+                padding: "8px 16px",
+                background: mode === "add" ? "#059669" : "#4f46e5",
+                borderColor: mode === "add" ? "#047857" : "#4338ca",
+              }}
             >
-              {busy ? "Salvando..." : "Salvar Saldo"}
+              {busy
+                ? "Salvando..."
+                : mode === "add"
+                  ? `➕ Incluir +${currency(inputCents)}`
+                  : "Salvar Novo Saldo"}
             </button>
           </footer>
         </form>
@@ -1246,7 +1513,11 @@ function BankAccountModal({
 
   const handleArchive = async () => {
     if (!account || !user) return;
-    if (!confirm(`Deseja realmente arquivar a conta "${name}"? Ela não será mais exibida nas conciliações.`)) {
+    if (
+      !confirm(
+        `Deseja realmente arquivar a conta "${name}"? Ela não será mais exibida nas conciliações.`,
+      )
+    ) {
       return;
     }
     setBusy(true);
@@ -1316,7 +1587,10 @@ function BankAccountModal({
                   required
                 >
                   {data.units
-                    .filter((u) => !u.archived && (allowedUnit === "all" || u.id === allowedUnit))
+                    .filter(
+                      (u) =>
+                        !u.archived && (allowedUnit === "all" || u.id === allowedUnit),
+                    )
                     .map((u) => (
                       <option key={u.id} value={u.id}>
                         {str(u, "name")}
@@ -1541,7 +1815,6 @@ export function InstantPaymentModal({
   const [unit, setUnit] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const banks = accounts.filter((a) => !unit || a.unitId === unit);
 
   return (
     <div className="mg-modal-shade">
@@ -1617,7 +1890,7 @@ export function InstantPaymentModal({
             />
           </label>
           <label>
-            Unidade
+            Unidade da despesa
             <select
               required
               value={unit}
@@ -1634,14 +1907,18 @@ export function InstantPaymentModal({
             </select>
           </label>
           <label>
-            Conta bancária
+            Conta bancária de saída
             <select name="bank" required>
-              <option value="">Selecione</option>
-              {banks.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {str(b, "name")}
-                </option>
-              ))}
+              <option value="">Selecione qualquer conta do grupo</option>
+              {accounts.map((b) => {
+                const u = data.units.find((unitItem) => unitItem.id === b.unitId);
+                const uName = u ? str(u, "name") : "Matriz";
+                return (
+                  <option key={b.id} value={b.id}>
+                    {str(b, "name")} ({str(b, "bank") || "Conta"} · {uName})
+                  </option>
+                );
+              })}
             </select>
           </label>
           <label>

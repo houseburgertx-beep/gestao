@@ -391,8 +391,8 @@ export function settlement(
   )
     throw new Error("Valor da baixa deve ser positivo e não exceder o saldo.");
   const bank = db.bankAccounts.find((r) => r.id === bankId && !r.archived);
-  if (!bank || bank.unitId !== record.unitId)
-    throw new Error("Selecione uma conta da mesma unidade.");
+  if (!bank)
+    throw new Error("Conta bancária de saída inválida ou inativa.");
   const row: RecordData = {
     id,
     kind: "transactions",
