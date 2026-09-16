@@ -18,8 +18,9 @@ export function BottomNav({ onOpenMobileMenu }: { onOpenMobileMenu: () => void }
     <div className="lg:hidden fixed bottom-0 inset-x-0 h-14 bg-white/95 backdrop-blur border-t border-zinc-200 z-30 px-3 flex items-center justify-around dark:bg-zinc-950/95 dark:border-zinc-800">
       {items.map((item) => {
         const Icon = item.icon;
+        const current = pathname || "/";
         const isActive =
-          item.href === "/" ? pathname === "/" || pathname.startsWith("/contas-a-pagar") : pathname.startsWith(item.href);
+          item.href === "/" ? current === "/" || current === "/gestao" || current === "/gestao/" || current.includes("/contas-a-pagar") : current.includes(item.href);
 
         return (
           <Link

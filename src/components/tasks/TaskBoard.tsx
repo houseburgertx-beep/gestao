@@ -28,6 +28,11 @@ import { saveManagement } from "@/services/managementService";
 import { RecordForm } from "@/components/management/RecordTable";
 import "@/components/management/management.css";
 
+const safeUUID = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+
 const COLUMNS = [
   { status: "Pendente", label: "A fazer", color: "purple" },
   { status: "Em andamento", label: "Em andamento", color: "blue" },
@@ -219,7 +224,7 @@ function TaskModal({
       const now = new Date().toISOString();
       const updated: RecordData = {
         ...task,
-        id: task?.id || crypto.randomUUID(),
+        id: task?.id || safeUUID(),
         kind: "actions",
         tenantId,
         unitId: unit,

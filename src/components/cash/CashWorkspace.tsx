@@ -10,6 +10,11 @@ import { downloadFileFromDrive, nameFileForDrive, uploadFileToDrive } from "@/se
 import { validate } from "@/domain/management/operations";
 import "@/components/management/management.css";
 
+const safeUUID = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+
 const n=(value:FormDataEntryValue|null)=>Math.max(0,Math.round(Number(value||0)*100));
 const brl=(value:number)=>currency(Math.round(value));
 const parseBankAmounts=(row:RecordData):Record<string,{credit:number;debit:number;pix:number}>=>{
@@ -21,7 +26,8 @@ const parseBankAmounts=(row:RecordData):Record<string,{credit:number;debit:numbe
 };
 const parseAttachments=(row:RecordData):Array<{fileId:string;fileName:string;mimeType:string;size:number}>=>{
   try{
-    return JSON.parse(str(row,"attachmentsJson")||"[]");
+    const parsed = JSON.parse(str(row,"attachmentsJson")||"[]");
+    return Array.isArray(parsed) ? parsed : [];
   }catch{
     return [];
   }
@@ -64,7 +70,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
       <BankRatesTab />
     ):(
       <section className="cash-list"><header><div><span>{mode==="closing"?"HISTÓRICO":"FILA FINANCEIRA"}</span><h2>{mode==="closing"?"Fechamentos registrados":"Caixas para conferência"}</h2></div><b>{visible.length}</b></header>
-        {visible.length?visible.map(row=>{const unit=data.units.find(u=>u.id===row.unitId);return <article key={row.id}><div className="cash-status-icon"><ClipboardCheck size={18}/></div><div><strong>{unit?.name||"Unidade"}</strong><span>{str(row,"date").split("-").reverse().join("/")} · {str(row,"shift")} · {str(row,"operatorName")}</span>{Number(row.sangriaAmount||0)>0&&<small className="cash-sangria-badge">Sangria: {brl(Number(row.sangriaAmount))} ({str(row,"sangriaStatus")||"Registrada"})</small>}</div><div><small>Entrada total</small><b>{currency(Number(row.systemTotal||0))}</b></div><div><small>Diferença total</small><b className={Number(row.difference||0)===0?"ok":"bad"}>{currency(Number(row.difference||0))}</b></div><span className={`cash-badge ${str(row,"status").toLowerCase().replaceAll(" ","-")}`}>{str(row,"status")}</span>{mode==="conference"&&<button className="workspace-primary" onClick={()=>setReviewing(row)}><BadgeCheck size={15}/> {row.status==="Conferido"?"Rever":"Conferir"}</button>}</article>}):<div className="people-empty"><FileCheck2 size={30}/><strong>Nenhum fechamento encontrado</strong><span>{mode==="closing"?"Use “Novo fechamento” para iniciar.":"Nenhum caixa aguardando conferência."}</span></div>}
+        {visible.length?visible.map(row=>{const unit=data.units.find(u=>u.id===row.unitId);return <article key={row.id}><div className="cash-status-icon"><ClipboardCheck size={18}/></div><div><strong>{unit?.name||"Unidade"}</strong><span>{str(row,"date").split("-").reverse().join("/")} · {str(row,"shift")} · {str(row,"operatorName")}</span>{Number(row.sangriaAmount||0)>0&&<small className="cash-sangria-badge">Sangria: {brl(Number(row.sangriaAmount))} ({str(row,"sangriaStatus")||"Registrada"})</small>}</div><div><small>Entrada total</small><b>{currency(Number(row.systemTotal||0))}</b></div><div><small>Diferença total</small><b className={Number(row.difference||0)===0?"ok":"bad"}>{currency(Number(row.difference||0))}</b></div><span className={`cash-badge ${str(row,"status").toLowerCase().replace(/\s+/g,"-")}`}>{str(row,"status")}</span>{mode==="conference"&&<button className="workspace-primary" onClick={()=>setReviewing(row)}><BadgeCheck size={15}/> {row.status==="Conferido"?"Rever":"Conferir"}</button>}</article>}):<div className="people-empty"><FileCheck2 size={30}/><strong>Nenhum fechamento encontrado</strong><span>{mode==="closing"?"Use “Novo fechamento” para iniciar.":"Nenhum caixa aguardando conferência."}</span></div>}
       </section>
     )}
 
@@ -76,7 +82,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
 function Modal({title,onClose,children,wide=false}:{title:string;onClose:()=>void;children:React.ReactNode;wide?:boolean}){return <div className="mg-modal-shade"><div className={`mg-modal ${wide?"cash-modal-wide":""}`} role="dialog" aria-modal="true"><header><h2>{title}</h2><button onClick={onClose}><X size={20}/></button></header>{children}</div></div>}
 
 function ClosingModal({onClose,onSaved}:{onClose:()=>void;onSaved:()=>void}){
-  const {data,tenantId,allowedUnit}=useManagement();const {user,userProfile}=useAuth();const [unit,setUnit]=useState(allowedUnit==="all"?"":allowedUnit);const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [calc,setCalc]=useState<ClosingCalc>(emptyCalc);const [selected,setSelected]=useState<Record<string,boolean>>({});const [outflows,setOutflows]=useState([{id:crypto.randomUUID(),name:"",amount:""}]);const [pixRequests,setPixRequests]=useState([{id:crypto.randomUUID(),name:"",key:"",description:"",amount:""}]);
+  const {data,tenantId,allowedUnit}=useManagement();const {user,userProfile}=useAuth();const [unit,setUnit]=useState(allowedUnit==="all"?"":allowedUnit);const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [calc,setCalc]=useState<ClosingCalc>(emptyCalc);const [selected,setSelected]=useState<Record<string,boolean>>({});const [outflows,setOutflows]=useState([{id:safeUUID(),name:"",amount:""}]);const [pixRequests,setPixRequests]=useState([{id:safeUUID(),name:"",key:"",description:"",amount:""}]);
   const banks=data.bankAccounts.filter(row=>!row.archived&&row.unitId===unit);
   const recalc=(form:HTMLFormElement)=>{const f=new FormData(form);const systemCash=n(f.get("systemCash")),systemCredit=n(f.get("systemCredit")),systemDebit=n(f.get("systemDebit")),systemPix=n(f.get("systemPix"));let creditFound=0,debitFound=0,pixFound=0;banks.filter(b=>f.get(`used_${b.id}`)==="on").forEach(bank=>{creditFound+=n(f.get(`credit_${bank.id}`));debitFound+=n(f.get(`debit_${bank.id}`));pixFound+=n(f.get(`pix_${bank.id}`));});const other=n(f.get("systemIfoodOnline"))+n(f.get("systemIfoodVoucher"))+n(f.get("systemTerm"))+n(f.get("systemClub"))+n(f.get("systemAccrual"));const cashOutflows=outflows.reduce((sum,row)=>sum+n(row.amount as FormDataEntryValue),0);const cashExpected=n(f.get("openingAmount"))+systemCash+n(f.get("cashIn"))-cashOutflows;const cashFound=n(f.get("sangriaAmount"))+n(f.get("closingFloat"));const cashDifference=cashFound-cashExpected,creditDifference=creditFound-systemCredit,debitDifference=debitFound-systemDebit,pixDifference=pixFound-systemPix,motoboyDifference=n(f.get("motoboyPaid"))-n(f.get("motoboySystem")),invoiceDifference=n(f.get("ifoodAudit"))+n(f.get("fiscalMachines"))-n(f.get("invoiceIssued"));setCalc({systemTotal:systemCash+systemCredit+systemDebit+systemPix+other,confirmedTotal:cashFound+creditFound+debitFound+pixFound,cashExpected,cashFound,cashDifference,creditFound,creditDifference,debitFound,debitDifference,pixFound,pixDifference,difference:cashDifference+creditDifference+debitDifference+pixDifference,motoboyDifference,invoiceDifference});};
   const submit=async(event:React.FormEvent<HTMLFormElement>)=>{event.preventDefault();if(!user)return;setBusy(true);setError("");try{const f=new FormData(event.currentTarget);const bankAmounts:Record<string,{credit:number;debit:number;pix:number}>={};banks.filter(bank=>selected[bank.id]).forEach(bank=>bankAmounts[bank.id]={credit:n(f.get(`credit_${bank.id}`)),debit:n(f.get(`debit_${bank.id}`)),pix:n(f.get(`pix_${bank.id}`))});if(!Object.keys(bankAmounts).length&&(n(f.get("systemCredit"))+n(f.get("systemDebit"))+n(f.get("systemPix")))>0)throw new Error("Selecione ao menos uma máquina/banco utilizado.");const requestedPix=pixRequests.filter(item=>item.name.trim()||item.key.trim()||item.description.trim()||Number(item.amount)>0);if(requestedPix.some(item=>!item.name.trim()||!item.key.trim()||!item.description.trim()||Number(item.amount)<=0))throw new Error("Preencha nome, chave PIX, descrição e valor em cada solicitação PIX.");const files=f.getAll("attachments").filter(x=>x instanceof File&&x.size) as File[];if(files.length>5)throw new Error("Envie no máximo 5 comprovantes.");const attachments=[];for(const file of files){const saved=await uploadFileToDrive(nameFileForDrive(file,`Fechamento ${String(f.get("date"))} - ${unit}`),"payment_proofs");attachments.push({fileId:saved.fileId,fileName:saved.fileName,mimeType:saved.mimeType,size:saved.size});}const now=new Date().toISOString();const closingId=`closing-${String(f.get("date"))}-${unit}-unico`;
@@ -90,8 +96,8 @@ function ClosingModal({onClose,onSaved}:{onClose:()=>void;onSaved:()=>void}){
     <section className="cash-system-section"><header className="cash-section-title"><div><span className="cash-step">ETAPA 2</span><h3>Valores do sistema</h3><p>Informe o que apareceu no sistema de vendas.</p></div><div className="entry-total"><span>ENTRADA TOTAL</span><strong>{brl(calc.systemTotal)}</strong></div></header><div className="cash-primary-grid"><Money name="systemCash" label="Dinheiro"/><Money name="systemCredit" label="Crédito"/><Money name="systemDebit" label="Débito"/><Money name="systemPix" label="PIX"/></div><p className="cash-reconciliation-note">Estes quatro valores serão comparados na conferência financeira.</p><details className="other-receipts"><summary><span>Adicionar outros recebimentos</span><small>iFood, voucher, notas, clube e acréscimos</small></summary><div className="cash-extra-grid"><Money name="systemIfoodOnline" label="iFood Online"/><Money name="systemIfoodVoucher" label="iFood Voucher"/><Money name="systemTerm" label="Notas a prazo/boleto"/><Money name="systemClub" label="Resgate Clube"/><Money name="systemAccrual" label="Acréscimos"/></div></details></section>
     <section><h3>3. Fechamento do dinheiro</h3><p className="cash-formula">Saldo inicial + entrada em dinheiro + suprimentos − saídas = sangria + troco final</p><div className="cash-money-grid"><Money name="openingAmount" label="Saldo inicial/troco"/><Money name="cashIn" label="Suprimentos/entradas"/><Money name="sangriaAmount" label="Sangria/retirada"/><Money name="closingFloat" label="Troco final"/></div>
     <div className="cash-sangria-details"><label>Destino da sangria<select name="sangriaStatus"><option value="Na loja">Está guardado na loja</option><option value="Entregue a responsável">Entregue a responsável</option></select></label><label className="cash-sangria-recipient">Para quem foi entregue / Localização na loja<input name="sangriaRecipient" placeholder="Ex.: Gerente João / Cofre do escritório" /></label></div>
-    <input type="hidden" name="cashOutflows" value={outflows.reduce((sum,row)=>sum+Number(row.amount||0),0)}/><div className="cash-outflows"><header><div><strong>Saídas em dinheiro</strong><small>Registre cada valor retirado do caixa.</small></div><button type="button" className="cash-add" onClick={()=>setOutflows(rows=>[...rows,{id:crypto.randomUUID(),name:"",amount:""}])}>+ Adicionar saída</button></header>{outflows.map((row,index)=><div className="cash-outflow-row" key={row.id}><label>Nome/descrição<input value={row.name} placeholder="Ex.: motoboy, compra ou fornecedor" onChange={e=>setOutflows(rows=>rows.map(item=>item.id===row.id?{...item,name:e.target.value}:item))}/></label><label>Valor<input type="number" min="0" step="0.01" value={row.amount} placeholder="R$ 0,00" onChange={e=>setOutflows(rows=>rows.map(item=>item.id===row.id?{...item,amount:e.target.value}:item))}/></label>{outflows.length>1&&<button type="button" className="cash-remove" aria-label={`Remover saída ${index+1}`} onClick={()=>setOutflows(rows=>rows.filter(item=>item.id!==row.id))}>×</button>}</div>)}<footer>Total de saídas <b>{brl(outflows.reduce((sum,row)=>sum+Number(row.amount||0)*100,0))}</b></footer></div><div className="cash-equation"><span>Esperado: <b>{brl(calc.cashExpected)}</b></span><span>Encontrado: <b>{brl(calc.cashFound)}</b></span><Difference value={calc.cashDifference}/></div></section>
-    <section><div className="pix-request-heading"><div><h3>Solicitações de PIX</h3><p>Os pedidos abaixo entrarão em Contas a Pagar como pendentes.</p></div><button type="button" className="cash-add" onClick={()=>setPixRequests(rows=>[...rows,{id:crypto.randomUUID(),name:"",key:"",description:"",amount:""}])}>+ Adicionar PIX</button></div><div className="pix-request-list">{pixRequests.map((row,index)=><div className="pix-request-row" key={row.id}><label>Nome<input value={row.name} placeholder="Favorecido" onChange={e=>setPixRequests(rows=>rows.map(item=>item.id===row.id?{...item,name:e.target.value}:item))}/></label><label>Chave PIX<input value={row.key} placeholder="CPF, telefone, e-mail..." onChange={e=>setPixRequests(rows=>rows.map(item=>item.id===row.id?{...item,key:e.target.value}:item))}/></label><label>Descrição<input value={row.description} placeholder="Motivo do pagamento" onChange={e=>setPixRequests(rows=>rows.map(item=>item.id===row.id?{...item,description:e.target.value}:item))}/></label><label>Valor<input type="number" min="0" step="0.01" value={row.amount} placeholder="R$ 0,00" onChange={e=>setPixRequests(rows=>rows.map(item=>item.id===row.id?{...item,amount:e.target.value}:item))}/></label>{pixRequests.length>1&&<button type="button" className="cash-remove" aria-label={`Remover solicitação PIX ${index+1}`} onClick={()=>setPixRequests(rows=>rows.filter(item=>item.id!==row.id))}>×</button>}</div>)}</div></section>
+    <input type="hidden" name="cashOutflows" value={outflows.reduce((sum,row)=>sum+Number(row.amount||0),0)}/><div className="cash-outflows"><header><div><strong>Saídas em dinheiro</strong><small>Registre cada valor retirado do caixa.</small></div><button type="button" className="cash-add" onClick={()=>setOutflows(rows=>[...rows,{id:safeUUID(),name:"",amount:""}])}>+ Adicionar saída</button></header>{outflows.map((row,index)=><div className="cash-outflow-row" key={row.id}><label>Nome/descrição<input value={row.name} placeholder="Ex.: motoboy, compra ou fornecedor" onChange={e=>setOutflows(rows=>rows.map(item=>item.id===row.id?{...item,name:e.target.value}:item))}/></label><label>Valor<input type="number" min="0" step="0.01" value={row.amount} placeholder="R$ 0,00" onChange={e=>setOutflows(rows=>rows.map(item=>item.id===row.id?{...item,amount:e.target.value}:item))}/></label>{outflows.length>1&&<button type="button" className="cash-remove" aria-label={`Remover saída ${index+1}`} onClick={()=>setOutflows(rows=>rows.filter(item=>item.id!==row.id))}>×</button>}</div>)}<footer>Total de saídas <b>{brl(outflows.reduce((sum,row)=>sum+Number(row.amount||0)*100,0))}</b></footer></div><div className="cash-equation"><span>Esperado: <b>{brl(calc.cashExpected)}</b></span><span>Encontrado: <b>{brl(calc.cashFound)}</b></span><Difference value={calc.cashDifference}/></div></section>
+    <section><div className="pix-request-heading"><div><h3>Solicitações de PIX</h3><p>Os pedidos abaixo entrarão em Contas a Pagar como pendentes.</p></div><button type="button" className="cash-add" onClick={()=>setPixRequests(rows=>[...rows,{id:safeUUID(),name:"",key:"",description:"",amount:""}])}>+ Adicionar PIX</button></div><div className="pix-request-list">{pixRequests.map((row,index)=><div className="pix-request-row" key={row.id}><label>Nome<input value={row.name} placeholder="Favorecido" onChange={e=>setPixRequests(rows=>rows.map(item=>item.id===row.id?{...item,name:e.target.value}:item))}/></label><label>Chave PIX<input value={row.key} placeholder="CPF, telefone, e-mail..." onChange={e=>setPixRequests(rows=>rows.map(item=>item.id===row.id?{...item,key:e.target.value}:item))}/></label><label>Descrição<input value={row.description} placeholder="Motivo do pagamento" onChange={e=>setPixRequests(rows=>rows.map(item=>item.id===row.id?{...item,description:e.target.value}:item))}/></label><label>Valor<input type="number" min="0" step="0.01" value={row.amount} placeholder="R$ 0,00" onChange={e=>setPixRequests(rows=>rows.map(item=>item.id===row.id?{...item,amount:e.target.value}:item))}/></label>{pixRequests.length>1&&<button type="button" className="cash-remove" aria-label={`Remover solicitação PIX ${index+1}`} onClick={()=>setPixRequests(rows=>rows.filter(item=>item.id!==row.id))}>×</button>}</div>)}</div></section>
     <section><h3>4. Conferência de Crédito, Débito e PIX</h3><p className="cash-hint">Marque somente as máquinas/bancos utilizados no turno e informe os valores encontrados.</p>{banks.length?<div className="machine-grid">{banks.map(bank=><article key={bank.id} className={selected[bank.id]?"selected":""}><label className="machine-toggle"><input name={`used_${bank.id}`} type="checkbox" checked={!!selected[bank.id]} onChange={e=>setSelected(s=>({...s,[bank.id]:e.target.checked}))}/><strong><Landmark size={15}/>{str(bank,"name")}</strong></label><Money name={`credit_${bank.id}`} label="Crédito" disabled={!selected[bank.id]}/><Money name={`debit_${bank.id}`} label="Débito" disabled={!selected[bank.id]}/><Money name={`pix_${bank.id}`} label="PIX" disabled={!selected[bank.id]}/></article>)}</div>:<p className="cash-hint">Selecione a unidade para carregar suas máquinas e bancos.</p>}</section>
     <section><h3>5. Resultado da conciliação</h3><div className="reconciliation-grid"><Result label="Dinheiro" systemValue={calc.cashExpected} found={calc.cashFound} difference={calc.cashDifference}/><Result label="Crédito" systemValue={calc.creditFound-calc.creditDifference} found={calc.creditFound} difference={calc.creditDifference}/><Result label="Débito" systemValue={calc.debitFound-calc.debitDifference} found={calc.debitFound} difference={calc.debitDifference}/><Result label="PIX" systemValue={calc.pixFound-calc.pixDifference} found={calc.pixFound} difference={calc.pixDifference}/></div><div className={`total-divergence ${calc.difference===0?"ok":"bad"}`}><span>DIVERGÊNCIA TOTAL</span><strong>{brl(calc.difference)}</strong><small>{calc.difference===0?"Fechamento sem divergência":calc.difference>0?"Sobra encontrada":"Falta encontrada"}</small></div></section>
     <section><h3>6. Auditorias do dia</h3><p className="cash-hint">Motoboys e notas fiscais são conferências separadas do fechamento principal.</p><div className="audit-grid"><article><strong>Auditoria de motoboys</strong><Money name="motoboySystem" label="Valor no sistema"/><Money name="motoboyPaid" label="Valor realmente pago"/><b>Diferença: {brl(calc.motoboyDifference)}</b></article><article><strong>Auditoria de notas fiscais</strong><Money name="ifoodAudit" label="Valor vendido no iFood"/><Money name="fiscalMachines" label="Máquinas fiscais"/><Money name="invoiceIssued" label="Nota fiscal emitida"/><b>Diferença: {brl(calc.invoiceDifference)}</b></article></div><label className="employee-file-upload"><Upload size={15}/> Anexar comprovantes no Google Drive<input name="attachments" type="file" multiple className="sr-only" accept=".pdf,image/*"/></label><label>Observações<textarea name="notes" rows={3} placeholder="Explique faltas, sobras ou ocorrências do turno."/></label></section>
@@ -422,7 +428,10 @@ function ConferenceModal({closing,onClose,onSaved}:{closing:RecordData;onClose:(
                     value={c.vals.credit/100}
                     onChange={e=>{
                       const val=Math.round(Number(e.target.value)*100);
-                      setBankVals(b=>({...b,[c.bank.id]:{...b[c.bank.id],credit:val}}));
+                      setBankVals(b=>{
+                        const prev=b[c.bank.id]||{credit:0,debit:0,pix:0};
+                        return {...b,[c.bank.id]:{...prev,credit:val}};
+                      });
                     }}
                   />
                   {c.creditFee>0&&<small className="fee-cut">- {brl(c.creditFee)} de taxa</small>}
@@ -438,7 +447,10 @@ function ConferenceModal({closing,onClose,onSaved}:{closing:RecordData;onClose:(
                     value={c.vals.debit/100}
                     onChange={e=>{
                       const val=Math.round(Number(e.target.value)*100);
-                      setBankVals(b=>({...b,[c.bank.id]:{...b[c.bank.id],debit:val}}));
+                      setBankVals(b=>{
+                        const prev=b[c.bank.id]||{credit:0,debit:0,pix:0};
+                        return {...b,[c.bank.id]:{...prev,debit:val}};
+                      });
                     }}
                   />
                   {c.debitFee>0&&<small className="fee-cut">- {brl(c.debitFee)} de taxa</small>}
@@ -454,7 +466,10 @@ function ConferenceModal({closing,onClose,onSaved}:{closing:RecordData;onClose:(
                     value={c.vals.pix/100}
                     onChange={e=>{
                       const val=Math.round(Number(e.target.value)*100);
-                      setBankVals(b=>({...b,[c.bank.id]:{...b[c.bank.id],pix:val}}));
+                      setBankVals(b=>{
+                        const prev=b[c.bank.id]||{credit:0,debit:0,pix:0};
+                        return {...b,[c.bank.id]:{...prev,pix:val}};
+                      });
                     }}
                   />
                   {c.pixFee>0&&<small className="fee-cut">- {brl(c.pixFee)} de taxa</small>}
@@ -610,7 +625,7 @@ function AuditHistoryTab({closings}:{closings:RecordData[]}){
                             onClick={()=>downloadAttachment(att.fileId,att.fileName)}
                             title={`Baixar ${att.fileName}`}
                           >
-                            <Download size={12}/> {att.fileName.slice(0,18)}...
+                            <Download size={12}/> {(att.fileName || "Comprovante").slice(0,18)}...
                           </button>
                         ))}
                       </div>
@@ -719,7 +734,10 @@ function BankRatesTab(){
                     min="0"
                     max="100"
                     value={current.credit}
-                    onChange={e=>setRates(r=>({...r,[bank.id]:{...r[bank.id],credit:e.target.value}}))}
+                    onChange={e=>setRates(r=>{
+                      const prev=r[bank.id]||{credit:"0",debit:"0",pix:"0"};
+                      return {...r,[bank.id]:{...prev,credit:e.target.value}};
+                    })}
                     placeholder="Ex.: 2.89"
                   />
                 </label>
@@ -732,7 +750,10 @@ function BankRatesTab(){
                     min="0"
                     max="100"
                     value={current.debit}
-                    onChange={e=>setRates(r=>({...r,[bank.id]:{...r[bank.id],debit:e.target.value}}))}
+                    onChange={e=>setRates(r=>{
+                      const prev=r[bank.id]||{credit:"0",debit:"0",pix:"0"};
+                      return {...r,[bank.id]:{...prev,debit:e.target.value}};
+                    })}
                     placeholder="Ex.: 1.15"
                   />
                 </label>
@@ -745,7 +766,10 @@ function BankRatesTab(){
                     min="0"
                     max="100"
                     value={current.pix}
-                    onChange={e=>setRates(r=>({...r,[bank.id]:{...r[bank.id],pix:e.target.value}}))}
+                    onChange={e=>setRates(r=>{
+                      const prev=r[bank.id]||{credit:"0",debit:"0",pix:"0"};
+                      return {...r,[bank.id]:{...prev,pix:e.target.value}};
+                    })}
                     placeholder="Ex.: 0.00"
                   />
                 </label>

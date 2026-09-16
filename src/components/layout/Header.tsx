@@ -17,7 +17,8 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const { user, userProfile } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const usesUnitSelector = (pathname.startsWith("/legado") || pathname.startsWith("/integracoes")) || ["/faturamento", "/rh", "/tarefas", "/documentos", "/fornecedores", "/auditoria"].some(p => pathname.startsWith(p));
+  const cleanPath = (pathname || "").replace(/^\/gestao/, "") || "/";
+  const usesUnitSelector = (cleanPath.startsWith("/legado") || cleanPath.startsWith("/integracoes")) || ["/faturamento", "/rh", "/tarefas", "/documentos", "/fornecedores", "/auditoria"].some(p => cleanPath.startsWith(p));
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -56,55 +57,57 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       list.forEach((notification) => seenNotificationIds.current?.add(notification.id));
 
       if (newNotification && typeof window !== "undefined" && window.Notification?.permission === "granted") {
-        new window.Notification(newNotification.title, {
-          body: newNotification.message,
-          icon: "/gestao/icon.svg",
-        });
+        try {
+          new window.Notification(newNotification.title, {
+            body: newNotification.message,
+            icon: "/gestao/icon.svg",
+          });
+        } catch {}
       }
     });
     return () => unsub();
   }, [user]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-  const primaryActionLabel = pathname.startsWith("/tarefas")
+  const primaryActionLabel = cleanPath.startsWith("/tarefas")
     ? "Nova tarefa"
-      : pathname.startsWith("/rh")
+      : cleanPath.startsWith("/rh")
       ? "Novo colaborador"
-      : pathname.startsWith("/fechamento-caixa")
+      : cleanPath.startsWith("/fechamento-caixa")
         ? "Novo fechamento"
-      : pathname.startsWith("/conferencia-caixa")
+      : cleanPath.startsWith("/conferencia-caixa")
         ? "Nova conferência"
-      : pathname.startsWith("/fornecedores")
+      : cleanPath.startsWith("/fornecedores")
         ? "Novo fornecedor"
-      : pathname.startsWith("/documentos")
+      : cleanPath.startsWith("/documentos")
         ? "Novo documento"
-      : pathname.startsWith("/faturamento") || pathname.startsWith("/integracoes/takeat")
+      : cleanPath.startsWith("/faturamento") || cleanPath.startsWith("/integracoes/takeat")
         ? "Atualizar vendas"
       : "Nova conta";
   const openNewRecord = () => {
-    if (pathname.startsWith("/tarefas")) {
+    if (cleanPath.startsWith("/tarefas")) {
       window.dispatchEvent(new CustomEvent("open-task-form"));
       return;
     }
-    if (pathname.startsWith("/rh")) {
+    if (cleanPath.startsWith("/rh")) {
       window.dispatchEvent(new CustomEvent("open-employee-form"));
       return;
     }
-    if (pathname.startsWith("/fechamento-caixa")) { window.dispatchEvent(new CustomEvent("open-cashClosings-form")); return; }
-    if (pathname.startsWith("/conferencia-caixa")) { window.dispatchEvent(new CustomEvent("open-cashConferences-form")); return; }
-    if (pathname.startsWith("/fornecedores")) {
+    if (cleanPath.startsWith("/fechamento-caixa")) { window.dispatchEvent(new CustomEvent("open-cashClosings-form")); return; }
+    if (cleanPath.startsWith("/conferencia-caixa")) { window.dispatchEvent(new CustomEvent("open-cashConferences-form")); return; }
+    if (cleanPath.startsWith("/fornecedores")) {
       window.dispatchEvent(new CustomEvent("open-supplier-form"));
       return;
     }
-    if (pathname.startsWith("/documentos")) {
+    if (cleanPath.startsWith("/documentos")) {
       window.dispatchEvent(new CustomEvent("open-document-form"));
       return;
     }
-    if (pathname.startsWith("/faturamento") || pathname.startsWith("/integracoes/takeat")) {
+    if (cleanPath.startsWith("/faturamento") || cleanPath.startsWith("/integracoes/takeat")) {
       window.dispatchEvent(new CustomEvent("sync-takeat-sales"));
       return;
     }
-    if (pathname === "/" || pathname.startsWith("/contas-a-pagar")) {
+    if (cleanPath === "/" || cleanPath.startsWith("/contas-a-pagar")) {
       window.dispatchEvent(new CustomEvent("open-payable-form"));
       return;
     }

@@ -60,10 +60,11 @@ export function Sidebar() {
           Áreas principais
         </div>
         {NAV_ITEMS.map((item) => {
+          const current = pathname || "/";
           const isActive =
             item.href === "/"
-              ? pathname === "/" || pathname.startsWith("/contas-a-pagar")
-              : pathname.startsWith(item.href);
+              ? current === "/" || current === "/gestao" || current === "/gestao/" || current.includes("/contas-a-pagar")
+              : current.includes(item.href);
           const Icon = item.icon;
 
           return (

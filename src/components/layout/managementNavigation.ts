@@ -10,31 +10,45 @@ export const MANAGEMENT_NAV = [
   { title: "Equipe", href: "/rh", icon: Users, roles: ["admin","accountant"] },
   { title: "Documentos", href: "/documentos", icon: FolderLock, roles: ["admin","accountant"] },
 ];
-export const navigationForRole = (role?: string) =>
-  MANAGEMENT_NAV.filter((item) => !role || item.roles.includes(role));
+export function normalizeRole(role?: string): "admin" | "manager" | "operator" | "accountant" {
+  if (!role) return "operator";
+  const r = role.toLowerCase().trim();
+  if (r === "admin" || r === "administrador" || r === "proprietario" || r === "dono") return "admin";
+  if (r === "accountant" || r === "contador" || r === "contadora" || r === "financeiro") return "accountant";
+  if (r === "manager" || r === "gerente") return "manager";
+  return "operator";
+}
 
-export function homeForRole(role?: string) {
-  return role === "manager"
-    ? "/faturamento"
-    : role === "operator"
-      ? "/fechamento-caixa"
-      : "/";
+export const navigationForRole = (role?: string) => {
+  const norm = normalizeRole(role);
+  return MANAGEMENT_NAV.filter((item) => item.roles.includes(norm));
+};
+
+export function homeForRole(role?: string): string {
+  const norm = normalizeRole(role);
+  if (norm === "manager") return "/faturamento/";
+  if (norm === "operator") return "/fechamento-caixa/";
+  return "/";
 }
 
 export function normalizePath(pathname?: string | null): string {
   if (!pathname) return "/";
   let clean = pathname.replace(/^\/gestao/, "");
   if (!clean.startsWith("/")) clean = "/" + clean;
+  // normalize trailing slash consistency for matching
   return clean;
 }
 
-export function roleCanAccess(role: string | undefined, pathname: string) {
-  if (!role) return false;
-  if (role === "admin" || role === "accountant") return true;
+export function roleCanAccess(role: string | undefined, pathname?: string | null): boolean {
+  const norm = normalizeRole(role);
+  if (norm === "admin" || norm === "accountant") return true;
   const path = normalizePath(pathname);
-  if (role === "manager")
+  if (norm === "manager") {
     return path.startsWith("/tarefas") || path.startsWith("/faturamento") || path.startsWith("/integracoes/takeat");
-  if (role === "operator")
+  }
+  if (norm === "operator") {
     return path.startsWith("/fechamento-caixa");
+  }
   return false;
 }
+

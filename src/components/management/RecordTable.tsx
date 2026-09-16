@@ -55,6 +55,11 @@ import { addNotificationToFirestore } from "@/services/firestoreService";
 import { parseDebtDocument } from "@/domain/management/documentParsing";
 import { readDocumentText } from "@/services/documentTextReader";
 
+const safeUUID = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+
 function readBrazilianAmount(value: string) {
   const normalized = value.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
   const amount = Number(normalized);
@@ -788,7 +793,7 @@ export function RecordForm({
   const { data, tenantId, allowedUnit } = useManagement();
   const { user } = useAuth();
   const def = DEFINITIONS[kind];
-  const [id] = useState(() => record?.id || crypto.randomUUID());
+  const [id] = useState(() => record?.id || safeUUID());
   const [unit, setUnit] = useState(record?.unitId || suggestedUnit);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -1226,7 +1231,7 @@ function SettlementForm({
   const { user } = useAuth();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [id] = useState(() => crypto.randomUUID());
+  const [id] = useState(() => safeUUID());
   const today = dateToday();
   return (
     <ModalShell
