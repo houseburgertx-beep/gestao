@@ -137,6 +137,26 @@ function fixture() {
   ];
   return db;
 }
+test("Conta com fornecedor novo valida e grava ambos no mesmo lote; cadastro existente é reutilizado", async () => {
+  const worker = fs.readFileSync(path.join(__dirname, "../src/services/managementService.ts"), "utf8");
+  const source = worker.slice(worker.indexOf("export async function saveManagement("), worker.indexOf("async function createRecords(" )).replace("export async", "async");
+  const compiled = ts.transpileModule(source, {compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText;
+  const writes = [];
+  const save = new Function("str","validate","buildRecords","createRecords","commitRecords",compiled + ";return saveManagement;")((r,k)=>String(r[k]||""),validate,buildRecords,async rows=>writes.push(rows),async rows=>writes.push(rows));
+  const state = fixture();
+  const payable = record("payables",{description:"Nota do fornecedor",dueDate:"2026-09-22",amount:170509,scannedSupplierName:"OESA",scannedSupplierDocument:"81.611.931/0045-49"});
+  await save(payable,state);
+  assert.equal(writes.length,1);
+  const supplier = writes[0].find(r=>r.kind === "suppliers");
+  const account = writes[0].find(r=>r.kind === "payables");
+  assert.equal(supplier.name,"OESA");
+  assert.equal(account.supplierId,supplier.id);
+  assert.equal(state.suppliers.length,0);
+  state.suppliers.push(supplier);
+  await save({...payable,id:"another-account"},state);
+  assert.equal(writes[1].filter(r=>r.kind === "suppliers").length,0);
+  assert.equal(writes[1].find(r=>r.kind === "payables").supplierId,supplier.id);
+});
 function complete(db) {
   for (const u of db.units)
     for (const dataset of DATASETS)

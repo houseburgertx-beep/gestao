@@ -109,12 +109,17 @@ export async function saveManagement(
   }
   delete prepared.scannedSupplierName;
   delete prepared.scannedSupplierDocument;
-  if (!archive) validate(prepared, state);
+  // The supplier is part of this same atomic write and is not in the live
+  // subscription yet. Validate the payable against the pending supplier too.
+  const validationState = scannedSupplier
+    ? { ...state, suppliers: [...state.suppliers, scannedSupplier] }
+    : state;
+  if (!archive) validate(prepared, validationState);
   const outgoing = archive
     ? [{ ...prepared, archived: true }]
     : buildRecords(prepared);
   if (scannedSupplier) outgoing.unshift(scannedSupplier);
-  if (!archive) validate(outgoing[0], state);
+  if (!archive) validate(outgoing[0], validationState);
   const obsolete = (state.payables || []).filter(
     (p) => p.sourceId === record.id && !outgoing.some((x) => x.id === p.id),
   );
