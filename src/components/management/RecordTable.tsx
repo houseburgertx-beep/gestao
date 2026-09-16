@@ -404,12 +404,12 @@ export function RecordTable({
             <table className="mg-table mg-table-payables">
               <thead>
                 <tr>
-                  <th style={{ width: "135px" }}>Vencimento</th>
+                  <th style={{ width: "120px" }}>Vencimento</th>
                   <th>Conta / Descrição</th>
-                  <th style={{ width: "150px" }}>Unidade</th>
-                  <th style={{ width: "135px", textAlign: "right" }}>Valor</th>
-                  <th style={{ width: "115px", textAlign: "center" }}>Status</th>
-                  <th style={{ width: "175px", textAlign: "right" }}>Ações</th>
+                  <th style={{ width: "140px" }}>Unidade</th>
+                  <th style={{ width: "125px", textAlign: "right" }}>Valor</th>
+                  <th style={{ width: "120px", textAlign: "center" }}>Status</th>
+                  <th style={{ width: "190px", textAlign: "right" }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -432,7 +432,6 @@ export function RecordTable({
                         <td>
                           <div className="payables-due-cell">
                             <strong>{formatDateBR(str(r, "dueDate"))}</strong>
-                            <span className={`payables-due-chip ${statusClass}`}>{statusText}</span>
                           </div>
                         </td>
                         <td>
