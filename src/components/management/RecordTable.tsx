@@ -31,6 +31,31 @@ import {
   uploadFileToDrive,
 } from "@/services/driveService";
 import { backupPayablesSpreadsheet } from "@/services/payablesBackupService";
+import { addNotificationToFirestore } from "@/services/firestoreService";
+
+function readBrazilianAmount(value: string) {
+  const normalized = value.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? Math.round(amount * 100) : 0;
+}
+
+function documentFields(text: string, suppliers: RecordData[]) {
+  const compact = text.replace(/\s+/g, " ").trim();
+  const barcode = compact.match(/(?:\d[ .-]?){44,48}/)?.[0]?.replace(/\D/g, "") || "";
+  const dateMatch = compact.match(/(?:vencimento|vence em|data de vencimento).{0,35}?(\d{2}[/-]\d{2}[/-]\d{4})/i) || compact.match(/\d{2}[/-]\d{2}[/-]\d{4}/);
+  const dueDate = dateMatch?.[1] || dateMatch?.[0] || "";
+  const valueMatch = compact.match(/(?:valor(?:\s+(?:do\s+)?documento|\s+a\s+pagar)?|total).{0,35}?(R?\$?\s*[\d.]+,\d{2})/i) || compact.match(/R?\$?\s*[\d.]+,\d{2}/);
+  const supplier = suppliers.find((item) => {
+    const name = str(item, "name").trim().toLowerCase();
+    return name.length > 2 && compact.toLowerCase().includes(name);
+  });
+  return {
+    documentNumber: barcode,
+    dueDate: dueDate ? dueDate.replace(/(\d{2})[/-](\d{2})[/-](\d{4})/, "$3-$2-$1") : "",
+    amount: valueMatch ? readBrazilianAmount(valueMatch[1] || valueMatch[0]) : 0,
+    supplier,
+  };
+}
 const fieldDisplay = (r: RecordData, f: Field, db: Database) => {
   const v = r[f.key];
   if (v === null || v === undefined || v === "") return "DADO PENDENTE";
@@ -461,6 +486,44 @@ export function RecordForm({
   const [unit, setUnit] = useState(record?.unitId || suggestedUnit);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [readingDocument, setReadingDocument] = useState(false);
+  const [documentReadMessage, setDocumentReadMessage] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+  const scanPayableDocument = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setDocumentReadMessage("Para preencher automaticamente, envie uma foto legível do boleto ou da nota fiscal.");
+      return;
+    }
+    setReadingDocument(true);
+    setDocumentReadMessage("Lendo documento…");
+    try {
+      const { recognize } = await import("tesseract.js");
+      const result = await recognize(file, "por");
+      const found = documentFields(result.data.text, data.suppliers);
+      const form = formRef.current;
+      if (!form) return;
+      const setValue = (name: string, value: string) => {
+        const field = form.elements.namedItem(name) as HTMLInputElement | HTMLSelectElement | null;
+        if (field && value) field.value = value;
+      };
+      setValue("documentNumber", found.documentNumber);
+      setValue("dueDate", found.dueDate);
+      if (found.amount) {
+        setValue("amount", (found.amount / 100).toFixed(2));
+        setValue("originalAmount", (found.amount / 100).toFixed(2));
+      }
+      if (found.supplier) {
+        setValue("supplierId", found.supplier.id);
+        setValue("description", `Documento de ${str(found.supplier, "name")}`);
+      }
+      const filled = [found.supplier && "fornecedor", found.dueDate && "vencimento", found.amount && "valor", found.documentNumber && "código"].filter(Boolean);
+      setDocumentReadMessage(filled.length ? `Preenchido automaticamente: ${filled.join(", ")}. Confira antes de salvar.` : "Não encontrei os dados com segurança. Preencha os campos manualmente.");
+    } catch {
+      setDocumentReadMessage("Não foi possível ler esta imagem. Tente uma foto mais nítida, sem reflexos e com todo o boleto visível.");
+    } finally {
+      setReadingDocument(false);
+    }
+  };
   const save = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user) return;
@@ -504,6 +567,19 @@ export function RecordForm({
       }
       const savedRows = await saveManagement(next, data);
       if (savedRows.some((row) => row.kind === "payables")) {
+        const dueDate = str(next, "dueDate");
+        const today = dateToday();
+        if (dueDate && dueDate <= today) {
+          await addNotificationToFirestore({
+            type: str(next, "obligationType") === "Imposto" ? "tax" : "payable",
+            title: dueDate < today ? "Conta já vencida incluída" : "Conta vence hoje",
+            message: `${str(next, "description")} · ${currency(Number(next.amount || 0))} · vencimento ${dueDate.split("-").reverse().join("/")}.`,
+            link: "/contas-a-pagar/",
+            severity: dueDate < today ? "danger" : "warning",
+            read: false,
+            timestamp: new Date().toISOString(),
+          });
+        }
         try {
           await backupPayablesSpreadsheet(data, savedRows);
           onSaved("Conta salva e planilha de backup criada no Google Drive.");
@@ -591,7 +667,7 @@ export function RecordForm({
       title={`${record ? "Editar" : "Cadastrar"} ${def.singular}`}
       onClose={() => !busy && onClose()}
     >
-      <form className="mg-form" onSubmit={save}>
+      <form ref={formRef} className="mg-form" onSubmit={save}>
         {!def.global && (
           <label className="full">
             Unidade
@@ -624,10 +700,11 @@ export function RecordForm({
           <>
             <label className="full mg-file-field">
               <span><Paperclip size={15} /> Anexar boleto, guia ou comprovante</span>
-              <input name="documentFile" type="file" accept=".pdf,image/*" />
+              <input name="documentFile" type="file" accept=".pdf,image/*" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) scanPayableDocument(file); }} />
               {record?.documentFileName && (
                 <small>Arquivo atual: {str(record, "documentFileName")}</small>
               )}
+              <small>{readingDocument ? "Lendo a foto…" : documentReadMessage || "Envie uma foto do boleto ou da nota fiscal para preencher fornecedor, vencimento, valor e código."}</small>
             </label>
             <details className="full mg-form-advanced">
               <summary>Mais detalhes</summary>

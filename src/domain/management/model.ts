@@ -287,8 +287,6 @@ export const DEFINITIONS: Record<string, Definition> = {
       ]),
       f("description", "Descrição"),
       ref("supplierId", "Fornecedor", "suppliers", false),
-      ref("categoryId", "Categoria", "categories", false),
-      ref("costCenterId", "Centro de custo", "costCenters", false),
       f("competence", "Competência", "month", false),
       due(),
       f("originalAmount", "Valor original (R$)", "money", false),

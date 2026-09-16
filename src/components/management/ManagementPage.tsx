@@ -251,7 +251,8 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
       }),
     [data, filters, allowedUnit],
   );
-  const incomplete = loading || Object.keys(errors).length > 0;
+  const managementErrors = Object.entries(errors).filter(([key]) => key !== "takeat");
+  const incomplete = loading || managementErrors.length > 0;
   // An unavailable source must never leave previously calculated financial totals looking authoritative.
   if (incomplete) {
     Object.values(result.metrics).forEach((m) => {
@@ -409,7 +410,7 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
       </section>
       )}
       {["health", "revenues", "goals"].includes(view) && <TakeatConnection />}
-      {Object.keys(errors).length > 0 && (
+      {managementErrors.length > 0 && (
         <div role="alert" className="mg-notice">
           <AlertTriangle size={20} />
           <div>
@@ -420,9 +421,9 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
             </p>
             <details>
               <summary>Detalhes das bases</summary>
-              {Object.keys(errors).map((k) => (
+              {managementErrors.map(([k, message]) => (
                 <p key={k}>
-                  {DEFINITIONS[k]?.label}: {errors[k]}
+                  {DEFINITIONS[k]?.label}: {message}
                 </p>
               ))}
             </details>
