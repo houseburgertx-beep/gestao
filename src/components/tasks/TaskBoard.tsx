@@ -129,8 +129,299 @@ export function TaskBoard() {
       </DragDropContext>
 
       {editing !== null && (
-        <RecordForm kind="actions" record={editing || undefined} suggestedUnit={selectedUnit} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setMessage("Tarefa salva no Firebase e compartilhada com os gerentes."); }} />
+        <TaskModal
+          task={editing || undefined}
+          suggestedUnit={selectedUnit}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            setMessage("Tarefa salva no Firebase e compartilhada com a equipe.");
+          }}
+        />
       )}
+    </div>
+  );
+}
+
+function TaskModal({
+  task,
+  suggestedUnit = "",
+  onClose,
+  onSaved,
+}: {
+  task?: RecordData;
+  suggestedUnit?: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { data, tenantId, allowedUnit } = useManagement();
+  const { user, userProfile } = useAuth();
+  const [unit, setUnit] = useState(() => task?.unitId || suggestedUnit || (allowedUnit !== "all" ? allowedUnit : (data.units[0]?.id || "")));
+  const [problem, setProblem] = useState(() => (task ? str(task, "problem") : ""));
+  const [action, setAction] = useState(() => (task ? str(task, "action") : ""));
+  const [owner, setOwner] = useState(() => (task ? str(task, "owner") : "") || userProfile?.displayName || "");
+  const [dueDate, setDueDate] = useState(() => (task ? str(task, "dueDate") : "") || dateToday());
+  const [priority, setPriority] = useState(() => (task ? str(task, "priority") : "") || "Normal");
+  const [status, setStatus] = useState(() => (task ? str(task, "status") : "") || "Pendente");
+  const [notes, setNotes] = useState(() => (task ? str(task, "notes") : ""));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const employees = useMemo(() => {
+    const fromStaff = data.employees.filter((e) => !e.archived && (!unit || e.unitId === unit)).map((e) => str(e, "name"));
+    const fromTasks = data.actions.map((t) => str(t, "owner")).filter(Boolean);
+    return Array.from(new Set([...fromStaff, ...fromTasks, userProfile?.displayName || ""])).filter(Boolean).sort();
+  }, [data.employees, data.actions, unit, userProfile]);
+
+  const setQuickDate = (daysAhead: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    setDueDate(d.toISOString().slice(0, 10));
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (!problem.trim()) {
+      setError("Informe o título da tarefa.");
+      return;
+    }
+    if (!owner.trim()) {
+      setError("Informe o responsável pela tarefa.");
+      return;
+    }
+    if (!dueDate) {
+      setError("Informe o prazo de vencimento.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+
+    try {
+      const now = new Date().toISOString();
+      const updated: RecordData = {
+        ...task,
+        id: task?.id || crypto.randomUUID(),
+        kind: "actions",
+        tenantId,
+        unitId: unit,
+        problem: problem.trim(),
+        action: action.trim(),
+        owner: owner.trim(),
+        dueDate,
+        priority,
+        status,
+        notes: notes.trim(),
+        version: (task?.version || 0) + 1,
+        createdAt: task?.createdAt || now,
+        updatedAt: now,
+        createdBy: task?.createdBy || user.uid,
+        updatedBy: user.uid,
+      };
+
+      await saveManagement(updated, data);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar a tarefa.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const isNew = !task;
+
+  return (
+    <div className="mg-modal-shade" onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+      <div className="mg-modal task-modal-modern" role="dialog" aria-modal="true">
+        <header className="task-modal-header">
+          <div className="task-modal-title-box">
+            <div className="task-modal-icon-badge">
+              <ListChecks size={20} />
+            </div>
+            <div>
+              <h2>{isNew ? "Nova Tarefa" : "Editar Tarefa"}</h2>
+              <p>{isNew ? "Defina o que precisa ser feito, o responsável e o prazo de entrega." : `Atualizando tarefa: ${problem}`}</p>
+            </div>
+          </div>
+          <button type="button" className="task-modal-close" onClick={onClose} disabled={busy} title="Fechar">
+            ✕
+          </button>
+        </header>
+
+        <form className="task-modal-form" onSubmit={handleSave}>
+          {/* Top Unit & Status Row */}
+          <div className="task-modal-row-two">
+            <div className="task-field-group">
+              <label htmlFor="task-unit">Unidade responsável</label>
+              <select
+                id="task-unit"
+                value={unit}
+                disabled={allowedUnit !== "all"}
+                onChange={(e) => setUnit(e.target.value)}
+                required
+              >
+                {data.units
+                  .filter((u) => !u.archived && (allowedUnit === "all" || u.id === allowedUnit))
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {str(u, "name")}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="task-field-group">
+              <label>Status atual</label>
+              <div className="task-status-chips">
+                {COLUMNS.map((col) => (
+                  <button
+                    key={col.status}
+                    type="button"
+                    className={`task-chip-btn ${col.color} ${status === col.status ? "selected" : ""}`}
+                    onClick={() => setStatus(col.status)}
+                  >
+                    <span className={`task-column-dot ${col.color}`} />
+                    {col.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Title input */}
+          <div className="task-field-group full">
+            <label htmlFor="task-title">
+              Título da tarefa <span className="task-req">*</span>
+            </label>
+            <input
+              id="task-title"
+              type="text"
+              autoFocus
+              className="task-input-title"
+              placeholder="Ex.: Trocar filtro da coifa, conferir estoque de embalagens, fechar escala..."
+              value={problem}
+              onChange={(e) => setProblem(e.target.value)}
+              required
+            />
+          </div>
+
+          {/* Description */}
+          <div className="task-field-group full">
+            <label htmlFor="task-action">Descrição detalhada (como fazer, orientações)</label>
+            <textarea
+              id="task-action"
+              rows={3}
+              placeholder="Explique o que deve ser feito passo a passo, critérios de conclusão ou detalhes importantes..."
+              value={action}
+              onChange={(e) => setAction(e.target.value)}
+            />
+          </div>
+
+          {/* Priority, Owner, and Due Date Grid */}
+          <div className="task-modal-grid-details">
+            {/* Owner */}
+            <div className="task-field-group">
+              <label htmlFor="task-owner">
+                Responsável <span className="task-req">*</span>
+              </label>
+              <div className="task-input-with-icon">
+                <UserRound size={16} />
+                <input
+                  id="task-owner"
+                  type="text"
+                  list="employee-owners"
+                  placeholder="Nome do colaborador ou gerente"
+                  value={owner}
+                  onChange={(e) => setOwner(e.target.value)}
+                  required
+                />
+                <datalist id="employee-owners">
+                  {employees.map((emp) => (
+                    <option key={emp} value={emp} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+
+            {/* Due Date & Quick Buttons */}
+            <div className="task-field-group">
+              <label htmlFor="task-duedate">
+                Prazo de entrega <span className="task-req">*</span>
+              </label>
+              <div className="task-input-with-icon">
+                <CalendarDays size={16} />
+                <input
+                  id="task-duedate"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="task-quick-dates">
+                <button type="button" onClick={() => setQuickDate(0)}>Hoje</button>
+                <button type="button" onClick={() => setQuickDate(1)}>Amanhã</button>
+                <button type="button" onClick={() => setQuickDate(3)}>Em 3 dias</button>
+                <button type="button" onClick={() => setQuickDate(7)}>1 semana</button>
+              </div>
+            </div>
+
+            {/* Priority Select with Badges */}
+            <div className="task-field-group">
+              <label>Nível de prioridade</label>
+              <div className="task-priority-chips">
+                {[
+                  { key: "Baixa", label: "Baixa", tone: "baixa" },
+                  { key: "Normal", label: "Normal", tone: "normal" },
+                  { key: "Alta", label: "Alta", tone: "alta" },
+                  { key: "Urgente", label: "Urgente", tone: "urgente" },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={`task-priority-chip ${item.tone} ${priority === item.key ? "selected" : ""}`}
+                    onClick={() => setPriority(item.key)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Internal notes */}
+          <div className="task-field-group full">
+            <label htmlFor="task-notes">Observações internas / checklist rápido</label>
+            <textarea
+              id="task-notes"
+              rows={2}
+              placeholder="Observações complementares, fornecedores a acionar ou links relevantes..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+
+          {error && <div className="mg-error">{error}</div>}
+
+          <footer className="task-modal-footer">
+            <button
+              type="button"
+              className="mg-button secondary"
+              onClick={onClose}
+              disabled={busy}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="workspace-primary task-save-submit"
+              disabled={busy}
+            >
+              {busy ? "Salvando tarefa..." : isNew ? "Criar Tarefa" : "Salvar Alterações"}
+            </button>
+          </footer>
+        </form>
+      </div>
     </div>
   );
 }
