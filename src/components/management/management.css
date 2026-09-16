@@ -64,6 +64,280 @@
   border-radius: 6px;
   background: white;
 }
+/* Minimalist Header Filters & Period Navigator */
+.mg-header-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mg-pill-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #dcdfe8;
+  background: white;
+  border-radius: 8px;
+  padding: 0 8px 0 10px;
+  height: 34px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(35, 39, 62, 0.03);
+}
+.mg-pill-select:hover {
+  border-color: #b5b9cc;
+  background: #fafbfe;
+}
+.mg-pill-icon {
+  color: #7b8196;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+.mg-pill-arrow {
+  color: #8c92a6;
+  margin-left: 4px;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+.mg-pill-select select {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  height: 100% !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #2b3046 !important;
+  cursor: pointer;
+  outline: none !important;
+  appearance: none;
+  padding-right: 14px !important;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mg-period-navigator {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  background: white;
+  border: 1px solid #dcdfe8;
+  border-radius: 8px;
+  height: 34px;
+  box-shadow: 0 1px 3px rgba(35, 39, 62, 0.03);
+  padding: 2px;
+}
+.mg-period-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: #636a80;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+.mg-period-nav-btn:hover {
+  background: #f1f3f8;
+  color: #1a1e2e;
+}
+.mg-period-label-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  padding: 0 10px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2b3046;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.mg-period-label-btn:hover,
+.mg-period-label-btn.is-open {
+  background: #f1f3f8;
+  color: #5b50bc;
+}
+.mg-period-cal-icon {
+  color: #5b50bc;
+}
+.mg-period-text {
+  letter-spacing: -0.2px;
+}
+.mg-period-arrow {
+  color: #8c92a6;
+  transition: transform 0.2s ease;
+}
+.mg-period-label-btn.is-open .mg-period-arrow {
+  transform: rotate(180deg);
+}
+.mg-period-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: #eff0fa;
+  color: #5b50bc;
+  font-size: 10px;
+  font-weight: 750;
+  padding: 3px 8px;
+  border-radius: 6px;
+  margin-left: 4px;
+  margin-right: 2px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.mg-period-reset-btn:hover {
+  background: #5b50bc;
+  color: white;
+}
+.mg-period-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 280px;
+  background: white;
+  border: 1px solid #dcdfe8;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(35, 39, 62, 0.12), 0 2px 6px rgba(35, 39, 62, 0.04);
+  padding: 14px;
+  z-index: 100;
+  animation: mg-popdown 0.15s ease-out;
+}
+@keyframes mg-popdown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.mg-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.mg-year-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #e1e4ed;
+  background: #f8fafc;
+  border-radius: 6px;
+  color: #555b70;
+  cursor: pointer;
+}
+.mg-year-btn:hover {
+  background: #eef2f7;
+  color: #1a1e2e;
+}
+.mg-popover-year {
+  font-size: 14px;
+  font-weight: 800;
+  color: #212536;
+}
+.mg-popover-months {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.mg-month-tile {
+  padding: 7px 0;
+  border: 1px solid #e8eaf2;
+  background: #fafbfe;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 650;
+  color: #4b5168;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: center;
+}
+.mg-month-tile:hover {
+  background: #edf0fa;
+  border-color: #cbd2e8;
+  color: #5b50bc;
+}
+.mg-month-tile.is-selected {
+  background: #5b50bc;
+  border-color: #5b50bc;
+  color: white;
+  font-weight: 800;
+}
+.mg-popover-presets {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 5px;
+  padding-top: 10px;
+  border-top: 1px solid #edf0f5;
+  margin-bottom: 10px;
+}
+.mg-popover-presets button {
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  background: #f3f5fa;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #43485d;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.12s ease;
+}
+.mg-popover-presets button:hover {
+  background: #e8ecf6;
+  color: #5b50bc;
+}
+.mg-popover-custom {
+  padding-top: 8px;
+  border-top: 1px solid #edf0f5;
+}
+.mg-custom-toggle {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: #5b50bc;
+  cursor: pointer;
+  padding: 2px 0;
+  width: 100%;
+  text-align: left;
+}
+.mg-custom-toggle:hover {
+  text-decoration: underline;
+}
+.mg-custom-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+.mg-custom-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #6e7489;
+}
+.mg-custom-inputs input {
+  padding: 5px 6px !important;
+  font-size: 11px !important;
+  border-radius: 6px !important;
+  border: 1px solid #dcdfe8 !important;
+}
 .mg-filters {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
