@@ -584,7 +584,7 @@ export const DEFINITIONS: Record<string, Definition> = {
       f("cashOutflows", "Saídas em dinheiro (R$)", "money"),
       f("cashOutflowsJson", "Detalhamento das saídas em dinheiro", "text", false),
       f("sangriaAmount", "Sangria/retirada (R$)", "money"),
-      opt("sangriaStatus", "Destino da sangria", ["Na loja", "Entregue a responsável"], false),
+      opt("sangriaStatus", "Destino da sangria", ["Na loja", "Entregue a responsável", "Não se aplica", ""], false),
       f("sangriaRecipient", "Responsável / Localização da sangria", "text", false),
       f("closingFloat", "Troco final (R$)", "money"),
       f("bankAmountsJson", "Cartões e PIX por banco"),

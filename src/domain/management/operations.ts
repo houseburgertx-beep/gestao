@@ -52,7 +52,13 @@ export function validate(record: RecordData, db: Database) {
       !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(value))
     )
       throw new Error("Competência inválida.");
-    if (field.type === "select" && !field.options?.includes(String(value)))
+    if (
+      field.type === "select" &&
+      value !== "" &&
+      value !== undefined &&
+      value !== null &&
+      !field.options?.includes(String(value))
+    )
       throw new Error(`${field.label}: opção inválida.`);
     if (field.type === "ref") {
       const target = (db[field.ref!] || []).find(
