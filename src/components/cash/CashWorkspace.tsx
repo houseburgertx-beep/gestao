@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BadgeCheck, Calculator, CheckCircle2, ClipboardCheck, Download, Edit3, FileCheck2, FileText, Landmark, Percent, Plus, Search, Sliders, Upload, Users, Wallet, X } from "lucide-react";
+import {
+  AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck,
+  Calculator, Check, CheckCircle2, ChevronDown, ChevronUp,
+  ClipboardCheck, Coins, CreditCard, Download, Edit3, FileCheck2,
+  FileText, Landmark, Percent, Plus, Receipt, Search, Sliders,
+  Sparkles, Store, Trash2, Upload, Users, Wallet, X
+} from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
+import { useUnit } from "@/contexts/UnitContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { currency, dateToday, RecordData, str } from "@/domain/management/model";
 import { commitRecords, saveManagement } from "@/services/managementService";
@@ -153,91 +160,1175 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
 
 function Modal({title,onClose,children,wide=false}:{title:string;onClose:()=>void;children:React.ReactNode;wide?:boolean}){return <div className="mg-modal-shade"><div className={`mg-modal ${wide?"cash-modal-wide":""}`} role="dialog" aria-modal="true"><header><h2>{title}</h2><button onClick={onClose}><X size={20}/></button></header>{children}</div></div>}
 
-function ClosingModal({onClose,onSaved}:{onClose:()=>void;onSaved:()=>void}){
-  const {data,tenantId,allowedUnit}=useManagement();const {user,userProfile}=useAuth();const [unit,setUnit]=useState(allowedUnit==="all"?"":allowedUnit);const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [calc,setCalc]=useState<ClosingCalc>(emptyCalc);const [selected,setSelected]=useState<Record<string,boolean>>({});const [outflows,setOutflows]=useState([{id:safeUUID(),name:"",amount:""}]);const [pixRequests,setPixRequests]=useState([{id:safeUUID(),name:"",key:"",description:"",amount:""}]);
-  const banks=data.bankAccounts.filter(row=>!row.archived&&row.unitId===unit);
-  const recalc=(form:HTMLFormElement)=>{const f=new FormData(form);const systemCash=n(f.get("systemCash")),systemCredit=n(f.get("systemCredit")),systemDebit=n(f.get("systemDebit")),systemPix=n(f.get("systemPix"));let creditFound=0,debitFound=0,pixFound=0;banks.filter(b=>f.get(`used_${b.id}`)==="on").forEach(bank=>{creditFound+=n(f.get(`credit_${bank.id}`));debitFound+=n(f.get(`debit_${bank.id}`));pixFound+=n(f.get(`pix_${bank.id}`));});const other=n(f.get("systemIfoodOnline"))+n(f.get("systemIfoodVoucher"))+n(f.get("systemTerm"))+n(f.get("systemClub"))+n(f.get("systemAccrual"));const cashOutflows=outflows.reduce((sum,row)=>sum+n(row.amount as FormDataEntryValue),0);const cashExpected=n(f.get("openingAmount"))+systemCash+n(f.get("cashIn"))-cashOutflows;const cashFound=n(f.get("sangriaAmount"))+n(f.get("closingFloat"));const cashDifference=cashFound-cashExpected,creditDifference=creditFound-systemCredit,debitDifference=debitFound-systemDebit,pixDifference=pixFound-systemPix,motoboyDifference=n(f.get("motoboyPaid"))-n(f.get("motoboySystem")),invoiceDifference=n(f.get("ifoodAudit"))+n(f.get("fiscalMachines"))-n(f.get("invoiceIssued"));setCalc({systemTotal:systemCash+systemCredit+systemDebit+systemPix+other,confirmedTotal:cashFound+creditFound+debitFound+pixFound,cashExpected,cashFound,cashDifference,creditFound,creditDifference,debitFound,debitDifference,pixFound,pixDifference,difference:cashDifference+creditDifference+debitDifference+pixDifference,motoboyDifference,invoiceDifference});};
-  const submit=async(event:React.FormEvent<HTMLFormElement>)=>{event.preventDefault();if(!user)return;setBusy(true);setError("");try{const f=new FormData(event.currentTarget);const bankAmounts:Record<string,{credit:number;debit:number;pix:number}>={};banks.filter(bank=>selected[bank.id]).forEach(bank=>bankAmounts[bank.id]={credit:n(f.get(`credit_${bank.id}`)),debit:n(f.get(`debit_${bank.id}`)),pix:n(f.get(`pix_${bank.id}`))});if(!Object.keys(bankAmounts).length&&(n(f.get("systemCredit"))+n(f.get("systemDebit"))+n(f.get("systemPix")))>0)throw new Error("Selecione ao menos uma máquina/banco utilizado.");const requestedPix=pixRequests.filter(item=>item.name.trim()||item.key.trim()||item.description.trim()||Number(item.amount)>0);if(requestedPix.some(item=>!item.name.trim()||!item.key.trim()||!item.description.trim()||Number(item.amount)<=0))throw new Error("Preencha nome, chave PIX, descrição e valor em cada solicitação PIX.");if(requestedPix.some(item=>!isValidPixKey(item.key)))throw new Error("Uma ou mais chaves PIX informadas têm formato inválido (use CPF, CNPJ, e-mail, telefone ou chave aleatória).");const files=f.getAll("attachments").filter(x=>x instanceof File&&x.size) as File[];if(files.length>5)throw new Error("Envie no máximo 5 comprovantes.");const attachments=[];for(const file of files){const saved=await uploadFileToDrive(nameFileForDrive(file,`Fechamento ${String(f.get("date"))} - ${unit}`),"payment_proofs");attachments.push({fileId:saved.fileId,fileName:saved.fileName,mimeType:saved.mimeType,size:saved.size});}const now=new Date().toISOString();const closingId=`closing-${String(f.get("date"))}-${unit}-unico`;
-    const sangriaVal=n(f.get("sangriaAmount"));
-    const sangriaStatus=sangriaVal>0?String(f.get("sangriaStatus")||"Na loja"):"";
-    const sangriaRecipient=sangriaVal>0?String(f.get("sangriaRecipient")||"").trim():"";
-    if(sangriaVal>0&&!sangriaRecipient)throw new Error("Informe para quem foi entregue a sangria ou onde está guardada na loja.");
-    const defaultCategory = data.categories.find(c=>!c.archived && str(c,"nature")==="Operacional")?.id || data.categories[0]?.id || "operacional-outros";
-    const row:RecordData={id:closingId,kind:"cashClosings",tenantId,unitId:unit,version:0,createdAt:now,updatedAt:now,createdBy:user.uid,updatedBy:user.uid,date:String(f.get("date")),shift:"Único",operatorName:String(f.get("operatorName")),systemCash:n(f.get("systemCash")),systemCredit:n(f.get("systemCredit")),systemDebit:n(f.get("systemDebit")),systemPix:n(f.get("systemPix")),systemIfoodOnline:n(f.get("systemIfoodOnline")),systemIfoodVoucher:n(f.get("systemIfoodVoucher")),systemTerm:n(f.get("systemTerm")),systemClub:n(f.get("systemClub")),systemAccrual:n(f.get("systemAccrual")),openingAmount:n(f.get("openingAmount")),cashIn:n(f.get("cashIn")),cashOutflows:n(f.get("cashOutflows")),cashOutflowsJson:JSON.stringify(outflows.filter(item=>item.name.trim()||Number(item.amount)>0)),sangriaAmount:sangriaVal,sangriaStatus,sangriaRecipient,closingFloat:n(f.get("closingFloat")),bankAmountsJson:JSON.stringify(bankAmounts),systemTotal:calc.systemTotal,countedTotal:calc.confirmedTotal,cashExpected:calc.cashExpected,cashFound:calc.cashFound,cashDifference:calc.cashDifference,creditFound:calc.creditFound,creditDifference:calc.creditDifference,debitFound:calc.debitFound,debitDifference:calc.debitDifference,pixFound:calc.pixFound,pixDifference:calc.pixDifference,difference:calc.difference,motoboySystem:n(f.get("motoboySystem")),motoboyPaid:n(f.get("motoboyPaid")),motoboyDifference:calc.motoboyDifference,ifoodAudit:n(f.get("ifoodAudit")),fiscalMachines:n(f.get("fiscalMachines")),invoiceIssued:n(f.get("invoiceIssued")),invoiceDifference:calc.invoiceDifference,pixRequestsJson:JSON.stringify(requestedPix),attachmentsJson:JSON.stringify(attachments),status:calc.difference===0?"Aguardando conferência":"Com divergência",notes:String(f.get("notes")||"")};const payables=requestedPix.map(request=>({id:`pix-${closingId}-${request.id}`,kind:"payables" as const,tenantId,unitId:unit,version:0,createdAt:now,updatedAt:now,createdBy:user.uid,updatedBy:user.uid,obligationType:"Outros",categoryId:defaultCategory,description:`PIX — ${request.description} (${request.name})`,competence:String(f.get("date")).slice(0,7),dueDate:String(f.get("date")),amount:Math.round(Number(request.amount)*100),paymentMethod:"PIX",status:"Pendente",nature:"Operacional",sourceId:closingId,pixKey:request.key,notes:`Solicitação criada no fechamento de caixa. Chave PIX: ${request.key}`})) as RecordData[];[row,...payables].forEach(record=>validate(record,data));await commitRecords([row,...payables],data,row);onSaved();}catch(e){const message=e instanceof Error?e.message:"Não foi possível salvar o fechamento.";setError(/quota exceeded|resource exhausted/i.test(message)?"O Firebase atingiu o limite temporário de uso. Nenhum fechamento foi confirmado; tente novamente mais tarde.":message);}finally{setBusy(false);}};
-  return <Modal title="Novo fechamento de caixa" onClose={onClose} wide><form className="cash-form" onChange={e=>recalc(e.currentTarget)} onSubmit={submit}>
-    <section><h3>1. Identificação</h3><div className="cash-fields identification-fields"><label>Unidade<select required value={unit} disabled={allowedUnit!=="all"} onChange={e=>{setUnit(e.target.value);setSelected({});}}><option value="">Selecione</option>{data.units.filter(u=>!u.archived&&(allowedUnit==="all"||u.id===allowedUnit)).map(u=><option key={u.id} value={u.id}>{str(u,"name")}</option>)}</select></label><label>Data<input name="date" type="date" defaultValue={dateToday()} required/></label><label>Operador<input name="operatorName" defaultValue={userProfile?.displayName||""} required/></label></div></section>
-    <section className="cash-system-section"><header className="cash-section-title"><div><span className="cash-step">ETAPA 2</span><h3>Valores do sistema</h3><p>Informe o que apareceu no sistema de vendas.</p></div><div className="entry-total"><span>ENTRADA TOTAL</span><strong>{brl(calc.systemTotal)}</strong></div></header><div className="cash-primary-grid"><Money name="systemCash" label="Dinheiro"/><Money name="systemCredit" label="Crédito"/><Money name="systemDebit" label="Débito"/><Money name="systemPix" label="PIX"/></div><p className="cash-reconciliation-note">Estes quatro valores serão comparados na conferência financeira.</p><details className="other-receipts"><summary><span>Adicionar outros recebimentos</span><small>iFood, voucher, notas, clube e acréscimos</small></summary><div className="cash-extra-grid"><Money name="systemIfoodOnline" label="iFood Online"/><Money name="systemIfoodVoucher" label="iFood Voucher"/><Money name="systemTerm" label="Notas a prazo/boleto"/><Money name="systemClub" label="Resgate Clube"/><Money name="systemAccrual" label="Acréscimos"/></div></details></section>
-    <section><h3>3. Fechamento do dinheiro</h3><p className="cash-formula">Saldo inicial + entrada em dinheiro + suprimentos − saídas = sangria + troco final</p><div className="cash-money-grid"><Money name="openingAmount" label="Saldo inicial/troco"/><Money name="cashIn" label="Suprimentos/entradas"/><Money name="sangriaAmount" label="Sangria/retirada"/><Money name="closingFloat" label="Troco final"/></div>
-    <div className="cash-sangria-details"><label>Destino da sangria<select name="sangriaStatus"><option value="Na loja">Está guardado na loja</option><option value="Entregue a responsável">Entregue a responsável</option></select></label><label className="cash-sangria-recipient">Para quem foi entregue / Localização na loja<input name="sangriaRecipient" placeholder="Ex.: Gerente João / Cofre do escritório" /></label></div>
-    <input type="hidden" name="cashOutflows" value={outflows.reduce((sum,row)=>sum+Number(row.amount||0),0)}/><div className="cash-outflows"><header><div><strong>Saídas em dinheiro</strong><small>Registre cada valor retirado do caixa.</small></div><button type="button" className="cash-add" onClick={()=>setOutflows(rows=>[...rows,{id:safeUUID(),name:"",amount:""}])}>+ Adicionar saída</button></header>{outflows.map((row,index)=><div className="cash-outflow-row" key={row.id}><label>Nome/descrição<input value={row.name} placeholder="Ex.: motoboy, compra ou fornecedor" onChange={e=>setOutflows(rows=>rows.map(item=>item.id===row.id?{...item,name:e.target.value}:item))}/></label><label>Valor<input type="number" min="0" step="0.01" value={row.amount} placeholder="R$ 0,00" onChange={e=>setOutflows(rows=>rows.map(item=>item.id===row.id?{...item,amount:e.target.value}:item))}/></label>{outflows.length>1&&<button type="button" className="cash-remove" aria-label={`Remover saída ${index+1}`} onClick={()=>setOutflows(rows=>rows.filter(item=>item.id!==row.id))}>×</button>}</div>)}<footer>Total de saídas <b>{brl(outflows.reduce((sum,row)=>sum+Number(row.amount||0)*100,0))}</b></footer></div><div className="cash-equation"><span>Esperado: <b>{brl(calc.cashExpected)}</b></span><span>Encontrado: <b>{brl(calc.cashFound)}</b></span><Difference value={calc.cashDifference}/></div></section>
-    <section><div className="pix-request-heading"><div><h3>Solicitações de PIX</h3><p>Os pedidos abaixo entrarão em Contas a Pagar como pendentes.</p></div><button type="button" className="cash-add" onClick={()=>setPixRequests(rows=>[...rows,{id:safeUUID(),name:"",key:"",description:"",amount:""}])}>+ Adicionar PIX</button></div><div className="pix-request-list">{pixRequests.map((row,index)=><div className="pix-request-row" key={row.id}><label>Nome<input value={row.name} placeholder="Favorecido" onChange={e=>setPixRequests(rows=>rows.map(item=>item.id===row.id?{...item,name:e.target.value}:item))}/></label><label>Chave PIX<input value={row.key} placeholder="CPF, telefone, e-mail..." onChange={e=>setPixRequests(rows=>rows.map(item=>item.id===row.id?{...item,key:e.target.value}:item))}/></label><label>Descrição<input value={row.description} placeholder="Motivo do pagamento" onChange={e=>setPixRequests(rows=>rows.map(item=>item.id===row.id?{...item,description:e.target.value}:item))}/></label><label>Valor<input type="number" min="0" step="0.01" value={row.amount} placeholder="R$ 0,00" onChange={e=>setPixRequests(rows=>rows.map(item=>item.id===row.id?{...item,amount:e.target.value}:item))}/></label>{pixRequests.length>1&&<button type="button" className="cash-remove" aria-label={`Remover solicitação PIX ${index+1}`} onClick={()=>setPixRequests(rows=>rows.filter(item=>item.id!==row.id))}>×</button>}</div>)}</div></section>
-    <section><h3>4. Conferência de Crédito, Débito e PIX</h3><p className="cash-hint">Marque somente as máquinas/bancos utilizados no turno e informe os valores encontrados.</p>{banks.length?<div className="machine-grid">{banks.map(bank=><article key={bank.id} className={selected[bank.id]?"selected":""}><label className="machine-toggle"><input name={`used_${bank.id}`} type="checkbox" checked={!!selected[bank.id]} onChange={e=>setSelected(s=>({...s,[bank.id]:e.target.checked}))}/><strong><Landmark size={15}/>{str(bank,"name")}</strong></label><Money name={`credit_${bank.id}`} label="Crédito" disabled={!selected[bank.id]}/><Money name={`debit_${bank.id}`} label="Débito" disabled={!selected[bank.id]}/><Money name={`pix_${bank.id}`} label="PIX" disabled={!selected[bank.id]}/></article>)}</div>:<p className="cash-hint">Selecione a unidade para carregar suas máquinas e bancos.</p>}</section>
-    <section><h3>5. Resultado da conciliação</h3><div className="reconciliation-grid"><Result label="Dinheiro" systemValue={calc.cashExpected} found={calc.cashFound} difference={calc.cashDifference}/><Result label="Crédito" systemValue={calc.creditFound-calc.creditDifference} found={calc.creditFound} difference={calc.creditDifference}/><Result label="Débito" systemValue={calc.debitFound-calc.debitDifference} found={calc.debitFound} difference={calc.debitDifference}/><Result label="PIX" systemValue={calc.pixFound-calc.pixDifference} found={calc.pixFound} difference={calc.pixDifference}/></div><div className={`total-divergence ${calc.difference===0?"ok":"bad"}`}><span>DIVERGÊNCIA TOTAL</span><strong>{brl(calc.difference)}</strong><small>{calc.difference===0?"Fechamento sem divergência":calc.difference>0?"Sobra encontrada":"Falta encontrada"}</small></div></section>
-    <section><h3>6. Auditorias do dia</h3><p className="cash-hint">Motoboys e notas fiscais são conferências separadas do fechamento principal.</p><div className="audit-grid"><article><strong>Auditoria de motoboys</strong><Money name="motoboySystem" label="Valor no sistema"/><Money name="motoboyPaid" label="Valor realmente pago"/><b>Diferença: {brl(calc.motoboyDifference)}</b></article><article><strong>Auditoria de notas fiscais</strong><Money name="ifoodAudit" label="Valor vendido no iFood"/><Money name="fiscalMachines" label="Máquinas fiscais"/><Money name="invoiceIssued" label="Nota fiscal emitida"/><b>Diferença: {brl(calc.invoiceDifference)}</b></article></div><label className="employee-file-upload"><Upload size={15}/> Anexar comprovantes no Google Drive<input name="attachments" type="file" multiple className="sr-only" accept=".pdf,image/*"/></label><label>Observações<textarea name="notes" rows={3} placeholder="Explique faltas, sobras ou ocorrências do turno."/></label></section>
-    {error&&<p className="mg-error">{error}</p>}<footer><button type="button" className="mg-button secondary" onClick={onClose}>Cancelar</button><button className="mg-button" disabled={busy||!unit}>{busy?"Enviando…":"Enviar ao financeiro"}</button></footer>
-  </form></Modal>;
-}
+function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const { data, tenantId, allowedUnit } = useManagement();
+  const { currentUnit } = useUnit();
+  const { user, userProfile } = useAuth();
 
-function ConferenceModal({closing,onClose,onSaved}:{closing:RecordData;onClose:()=>void;onSaved:()=>void}){
-  const {data,tenantId}=useManagement();const {user,userProfile}=useAuth();const [review,setReview]=useState(false);
-  const initialSaved=useMemo(()=>parseBankAmounts(closing),[closing]);
-  const allBanks=data.bankAccounts.filter(b=>!b.archived&&b.unitId===closing.unitId);
-  const banks=allBanks.filter(b=>initialSaved[b.id]!==undefined);
+  const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(1);
+  const [unit, setUnit] = useState<string>(() => {
+    if (allowedUnit !== "all") return allowedUnit;
+    if (currentUnit !== "all") return currentUnit;
+    return data.units[0]?.id || "";
+  });
+  const [date, setDate] = useState(dateToday());
+  const [operatorName, setOperatorName] = useState(userProfile?.displayName || "");
+  const [shift, setShift] = useState("Único");
 
-  // Editable bank values: credit, debit, pix per bank
-  const [bankVals,setBankVals]=useState<Record<string,{credit:number;debit:number;pix:number}>>(()=>
-    Object.fromEntries(banks.map(b=>[b.id,{
-      credit:Number(initialSaved[b.id]?.credit||0),
-      debit:Number(initialSaved[b.id]?.debit||0),
-      pix:Number(initialSaved[b.id]?.pix||0)
-    }]))
-  );
+  // Step 1: Vendas PDV (strings in R$)
+  const [systemCash, setSystemCash] = useState("");
+  const [systemCredit, setSystemCredit] = useState("");
+  const [systemDebit, setSystemDebit] = useState("");
+  const [systemPix, setSystemPix] = useState("");
+  const [showOtherChannels, setShowOtherChannels] = useState(false);
+  const [systemIfoodOnline, setSystemIfoodOnline] = useState("");
+  const [systemIfoodVoucher, setSystemIfoodVoucher] = useState("");
+  const [systemTerm, setSystemTerm] = useState("");
+  const [systemClub, setSystemClub] = useState("");
+  const [systemAccrual, setSystemAccrual] = useState("");
 
-  // Editable cash found
-  const [cashFound,setCashFound]=useState<number>(()=>closingValue(closing,"cashFound"));
+  // Step 2: Dinheiro & Caixa
+  const [openingAmount, setOpeningAmount] = useState("");
+  const [cashIn, setCashIn] = useState("");
+  const [sangriaAmount, setSangriaAmount] = useState("");
+  const [sangriaStatus, setSangriaStatus] = useState("Na loja");
+  const [sangriaRecipient, setSangriaRecipient] = useState("");
+  const [closingFloat, setClosingFloat] = useState("");
+  const [outflows, setOutflows] = useState<Array<{ id: string; name: string; amount: string }>>([]);
 
-  const [checks,setChecks]=useState({cash:false,credit:false,debit:false,pix:false});
-  const [notes,setNotes]=useState(()=>str(closing,"notes")||"");
-  const [busy,setBusy]=useState(false);
-  const [error,setError]=useState("");
+  // Step 3: Maquininhas
+  const banks = useMemo(() => data.bankAccounts.filter(row => !row.archived && row.unitId === unit), [data.bankAccounts, unit]);
+  const [machines, setMachines] = useState<Record<string, { used: boolean; credit: string; debit: string; pix: string }>>({});
 
-  // Sum up credit, debit, pix from editable bank values
-  const totalCreditFound=Object.values(bankVals).reduce((s,b)=>s+b.credit,0);
-  const totalDebitFound=Object.values(bankVals).reduce((s,b)=>s+b.debit,0);
-  const totalPixFound=Object.values(bankVals).reduce((s,b)=>s+b.pix,0);
+  useEffect(() => {
+    setMachines(prev => {
+      const next: Record<string, { used: boolean; credit: string; debit: string; pix: string }> = {};
+      banks.forEach(b => {
+        next[b.id] = prev[b.id] || { used: false, credit: "", debit: "", pix: "" };
+      });
+      return next;
+    });
+  }, [banks]);
 
-  const cashExpected=closingValue(closing,"cashExpected");
-  const systemCredit=closingValue(closing,"systemCredit");
-  const systemDebit=closingValue(closing,"systemDebit");
-  const systemPix=closingValue(closing,"systemPix");
+  // Step 4: Extras & Envio
+  const [pixRequests, setPixRequests] = useState<Array<{ id: string; name: string; key: string; description: string; amount: string }>>([]);
+  const [motoboySystem, setMotoboySystem] = useState("");
+  const [motoboyPaid, setMotoboyPaid] = useState("");
+  const [ifoodAudit, setIfoodAudit] = useState("");
+  const [fiscalMachines, setFiscalMachines] = useState("");
+  const [invoiceIssued, setInvoiceIssued] = useState("");
+  const [notes, setNotes] = useState("");
+  const [attachments, setAttachments] = useState<File[]>([]);
 
-  const cashDiff=cashFound-cashExpected;
-  const creditDiff=totalCreditFound-systemCredit;
-  const debitDiff=totalDebitFound-systemDebit;
-  const pixDiff=totalPixFound-systemPix;
-  const totalDiff=cashDiff+creditDiff+debitDiff+pixDiff;
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  const rows=[
-    {key:"cash" as const,label:"Dinheiro",system:cashExpected,found:cashFound,difference:cashDiff},
-    {key:"credit" as const,label:"Crédito",system:systemCredit,found:totalCreditFound,difference:creditDiff},
-    {key:"debit" as const,label:"Débito",system:systemDebit,found:totalDebitFound,difference:debitDiff},
-    {key:"pix" as const,label:"PIX",system:systemPix,found:totalPixFound,difference:pixDiff}
+  // Cent helpers
+  const c = (val: string) => Math.max(0, Math.round(Number(val || 0) * 100));
+
+  const cSysCash = c(systemCash);
+  const cSysCredit = c(systemCredit);
+  const cSysDebit = c(systemDebit);
+  const cSysPix = c(systemPix);
+  const cOther = c(systemIfoodOnline) + c(systemIfoodVoucher) + c(systemTerm) + c(systemClub) + c(systemAccrual);
+  const cSysTotal = cSysCash + cSysCredit + cSysDebit + cSysPix + cOther;
+
+  const cOpening = c(openingAmount);
+  const cCashIn = c(cashIn);
+  const cSangria = c(sangriaAmount);
+  const cClosingFloat = c(closingFloat);
+  const cOutflows = outflows.reduce((sum, r) => sum + c(r.amount), 0);
+  const cCashExpected = cOpening + cSysCash + cCashIn - cOutflows;
+  const cCashFound = cSangria + cClosingFloat;
+  const cCashDiff = cCashFound - cCashExpected;
+
+  let cCreditFound = 0;
+  let cDebitFound = 0;
+  let cPixFound = 0;
+  Object.entries(machines).forEach(([_, m]) => {
+    if (m.used) {
+      cCreditFound += c(m.credit);
+      cDebitFound += c(m.debit);
+      cPixFound += c(m.pix);
+    }
+  });
+
+  const cCreditDiff = cCreditFound - cSysCredit;
+  const cDebitDiff = cDebitFound - cSysDebit;
+  const cPixDiff = cPixFound - cSysPix;
+  const cTotalConfirmed = cCashFound + cCreditFound + cDebitFound + cPixFound;
+  const cTotalDiff = cCashDiff + cCreditDiff + cDebitDiff + cPixDiff;
+
+  const cMotoboyDiff = c(motoboyPaid) - c(motoboySystem);
+  const cInvoiceDiff = c(ifoodAudit) + c(fiscalMachines) - c(invoiceIssued);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (!unit) { setError("Selecione a unidade do fechamento."); return; }
+    if (!operatorName.trim()) { setError("Informe o nome do operador."); return; }
+    setBusy(true);
+    setError("");
+
+    try {
+      const bankAmounts: Record<string, { credit: number; debit: number; pix: number }> = {};
+      Object.entries(machines).forEach(([bId, m]) => {
+        if (m.used) {
+          bankAmounts[bId] = {
+            credit: c(m.credit),
+            debit: c(m.debit),
+            pix: c(m.pix)
+          };
+        }
+      });
+
+      if (!Object.keys(bankAmounts).length && (cSysCredit + cSysDebit + cSysPix) > 0) {
+        throw new Error("Selecione e preencha ao menos uma máquina de cartão/PIX utilizada.");
+      }
+
+      const requestedPix = pixRequests.filter(item => item.name.trim() || item.key.trim() || item.description.trim() || Number(item.amount) > 0);
+      if (requestedPix.some(item => !item.name.trim() || !item.key.trim() || !item.description.trim() || Number(item.amount) <= 0)) {
+        throw new Error("Preencha favorecido, chave PIX, motivo e valor em todas as solicitações de PIX.");
+      }
+      if (requestedPix.some(item => !isValidPixKey(item.key))) {
+        throw new Error("Uma ou mais chaves PIX informadas têm formato inválido (use CPF, CNPJ, e-mail, telefone ou chave aleatória).");
+      }
+
+      if (cSangria > 0 && !sangriaRecipient.trim()) {
+        throw new Error("Informe para quem foi entregue a sangria ou onde está guardada na loja.");
+      }
+
+      if (attachments.length > 5) {
+        throw new Error("Envie no máximo 5 comprovantes.");
+      }
+
+      const uploadedAttachments = [];
+      for (const file of attachments) {
+        const saved = await uploadFileToDrive(nameFileForDrive(file, `Fechamento ${date} - ${unit}`), "payment_proofs");
+        uploadedAttachments.push({ fileId: saved.fileId, fileName: saved.fileName, mimeType: saved.mimeType, size: saved.size });
+      }
+
+      const now = new Date().toISOString();
+      const closingId = `closing-${date}-${unit}-unico`;
+      const defaultCategory = data.categories.find(cat => !cat.archived && str(cat, "nature") === "Operacional")?.id || data.categories[0]?.id || "operacional-outros";
+
+      const row: RecordData = {
+        id: closingId,
+        kind: "cashClosings",
+        tenantId,
+        unitId: unit,
+        version: 0,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: user.uid,
+        updatedBy: user.uid,
+        date,
+        shift,
+        operatorName: operatorName.trim(),
+        systemCash: cSysCash,
+        systemCredit: cSysCredit,
+        systemDebit: cSysDebit,
+        systemPix: cSysPix,
+        systemIfoodOnline: c(systemIfoodOnline),
+        systemIfoodVoucher: c(systemIfoodVoucher),
+        systemTerm: c(systemTerm),
+        systemClub: c(systemClub),
+        systemAccrual: c(systemAccrual),
+        openingAmount: cOpening,
+        cashIn: cCashIn,
+        cashOutflows: cOutflows,
+        cashOutflowsJson: JSON.stringify(outflows.filter(item => item.name.trim() || Number(item.amount) > 0)),
+        sangriaAmount: cSangria,
+        sangriaStatus: cSangria > 0 ? sangriaStatus : "",
+        sangriaRecipient: cSangria > 0 ? sangriaRecipient.trim() : "",
+        closingFloat: cClosingFloat,
+        bankAmountsJson: JSON.stringify(bankAmounts),
+        systemTotal: cSysTotal,
+        countedTotal: cTotalConfirmed,
+        cashExpected: cCashExpected,
+        cashFound: cCashFound,
+        cashDifference: cCashDiff,
+        creditFound: cCreditFound,
+        creditDifference: cCreditDiff,
+        debitFound: cDebitFound,
+        debitDifference: cDebitDiff,
+        pixFound: cPixFound,
+        pixDifference: cPixDiff,
+        difference: cTotalDiff,
+        motoboySystem: c(motoboySystem),
+        motoboyPaid: c(motoboyPaid),
+        motoboyDifference: cMotoboyDiff,
+        ifoodAudit: c(ifoodAudit),
+        fiscalMachines: c(fiscalMachines),
+        invoiceIssued: c(invoiceIssued),
+        invoiceDifference: cInvoiceDiff,
+        pixRequestsJson: JSON.stringify(requestedPix),
+        attachmentsJson: JSON.stringify(uploadedAttachments),
+        status: cTotalDiff === 0 ? "Aguardando conferência" : "Com divergência",
+        notes: notes.trim()
+      };
+
+      const payables = requestedPix.map(request => ({
+        id: `pix-${closingId}-${request.id}`,
+        kind: "payables" as const,
+        tenantId,
+        unitId: unit,
+        version: 0,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: user.uid,
+        updatedBy: user.uid,
+        obligationType: "Outros",
+        categoryId: defaultCategory,
+        description: `PIX — ${request.description} (${request.name})`,
+        competence: date.slice(0, 7),
+        dueDate: date,
+        amount: Math.round(Number(request.amount) * 100),
+        paymentMethod: "PIX",
+        status: "Pendente",
+        nature: "Operacional",
+        sourceId: closingId,
+        pixKey: request.key,
+        notes: `Solicitação criada no fechamento de caixa. Chave PIX: ${request.key}`
+      })) as RecordData[];
+
+      [row, ...payables].forEach(record => validate(record, data));
+      await commitRecords([row, ...payables], data, row);
+      onSaved();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Não foi possível salvar o fechamento.";
+      setError(/quota exceeded|resource exhausted/i.test(message) ? "O Firebase atingiu o limite temporário de uso. Nenhum fechamento foi confirmado; tente novamente mais tarde." : message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const stepsList = [
+    { id: 1 as const, title: "1. Vendas PDV", icon: Receipt },
+    { id: 2 as const, title: "2. Dinheiro & Gaveta", icon: Coins },
+    { id: 3 as const, title: "3. Maquininhas", icon: CreditCard },
+    { id: 4 as const, title: "4. Auditoria & Envio", icon: Sparkles },
   ];
 
-  // Fee deductions calculation per bank
-  const bankCalculations=useMemo(()=>{
-    return banks.map(bank=>{
-      const vals=bankVals[bank.id]||{credit:0,debit:0,pix:0};
-      const creditPct=Number(bank.creditFeePct||0);
-      const debitPct=Number(bank.debitFeePct||0);
-      const pixPct=Number(bank.pixFeePct||0);
+  return (
+    <div className="mg-modal-shade" role="dialog" aria-modal="true">
+      <div className="closing-modal-container">
+        {/* Header */}
+        <header className="closing-modal-header">
+          <div>
+            <h2>Fechamento de Caixa</h2>
+            <p>Conferência simplificada e intuitiva para o operador de loja.</p>
+          </div>
+          <button type="button" className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </header>
 
-      const grossAmount=vals.credit+vals.debit+vals.pix;
-      const creditFee=Math.round(vals.credit*(creditPct/100));
-      const debitFee=Math.round(vals.debit*(debitPct/100));
-      const pixFee=Math.round(vals.pix*(pixPct/100));
-      const totalFees=creditFee+debitFee+pixFee;
-      const netAmount=grossAmount-totalFees;
+        {/* Identification Meta Bar */}
+        <div className="closing-meta-bar">
+          <div className="closing-meta-item">
+            <Store size={15} />
+            <select
+              value={unit}
+              disabled={allowedUnit !== "all"}
+              onChange={e => {
+                setUnit(e.target.value);
+                setMachines({});
+              }}
+            >
+              <option value="">Selecione a loja</option>
+              {data.units.filter(u => !u.archived && (allowedUnit === "all" || u.id === allowedUnit)).map(u => (
+                <option key={u.id} value={u.id}>{str(u, "name")}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="closing-meta-item">
+            <span>Data:</span>
+            <input
+              type="date"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="closing-meta-item">
+            <span>Operador:</span>
+            <input
+              type="text"
+              placeholder="Nome do operador"
+              value={operatorName}
+              onChange={e => setOperatorName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="closing-meta-item">
+            <span>Turno:</span>
+            <select value={shift} onChange={e => setShift(e.target.value)}>
+              <option value="Único">Turno Único</option>
+              <option value="Almoço">Almoço</option>
+              <option value="Jantar">Jantar</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Step Navigation Tabs */}
+        <div className="closing-steps-nav">
+          {stepsList.map(s => {
+            const Icon = s.icon;
+            const isActive = activeStep === s.id;
+            const isPast = activeStep > s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                className={`closing-step-tab ${isActive ? "active" : ""}`}
+                onClick={() => setActiveStep(s.id)}
+              >
+                <span className="step-number">{isPast ? <Check size={11} /> : s.id}</span>
+                <Icon size={15} />
+                <span>{s.title}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Step Content */}
+        <div className="closing-modal-body">
+          {/* STEP 1: VENDAS DO SISTEMA (PDV) */}
+          {activeStep === 1 && (
+            <div className="space-y-4">
+              <div className="closing-section-lead">
+                <div>
+                  <h3>Valores do Sistema (PDV)</h3>
+                  <p>Informe o total que apareceu no relatório de vendas do seu sistema.</p>
+                </div>
+                <div className="closing-summary-pill neutral">
+                  Total Vendas: <b>{brl(cSysTotal)}</b>
+                </div>
+              </div>
+
+              <div className="closing-cards-grid-4">
+                <div className="closing-value-card">
+                  <label>Dinheiro no Sistema</label>
+                  <div className="closing-input-wrapper">
+                    <span className="prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={systemCash}
+                      onChange={e => setSystemCash(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="closing-value-card">
+                  <label>Cartão de Crédito</label>
+                  <div className="closing-input-wrapper">
+                    <span className="prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={systemCredit}
+                      onChange={e => setSystemCredit(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="closing-value-card">
+                  <label>Cartão de Débito</label>
+                  <div className="closing-input-wrapper">
+                    <span className="prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={systemDebit}
+                      onChange={e => setSystemDebit(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="closing-value-card">
+                  <label>PIX no Sistema</label>
+                  <div className="closing-input-wrapper">
+                    <span className="prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={systemPix}
+                      onChange={e => setSystemPix(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Collapsible Other Channels */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition py-1"
+                  onClick={() => setShowOtherChannels(!showOtherChannels)}
+                >
+                  {showOtherChannels ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  <span>{showOtherChannels ? "Ocultar outros canais de recebimento" : "+ Adicionar outros recebimentos (iFood, Voucher, Faturado...)"}</span>
+                </button>
+
+                {showOtherChannels && (
+                  <div className="closing-cards-grid mt-3 p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                    <div className="closing-value-card">
+                      <label>iFood Online</label>
+                      <div className="closing-input-wrapper">
+                        <span className="prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={systemIfoodOnline}
+                          onChange={e => setSystemIfoodOnline(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="closing-value-card">
+                      <label>iFood Voucher</label>
+                      <div className="closing-input-wrapper">
+                        <span className="prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={systemIfoodVoucher}
+                          onChange={e => setSystemIfoodVoucher(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="closing-value-card">
+                      <label>Faturado / A Prazo</label>
+                      <div className="closing-input-wrapper">
+                        <span className="prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={systemTerm}
+                          onChange={e => setSystemTerm(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="closing-value-card">
+                      <label>Resgate Clube</label>
+                      <div className="closing-input-wrapper">
+                        <span className="prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={systemClub}
+                          onChange={e => setSystemClub(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="closing-value-card">
+                      <label>Acréscimos / Gorjetas</label>
+                      <div className="closing-input-wrapper">
+                        <span className="prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={systemAccrual}
+                          onChange={e => setSystemAccrual(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: DINHEIRO & CAIXA FÍSICO */}
+          {activeStep === 2 && (
+            <div className="space-y-4">
+              <div className="closing-section-lead">
+                <div>
+                  <h3>Contagem do Dinheiro e Gaveta Física</h3>
+                  <p>Troco inicial, suprimentos, saídas em espécie e sangria retirada.</p>
+                </div>
+                <div className={`closing-summary-pill ${cCashDiff === 0 ? "ok" : cCashDiff > 0 ? "warn" : "danger"}`}>
+                  Diferença: <b>{cCashDiff === 0 ? "Caixa conferido" : `${cCashDiff > 0 ? "Sobra" : "Falta"} ${brl(Math.abs(cCashDiff))}`}</b>
+                </div>
+              </div>
+
+              <div className="closing-cards-grid-4">
+                <div className="closing-value-card">
+                  <label>Troco Inicial (Abertura)</label>
+                  <div className="closing-input-wrapper">
+                    <span className="prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={openingAmount}
+                      onChange={e => setOpeningAmount(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="closing-value-card">
+                  <label>Suprimentos (Entradas)</label>
+                  <div className="closing-input-wrapper">
+                    <span className="prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={cashIn}
+                      onChange={e => setCashIn(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="closing-value-card">
+                  <label>Sangria (Retirada)</label>
+                  <div className="closing-input-wrapper">
+                    <span className="prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={sangriaAmount}
+                      onChange={e => setSangriaAmount(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="closing-value-card">
+                  <label>Troco Final na Gaveta</label>
+                  <div className="closing-input-wrapper">
+                    <span className="prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={closingFloat}
+                      onChange={e => setClosingFloat(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sangria Destination if sangria > 0 */}
+              {cSangria > 0 && (
+                <div className="p-3.5 bg-purple-50 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800 flex flex-wrap items-center gap-3 text-xs">
+                  <strong className="text-purple-900 dark:text-purple-300">Destino da sangria ({brl(cSangria)}):</strong>
+                  <select
+                    value={sangriaStatus}
+                    onChange={e => setSangriaStatus(e.target.value)}
+                    className="p-1.5 rounded-lg border border-purple-300 bg-white dark:bg-zinc-900 font-semibold"
+                  >
+                    <option value="Na loja">Está guardado na loja (Cofre)</option>
+                    <option value="Entregue a responsável">Entregue a responsável</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={sangriaRecipient}
+                    onChange={e => setSangriaRecipient(e.target.value)}
+                    placeholder="Para quem foi entregue ou onde está guardado (obrigatório)"
+                    className="flex-1 min-w-[220px] p-1.5 rounded-lg border border-purple-300 bg-white dark:bg-zinc-900 font-semibold text-xs"
+                    required
+                  />
+                </div>
+              )}
+
+              {/* Outflows (Saídas em dinheiro) */}
+              <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <strong className="text-xs text-zinc-700 dark:text-zinc-200 font-bold">Saídas em Dinheiro (Despesas pagas da gaveta)</strong>
+                    <p className="text-[11px] text-zinc-400">Registre pagamentos de motoboy avulso, compras rápidas ou fornecedores pagos em espécie.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="cash-add text-xs py-1 px-2.5"
+                    onClick={() => setOutflows(rows => [...rows, { id: safeUUID(), name: "", amount: "" }])}
+                  >
+                    + Adicionar saída
+                  </button>
+                </div>
+
+                {outflows.map((row, idx) => (
+                  <div key={row.id} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Descrição (ex.: Compra emergencial, motoboy)"
+                      value={row.name}
+                      onChange={e => setOutflows(rows => rows.map(r => r.id === row.id ? { ...r, name: e.target.value } : r))}
+                      className="flex-1 p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs"
+                    />
+                    <div className="w-36 relative">
+                      <span className="absolute left-2.5 top-2 text-xs text-zinc-400">R$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0,00"
+                        value={row.amount}
+                        onChange={e => setOutflows(rows => rows.map(r => r.id === row.id ? { ...r, amount: e.target.value } : r))}
+                        className="w-full pl-8 pr-2 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition"
+                      onClick={() => setOutflows(rows => rows.filter(r => r.id !== row.id))}
+                      aria-label={`Remover saída ${idx + 1}`}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between text-xs pt-2 border-t border-zinc-200 dark:border-zinc-800 font-semibold">
+                  <span>Total de saídas registradas:</span>
+                  <b className="text-zinc-900 dark:text-zinc-100">{brl(cOutflows)}</b>
+                </div>
+              </div>
+
+              {/* Real-time cash feedback card */}
+              <div className={`closing-feedback-card ${cCashDiff === 0 ? "ok" : "diff"}`}>
+                <div className="space-y-1">
+                  <div>Esperado: <b>{brl(cCashExpected)}</b> <small className="text-[11px] opacity-75">(Troco inicial + Dinheiro PDV + Suprimentos − Saídas)</small></div>
+                  <div>Contado: <b>{brl(cCashFound)}</b> <small className="text-[11px] opacity-75">(Sangria {brl(cSangria)} + Troco Gaveta {brl(cClosingFloat)})</small></div>
+                </div>
+                <Difference value={cCashDiff} />
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: MAQUININHAS & BANCOS */}
+          {activeStep === 3 && (
+            <div className="space-y-4">
+              <div className="closing-section-lead">
+                <div>
+                  <h3>Conferência de Maquininhas de Cartão & Bancos</h3>
+                  <p>Marque as máquinas utilizadas e digite o fechamento / comprovante de cada uma.</p>
+                </div>
+                <div className="closing-summary-pill neutral">
+                  Total Maquininhas: <b>{brl(cCreditFound + cDebitFound + cPixFound)}</b>
+                </div>
+              </div>
+
+              {/* Side-by-side comparison with step 1 PDV */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-zinc-500 font-semibold block">Crédito</span>
+                    <small className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                      {brl(cCreditFound)} <span className="font-normal text-zinc-400">/ PDV {brl(cSysCredit)}</span>
+                    </small>
+                  </div>
+                  <Difference value={cCreditDiff} />
+                </div>
+
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-zinc-500 font-semibold block">Débito</span>
+                    <small className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                      {brl(cDebitFound)} <span className="font-normal text-zinc-400">/ PDV {brl(cSysDebit)}</span>
+                    </small>
+                  </div>
+                  <Difference value={cDebitDiff} />
+                </div>
+
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-zinc-500 font-semibold block">PIX</span>
+                    <small className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                      {brl(cPixFound)} <span className="font-normal text-zinc-400">/ PDV {brl(cSysPix)}</span>
+                    </small>
+                  </div>
+                  <Difference value={cPixDiff} />
+                </div>
+              </div>
+
+              {/* Bank Machines List */}
+              {banks.length ? (
+                <div className="space-y-3">
+                  {banks.map(bank => {
+                    const m = machines[bank.id] || { used: false, credit: "", debit: "", pix: "" };
+                    const machineTotal = c(m.credit) + c(m.debit) + c(m.pix);
+                    return (
+                      <div key={bank.id} className={`closing-machine-card ${m.used ? "active" : ""}`}>
+                        <div className="closing-machine-header">
+                          <label className="flex items-center gap-2.5 cursor-pointer font-bold text-sm text-zinc-800 dark:text-zinc-100">
+                            <input
+                              type="checkbox"
+                              checked={m.used}
+                              onChange={e => setMachines(prev => ({
+                                ...prev,
+                                [bank.id]: { ...m, used: e.target.checked }
+                              }))}
+                              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <Landmark size={17} className="text-indigo-600" />
+                            <span>{str(bank, "name")}</span>
+                            <small className="text-xs font-normal text-zinc-400">({str(bank, "bank") || "Conta"})</small>
+                          </label>
+
+                          {m.used && (
+                            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                              Subtotal: {brl(machineTotal)}
+                            </span>
+                          )}
+                        </div>
+
+                        {m.used ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                            <div className="closing-value-card">
+                              <label>Crédito nesta máquina</label>
+                              <div className="closing-input-wrapper">
+                                <span className="prefix">R$</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0,00"
+                                  value={m.credit}
+                                  onChange={e => setMachines(prev => ({
+                                    ...prev,
+                                    [bank.id]: { ...m, credit: e.target.value }
+                                  }))}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="closing-value-card">
+                              <label>Débito nesta máquina</label>
+                              <div className="closing-input-wrapper">
+                                <span className="prefix">R$</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0,00"
+                                  value={m.debit}
+                                  onChange={e => setMachines(prev => ({
+                                    ...prev,
+                                    [bank.id]: { ...m, debit: e.target.value }
+                                  }))}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="closing-value-card">
+                              <label>PIX nesta máquina</label>
+                              <div className="closing-input-wrapper">
+                                <span className="prefix">R$</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0,00"
+                                  value={m.pix}
+                                  onChange={e => setMachines(prev => ({
+                                    ...prev,
+                                    [bank.id]: { ...m, pix: e.target.value }
+                                  }))}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-zinc-400 pl-6">Máquina não utilizada neste turno. Marque para informar comprovantes.</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="people-empty py-6">
+                  <Landmark size={24} />
+                  <strong>Nenhuma máquina cadastrada para esta unidade.</strong>
+                  <span>Selecione a loja correspondente na barra superior.</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* STEP 4: AUDITORIA, EXTRAS & ENVIO */}
+          {activeStep === 4 && (
+            <div className="space-y-4">
+              <div className="closing-section-lead">
+                <div>
+                  <h3>Auditoria, Comprovantes & Resumo do Fechamento</h3>
+                  <p>Confirme os valores apurados e envie para a conferência financeira.</p>
+                </div>
+                <div className={`closing-summary-pill ${cTotalDiff === 0 ? "ok" : "danger"}`}>
+                  Divergência Geral: <b>{cTotalDiff === 0 ? "Caixa Quadrado" : brl(cTotalDiff)}</b>
+                </div>
+              </div>
+
+              {/* 4 Pillars Summary Cards */}
+              <div className="closing-cards-grid-4">
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1">
+                  <span className="text-[11px] text-zinc-500 font-semibold block">Dinheiro Físico</span>
+                  <div className="text-xs">Esp.: <b>{brl(cCashExpected)}</b></div>
+                  <div className="text-xs">Cont.: <b>{brl(cCashFound)}</b></div>
+                  <Difference value={cCashDiff} />
+                </div>
+
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1">
+                  <span className="text-[11px] text-zinc-500 font-semibold block">Cartão Crédito</span>
+                  <div className="text-xs">PDV: <b>{brl(cSysCredit)}</b></div>
+                  <div className="text-xs">Máq.: <b>{brl(cCreditFound)}</b></div>
+                  <Difference value={cCreditDiff} />
+                </div>
+
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1">
+                  <span className="text-[11px] text-zinc-500 font-semibold block">Cartão Débito</span>
+                  <div className="text-xs">PDV: <b>{brl(cSysDebit)}</b></div>
+                  <div className="text-xs">Máq.: <b>{brl(cDebitFound)}</b></div>
+                  <Difference value={cDebitDiff} />
+                </div>
+
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1">
+                  <span className="text-[11px] text-zinc-500 font-semibold block">PIX no Turno</span>
+                  <div className="text-xs">PDV: <b>{brl(cSysPix)}</b></div>
+                  <div className="text-xs">Máq.: <b>{brl(cPixFound)}</b></div>
+                  <Difference value={cPixDiff} />
+                </div>
+              </div>
+
+              {/* PIX Requests (Emergency payables) */}
+              <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <strong className="text-xs text-zinc-700 dark:text-zinc-200 font-bold">Solicitações de PIX (Contas a Pagar)</strong>
+                    <p className="text-[11px] text-zinc-400">Solicitações de pagamento para aprovação do financeiro.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="cash-add text-xs py-1 px-2.5"
+                    onClick={() => setPixRequests(rows => [...rows, { id: safeUUID(), name: "", key: "", description: "", amount: "" }])}
+                  >
+                    + Adicionar PIX
+                  </button>
+                </div>
+
+                {pixRequests.map((item, idx) => {
+                  const keyValid = !item.key.trim() || isValidPixKey(item.key);
+                  return (
+                    <div key={item.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-center p-2.5 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                      <input
+                        type="text"
+                        placeholder="Favorecido (nome)"
+                        value={item.name}
+                        onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, name: e.target.value } : r))}
+                        className="p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs"
+                      />
+                      <div>
+                        <input
+                          type="text"
+                          placeholder="Chave PIX"
+                          value={item.key}
+                          onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, key: e.target.value } : r))}
+                          className={`w-full p-1.5 rounded border text-xs ${!keyValid ? "border-rose-500 bg-rose-50" : "border-zinc-300 dark:border-zinc-700"}`}
+                        />
+                        {!keyValid && <span className="text-[10px] text-rose-500 block">Formato inválido</span>}
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Motivo / Descrição"
+                        value={item.description}
+                        onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, description: e.target.value } : r))}
+                        className="p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs"
+                      />
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="R$ 0,00"
+                          value={item.amount}
+                          onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, amount: e.target.value } : r))}
+                          className="flex-1 p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
+                        />
+                        <button
+                          type="button"
+                          className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                          onClick={() => setPixRequests(rows => rows.filter(r => r.id !== item.id))}
+                          aria-label={`Remover solicitação PIX ${idx + 1}`}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Optional Audits (Motoboy & Fiscal) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2">
+                  <strong className="text-xs text-zinc-700 dark:text-zinc-300">Auditoria de Motoboys</strong>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="text-[11px] text-zinc-500">
+                      Sistema
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={motoboySystem}
+                        onChange={e => setMotoboySystem(e.target.value)}
+                        className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
+                      />
+                    </label>
+                    <label className="text-[11px] text-zinc-500">
+                      Pago
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={motoboyPaid}
+                        onChange={e => setMotoboyPaid(e.target.value)}
+                        className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
+                      />
+                    </label>
+                  </div>
+                  <div className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+                    Diferença Motoboy: <b>{brl(cMotoboyDiff)}</b>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2">
+                  <strong className="text-xs text-zinc-700 dark:text-zinc-300">Auditoria Fiscal (Notas)</strong>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <label className="text-[11px] text-zinc-500">
+                      iFood
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={ifoodAudit}
+                        onChange={e => setIfoodAudit(e.target.value)}
+                        className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
+                      />
+                    </label>
+                    <label className="text-[11px] text-zinc-500">
+                      Máquinas
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={fiscalMachines}
+                        onChange={e => setFiscalMachines(e.target.value)}
+                        className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
+                      />
+                    </label>
+                    <label className="text-[11px] text-zinc-500">
+                      Emitidas
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={invoiceIssued}
+                        onChange={e => setInvoiceIssued(e.target.value)}
+                        className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
+                      />
+                    </label>
+                  </div>
+                  <div className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+                    Diferença Fiscal: <b>{brl(cInvoiceDiff)}</b>
+                  </div>
+                </div>
+              </div>
+
+              {/* Attachments & Observations */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2">
+                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">
+                    Comprovantes (Google Drive)
+                  </label>
+                  <label className="employee-file-upload cursor-pointer">
+                    <Upload size={15} />
+                    <span>{attachments.length ? `${attachments.length} arquivo(s) selecionado(s)` : "Selecionar fotos/PDFs (máx 5)"}</span>
+                    <input
+                      type="file"
+                      multiple
+                      className="sr-only"
+                      accept=".pdf,image/*"
+                      onChange={e => {
+                        const list = Array.from(e.target.files || []);
+                        setAttachments(list.slice(0, 5));
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1">
+                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">
+                    Observações do Turno
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Explique eventuais sobras, faltas ou ocorrências..."
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    className="w-full p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {error && <p className="mg-error">{error}</p>}
+        </div>
+
+        {/* Persistent Sticky Footer */}
+        <footer className="closing-footer-sticky">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold text-zinc-500">
+              Passo {activeStep} de 4
+            </span>
+            {activeStep === 2 && (
+              <span className={`closing-summary-pill ${cCashDiff === 0 ? "ok" : cCashDiff > 0 ? "warn" : "danger"}`}>
+                Gaveta: {cCashDiff === 0 ? "Confere" : `${cCashDiff > 0 ? "Sobra" : "Falta"} ${brl(Math.abs(cCashDiff))}`}
+              </span>
+            )}
+            {activeStep === 3 && (
+              <span className={`closing-summary-pill ${cCreditDiff === 0 && cDebitDiff === 0 && cPixDiff === 0 ? "ok" : "warn"}`}>
+                {cCreditDiff === 0 && cDebitDiff === 0 && cPixDiff === 0 ? "Maquininhas conferem" : "Diferença em maquininhas"}
+              </span>
+            )}
+            {activeStep === 4 && (
+              <span className={`closing-summary-pill ${cTotalDiff === 0 ? "ok" : "danger"}`}>
+                {cTotalDiff === 0 ? "Caixa 100% quadrado" : `Divergência: ${brl(cTotalDiff)}`}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button type="button" className="mg-button secondary" onClick={onClose}>
+              Cancelar
+            </button>
+            {activeStep > 1 && (
+              <button type="button" className="mg-button secondary" onClick={() => setActiveStep((activeStep - 1) as any)}>
+                <ArrowLeft size={15} /> Voltar
+              </button>
+            )}
+            {activeStep < 4 ? (
+              <button type="button" className="mg-button" onClick={() => setActiveStep((activeStep + 1) as any)}>
+                Avançar <ArrowRight size={15} />
+              </button>
+            ) : (
+              <button type="button" className="mg-button" disabled={busy || !unit} onClick={handleSubmit}>
+                {busy ? "Enviando ao financeiro..." : "Finalizar e Enviar Fechamento"}
+              </button>
+            )}
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; onClose: () => void; onSaved: () => void }) {
+  const { data, tenantId } = useManagement();
+  const { user, userProfile } = useAuth();
+  const [review, setReview] = useState(false);
+  const [showDrawerDetails, setShowDrawerDetails] = useState(false);
+
+  // Editable system sales values
+  const [systemCash, setSystemCash] = useState<number>(() => closingValue(closing, "systemCash"));
+  const [systemCredit, setSystemCredit] = useState<number>(() => closingValue(closing, "systemCredit"));
+  const [systemDebit, setSystemDebit] = useState<number>(() => closingValue(closing, "systemDebit"));
+  const [systemPix, setSystemPix] = useState<number>(() => closingValue(closing, "systemPix"));
+  const otherSales = closingValue(closing, "systemIfoodOnline") + closingValue(closing, "systemIfoodVoucher") + closingValue(closing, "systemTerm") + closingValue(closing, "systemClub") + closingValue(closing, "systemAccrual");
+
+  // Editable physical cash drawer values
+  const [openingAmount, setOpeningAmount] = useState<number>(() => closingValue(closing, "openingAmount"));
+  const [cashIn, setCashIn] = useState<number>(() => closingValue(closing, "cashIn"));
+  const [cashOutflows, setCashOutflows] = useState<number>(() => closingValue(closing, "cashOutflows"));
+  const [sangriaAmount, setSangriaAmount] = useState<number>(() => closingValue(closing, "sangriaAmount"));
+  const [closingFloat, setClosingFloat] = useState<number>(() => closingValue(closing, "closingFloat"));
+
+  // Bank machine values (editable)
+  const initialSaved = useMemo(() => parseBankAmounts(closing), [closing]);
+  const allBanks = data.bankAccounts.filter(b => !b.archived && b.unitId === closing.unitId);
+  // Show banks that were either registered in initialSaved OR all active store banks
+  const [bankVals, setBankVals] = useState<Record<string, { credit: number; debit: number; pix: number }>>(() => {
+    const res: Record<string, { credit: number; debit: number; pix: number }> = {};
+    allBanks.forEach(b => {
+      res[b.id] = {
+        credit: Number(initialSaved[b.id]?.credit || 0),
+        debit: Number(initialSaved[b.id]?.debit || 0),
+        pix: Number(initialSaved[b.id]?.pix || 0),
+      };
+    });
+    return res;
+  });
+
+  const [checks, setChecks] = useState({ cash: false, credit: false, debit: false, pix: false });
+  const [notes, setNotes] = useState(() => str(closing, "conferenceNotes") || str(closing, "notes") || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  // Recalculations
+  const cashExpected = openingAmount + systemCash + cashIn - cashOutflows;
+  const cashFound = sangriaAmount + closingFloat;
+  const cashDiff = cashFound - cashExpected;
+
+  const totalCreditFound = Object.values(bankVals).reduce((s, b) => s + b.credit, 0);
+  const totalDebitFound = Object.values(bankVals).reduce((s, b) => s + b.debit, 0);
+  const totalPixFound = Object.values(bankVals).reduce((s, b) => s + b.pix, 0);
+
+  const creditDiff = totalCreditFound - systemCredit;
+  const debitDiff = totalDebitFound - systemDebit;
+  const pixDiff = totalPixFound - systemPix;
+  const totalDiff = cashDiff + creditDiff + debitDiff + pixDiff;
+  const systemTotal = systemCash + systemCredit + systemDebit + systemPix + otherSales;
+
+  // Active banks to display (those with values > 0 or in initialSaved, or all)
+  const displayBanks = allBanks.filter(b => initialSaved[b.id] !== undefined || (bankVals[b.id]?.credit || 0) > 0 || (bankVals[b.id]?.debit || 0) > 0 || (bankVals[b.id]?.pix || 0) > 0 || allBanks.length <= 3);
+
+  // Fee deductions calculation per bank
+  const bankCalculations = useMemo(() => {
+    return displayBanks.map(bank => {
+      const vals = bankVals[bank.id] || { credit: 0, debit: 0, pix: 0 };
+      const creditPct = Number(bank.creditFeePct || 0);
+      const debitPct = Number(bank.debitFeePct || 0);
+      const pixPct = Number(bank.pixFeePct || 0);
+
+      const grossAmount = vals.credit + vals.debit + vals.pix;
+      const creditFee = Math.round(vals.credit * (creditPct / 100));
+      const debitFee = Math.round(vals.debit * (debitPct / 100));
+      const pixFee = Math.round(vals.pix * (pixPct / 100));
+      const totalFees = creditFee + debitFee + pixFee;
+      const netAmount = grossAmount - totalFees;
 
       return {
         bank,
@@ -253,20 +1344,32 @@ function ConferenceModal({closing,onClose,onSaved}:{closing:RecordData;onClose:(
         netAmount
       };
     });
-  },[banks,bankVals]);
+  }, [displayBanks, bankVals]);
 
-  const allChecked=Object.values(checks).every(Boolean);
-  const hasDifference=totalDiff!==0;
+  const allChecked = Object.values(checks).every(Boolean);
+  const hasDifference = totalDiff !== 0;
 
-  const save=async()=>{
-    if(!user)return;
-    if(!allChecked){setError("Confirme as quatro conciliações antes de concluir.");return}
-    if(hasDifference&&!notes.trim()){setError("Explique a divergência antes de aprovar.");return}
-    setBusy(true);setError("");
-    try{
-      const now=new Date().toISOString();
-      const before=Object.fromEntries(banks.map(b=>[b.id,typeof b.balance==="number"?b.balance:null]));
-      const afterNetValues=Object.fromEntries(bankCalculations.map(c=>[c.bank.id,c.netAmount]));
+  const downloadAttachment = async (fileId: string, fileName: string) => {
+    try {
+      setDownloading(fileId);
+      await downloadFileFromDrive(fileId, fileName);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao baixar arquivo do Drive.");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const save = async () => {
+    if (!user) return;
+    if (!allChecked) { setError("Confirme as quatro conciliações antes de concluir."); return; }
+    if (hasDifference && !notes.trim()) { setError("Explique a divergência antes de aprovar."); return; }
+    setBusy(true);
+    setError("");
+    try {
+      const now = new Date().toISOString();
+      const before = Object.fromEntries(displayBanks.map(b => [b.id, typeof b.balance === "number" ? b.balance : null]));
+      const afterNetValues = Object.fromEntries(bankCalculations.map(c => [c.bank.id, c.netAmount]));
 
       let previousNetAmounts: Record<string, number> = {};
       try {
@@ -275,8 +1378,8 @@ function ConferenceModal({closing,onClose,onSaved}:{closing:RecordData;onClose:(
       const isAlreadyConferred = str(closing, "status") === "Conferido";
 
       // Update bank account balances with NET amounts (or delta if already conferred)
-      const updates=bankCalculations.map(calcItem=>{
-        const prevBal=typeof calcItem.bank.balance==="number"?Number(calcItem.bank.balance):0;
+      const updates = bankCalculations.map(calcItem => {
+        const prevBal = typeof calcItem.bank.balance === "number" ? Number(calcItem.bank.balance) : 0;
         const previousNet = isAlreadyConferred ? Number(previousNetAmounts[calcItem.bank.id] || 0) : 0;
         const deltaNet = calcItem.netAmount - previousNet;
         const newBalance = prevBal + deltaNet;
@@ -286,335 +1389,520 @@ function ConferenceModal({closing,onClose,onSaved}:{closing:RecordData;onClose:(
 
         return {
           ...calcItem.bank,
-          balance:Math.round(newBalance),
-          balanceDate:nextBalanceDate,
-          balanceUpdatedAt:now,
-          reconciled:true,
-          updatedAt:now,
-          updatedBy:user.uid
+          balance: Math.round(newBalance),
+          balanceDate: nextBalanceDate,
+          balanceUpdatedAt: now,
+          reconciled: true,
+          updatedAt: now,
+          updatedBy: user.uid
         };
       });
 
       // Dedicated Sangria Account handling (idempotent via delta)
-      const sangriaAmount=Number(closing.sangriaAmount||0);
       const previousConferredSangria = isAlreadyConferred ? Number(closing.conferredSangriaAmount ?? closing.sangriaAmount ?? 0) : 0;
       const deltaSangria = sangriaAmount - previousConferredSangria;
-      let sangriaAccountUpdate:RecordData|null=null;
-      if(sangriaAmount>0 || deltaSangria !== 0){
-        const unitObj=data.units.find(u=>u.id===closing.unitId);
-        const sangriaAccountName=`Caixa Sangria - ${unitObj?.name||"Unidade"}`;
-        const existingSangriaAccount=data.bankAccounts.find(
-          b=>!b.archived&&b.unitId===closing.unitId&&(b.isSangriaAccount||b.name===sangriaAccountName)
+      let sangriaAccountUpdate: RecordData | null = null;
+      if (sangriaAmount > 0 || deltaSangria !== 0) {
+        const unitObj = data.units.find(u => u.id === closing.unitId);
+        const sangriaAccountName = `Caixa Sangria - ${unitObj?.name || "Unidade"}`;
+        const existingSangriaAccount = data.bankAccounts.find(
+          b => !b.archived && b.unitId === closing.unitId && (b.isSangriaAccount || b.name === sangriaAccountName)
         );
 
-        if(existingSangriaAccount){
-          const prevSangriaBal=typeof existingSangriaAccount.balance==="number"?Number(existingSangriaAccount.balance):0;
+        if (existingSangriaAccount) {
+          const prevSangriaBal = typeof existingSangriaAccount.balance === "number" ? Number(existingSangriaAccount.balance) : 0;
           const closingDate = str(closing, "date");
           const sangriaBalDate = str(existingSangriaAccount, "balanceDate");
           const nextSangriaDate = sangriaBalDate && sangriaBalDate > closingDate ? sangriaBalDate : closingDate;
-          sangriaAccountUpdate={
+          sangriaAccountUpdate = {
             ...existingSangriaAccount,
-            balance:Math.round(prevSangriaBal+deltaSangria),
-            balanceDate:nextSangriaDate,
-            balanceUpdatedAt:now,
-            reconciled:true,
-            updatedAt:now,
-            updatedBy:user.uid
+            balance: Math.round(prevSangriaBal + deltaSangria),
+            balanceDate: nextSangriaDate,
+            balanceUpdatedAt: now,
+            reconciled: true,
+            updatedAt: now,
+            updatedBy: user.uid
           };
         } else if (sangriaAmount > 0) {
-          sangriaAccountUpdate={
-            id:`bank-sangria-${closing.unitId}`,
-            kind:"bankAccounts",
+          sangriaAccountUpdate = {
+            id: `bank-sangria-${closing.unitId}`,
+            kind: "bankAccounts",
             tenantId,
-            unitId:closing.unitId,
-            version:0,
-            createdAt:now,
-            updatedAt:now,
-            createdBy:user.uid,
-            updatedBy:user.uid,
-            name:sangriaAccountName,
-            bank:"Caixa físico de Sangria",
-            balance:sangriaAmount,
-            balanceDate:str(closing,"date"),
-            balanceUpdatedAt:now,
-            isSangriaAccount:true,
-            reconciled:true,
-            notes:`Conta criada automaticamente para controle das sangrias da loja ${unitObj?.name||""}.`
+            unitId: closing.unitId,
+            version: 0,
+            createdAt: now,
+            updatedAt: now,
+            createdBy: user.uid,
+            updatedBy: user.uid,
+            name: sangriaAccountName,
+            bank: "Caixa físico de Sangria",
+            balance: sangriaAmount,
+            balanceDate: str(closing, "date"),
+            balanceUpdatedAt: now,
+            isSangriaAccount: true,
+            reconciled: true,
+            notes: `Conta criada automaticamente para controle das sangrias da loja ${unitObj?.name || ""}.`
           };
         }
       }
 
-      const conference:RecordData={
-        id:`conference-${closing.id}`,
-        kind:"cashConferences",
+      const conference: RecordData = {
+        id: `conference-${closing.id}`,
+        kind: "cashConferences",
         tenantId,
-        unitId:closing.unitId,
-        version:0,
-        createdAt:now,
-        updatedAt:now,
-        createdBy:user.uid,
-        updatedBy:user.uid,
-        date:str(closing,"date"),
-        closingId:closing.id,
-        operatorName:str(closing,"operatorName"),
-        beforeBalancesJson:JSON.stringify(before),
-        afterBalancesJson:JSON.stringify(afterNetValues),
-        checksJson:JSON.stringify(checks),
-        difference:totalDiff,
-        status:hasDifference?"Com divergência":"Conferido",
-        reviewedBy:userProfile?.displayName||user.email||user.uid,
-        notes:notes.trim()||"Conferência aprovada com conciliação bancária."
+        unitId: closing.unitId,
+        version: 0,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: user.uid,
+        updatedBy: user.uid,
+        date: str(closing, "date"),
+        closingId: closing.id,
+        operatorName: str(closing, "operatorName"),
+        beforeBalancesJson: JSON.stringify(before),
+        afterBalancesJson: JSON.stringify(afterNetValues),
+        checksJson: JSON.stringify(checks),
+        difference: totalDiff,
+        status: hasDifference ? "Com divergência" : "Conferido",
+        reviewedBy: userProfile?.displayName || user.email || user.uid,
+        notes: notes.trim() || "Conferência aprovada com conciliação bancária."
       };
 
-      const updatedClosing:RecordData={
+      const updatedClosing: RecordData = {
         ...closing,
-        status:hasDifference?"Com divergência":"Conferido",
+        status: hasDifference ? "Com divergência" : "Conferido",
+        systemCash,
+        systemCredit,
+        systemDebit,
+        systemPix,
+        systemTotal,
+        openingAmount,
+        cashIn,
+        cashOutflows,
+        sangriaAmount,
+        closingFloat,
+        cashExpected,
         cashFound,
-        cashDifference:cashDiff,
-        creditFound:totalCreditFound,
-        creditDifference:creditDiff,
-        debitFound:totalDebitFound,
-        debitDifference:debitDiff,
-        pixFound:totalPixFound,
-        pixDifference:pixDiff,
-        difference:totalDiff,
-        reviewedBankAmountsJson:JSON.stringify(bankVals),
-        netBankAmountsJson:JSON.stringify(afterNetValues),
-        conferredSangriaAmount:sangriaAmount,
-        updatedAt:now,
-        updatedBy:user.uid,
-        conferenceNotes:notes.trim()
+        cashDifference: cashDiff,
+        creditFound: totalCreditFound,
+        creditDifference: creditDiff,
+        debitFound: totalDebitFound,
+        debitDifference: debitDiff,
+        pixFound: totalPixFound,
+        pixDifference: pixDiff,
+        difference: totalDiff,
+        reviewedBankAmountsJson: JSON.stringify(bankVals),
+        netBankAmountsJson: JSON.stringify(afterNetValues),
+        conferredSangriaAmount: sangriaAmount,
+        updatedAt: now,
+        updatedBy: user.uid,
+        conferenceNotes: notes.trim()
       };
 
-      const recordsToCommit:RecordData[]=[...updates,conference,updatedClosing];
-      if(sangriaAccountUpdate){
+      const recordsToCommit: RecordData[] = [...updates, conference, updatedClosing];
+      if (sangriaAccountUpdate) {
         recordsToCommit.push(sangriaAccountUpdate);
       }
 
-      await commitRecords(recordsToCommit,data,conference);
+      await commitRecords(recordsToCommit, data, conference);
       onSaved();
-    }catch(e){
-      setError(e instanceof Error?e.message:"Não foi possível concluir a conferência.");
-    }finally{
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível concluir a conferência.");
+    } finally {
       setBusy(false);
     }
   };
 
-  return <Modal title="Conferência financeira do caixa" onClose={onClose} wide>
-    <div className="conference-flow">
-      <div className="conference-summary">
-        <div>
-          <span>FECHAMENTO DE CAIXA</span>
-          <strong>{str(closing,"date").split("-").reverse().join("/")} · {str(closing,"shift")}</strong>
-          <small>Operador: {str(closing,"operatorName")} · Entrada total no sistema: {currency(Number(closing.systemTotal||0))}</small>
+  const attachmentsList = parseAttachments(closing);
+
+  return (
+    <Modal title="Conferência Financeira do Caixa" onClose={onClose} wide>
+      <div className="conference-flow space-y-4">
+        {/* Summary Info */}
+        <div className="conference-summary">
+          <div>
+            <span>FECHAMENTO DE CAIXA</span>
+            <strong>{str(closing, "date").split("-").reverse().join("/")} · {str(closing, "shift")}</strong>
+            <small>Operador: {str(closing, "operatorName")} · Total Vendas Sistema: {currency(systemTotal)}</small>
+          </div>
+          {sangriaAmount > 0 && (
+            <div className="conference-sangria-info">
+              <span>SANGRIA REGISTRADA</span>
+              <strong>{brl(sangriaAmount)}</strong>
+              <small>Status: {str(closing, "sangriaStatus") || "Na loja"}{str(closing, "sangriaRecipient") ? ` · ${str(closing, "sangriaRecipient")}` : ""}</small>
+            </div>
+          )}
         </div>
-        {Number(closing.sangriaAmount||0)>0&&(
-          <div className="conference-sangria-info">
-            <span>SANGRIA REGISTRADA</span>
-            <strong>{brl(Number(closing.sangriaAmount))}</strong>
-            <small>Status: {str(closing,"sangriaStatus")||"Na loja"} · {str(closing,"sangriaRecipient")||"Responsável não especificado"}</small>
+
+        {/* Financial Edit Mode Banner */}
+        <div className="conf-edit-banner">
+          <div className="flex items-center gap-2">
+            <Edit3 size={18} className="text-blue-600 shrink-0" />
+            <div>
+              <strong className="block text-blue-900">Modo de Edição Financeira Ativo</strong>
+              <span className="text-blue-700 text-xs">Você pode corrigir qualquer valor digitado pelo operador (vendas do sistema, gaveta ou máquinas). O sistema recalcula tudo em tempo real.</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 4 Pillars Reconciliation Table with inline editable inputs */}
+        <section className="conference-reconciliation">
+          <header className="conference-header-flex">
+            <div>
+              <h3>Conciliação dos 4 Valores Principais</h3>
+              <p>Valores de Sistema (PDV) e Contados (Físico / Bancos) podem ser ajustados diretamente.</p>
+            </div>
+            <button
+              type="button"
+              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+              onClick={() => setShowDrawerDetails(!showDrawerDetails)}
+            >
+              {showDrawerDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              <span>{showDrawerDetails ? "Ocultar detalhes da gaveta" : "Editar detalhes da gaveta (Troco, Sangria, Saídas)"}</span>
+            </button>
+          </header>
+
+          {/* Drawer Details Editable Panel */}
+          {showDrawerDetails && (
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 mb-3 text-xs">
+              <label>
+                <span className="text-zinc-500 font-semibold block">Troco Inicial</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={openingAmount / 100}
+                  disabled={review}
+                  onChange={e => setOpeningAmount(Math.round(Number(e.target.value) * 100))}
+                  className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 font-semibold"
+                />
+              </label>
+
+              <label>
+                <span className="text-zinc-500 font-semibold block">Dinheiro PDV</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={systemCash / 100}
+                  disabled={review}
+                  onChange={e => setSystemCash(Math.round(Number(e.target.value) * 100))}
+                  className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 font-semibold"
+                />
+              </label>
+
+              <label>
+                <span className="text-zinc-500 font-semibold block">Suprimentos</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={cashIn / 100}
+                  disabled={review}
+                  onChange={e => setCashIn(Math.round(Number(e.target.value) * 100))}
+                  className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 font-semibold"
+                />
+              </label>
+
+              <label>
+                <span className="text-zinc-500 font-semibold block">Saídas Gaveta</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={cashOutflows / 100}
+                  disabled={review}
+                  onChange={e => setCashOutflows(Math.round(Number(e.target.value) * 100))}
+                  className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 font-semibold"
+                />
+              </label>
+
+              <label>
+                <span className="text-zinc-500 font-semibold block">Sangria Retirada</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={sangriaAmount / 100}
+                  disabled={review}
+                  onChange={e => setSangriaAmount(Math.round(Number(e.target.value) * 100))}
+                  className="w-full p-1.5 rounded border border-purple-300 dark:border-purple-700 font-semibold text-purple-700"
+                />
+              </label>
+
+              <label>
+                <span className="text-zinc-500 font-semibold block">Troco Final</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={closingFloat / 100}
+                  disabled={review}
+                  onChange={e => setClosingFloat(Math.round(Number(e.target.value) * 100))}
+                  className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 font-semibold"
+                />
+              </label>
+            </div>
+          )}
+
+          <div className="conference-table">
+            <div className="head">
+              <span>Forma</span>
+              <span>Sistema (PDV)</span>
+              <span>Encontrado (Físico / Máquinas)</span>
+              <span>Diferença</span>
+              <span>Conferido</span>
+            </div>
+
+            {/* Dinheiro */}
+            <div className="line">
+              <strong>Dinheiro</strong>
+              <span>{brl(cashExpected)}</span>
+              <div className="conf-editable-cell">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={cashFound / 100}
+                  disabled={review}
+                  onChange={e => {
+                    const val = Math.round(Number(e.target.value) * 100);
+                    setClosingFloat(val - sangriaAmount);
+                  }}
+                  title="Dinheiro contado (Sangria + Troco Final)"
+                />
+              </div>
+              <Difference value={cashDiff} />
+              <label>
+                <input type="checkbox" checked={checks.cash} disabled={review} onChange={e => setChecks(c => ({ ...c, cash: e.target.checked }))} /> OK
+              </label>
+            </div>
+
+            {/* Crédito */}
+            <div className="line">
+              <strong>Crédito</strong>
+              <div className="conf-editable-cell">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={systemCredit / 100}
+                  disabled={review}
+                  onChange={e => setSystemCredit(Math.round(Number(e.target.value) * 100))}
+                  title="Ajustar Crédito registrado no PDV"
+                />
+              </div>
+              <span>{brl(totalCreditFound)}</span>
+              <Difference value={creditDiff} />
+              <label>
+                <input type="checkbox" checked={checks.credit} disabled={review} onChange={e => setChecks(c => ({ ...c, credit: e.target.checked }))} /> OK
+              </label>
+            </div>
+
+            {/* Débito */}
+            <div className="line">
+              <strong>Débito</strong>
+              <div className="conf-editable-cell">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={systemDebit / 100}
+                  disabled={review}
+                  onChange={e => setSystemDebit(Math.round(Number(e.target.value) * 100))}
+                  title="Ajustar Débito registrado no PDV"
+                />
+              </div>
+              <span>{brl(totalDebitFound)}</span>
+              <Difference value={debitDiff} />
+              <label>
+                <input type="checkbox" checked={checks.debit} disabled={review} onChange={e => setChecks(c => ({ ...c, debit: e.target.checked }))} /> OK
+              </label>
+            </div>
+
+            {/* PIX */}
+            <div className="line">
+              <strong>PIX</strong>
+              <div className="conf-editable-cell">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={systemPix / 100}
+                  disabled={review}
+                  onChange={e => setSystemPix(Math.round(Number(e.target.value) * 100))}
+                  title="Ajustar PIX registrado no PDV"
+                />
+              </div>
+              <span>{brl(totalPixFound)}</span>
+              <Difference value={pixDiff} />
+              <label>
+                <input type="checkbox" checked={checks.pix} disabled={review} onChange={e => setChecks(c => ({ ...c, pix: e.target.checked }))} /> OK
+              </label>
+            </div>
+          </div>
+
+          <div className={`total-divergence ${totalDiff === 0 ? "ok" : "bad"}`}>
+            <span>DIVERGÊNCIA TOTAL RECALCULADA</span>
+            <strong>{currency(totalDiff)}</strong>
+            <small>{totalDiff === 0 ? "Sem divergência" : totalDiff > 0 ? "Sobra encontrada" : "Falta encontrada"}</small>
+          </div>
+
+          {hasDifference && (
+            <label className="conference-notes">
+              Parecer obrigatório da divergência
+              <textarea
+                rows={2}
+                value={notes}
+                disabled={review}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Explique detalhadamente a causa da divergência ou se foi erro operacional."
+              />
+            </label>
+          )}
+        </section>
+
+        {/* Machines / Banks Section */}
+        <section className="conference-machines-section">
+          <h3>Detalhamento por Máquina / Banco e Desconto de Taxas</h3>
+          <p className="cash-hint-left">Ajuste os valores por máquina se o comprovante físico diferir do digitado. As taxas configuradas são deduzidas automaticamente do saldo a creditar.</p>
+
+          <div className="conference-bank-cards">
+            {bankCalculations.map(c => (
+              <article key={c.bank.id} className="conf-machine-card">
+                <header className="conf-machine-head">
+                  <strong><Landmark size={15} /> {str(c.bank, "name")}</strong>
+                  <span>Saldo atual: {typeof c.bank.balance === "number" ? currency(Number(c.bank.balance)) : "R$ 0,00"}</span>
+                </header>
+
+                <div className="conf-machine-inputs">
+                  <label>
+                    <span>Crédito (Taxa: {c.creditPct}%)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      disabled={review}
+                      value={c.vals.credit / 100}
+                      onChange={e => {
+                        const val = Math.round(Number(e.target.value) * 100);
+                        setBankVals(b => {
+                          const prev = b[c.bank.id] || { credit: 0, debit: 0, pix: 0 };
+                          return { ...b, [c.bank.id]: { ...prev, credit: val } };
+                        });
+                      }}
+                    />
+                    {c.creditFee > 0 && <small className="fee-cut">- {brl(c.creditFee)} taxa</small>}
+                  </label>
+
+                  <label>
+                    <span>Débito (Taxa: {c.debitPct}%)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      disabled={review}
+                      value={c.vals.debit / 100}
+                      onChange={e => {
+                        const val = Math.round(Number(e.target.value) * 100);
+                        setBankVals(b => {
+                          const prev = b[c.bank.id] || { credit: 0, debit: 0, pix: 0 };
+                          return { ...b, [c.bank.id]: { ...prev, debit: val } };
+                        });
+                      }}
+                    />
+                    {c.debitFee > 0 && <small className="fee-cut">- {brl(c.debitFee)} taxa</small>}
+                  </label>
+
+                  <label>
+                    <span>PIX (Taxa: {c.pixPct}%)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      disabled={review}
+                      value={c.vals.pix / 100}
+                      onChange={e => {
+                        const val = Math.round(Number(e.target.value) * 100);
+                        setBankVals(b => {
+                          const prev = b[c.bank.id] || { credit: 0, debit: 0, pix: 0 };
+                          return { ...b, [c.bank.id]: { ...prev, pix: val } };
+                        });
+                      }}
+                    />
+                    {c.pixFee > 0 && <small className="fee-cut">- {brl(c.pixFee)} taxa</small>}
+                  </label>
+                </div>
+
+                <footer className="conf-machine-foot">
+                  <div>
+                    <small>Bruto: <b>{brl(c.grossAmount)}</b></small>
+                    {c.totalFees > 0 && <small className="fee-total">Taxas: -{brl(c.totalFees)}</small>}
+                  </div>
+                  <div className="conf-net-highlight">
+                    <span>Líquido a creditar:</span>
+                    <strong>{brl(c.netAmount)}</strong>
+                  </div>
+                </footer>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {/* Attachments Section if any */}
+        {attachmentsList.length > 0 && (
+          <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
+            <strong className="text-xs text-zinc-700 dark:text-zinc-200 block mb-2">Comprovantes anexados pelo operador:</strong>
+            <div className="flex items-center gap-2 flex-wrap">
+              {attachmentsList.map(att => (
+                <button
+                  key={att.fileId}
+                  type="button"
+                  className="mg-icon-act-btn"
+                  disabled={downloading === att.fileId}
+                  onClick={() => downloadAttachment(att.fileId, att.fileName)}
+                >
+                  <Download size={13} />
+                  <span>{downloading === att.fileId ? "Baixando..." : att.fileName}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
-      </div>
 
-      <section className="conference-reconciliation">
-        <header className="conference-header-flex">
-          <div>
-            <h3>Conciliação dos 4 valores (editáveis se necessário)</h3>
-            <p>Se o valor físico encontrado diferir do informado pelo operador, ajuste os campos abaixo.</p>
-          </div>
-        </header>
-
-        <div className="conference-table">
-          <div className="head">
-            <span>Forma</span>
-            <span>Sistema / Esperado</span>
-            <span>Encontrado (Conferido)</span>
-            <span>Diferença</span>
-            <span>Conferido</span>
-          </div>
-
-          {/* Cash row (editable) */}
-          <div className="line">
-            <strong>Dinheiro</strong>
-            <span>{brl(cashExpected)}</span>
-            <div className="conf-editable-cell">
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={cashFound/100}
-                disabled={review}
-                onChange={e=>setCashFound(Math.round(Number(e.target.value)*100))}
-              />
+        {review && (
+          <div className="confirmation-box">
+            <CheckCircle2 size={22} />
+            <div>
+              <strong>Confirme a aprovação e a liquidação dos saldos</strong>
+              <p>Os valores líquidos (com desconto das taxas) serão adicionados às respectivas contas bancárias. {sangriaAmount > 0 && `A sangria de ${brl(sangriaAmount)} será registrada na conta Caixa Sangria da unidade.`}</p>
             </div>
-            <Difference value={cashDiff}/>
-            <label>
-              <input type="checkbox" checked={checks.cash} disabled={review} onChange={e=>setChecks(c=>({...c,cash:e.target.checked}))}/> OK
-            </label>
           </div>
+        )}
 
-          {/* Credit row */}
-          <div className="line">
-            <strong>Crédito</strong>
-            <span>{brl(systemCredit)}</span>
-            <span>{brl(totalCreditFound)}</span>
-            <Difference value={creditDiff}/>
-            <label>
-              <input type="checkbox" checked={checks.credit} disabled={review} onChange={e=>setChecks(c=>({...c,credit:e.target.checked}))}/> OK
-            </label>
-          </div>
+        {error && <p className="mg-error">{error}</p>}
 
-          {/* Debit row */}
-          <div className="line">
-            <strong>Débito</strong>
-            <span>{brl(systemDebit)}</span>
-            <span>{brl(totalDebitFound)}</span>
-            <Difference value={debitDiff}/>
-            <label>
-              <input type="checkbox" checked={checks.debit} disabled={review} onChange={e=>setChecks(c=>({...c,debit:e.target.checked}))}/> OK
-            </label>
-          </div>
-
-          {/* Pix row */}
-          <div className="line">
-            <strong>PIX</strong>
-            <span>{brl(systemPix)}</span>
-            <span>{brl(totalPixFound)}</span>
-            <Difference value={pixDiff}/>
-            <label>
-              <input type="checkbox" checked={checks.pix} disabled={review} onChange={e=>setChecks(c=>({...c,pix:e.target.checked}))}/> OK
-            </label>
-          </div>
-        </div>
-
-        <div className={`total-divergence ${totalDiff===0?"ok":"bad"}`}>
-          <span>DIVERGÊNCIA TOTAL RECALCULADA</span>
-          <strong>{currency(totalDiff)}</strong>
-          <small>{totalDiff===0?"Sem divergência":totalDiff>0?"Sobra encontrada":"Falta encontrada"}</small>
-        </div>
-
-        {hasDifference&&<label className="conference-notes">Parecer obrigatório da divergência<textarea rows={2} value={notes} disabled={review} onChange={e=>setNotes(e.target.value)} placeholder="Explique detalhadamente a causa da divergência."/></label>}
-      </section>
-
-      {/* Breakdown per bank/machine with editable credit, debit, pix and automatic fee discount */}
-      <section className="conference-machines-section">
-        <h3>Detalhamento por máquina/banco e desconto de taxas</h3>
-        <p className="cash-hint-left">Ajuste os valores por máquina se o comprovante físico diferir do digitado. As taxas configuradas são deduzidas automaticamente.</p>
-
-        <div className="conference-bank-cards">
-          {bankCalculations.map(c=>(
-            <article key={c.bank.id} className="conf-machine-card">
-              <header className="conf-machine-head">
-                <strong><Landmark size={15}/> {str(c.bank,"name")}</strong>
-                <span>Saldo atual: {typeof c.bank.balance==="number"?currency(Number(c.bank.balance)):"R$ 0,00"}</span>
-              </header>
-
-              <div className="conf-machine-inputs">
-                <label>
-                  <span>Crédito (Taxa: {c.creditPct}%)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    disabled={review}
-                    value={c.vals.credit/100}
-                    onChange={e=>{
-                      const val=Math.round(Number(e.target.value)*100);
-                      setBankVals(b=>{
-                        const prev=b[c.bank.id]||{credit:0,debit:0,pix:0};
-                        return {...b,[c.bank.id]:{...prev,credit:val}};
-                      });
-                    }}
-                  />
-                  {c.creditFee>0&&<small className="fee-cut">- {brl(c.creditFee)} de taxa</small>}
-                </label>
-
-                <label>
-                  <span>Débito (Taxa: {c.debitPct}%)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    disabled={review}
-                    value={c.vals.debit/100}
-                    onChange={e=>{
-                      const val=Math.round(Number(e.target.value)*100);
-                      setBankVals(b=>{
-                        const prev=b[c.bank.id]||{credit:0,debit:0,pix:0};
-                        return {...b,[c.bank.id]:{...prev,debit:val}};
-                      });
-                    }}
-                  />
-                  {c.debitFee>0&&<small className="fee-cut">- {brl(c.debitFee)} de taxa</small>}
-                </label>
-
-                <label>
-                  <span>PIX (Taxa: {c.pixPct}%)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    disabled={review}
-                    value={c.vals.pix/100}
-                    onChange={e=>{
-                      const val=Math.round(Number(e.target.value)*100);
-                      setBankVals(b=>{
-                        const prev=b[c.bank.id]||{credit:0,debit:0,pix:0};
-                        return {...b,[c.bank.id]:{...prev,pix:val}};
-                      });
-                    }}
-                  />
-                  {c.pixFee>0&&<small className="fee-cut">- {brl(c.pixFee)} de taxa</small>}
-                </label>
-              </div>
-
-              <footer className="conf-machine-foot">
-                <div>
-                  <small>Bruto: <b>{brl(c.grossAmount)}</b></small>
-                  {c.totalFees>0&&<small className="fee-total">Taxas: -{brl(c.totalFees)}</small>}
-                </div>
-                <div className="conf-net-highlight">
-                  <span>Líquido a creditar:</span>
-                  <strong>{brl(c.netAmount)}</strong>
-                </div>
-              </footer>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      {review&&(
-        <div className="confirmation-box">
-          <CheckCircle2 size={22}/>
-          <div>
-            <strong>Confirme a aprovação e a liquidação dos saldos</strong>
-            <p>Os valores líquidos (com desconto das taxas) serão adicionados às respectivas contas bancárias. {Number(closing.sangriaAmount||0)>0&&`A sangria de ${brl(Number(closing.sangriaAmount))} será registrada na conta Caixa Sangria da unidade.`}</p>
-          </div>
-        </div>
-      )}
-
-      {error&&<p className="mg-error">{error}</p>}
-
-      <footer>
-        <button type="button" className="mg-button secondary" onClick={review?()=>setReview(false):onClose}>
-          {review?"Voltar e ajustar":"Cancelar"}
-        </button>
-        <button
-          type="button"
-          className="mg-button"
-          disabled={busy||!banks.length}
-          onClick={review?save:()=>{
-            if(!allChecked){setError("Confirme Dinheiro, Crédito, Débito e PIX marcando as caixas OK.");return}
-            if(hasDifference&&!notes.trim()){setError("Explique a divergência antes de continuar.");return}
-            setError("");setReview(true);
-          }}
-        >
-          {busy?"Atualizando bancos…":review?"Confirmar e atualizar bancos":"Revisar e aprovar"}
-        </button>
-      </footer>
-    </div>
-  </Modal>;
+        <footer>
+          <button type="button" className="mg-button secondary" onClick={review ? () => setReview(false) : onClose}>
+            {review ? "Voltar e ajustar" : "Cancelar"}
+          </button>
+          <button
+            type="button"
+            className="mg-button"
+            disabled={busy || !displayBanks.length}
+            onClick={review ? save : () => {
+              if (!allChecked) { setError("Confirme Dinheiro, Crédito, Débito e PIX marcando as caixas OK."); return; }
+              if (hasDifference && !notes.trim()) { setError("Explique a divergência antes de continuar."); return; }
+              setError("");
+              setReview(true);
+            }}
+          >
+            {busy ? "Atualizando bancos…" : review ? "Confirmar e atualizar bancos" : "Revisar e aprovar"}
+          </button>
+        </footer>
+      </div>
+    </Modal>
+  );
 }
 
 // History tab for motoboy audits and fiscal invoices
