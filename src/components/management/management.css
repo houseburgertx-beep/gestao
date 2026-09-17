@@ -1018,15 +1018,29 @@
 .payables-hero p { color: #e2ddff; }
 .payables-kicker { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 750; letter-spacing: 1.2px; color: #c9c3ff; }
 
-/* 3 Botões de Ação no Topo do Contas a Pagar - Alinhados e Alto Contraste */
+/* 3 Botões de Ação no Topo do Contas a Pagar - Perfeitamente Alinhados em Linha Única */
 .payables-hero-actions {
   position: relative;
   z-index: 2;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
+  flex-shrink: 0;
 }
+
+@media (max-width: 1024px) {
+  .payables-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .payables-hero-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}
+
 .payables-hero-btn-fixed {
   display: inline-flex;
   align-items: center;
@@ -1072,6 +1086,54 @@
   transform: translateY(-2px);
   background: #f8fafc !important;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+
+/* Cluster elegante unindo Sincronizar Planilha e Abrir Planilha */
+.payables-hero-sheets-cluster {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9px;
+  background: #ffffff;
+  border: 1px solid #f3e8ff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+.payables-hero-sheets-cluster:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+
+.payables-hero-sheets-cluster .payables-hero-btn-backup {
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 15px;
+}
+.payables-hero-sheets-cluster .payables-hero-btn-backup:hover:not(:disabled) {
+  transform: none;
+  background: #faf5ff !important;
+}
+
+.payables-hero-btn-open-sheet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 14px;
+  background: #059669 !important;
+  color: #ffffff !important;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  border-left: 1px solid #e9d5ff;
+  transition: background 0.18s ease;
+}
+.payables-hero-btn-open-sheet:hover {
+  background: #047857 !important;
 }
 
 .payables-hero-btn-backup {
