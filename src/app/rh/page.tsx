@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BriefcaseBusiness, CalendarDays, CircleDollarSign, Plus, Search, UserCheck, UserRound, UsersRound } from "lucide-react";
+import { AlertTriangle, BriefcaseBusiness, CalendarDays, CircleDollarSign, Pencil, Plus, Search, UserCheck, UserRound, UsersRound } from "lucide-react";
 import { useUnit } from "@/contexts/UnitContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useManagement } from "@/contexts/ManagementContext";
@@ -9,6 +9,7 @@ import { Employee } from "@/types";
 import { subscribeEmployees } from "@/services/firestoreService";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { NewEmployeeModal } from "@/components/rh/NewEmployeeModal";
+import { EditEmployeeModal } from "@/components/rh/EditEmployeeModal";
 import { EmployeeDetailDrawer } from "@/components/rh/EmployeeDetailDrawer";
 import { calculateTenure, getExperienceInfo } from "@/lib/tenureUtils";
 import { store } from "@/services/store";
@@ -31,6 +32,7 @@ export default function RhPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [selected, setSelected] = useState<Employee | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
 
@@ -191,33 +193,71 @@ export default function RhPage() {
       </section>
 
       {(experienceAlerts.length > 0 || vacationAlerts.length > 0) && (
-        <section className="people-alerts">
-          <h2>
-            <AlertTriangle size={17} /> Alertas de pessoas — próximos 30 dias
-          </h2>
-          {experienceAlerts.map((e) => {
-            const exp = getExperienceInfo(e.admissionDate, e.experienceEndDate);
-            return (
-              <button key={`exp-${e.id}`} onClick={() => setSelected(e)}>
-                <strong className={exp.urgency === "critical" ? "text-rose-600" : "text-amber-600"}>
-                  {exp.urgency === "critical" ? "🚨 Término em Breve" : "⏳ Experiência"}
-                </strong>
-                <span>{e.name}</span>
-                <b>
-                  {exp.daysRemaining <= 0
-                    ? "Encerra hoje!"
-                    : `${exp.daysRemaining} dias restantes (${formatDate(exp.endDateStr)})`}
-                </b>
+        <section className="rh-alerts-minimal">
+          <div className="rh-alerts-head">
+            <div className="rh-alerts-title">
+              <span className="rh-alerts-pulse" />
+              <strong>Alertas e Prazos do Mês</strong>
+              <span className="rh-alerts-badge">
+                {experienceAlerts.length + vacationAlerts.length}
+              </span>
+            </div>
+            <small className="rh-alerts-hint">Clique para abrir a ficha do colaborador</small>
+          </div>
+
+          <div className="rh-alerts-list">
+            {experienceAlerts.map((e) => {
+              const exp = getExperienceInfo(e.admissionDate, e.experienceEndDate);
+              return (
+                <button
+                  key={`exp-${e.id}`}
+                  type="button"
+                  className={`rh-alert-row ${exp.urgency === "critical" ? "is-critical" : "is-warning"}`}
+                  onClick={() => setSelected(e)}
+                >
+                  <div className="rh-alert-type">
+                    <span className="rh-alert-tag">
+                      {exp.urgency === "critical" ? "🚨 Término" : "⏳ Experiência"}
+                    </span>
+                  </div>
+                  <div className="rh-alert-name">
+                    <strong>{e.name}</strong>
+                    <small>{e.role || "Cargo pendente"} · {e.department}</small>
+                  </div>
+                  <div className="rh-alert-time">
+                    <b>
+                      {exp.daysRemaining <= 0
+                        ? "Encerra hoje!"
+                        : `Faltam ${exp.daysRemaining} dias`}
+                    </b>
+                    <small>Término: {formatDate(exp.endDateStr)}</small>
+                  </div>
+                  <span className="rh-alert-arrow">Ver ficha →</span>
+                </button>
+              );
+            })}
+            {vacationAlerts.map((e) => (
+              <button
+                key={`vac-${e.id}`}
+                type="button"
+                className="rh-alert-row is-vacation"
+                onClick={() => setSelected(e)}
+              >
+                <div className="rh-alert-type">
+                  <span className="rh-alert-tag vacation">🏖️ Férias</span>
+                </div>
+                <div className="rh-alert-name">
+                  <strong>{e.name}</strong>
+                  <small>{e.role || "Cargo pendente"} · {e.department}</small>
+                </div>
+                <div className="rh-alert-time">
+                  <b>Início em breve</b>
+                  <small>{formatDate(e.vacationStart!)}</small>
+                </div>
+                <span className="rh-alert-arrow">Ver ficha →</span>
               </button>
-            );
-          })}
-          {vacationAlerts.map((e) => (
-            <button key={`vac-${e.id}`} onClick={() => setSelected(e)}>
-              <strong>Férias</strong>
-              <span>{e.name}</span>
-              <b>{formatDate(e.vacationStart!)}</b>
-            </button>
-          ))}
+            ))}
+          </div>
         </section>
       )}
 
@@ -277,7 +317,21 @@ export default function RhPage() {
                   <i className={employee.status} />
                 </div>
                 <div className="people-card-main">
-                  <h3>{employee.name}</h3>
+                  <div className="people-card-title-row">
+                    <h3>{employee.name}</h3>
+                    <button
+                      type="button"
+                      className="people-card-edit-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingEmployee(employee);
+                      }}
+                      title="Editar informações do colaborador"
+                      aria-label="Editar"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  </div>
                   <p>{employee.role || "Cargo pendente"}</p>
                   <span>{employee.department || "Setor pendente"}</span>
                 </div>
@@ -331,6 +385,19 @@ export default function RhPage() {
       />
 
       <NewEmployeeModal isOpen={isNewOpen} onClose={() => setIsNewOpen(false)} />
+
+      <EditEmployeeModal
+        isOpen={!!editingEmployee}
+        onClose={() => setEditingEmployee(null)}
+        employee={editingEmployee}
+        onSuccess={(updated) => {
+          setEmployees((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+          if (selected?.id === updated.id) {
+            setSelected(updated);
+          }
+          setEditingEmployee(null);
+        }}
+      />
     </div>
   );
 }
