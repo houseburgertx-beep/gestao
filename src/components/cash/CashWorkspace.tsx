@@ -34,6 +34,17 @@ const parseAttachments=(row:RecordData):Array<{fileId:string;fileName:string;mim
 };
 const closingValue=(row:RecordData,key:string,fallback=0)=>typeof row[key]==="number"?Number(row[key]):fallback;
 
+export function isValidPixKey(key: string): boolean {
+  const clean = key.trim();
+  if (!clean) return false;
+  const digits = clean.replace(/\D/g, "");
+  if ((digits.length === 11 || digits.length === 14) && /^\d+$/.test(digits)) return true;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return true;
+  if (/^(\+?55)?\s*\(?\d{2}\)?\s*\d{4,5}-?\d{4}$/.test(clean)) return true;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean) || /^[0-9a-f]{32}$/i.test(clean)) return true;
+  return clean.length >= 5 && !/[<>{}\\]/.test(clean);
+}
+
 type ClosingCalc={systemTotal:number;confirmedTotal:number;cashExpected:number;cashFound:number;cashDifference:number;creditFound:number;creditDifference:number;debitFound:number;debitDifference:number;pixFound:number;pixDifference:number;difference:number;motoboyDifference:number;invoiceDifference:number};
 const emptyCalc:ClosingCalc={systemTotal:0,confirmedTotal:0,cashExpected:0,cashFound:0,cashDifference:0,creditFound:0,creditDifference:0,debitFound:0,debitDifference:0,pixFound:0,pixDifference:0,difference:0,motoboyDifference:0,invoiceDifference:0};
 
@@ -146,12 +157,13 @@ function ClosingModal({onClose,onSaved}:{onClose:()=>void;onSaved:()=>void}){
   const {data,tenantId,allowedUnit}=useManagement();const {user,userProfile}=useAuth();const [unit,setUnit]=useState(allowedUnit==="all"?"":allowedUnit);const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [calc,setCalc]=useState<ClosingCalc>(emptyCalc);const [selected,setSelected]=useState<Record<string,boolean>>({});const [outflows,setOutflows]=useState([{id:safeUUID(),name:"",amount:""}]);const [pixRequests,setPixRequests]=useState([{id:safeUUID(),name:"",key:"",description:"",amount:""}]);
   const banks=data.bankAccounts.filter(row=>!row.archived&&row.unitId===unit);
   const recalc=(form:HTMLFormElement)=>{const f=new FormData(form);const systemCash=n(f.get("systemCash")),systemCredit=n(f.get("systemCredit")),systemDebit=n(f.get("systemDebit")),systemPix=n(f.get("systemPix"));let creditFound=0,debitFound=0,pixFound=0;banks.filter(b=>f.get(`used_${b.id}`)==="on").forEach(bank=>{creditFound+=n(f.get(`credit_${bank.id}`));debitFound+=n(f.get(`debit_${bank.id}`));pixFound+=n(f.get(`pix_${bank.id}`));});const other=n(f.get("systemIfoodOnline"))+n(f.get("systemIfoodVoucher"))+n(f.get("systemTerm"))+n(f.get("systemClub"))+n(f.get("systemAccrual"));const cashOutflows=outflows.reduce((sum,row)=>sum+n(row.amount as FormDataEntryValue),0);const cashExpected=n(f.get("openingAmount"))+systemCash+n(f.get("cashIn"))-cashOutflows;const cashFound=n(f.get("sangriaAmount"))+n(f.get("closingFloat"));const cashDifference=cashFound-cashExpected,creditDifference=creditFound-systemCredit,debitDifference=debitFound-systemDebit,pixDifference=pixFound-systemPix,motoboyDifference=n(f.get("motoboyPaid"))-n(f.get("motoboySystem")),invoiceDifference=n(f.get("ifoodAudit"))+n(f.get("fiscalMachines"))-n(f.get("invoiceIssued"));setCalc({systemTotal:systemCash+systemCredit+systemDebit+systemPix+other,confirmedTotal:cashFound+creditFound+debitFound+pixFound,cashExpected,cashFound,cashDifference,creditFound,creditDifference,debitFound,debitDifference,pixFound,pixDifference,difference:cashDifference+creditDifference+debitDifference+pixDifference,motoboyDifference,invoiceDifference});};
-  const submit=async(event:React.FormEvent<HTMLFormElement>)=>{event.preventDefault();if(!user)return;setBusy(true);setError("");try{const f=new FormData(event.currentTarget);const bankAmounts:Record<string,{credit:number;debit:number;pix:number}>={};banks.filter(bank=>selected[bank.id]).forEach(bank=>bankAmounts[bank.id]={credit:n(f.get(`credit_${bank.id}`)),debit:n(f.get(`debit_${bank.id}`)),pix:n(f.get(`pix_${bank.id}`))});if(!Object.keys(bankAmounts).length&&(n(f.get("systemCredit"))+n(f.get("systemDebit"))+n(f.get("systemPix")))>0)throw new Error("Selecione ao menos uma máquina/banco utilizado.");const requestedPix=pixRequests.filter(item=>item.name.trim()||item.key.trim()||item.description.trim()||Number(item.amount)>0);if(requestedPix.some(item=>!item.name.trim()||!item.key.trim()||!item.description.trim()||Number(item.amount)<=0))throw new Error("Preencha nome, chave PIX, descrição e valor em cada solicitação PIX.");const files=f.getAll("attachments").filter(x=>x instanceof File&&x.size) as File[];if(files.length>5)throw new Error("Envie no máximo 5 comprovantes.");const attachments=[];for(const file of files){const saved=await uploadFileToDrive(nameFileForDrive(file,`Fechamento ${String(f.get("date"))} - ${unit}`),"payment_proofs");attachments.push({fileId:saved.fileId,fileName:saved.fileName,mimeType:saved.mimeType,size:saved.size});}const now=new Date().toISOString();const closingId=`closing-${String(f.get("date"))}-${unit}-unico`;
+  const submit=async(event:React.FormEvent<HTMLFormElement>)=>{event.preventDefault();if(!user)return;setBusy(true);setError("");try{const f=new FormData(event.currentTarget);const bankAmounts:Record<string,{credit:number;debit:number;pix:number}>={};banks.filter(bank=>selected[bank.id]).forEach(bank=>bankAmounts[bank.id]={credit:n(f.get(`credit_${bank.id}`)),debit:n(f.get(`debit_${bank.id}`)),pix:n(f.get(`pix_${bank.id}`))});if(!Object.keys(bankAmounts).length&&(n(f.get("systemCredit"))+n(f.get("systemDebit"))+n(f.get("systemPix")))>0)throw new Error("Selecione ao menos uma máquina/banco utilizado.");const requestedPix=pixRequests.filter(item=>item.name.trim()||item.key.trim()||item.description.trim()||Number(item.amount)>0);if(requestedPix.some(item=>!item.name.trim()||!item.key.trim()||!item.description.trim()||Number(item.amount)<=0))throw new Error("Preencha nome, chave PIX, descrição e valor em cada solicitação PIX.");if(requestedPix.some(item=>!isValidPixKey(item.key)))throw new Error("Uma ou mais chaves PIX informadas têm formato inválido (use CPF, CNPJ, e-mail, telefone ou chave aleatória).");const files=f.getAll("attachments").filter(x=>x instanceof File&&x.size) as File[];if(files.length>5)throw new Error("Envie no máximo 5 comprovantes.");const attachments=[];for(const file of files){const saved=await uploadFileToDrive(nameFileForDrive(file,`Fechamento ${String(f.get("date"))} - ${unit}`),"payment_proofs");attachments.push({fileId:saved.fileId,fileName:saved.fileName,mimeType:saved.mimeType,size:saved.size});}const now=new Date().toISOString();const closingId=`closing-${String(f.get("date"))}-${unit}-unico`;
     const sangriaVal=n(f.get("sangriaAmount"));
     const sangriaStatus=sangriaVal>0?String(f.get("sangriaStatus")||"Na loja"):"";
     const sangriaRecipient=sangriaVal>0?String(f.get("sangriaRecipient")||"").trim():"";
     if(sangriaVal>0&&!sangriaRecipient)throw new Error("Informe para quem foi entregue a sangria ou onde está guardada na loja.");
-    const row:RecordData={id:closingId,kind:"cashClosings",tenantId,unitId:unit,version:0,createdAt:now,updatedAt:now,createdBy:user.uid,updatedBy:user.uid,date:String(f.get("date")),shift:"Único",operatorName:String(f.get("operatorName")),systemCash:n(f.get("systemCash")),systemCredit:n(f.get("systemCredit")),systemDebit:n(f.get("systemDebit")),systemPix:n(f.get("systemPix")),systemIfoodOnline:n(f.get("systemIfoodOnline")),systemIfoodVoucher:n(f.get("systemIfoodVoucher")),systemTerm:n(f.get("systemTerm")),systemClub:n(f.get("systemClub")),systemAccrual:n(f.get("systemAccrual")),openingAmount:n(f.get("openingAmount")),cashIn:n(f.get("cashIn")),cashOutflows:n(f.get("cashOutflows")),cashOutflowsJson:JSON.stringify(outflows.filter(item=>item.name.trim()||Number(item.amount)>0)),sangriaAmount:sangriaVal,sangriaStatus,sangriaRecipient,closingFloat:n(f.get("closingFloat")),bankAmountsJson:JSON.stringify(bankAmounts),systemTotal:calc.systemTotal,countedTotal:calc.confirmedTotal,cashExpected:calc.cashExpected,cashFound:calc.cashFound,cashDifference:calc.cashDifference,creditFound:calc.creditFound,creditDifference:calc.creditDifference,debitFound:calc.debitFound,debitDifference:calc.debitDifference,pixFound:calc.pixFound,pixDifference:calc.pixDifference,difference:calc.difference,motoboySystem:n(f.get("motoboySystem")),motoboyPaid:n(f.get("motoboyPaid")),motoboyDifference:calc.motoboyDifference,ifoodAudit:n(f.get("ifoodAudit")),fiscalMachines:n(f.get("fiscalMachines")),invoiceIssued:n(f.get("invoiceIssued")),invoiceDifference:calc.invoiceDifference,pixRequestsJson:JSON.stringify(requestedPix),attachmentsJson:JSON.stringify(attachments),status:calc.difference===0?"Aguardando conferência":"Com divergência",notes:String(f.get("notes")||"")};const payables=requestedPix.map(request=>({id:`pix-${closingId}-${request.id}`,kind:"payables" as const,tenantId,unitId:unit,version:0,createdAt:now,updatedAt:now,createdBy:user.uid,updatedBy:user.uid,obligationType:"Outros",description:`PIX — ${request.description} (${request.name})`,competence:String(f.get("date")).slice(0,7),dueDate:String(f.get("date")),amount:Math.round(Number(request.amount)*100),paymentMethod:"PIX",status:"Pendente",nature:"Operacional",sourceId:closingId,pixKey:request.key,notes:`Solicitação criada no fechamento de caixa. Chave PIX: ${request.key}`})) as RecordData[];[row,...payables].forEach(record=>validate(record,data));await commitRecords([row,...payables],data,row);onSaved();}catch(e){const message=e instanceof Error?e.message:"Não foi possível salvar o fechamento.";setError(/quota exceeded|resource exhausted/i.test(message)?"O Firebase atingiu o limite temporário de uso. Nenhum fechamento foi confirmado; tente novamente mais tarde.":message);}finally{setBusy(false);}};
+    const defaultCategory = data.categories.find(c=>!c.archived && str(c,"nature")==="Operacional")?.id || data.categories[0]?.id || "operacional-outros";
+    const row:RecordData={id:closingId,kind:"cashClosings",tenantId,unitId:unit,version:0,createdAt:now,updatedAt:now,createdBy:user.uid,updatedBy:user.uid,date:String(f.get("date")),shift:"Único",operatorName:String(f.get("operatorName")),systemCash:n(f.get("systemCash")),systemCredit:n(f.get("systemCredit")),systemDebit:n(f.get("systemDebit")),systemPix:n(f.get("systemPix")),systemIfoodOnline:n(f.get("systemIfoodOnline")),systemIfoodVoucher:n(f.get("systemIfoodVoucher")),systemTerm:n(f.get("systemTerm")),systemClub:n(f.get("systemClub")),systemAccrual:n(f.get("systemAccrual")),openingAmount:n(f.get("openingAmount")),cashIn:n(f.get("cashIn")),cashOutflows:n(f.get("cashOutflows")),cashOutflowsJson:JSON.stringify(outflows.filter(item=>item.name.trim()||Number(item.amount)>0)),sangriaAmount:sangriaVal,sangriaStatus,sangriaRecipient,closingFloat:n(f.get("closingFloat")),bankAmountsJson:JSON.stringify(bankAmounts),systemTotal:calc.systemTotal,countedTotal:calc.confirmedTotal,cashExpected:calc.cashExpected,cashFound:calc.cashFound,cashDifference:calc.cashDifference,creditFound:calc.creditFound,creditDifference:calc.creditDifference,debitFound:calc.debitFound,debitDifference:calc.debitDifference,pixFound:calc.pixFound,pixDifference:calc.pixDifference,difference:calc.difference,motoboySystem:n(f.get("motoboySystem")),motoboyPaid:n(f.get("motoboyPaid")),motoboyDifference:calc.motoboyDifference,ifoodAudit:n(f.get("ifoodAudit")),fiscalMachines:n(f.get("fiscalMachines")),invoiceIssued:n(f.get("invoiceIssued")),invoiceDifference:calc.invoiceDifference,pixRequestsJson:JSON.stringify(requestedPix),attachmentsJson:JSON.stringify(attachments),status:calc.difference===0?"Aguardando conferência":"Com divergência",notes:String(f.get("notes")||"")};const payables=requestedPix.map(request=>({id:`pix-${closingId}-${request.id}`,kind:"payables" as const,tenantId,unitId:unit,version:0,createdAt:now,updatedAt:now,createdBy:user.uid,updatedBy:user.uid,obligationType:"Outros",categoryId:defaultCategory,description:`PIX — ${request.description} (${request.name})`,competence:String(f.get("date")).slice(0,7),dueDate:String(f.get("date")),amount:Math.round(Number(request.amount)*100),paymentMethod:"PIX",status:"Pendente",nature:"Operacional",sourceId:closingId,pixKey:request.key,notes:`Solicitação criada no fechamento de caixa. Chave PIX: ${request.key}`})) as RecordData[];[row,...payables].forEach(record=>validate(record,data));await commitRecords([row,...payables],data,row);onSaved();}catch(e){const message=e instanceof Error?e.message:"Não foi possível salvar o fechamento.";setError(/quota exceeded|resource exhausted/i.test(message)?"O Firebase atingiu o limite temporário de uso. Nenhum fechamento foi confirmado; tente novamente mais tarde.":message);}finally{setBusy(false);}};
   return <Modal title="Novo fechamento de caixa" onClose={onClose} wide><form className="cash-form" onChange={e=>recalc(e.currentTarget)} onSubmit={submit}>
     <section><h3>1. Identificação</h3><div className="cash-fields identification-fields"><label>Unidade<select required value={unit} disabled={allowedUnit!=="all"} onChange={e=>{setUnit(e.target.value);setSelected({});}}><option value="">Selecione</option>{data.units.filter(u=>!u.archived&&(allowedUnit==="all"||u.id===allowedUnit)).map(u=><option key={u.id} value={u.id}>{str(u,"name")}</option>)}</select></label><label>Data<input name="date" type="date" defaultValue={dateToday()} required/></label><label>Operador<input name="operatorName" defaultValue={userProfile?.displayName||""} required/></label></div></section>
     <section className="cash-system-section"><header className="cash-section-title"><div><span className="cash-step">ETAPA 2</span><h3>Valores do sistema</h3><p>Informe o que apareceu no sistema de vendas.</p></div><div className="entry-total"><span>ENTRADA TOTAL</span><strong>{brl(calc.systemTotal)}</strong></div></header><div className="cash-primary-grid"><Money name="systemCash" label="Dinheiro"/><Money name="systemCredit" label="Crédito"/><Money name="systemDebit" label="Débito"/><Money name="systemPix" label="PIX"/></div><p className="cash-reconciliation-note">Estes quatro valores serão comparados na conferência financeira.</p><details className="other-receipts"><summary><span>Adicionar outros recebimentos</span><small>iFood, voucher, notas, clube e acréscimos</small></summary><div className="cash-extra-grid"><Money name="systemIfoodOnline" label="iFood Online"/><Money name="systemIfoodVoucher" label="iFood Voucher"/><Money name="systemTerm" label="Notas a prazo/boleto"/><Money name="systemClub" label="Resgate Clube"/><Money name="systemAccrual" label="Acréscimos"/></div></details></section>
@@ -256,25 +268,39 @@ function ConferenceModal({closing,onClose,onSaved}:{closing:RecordData;onClose:(
       const before=Object.fromEntries(banks.map(b=>[b.id,typeof b.balance==="number"?b.balance:null]));
       const afterNetValues=Object.fromEntries(bankCalculations.map(c=>[c.bank.id,c.netAmount]));
 
-      // Update bank account balances with NET amounts (or gross if no fees)
+      let previousNetAmounts: Record<string, number> = {};
+      try {
+        previousNetAmounts = JSON.parse(str(closing, "netBankAmountsJson") || "{}");
+      } catch {}
+      const isAlreadyConferred = str(closing, "status") === "Conferido";
+
+      // Update bank account balances with NET amounts (or delta if already conferred)
       const updates=bankCalculations.map(calcItem=>{
         const prevBal=typeof calcItem.bank.balance==="number"?Number(calcItem.bank.balance):0;
-        // In cash closing conference, the balance is updated by adding net receipts to the bank account
-        const newBalance=prevBal+calcItem.netAmount;
+        const previousNet = isAlreadyConferred ? Number(previousNetAmounts[calcItem.bank.id] || 0) : 0;
+        const deltaNet = calcItem.netAmount - previousNet;
+        const newBalance = prevBal + deltaNet;
+        const closingDate = str(closing, "date");
+        const bankBalDate = str(calcItem.bank, "balanceDate");
+        const nextBalanceDate = bankBalDate && bankBalDate > closingDate ? bankBalDate : closingDate;
+
         return {
           ...calcItem.bank,
           balance:Math.round(newBalance),
-          balanceDate:str(closing,"date"),
+          balanceDate:nextBalanceDate,
+          balanceUpdatedAt:now,
           reconciled:true,
           updatedAt:now,
           updatedBy:user.uid
         };
       });
 
-      // Dedicated Sangria Account handling
+      // Dedicated Sangria Account handling (idempotent via delta)
       const sangriaAmount=Number(closing.sangriaAmount||0);
+      const previousConferredSangria = isAlreadyConferred ? Number(closing.conferredSangriaAmount ?? closing.sangriaAmount ?? 0) : 0;
+      const deltaSangria = sangriaAmount - previousConferredSangria;
       let sangriaAccountUpdate:RecordData|null=null;
-      if(sangriaAmount>0){
+      if(sangriaAmount>0 || deltaSangria !== 0){
         const unitObj=data.units.find(u=>u.id===closing.unitId);
         const sangriaAccountName=`Caixa Sangria - ${unitObj?.name||"Unidade"}`;
         const existingSangriaAccount=data.bankAccounts.find(
@@ -283,15 +309,19 @@ function ConferenceModal({closing,onClose,onSaved}:{closing:RecordData;onClose:(
 
         if(existingSangriaAccount){
           const prevSangriaBal=typeof existingSangriaAccount.balance==="number"?Number(existingSangriaAccount.balance):0;
+          const closingDate = str(closing, "date");
+          const sangriaBalDate = str(existingSangriaAccount, "balanceDate");
+          const nextSangriaDate = sangriaBalDate && sangriaBalDate > closingDate ? sangriaBalDate : closingDate;
           sangriaAccountUpdate={
             ...existingSangriaAccount,
-            balance:prevSangriaBal+sangriaAmount,
-            balanceDate:str(closing,"date"),
+            balance:Math.round(prevSangriaBal+deltaSangria),
+            balanceDate:nextSangriaDate,
+            balanceUpdatedAt:now,
             reconciled:true,
             updatedAt:now,
             updatedBy:user.uid
           };
-        } else {
+        } else if (sangriaAmount > 0) {
           sangriaAccountUpdate={
             id:`bank-sangria-${closing.unitId}`,
             kind:"bankAccounts",
@@ -306,6 +336,7 @@ function ConferenceModal({closing,onClose,onSaved}:{closing:RecordData;onClose:(
             bank:"Caixa físico de Sangria",
             balance:sangriaAmount,
             balanceDate:str(closing,"date"),
+            balanceUpdatedAt:now,
             isSangriaAccount:true,
             reconciled:true,
             notes:`Conta criada automaticamente para controle das sangrias da loja ${unitObj?.name||""}.`
@@ -349,6 +380,7 @@ function ConferenceModal({closing,onClose,onSaved}:{closing:RecordData;onClose:(
         difference:totalDiff,
         reviewedBankAmountsJson:JSON.stringify(bankVals),
         netBankAmountsJson:JSON.stringify(afterNetValues),
+        conferredSangriaAmount:sangriaAmount,
         updatedAt:now,
         updatedBy:user.uid,
         conferenceNotes:notes.trim()

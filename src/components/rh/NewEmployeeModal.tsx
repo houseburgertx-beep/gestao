@@ -21,6 +21,10 @@ import {
 import { formatFileSize, nameFileForDrive, uploadFileToDrive } from "@/services/driveService";
 import { readDocumentText } from "@/services/documentTextReader";
 import { parseEmployeeDocument } from "@/domain/management/documentParsing";
+import { useManagement } from "@/contexts/ManagementContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { saveManagement } from "@/services/managementService";
+import type { RecordData } from "@/domain/management/model";
 
 interface NewEmployeeModalProps {
   isOpen: boolean;
@@ -29,6 +33,8 @@ interface NewEmployeeModalProps {
 }
 
 export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModalProps) {
+  const { data, tenantId } = useManagement();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [cpf, setCpf] = useState("");
@@ -158,6 +164,31 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
       };
 
       store.addEmployee(employeeData);
+
+      try {
+        const now = new Date().toISOString();
+        const mgmtRecord: RecordData = {
+          id: employeeData.id,
+          kind: "employees",
+          tenantId: tenantId || "house-burgers",
+          unitId: unitId || "",
+          version: 0,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: user?.uid || "system",
+          updatedBy: user?.uid || "system",
+          name: employeeData.name,
+          role: employeeData.role,
+          department: employeeData.department,
+          admissionDate: employeeData.admissionDate,
+          salary: Math.round(parsedSalary * 100),
+          status: "Ativo",
+          notes: notes.trim(),
+        };
+        await saveManagement(mgmtRecord, data);
+      } catch (mgmtErr) {
+        console.warn("Aviso ao salvar colaborador na gestão central:", mgmtErr);
+      }
 
       if (scannedDocumentFile) {
         try {

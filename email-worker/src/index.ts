@@ -10,6 +10,17 @@ const SITE_ORIGIN = "https://houseburgertx-beep.github.io";
 const SITE_URL = `${SITE_ORIGIN}/gestao/`;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 
+const ALLOWED_ORIGINS = new Set([
+  "https://houseburgertx-beep.github.io",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+]);
+
+function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.has(origin);
+}
+
 type EmailEnv = Env & {
   GOOGLE_SCRIPT_URL: string;
   GOOGLE_SCRIPT_SECRET: string;
@@ -34,8 +45,9 @@ type UploadPayload = {
 };
 
 function corsHeaders(origin: string | null): HeadersInit {
+  const allowed = isAllowedOrigin(origin) ? (origin as string) : SITE_ORIGIN;
   return {
-    "Access-Control-Allow-Origin": origin === SITE_ORIGIN ? SITE_ORIGIN : "null",
+    "Access-Control-Allow-Origin": allowed,
     "Access-Control-Allow-Headers": "Authorization, Content-Type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Max-Age": "86400",
@@ -208,8 +220,13 @@ function decodeBase64(value: string): ArrayBuffer {
 export default {
   async fetch(request, env): Promise<Response> {
     const origin = request.headers.get("Origin");
-    if (origin !== SITE_ORIGIN) return jsonResponse({ error: "origin_not_allowed" }, 403, origin);
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: isAllowedOrigin(origin) ? 204 : 403,
+        headers: corsHeaders(origin),
+      });
+    }
+    if (!isAllowedOrigin(origin)) return jsonResponse({ error: "origin_not_allowed" }, 403, origin);
     const url = new URL(request.url);
     if (request.method !== "POST" || !["/notifications/email", "/notifications/directory", "/files/upload", "/files/download"].includes(url.pathname)) {
       return jsonResponse({ error: "not_found" }, 404, origin);

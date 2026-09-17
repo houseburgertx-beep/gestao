@@ -6,21 +6,35 @@ import { usePathname } from "next/navigation";
 import { ReceiptText, Users, Columns3, TrendingUp, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
-import { navigationForRole } from "./managementNavigation";
+import { navigationForRole, normalizeRole } from "./managementNavigation";
 
 export function BottomNav({ onOpenMobileMenu }: { onOpenMobileMenu: () => void }) {
   const pathname = usePathname();
   const { userProfile } = useAuth();
 
-  const items = navigationForRole(userProfile?.role).slice(0,4).map(item=>({...item,label:item.title}));
+  const role = normalizeRole(userProfile?.role);
+  const allNav = navigationForRole(userProfile?.role);
+  const quickHrefs =
+    role === "admin" || role === "accountant"
+      ? ["/", "/bancos", "/faturamento", "/fechamento-caixa"]
+      : role === "manager"
+        ? ["/faturamento", "/tarefas"]
+        : ["/fechamento-caixa"];
+
+  const items = allNav
+    .filter((item) => quickHrefs.includes(item.href))
+    .slice(0, 4)
+    .map((item) => ({ ...item, label: item.title }));
 
   return (
     <div className="lg:hidden fixed bottom-0 inset-x-0 h-14 bg-white/95 backdrop-blur border-t border-zinc-200 z-30 px-3 flex items-center justify-around dark:bg-zinc-950/95 dark:border-zinc-800">
       {items.map((item) => {
         const Icon = item.icon;
-        const current = pathname || "/";
+        const current = (pathname || "").replace(/^\/gestao/, "") || "/";
         const isActive =
-          item.href === "/" ? current === "/" || current === "/gestao" || current === "/gestao/" || current.includes("/contas-a-pagar") : current.includes(item.href);
+          item.href === "/"
+            ? current === "/" || current === "" || current.startsWith("/contas-a-pagar")
+            : current.startsWith(item.href);
 
         return (
           <Link

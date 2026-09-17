@@ -298,6 +298,7 @@ export const DEFINITIONS: Record<string, Definition> = {
         "Empréstimo",
       ]),
       f("description", "Descrição"),
+      ref("categoryId", "Categoria", "categories", false),
       ref("supplierId", "Fornecedor", "suppliers", false),
       f("competence", "Competência", "month", false),
       due(),

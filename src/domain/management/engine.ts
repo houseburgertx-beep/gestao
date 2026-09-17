@@ -539,9 +539,11 @@ export function calculate(db: Database, f: Filters) {
   let payrollPct = ratio(payroll, net);
   const cats = new Map((db.categories || []).map((r) => [r.id, r]));
   const expenses = period("payables").filter((r) => !r.sourceKind);
-  const categoryProblems = expenses
-    .filter((r) => !cats.has(str(r, "categoryId")))
-    .map((r) => `Categoria ausente: ${str(r, "description")}`);
+  const categoryProblems = cats.size > 0
+    ? expenses
+        .filter((r) => r.categoryId && !cats.has(str(r, "categoryId")))
+        .map((r) => `Categoria inválida: ${str(r, "description")}`)
+    : [];
   const expensesMissing = [
     ...missing("payables"),
     ...monthsConfirmed("payables"),
@@ -552,7 +554,7 @@ export function calculate(db: Database, f: Filters) {
     metric(
       total(
         expenses.filter(
-          (r) => cats.get(str(r, "categoryId"))?.dreLine === line,
+          (r) => (cats.get(str(r, "categoryId"))?.dreLine === line) || (!str(r, "categoryId") && line === "Operacionais"),
         ),
         "amount",
       ),

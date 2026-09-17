@@ -20,7 +20,6 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const pathname = usePathname();
   const router = useRouter();
   const cleanPath = (pathname || "").replace(/^\/gestao/, "") || "/";
-  const usesUnitSelector = (cleanPath.startsWith("/legado") || cleanPath.startsWith("/integracoes")) || ["/faturamento", "/rh", "/tarefas", "/documentos", "/fornecedores", "/auditoria"].some(p => cleanPath.startsWith(p));
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
@@ -134,7 +133,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
           >
             <Menu className="h-5 w-5" />
           </button>
-          {usesUnitSelector ? <UnitSelector /> : <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Gestão do grupo</span>}
+          <UnitSelector />
         </div>
 
         {/* Center / Search: Command Palette Trigger */}

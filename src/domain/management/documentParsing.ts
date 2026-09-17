@@ -153,10 +153,62 @@ export function parseEmployeeDocument(text: string): ParsedEmployeeDocument {
   const esocial = esocialMatch ? esocialMatch[1] : "";
 
   // Filiação
-  const paiMatch = text.match(/DOMINGOS PEREIRA DE SOUZA/) || text.match(/Pai\s*[:\n]\s*([^\n]+)/i);
-  const fatherName = paiMatch ? (paiMatch[1] || paiMatch[0]) : "";
-  const maeMatch = text.match(/NAIR DIAS FARIAS/) || text.match(/Mãe\s*[:\n]\s*([^\n]+)/i);
-  const motherName = maeMatch ? (maeMatch[1] || maeMatch[0]) : "";
+  let fatherName = "";
+  let motherName = "";
+
+  // 1. Direct label pattern: "Pai: Nome", "Mãe: Nome"
+  const paiDirectMatch = text.match(/(?:Nome do Pai|Pai)\s*[:\-]\s*([A-ZÁ-Úa-zà-ú. ]{4,60})/i);
+  if (paiDirectMatch && isCleanName(paiDirectMatch[1])) {
+    fatherName = paiDirectMatch[1].trim();
+  }
+  const maeDirectMatch = text.match(/(?:Nome da Mãe|Mãe)\s*[:\-]\s*([A-ZÁ-Úa-zà-ú. ]{4,60})/i);
+  if (maeDirectMatch && isCleanName(maeDirectMatch[1])) {
+    motherName = maeDirectMatch[1].trim();
+  }
+
+  // 2. Multiline labeled pattern: "Pai\n[Nome]" or "Mãe\n[Nome]"
+  if (!fatherName || !motherName) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (/^Pai$/i.test(line) && i + 1 < lines.length) {
+        const nextLine = lines[i + 1].trim();
+        if (isCleanName(nextLine) && !/^(?:Mãe|Filiação|CTPS|CPF)/i.test(nextLine)) {
+          if (!fatherName) fatherName = nextLine;
+        }
+      }
+      if (/^Mãe$/i.test(line) && i + 1 < lines.length) {
+        const nextLine = lines[i + 1].trim();
+        if (isCleanName(nextLine) && !/^(?:Pai|Filiação|CTPS|CPF)/i.test(nextLine)) {
+          if (!motherName) motherName = nextLine;
+        }
+      }
+    }
+  }
+
+  // 3. Tabular layout (common in eSocial / Registro de Empregado PDFs where filiação values appear before or after FILIAÇÃO)
+  if (!fatherName || !motherName) {
+    const docMilitarIdx = lines.findIndex((l) => /doc\.?\s*militar/i.test(l));
+    if (docMilitarIdx !== -1 && docMilitarIdx + 2 < lines.length) {
+      const cand1 = lines[docMilitarIdx + 1].trim();
+      const cand2 = lines[docMilitarIdx + 2].trim();
+      if (isCleanName(cand1) && isCleanName(cand2)) {
+        if (!fatherName) fatherName = cand1;
+        if (!motherName) motherName = cand2;
+      }
+    }
+  }
+
+  // 4. Filiação block if names appear directly under FILIAÇÃO header
+  if (!fatherName || !motherName) {
+    const filiacaoIdx = lines.findIndex((l) => /^FILIA[ÇC][ÃA]O$/i.test(l.trim()));
+    if (filiacaoIdx !== -1) {
+      const subLines = lines.slice(filiacaoIdx + 1, filiacaoIdx + 6).map((l) => l.trim()).filter((l) => isCleanName(l));
+      if (subLines.length >= 2) {
+        if (!fatherName) fatherName = subLines[0];
+        if (!motherName) motherName = subLines[1];
+      }
+    }
+  }
 
   // Unit
   let unitId: "teixeira" | "eunapolis" | "foodpark" | "central" = "teixeira";

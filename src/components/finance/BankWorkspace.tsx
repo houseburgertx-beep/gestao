@@ -37,19 +37,35 @@ function currentBalance(
 ) {
   if (typeof account.balance !== "number") return null;
   const since = str(account, "balanceDate");
+  const balanceUpdatedAt = str(account, "balanceUpdatedAt") || str(account, "updatedAt");
   let value = Number(account.balance);
   transactions
-    .filter(
-      (row) =>
-        !row.archived &&
-        row.bankAccountId === account.id &&
-        (!since || str(row, "date") > since),
-    )
+    .filter((row) => {
+      if (row.archived || row.bankAccountId !== account.id) return false;
+      const txDate = str(row, "date");
+      if (!since || txDate > since) return true;
+      if (txDate === since) {
+        const txCreated = str(row, "createdAt");
+        if (txCreated && balanceUpdatedAt) return txCreated >= balanceUpdatedAt;
+        return Boolean(row.obligationId);
+      }
+      return false;
+    })
     .forEach((row) => {
       value += Number(row.amount || 0) * (row.direction === "Entrada" ? 1 : -1);
     });
   transfers
-    .filter((row) => !row.archived && (!since || str(row, "date") > since))
+    .filter((row) => {
+      if (row.archived) return false;
+      const txDate = str(row, "date");
+      if (!since || txDate > since) return true;
+      if (txDate === since) {
+        const txCreated = str(row, "createdAt");
+        if (txCreated && balanceUpdatedAt) return txCreated >= balanceUpdatedAt;
+        return true;
+      }
+      return false;
+    })
     .forEach((row) => {
       if (row.fromBankId === account.id) value -= Number(row.amount || 0);
       if (row.toBankId === account.id) value += Number(row.amount || 0);
@@ -1046,11 +1062,12 @@ function QuickBalanceModal({
       const now = new Date().toISOString();
       const updatedBalance = resultingCents;
 
-      // 1. Update account balance and reference date
+      // 1. Update account balance and reference date with balanceUpdatedAt timestamp
       const updatedAccount: RecordData = {
         ...targetAccount,
         balance: updatedBalance,
         balanceDate: date || dateToday(),
+        balanceUpdatedAt: now,
         reconciled: true,
         version: (targetAccount.version || 0) + 1,
         updatedAt: now,
@@ -1066,7 +1083,7 @@ function QuickBalanceModal({
           tenantId,
           unitId: targetAccount.unitId,
           version: 0,
-          createdAt: now,
+          createdAt: new Date(Date.now() - 500).toISOString(),
           updatedAt: now,
           createdBy: user.uid,
           updatedBy: user.uid,

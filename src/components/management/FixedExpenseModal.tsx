@@ -52,6 +52,7 @@ export function FixedExpenseModal({
   const [selectedSupplierId, setSelectedSupplierId] = useState("");
   const [customSupplierName, setCustomSupplierName] = useState("");
   const [amountInput, setAmountInput] = useState("");
+  const [categoryId, setCategoryId] = useState("");
   
   // Default first due date to 10th of this month
   const [firstDueDate, setFirstDueDate] = useState(() => {
@@ -103,6 +104,7 @@ export function FixedExpenseModal({
       const centsAmount = Math.round(valNum * 100);
       const isNewSupplier = selectedSupplierId === "__new__";
       const finalSupplierId = isNewSupplier ? "" : selectedSupplierId;
+      const defaultCat = data.categories.find(c => !c.archived && (str(c, "name").toLowerCase().includes("fixa") || str(c, "dreLine") === "Operacionais"))?.id || data.categories[0]?.id || "";
 
       const primaryRecordId = safeUUID();
       const record: RecordData = {
@@ -117,6 +119,7 @@ export function FixedExpenseModal({
         updatedBy: user.uid,
         obligationType: "Despesa Fixa",
         description: description.trim(),
+        categoryId: categoryId || defaultCat,
         supplierId: finalSupplierId,
         scannedSupplierName: isNewSupplier ? customSupplierName.trim() : undefined,
         competence: firstDueDate.slice(0, 7),
@@ -252,6 +255,27 @@ export function FixedExpenseModal({
                   .map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            {/* Categoria */}
+            <div className="fixed-expense-field-group">
+              <label htmlFor="fe-category">
+                Categoria DRE / Financeira
+              </label>
+              <select
+                id="fe-category"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+              >
+                <option value="">(Automático / Operacionais)</option>
+                {data.categories
+                  .filter((c) => !c.archived)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {String(c.name || c.id)}
                     </option>
                   ))}
               </select>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BriefcaseBusiness, CalendarDays, CircleDollarSign, Download, FileText, Mail, MapPin, Phone, Plus, Search, Upload, UserCheck, UserRound, UsersRound } from "lucide-react";
 import { useUnit } from "@/contexts/UnitContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useManagement } from "@/contexts/ManagementContext";
 import { Employee } from "@/types";
 import { subscribeEmployees } from "@/services/firestoreService";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -24,6 +25,7 @@ const STATUS: Record<Employee["status"], string> = {
 export default function RhPage() {
   const { filterByUnit, activeUnitData } = useUnit();
   const { userProfile } = useAuth();
+  const { data: mgmtData } = useManagement();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -45,7 +47,60 @@ export default function RhPage() {
     return () => { unsubscribe(); window.removeEventListener("open-employee-form", open); window.removeEventListener("house190_data_updated",refreshDocs); };
   }, []);
 
-  const scoped = useMemo(() => filterByUnit(employees), [employees, filterByUnit]);
+  const allEmployees = useMemo(() => {
+    const list = [...employees];
+    const existingIds = new Set(list.map((e) => e.id));
+    const existingCpfs = new Set(list.map((e) => (e.cpf || "").replace(/\D/g, "")).filter(Boolean));
+
+    for (const row of mgmtData.employees || []) {
+      const rowId = row.id;
+      const rowCpf = String(row.cpf || "").replace(/\D/g, "");
+      if (existingIds.has(rowId) || (rowCpf && existingCpfs.has(rowCpf))) {
+        continue;
+      }
+      const rawStatus = String(row.status || "Ativo").toLowerCase();
+      const mappedStatus: Employee["status"] =
+        rawStatus.includes("férias") || rawStatus.includes("ferias") || rawStatus === "vacation"
+          ? "vacation"
+          : rawStatus.includes("afastad") || rawStatus === "leave"
+          ? "leave"
+          : rawStatus.includes("desligad") || rawStatus === "terminated"
+          ? "terminated"
+          : "active";
+
+      list.push({
+        id: row.id,
+        name: String(row.name || ""),
+        cpf: String(row.cpf || ""),
+        birthDate: String(row.birthDate || ""),
+        phone: String(row.phone || ""),
+        email: String(row.email || ""),
+        address: String(row.address || ""),
+        unitId: (row.unitId as any) || "teixeira",
+        department: String(row.department || "Cozinha / Produção"),
+        role: String(row.role || ""),
+        admissionDate: String(row.admissionDate || ""),
+        salary: typeof row.salary === "number" ? row.salary / 100 : 0,
+        contractType: (row.contractType as any) || "CLT",
+        workHours: String(row.workHours || "44h semanais (Escala 6x1)"),
+        managerName: String(row.managerName || ""),
+        status: mappedStatus,
+        bankData: "",
+        bankName: "",
+        bankAgency: "",
+        bankAccount: "",
+        bankAccountType: "corrente",
+        bankHolderCpf: "",
+        bankHolderName: "",
+        photoUrl: "",
+        documentsCount: 0,
+        notes: String(row.notes || ""),
+      });
+    }
+    return list;
+  }, [employees, mgmtData.employees]);
+
+  const scoped = useMemo(() => filterByUnit(allEmployees), [allEmployees, filterByUnit]);
   const filtered = scoped.filter((employee) => {
     const query = search.toLocaleLowerCase();
     return (!status || employee.status === status) && (!query || `${employee.name} ${employee.role} ${employee.department}`.toLocaleLowerCase().includes(query));
