@@ -1762,20 +1762,14 @@ export function SettlementForm({
               row.paymentProofSize = stored.size;
             }
             await commitRecords([row], data, row);
-            try {
-              await backupPayablesSpreadsheet(data, [row]);
-              onSaved(
-                isCompletePay
-                  ? `Conta quitada 100%! Baixa de ${currency(currentPayCents)} confirmada e backup atualizado.`
-                  : `Pagamento parcial de ${currency(currentPayCents)} abatido com sucesso! Saldo restante: ${currency(remainingAfterCents)}.`,
-              );
-            } catch {
-              onSaved(
-                isCompletePay
-                  ? `Conta quitada 100%! Baixa de ${currency(currentPayCents)} confirmada.`
-                  : `Pagamento parcial de ${currency(currentPayCents)} abatido! Saldo restante: ${currency(remainingAfterCents)}.`,
-              );
-            }
+            void backupPayablesSpreadsheet(data, [row]).catch((err) =>
+              console.warn("Backup em planilha pendente:", err),
+            );
+            onSaved(
+              isCompletePay
+                ? `Conta quitada 100%! Baixa de ${currency(currentPayCents)} confirmada.`
+                : `Pagamento parcial de ${currency(currentPayCents)} abatido com sucesso! Saldo restante: ${currency(remainingAfterCents)}.`,
+            );
           } catch (err) {
             setError(
               err instanceof Error ? err.message : "Falha ao registrar baixa.",

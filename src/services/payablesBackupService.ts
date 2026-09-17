@@ -29,11 +29,11 @@ function brl(cents: number): string {
   });
 }
 
-/**
- * Creates a versioned spreadsheet-compatible backup in Google Drive.
- * A new snapshot is intentional: it preserves earlier versions after edits or payments.
- */
-export async function backupPayablesSpreadsheet(
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingDb: Database | null = null;
+const pendingChangedMap = new Map<string, RecordData>();
+
+async function performBackup(
   database: Database,
   changed: RecordData[] = [],
 ): Promise<void> {
@@ -98,3 +98,52 @@ export async function backupPayablesSpreadsheet(
   );
   await uploadFileToDrive(file, "documents");
 }
+
+/**
+ * Creates a versioned spreadsheet-compatible backup in Google Drive.
+ * A new snapshot is intentional: it preserves earlier versions after edits or payments.
+ * Background calls are debounced by 3 seconds to avoid multiple heavy concurrent uploads.
+ */
+export async function backupPayablesSpreadsheet(
+  database: Database,
+  changed: RecordData[] = [],
+  immediate = false,
+): Promise<void> {
+  if (immediate) {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    for (const r of changed) pendingChangedMap.set(r.id, r);
+    const changesToApply = Array.from(pendingChangedMap.values());
+    pendingChangedMap.clear();
+    const dbToUse = pendingDb || database;
+    pendingDb = null;
+    return performBackup(dbToUse, changesToApply);
+  }
+
+  // Enfileira alterações e agenda o backup para 3 segundos após a última alteração
+  pendingDb = database;
+  for (const r of changed) pendingChangedMap.set(r.id, r);
+
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+  }
+
+  return new Promise((resolve) => {
+    debounceTimer = setTimeout(async () => {
+      debounceTimer = null;
+      const dbToUse = pendingDb || database;
+      const changesToApply = Array.from(pendingChangedMap.values());
+      pendingDb = null;
+      pendingChangedMap.clear();
+      try {
+        await performBackup(dbToUse, changesToApply);
+      } catch (err) {
+        console.warn("Backup de contas a pagar no Google Drive:", err);
+      }
+      resolve();
+    }, 3000);
+  });
+}
+

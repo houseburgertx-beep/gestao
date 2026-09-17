@@ -248,7 +248,7 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
     setBackupMessage("");
     try {
       const rows = data.payables || [];
-      await backupPayablesSpreadsheet(data, rows);
+      await backupPayablesSpreadsheet(data, rows, true);
       setBackupMessage("Backup em planilha gerado com sucesso no Google Drive.");
     } catch {
       setBackupMessage("Não foi possível gerar a planilha no Drive agora.");
