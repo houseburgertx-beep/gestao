@@ -282,21 +282,27 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
           <button className="payables-hero-btn-instant" onClick={() => setInstantOpen(true)} title="Registrar baixa rápida">
             <ReceiptText size={16} /> Pagamento instantâneo
           </button>
-          <button className="payables-hero-btn-backup" onClick={createBackup} disabled={backingUp} title="Sincronizar toda a base na Planilha Única do Google Sheets">
-            <FileSpreadsheet size={16} /> {backingUp ? "Sincronizando…" : "Sincronizar Planilha"}
-          </button>
-          {spreadsheetUrl && (
-            <a
-              href={spreadsheetUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+          <div className="payables-hero-sheets-cluster">
+            <button
               className="payables-hero-btn-backup"
-              style={{ background: "#059669", borderColor: "#059669", color: "#ffffff", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}
-              title="Abrir a planilha central no Google Sheets"
+              onClick={createBackup}
+              disabled={backingUp}
+              title="Sincronizar toda a base na Planilha Única do Google Sheets"
             >
-              <ExternalLink size={15} /> Abrir Planilha Google
-            </a>
-          )}
+              <FileSpreadsheet size={16} /> {backingUp ? "Sincronizando…" : "Sincronizar Planilha"}
+            </button>
+            {spreadsheetUrl && (
+              <a
+                href={spreadsheetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="payables-hero-btn-open-sheet"
+                title="Abrir a planilha central no Google Sheets (nova aba)"
+              >
+                <ExternalLink size={14} /> Abrir
+              </a>
+            )}
+          </div>
         </div>
       </section>
 
