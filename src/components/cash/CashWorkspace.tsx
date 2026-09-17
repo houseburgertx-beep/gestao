@@ -440,7 +440,7 @@ function ClosingModal({
   const cOutflows = outflows.reduce((sum, r) => sum + c(r.amount), 0);
   const cCashExpected = cOpening + cSysCash + cCashIn - cOutflows;
   const cCashFound = cSangria + cClosingFloat;
-  const cCashDiff = cCashFound - cCashExpected;
+  const cCashDiff = cCashExpected < 0 ? cCashFound - Math.abs(cCashExpected) : cCashFound - cCashExpected;
 
   let cCreditFound = 0;
   let cDebitFound = 0;
@@ -1566,22 +1566,57 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   const [cashOutflows, setCashOutflows] = useState<number>(() => closingValue(closing, "cashOutflows"));
   const [sangriaAmount, setSangriaAmount] = useState<number>(() => closingValue(closing, "sangriaAmount"));
   const [closingFloat, setClosingFloat] = useState<number>(() => closingValue(closing, "closingFloat"));
+  const [allowEditSystem, setAllowEditSystem] = useState(false);
 
   // Bank machine values (editable)
   const initialSaved = useMemo(() => parseBankAmounts(closing), [closing]);
   const allBanks = data.bankAccounts.filter(b => !b.archived && b.unitId === closing.unitId);
-  // Show banks that were either registered in initialSaved OR all active store banks
+  const availableBanks = useMemo(() => {
+    if (allBanks.length > 0) return allBanks;
+    const anyBanks = data.bankAccounts.filter(b => !b.archived);
+    if (anyBanks.length > 0) return anyBanks;
+    return [{ id: "machine_default", name: "Máquina Principal", unitId: closing.unitId } as any];
+  }, [allBanks, data.bankAccounts, closing.unitId]);
+
   const [bankVals, setBankVals] = useState<Record<string, { credit: number; debit: number; pix: number }>>(() => {
     const res: Record<string, { credit: number; debit: number; pix: number }> = {};
-    allBanks.forEach(b => {
+    availableBanks.forEach(b => {
       res[b.id] = {
-        credit: Number(initialSaved[b.id]?.credit || 0),
-        debit: Number(initialSaved[b.id]?.debit || 0),
-        pix: Number(initialSaved[b.id]?.pix || 0),
+        credit: Number(initialSaved[b.id]?.credit || (availableBanks.length === 1 ? closingValue(closing, "creditFound") : 0)),
+        debit: Number(initialSaved[b.id]?.debit || (availableBanks.length === 1 ? closingValue(closing, "debitFound") : 0)),
+        pix: Number(initialSaved[b.id]?.pix || (availableBanks.length === 1 ? closingValue(closing, "pixFound") : 0)),
       };
+    });
+    Object.entries(initialSaved).forEach(([bId, vals]) => {
+      if (!res[bId]) {
+        res[bId] = { credit: Number(vals.credit || 0), debit: Number(vals.debit || 0), pix: Number(vals.pix || 0) };
+      }
     });
     return res;
   });
+
+  // Active banks to display (those with values > 0 or in initialSaved, or all)
+  const displayBanks = useMemo(() => {
+    const list = availableBanks.filter(b => initialSaved[b.id] !== undefined || (bankVals[b.id]?.credit || 0) > 0 || (bankVals[b.id]?.debit || 0) > 0 || (bankVals[b.id]?.pix || 0) > 0 || availableBanks.length <= 3);
+    return list.length > 0 ? list : availableBanks;
+  }, [availableBanks, initialSaved, bankVals]);
+
+  const [activeBankId, setActiveBankId] = useState<string>(() => {
+    const firstSaved = Object.keys(initialSaved)[0];
+    if (firstSaved && availableBanks.some(b => b.id === firstSaved)) return firstSaved;
+    return availableBanks[0]?.id || "machine_default";
+  });
+
+  const updateActiveBank = (type: "credit" | "debit" | "pix", val: number) => {
+    const targetId = activeBankId || displayBanks[0]?.id || "machine_default";
+    setBankVals(prev => {
+      const current = prev[targetId] || { credit: 0, debit: 0, pix: 0 };
+      return {
+        ...prev,
+        [targetId]: { ...current, [type]: val }
+      };
+    });
+  };
 
   const [checks, setChecks] = useState({ cash: false, credit: false, debit: false, pix: false, serviceFee: false });
   const [notes, setNotes] = useState(() => str(closing, "conferenceNotes") || str(closing, "notes") || "");
@@ -1592,7 +1627,9 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   // Recalculations
   const cashExpected = openingAmount + systemCash + cashIn - cashOutflows;
   const cashFound = sangriaAmount + closingFloat;
-  const cashDiff = cashFound - cashExpected;
+  const cashDiff = cashExpected < 0
+    ? cashFound - Math.abs(cashExpected)
+    : cashFound - cashExpected;
 
   const totalCreditFound = Object.values(bankVals).reduce((s, b) => s + b.credit, 0);
   const totalDebitFound = Object.values(bankVals).reduce((s, b) => s + b.debit, 0);
@@ -1603,9 +1640,6 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   const pixDiff = totalPixFound - systemPix;
   const totalDiff = cashDiff + creditDiff + debitDiff + pixDiff;
   const systemTotal = systemCash + systemCredit + systemDebit + systemPix + systemServiceFee + otherSales;
-
-  // Active banks to display (those with values > 0 or in initialSaved, or all)
-  const displayBanks = allBanks.filter(b => initialSaved[b.id] !== undefined || (bankVals[b.id]?.credit || 0) > 0 || (bankVals[b.id]?.debit || 0) > 0 || (bankVals[b.id]?.pix || 0) > 0 || allBanks.length <= 3);
 
   // Fee deductions calculation per bank
   const bankCalculations = useMemo(() => {
@@ -1823,6 +1857,11 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
 
   const attachmentsList = parseAttachments(closing);
 
+  const activeBank = availableBanks.find(b => b.id === activeBankId) || availableBanks[0] || { id: "machine_default", name: "Máquina Principal" };
+  const activeCredit = bankVals[activeBank.id]?.credit || 0;
+  const activeDebit = bankVals[activeBank.id]?.debit || 0;
+  const activePix = bankVals[activeBank.id]?.pix || 0;
+
   return (
     <Modal title="Conferência Financeira do Caixa" onClose={onClose} wide>
       <div className="conference-flow space-y-4">
@@ -1857,17 +1896,28 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         <section className="conference-reconciliation">
           <header className="conference-header-flex">
             <div>
-              <h3>Conciliação dos 4 Valores Principais</h3>
-              <p>Valores de Sistema (PDV) e Contados (Físico / Bancos) podem ser ajustados diretamente.</p>
+              <h3>Conciliação dos Valores Principais</h3>
+              <p>Valores de Sistema (PDV) e Contados (Físico / Máquinas) conferidos em tempo real.</p>
             </div>
-            <button
-              type="button"
-              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
-              onClick={() => setShowDrawerDetails(!showDrawerDetails)}
-            >
-              {showDrawerDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              <span>{showDrawerDetails ? "Ocultar detalhes da gaveta" : "Editar detalhes da gaveta (Troco, Sangria, Saídas)"}</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className={`conf-pdv-toggle ${allowEditSystem ? "active" : ""}`}
+                onClick={() => setAllowEditSystem(!allowEditSystem)}
+                title="Habilita edição dos valores registrados pelo PDV caso o operador tenha digitado errado"
+              >
+                <Edit3 size={12} />
+                <span>{allowEditSystem ? "Bloquear PDV" : "Ajustar PDV"}</span>
+              </button>
+              <button
+                type="button"
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                onClick={() => setShowDrawerDetails(!showDrawerDetails)}
+              >
+                {showDrawerDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                <span>{showDrawerDetails ? "Ocultar gaveta" : "Detalhes gaveta"}</span>
+              </button>
+            </div>
           </header>
 
           {/* Drawer Details Editable Panel */}
@@ -1953,6 +2003,29 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
             </div>
           )}
 
+          {/* Machine Selector if multiple machines */}
+          {displayBanks.length > 1 && (
+            <div className="conf-machine-selector-bar">
+              <div className="conf-machine-tabs">
+                <span className="conf-machine-label">Máquina em conferência:</span>
+                <div className="conf-machine-pills">
+                  {displayBanks.map(b => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      className={`conf-machine-pill ${activeBankId === b.id ? "active" : ""}`}
+                      onClick={() => setActiveBankId(b.id)}
+                    >
+                      <Landmark size={13} />
+                      <span>{str(b, "name") || "Máquina"}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <span className="text-[11px] text-zinc-500 font-medium">Editando valores da máquina selecionada</span>
+            </div>
+          )}
+
           <div className="conference-table">
             <div className="head">
               <span>Forma</span>
@@ -1965,23 +2038,42 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
             {/* Dinheiro */}
             <div className="line">
               <strong>Dinheiro</strong>
-              <span>{brl(cashExpected)}</span>
+              {allowEditSystem ? (
+                <div className="conf-editable-cell">
+                  <div className="conf-input-box">
+                    <span className="conf-input-prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={systemCash / 100}
+                      disabled={review}
+                      onChange={e => setSystemCash(Math.round(Number(e.target.value) * 100))}
+                      title="Ajustar Dinheiro registrado no PDV"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <span className="conf-val-static">{brl(cashExpected)}</span>
+              )}
               <div className="conf-editable-cell">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={cashFound / 100}
-                  disabled={review}
-                  onChange={e => {
-                    const val = Math.round(Number(e.target.value) * 100);
-                    setClosingFloat(val - sangriaAmount);
-                  }}
-                  title="Dinheiro contado (Sangria + Troco Final)"
-                />
+                <div className="conf-input-box">
+                  <span className="conf-input-prefix">R$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={cashFound / 100}
+                    disabled={review}
+                    onChange={e => {
+                      const val = Math.round(Number(e.target.value) * 100);
+                      setClosingFloat(val - sangriaAmount);
+                    }}
+                    title="Dinheiro contado físico (Sangria + Troco Final)"
+                  />
+                </div>
               </div>
               <Difference value={cashDiff} />
-              <label>
+              <label className="conf-check-label">
                 <input type="checkbox" checked={checks.cash} disabled={review} onChange={e => setChecks(c => ({ ...c, cash: e.target.checked }))} /> OK
               </label>
             </div>
@@ -1989,20 +2081,43 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
             {/* Crédito */}
             <div className="line">
               <strong>Crédito</strong>
+              {allowEditSystem ? (
+                <div className="conf-editable-cell">
+                  <div className="conf-input-box">
+                    <span className="conf-input-prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={systemCredit / 100}
+                      disabled={review}
+                      onChange={e => setSystemCredit(Math.round(Number(e.target.value) * 100))}
+                      title="Ajustar Crédito registrado no PDV"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <span className="conf-val-static">{brl(systemCredit)}</span>
+              )}
               <div className="conf-editable-cell">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={systemCredit / 100}
-                  disabled={review}
-                  onChange={e => setSystemCredit(Math.round(Number(e.target.value) * 100))}
-                  title="Ajustar Crédito registrado no PDV"
-                />
+                <div className="conf-input-box">
+                  <span className="conf-input-prefix">R$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={activeCredit / 100}
+                    disabled={review}
+                    onChange={e => updateActiveBank("credit", Math.round(Number(e.target.value) * 100))}
+                    title={`Crédito conferido na máquina (${str(activeBank, "name") || "Máquina"})`}
+                  />
+                </div>
+                {displayBanks.length > 1 && (
+                  <span className="conf-sub-total">Total máquinas: {brl(totalCreditFound)}</span>
+                )}
               </div>
-              <span>{brl(totalCreditFound)}</span>
               <Difference value={creditDiff} />
-              <label>
+              <label className="conf-check-label">
                 <input type="checkbox" checked={checks.credit} disabled={review} onChange={e => setChecks(c => ({ ...c, credit: e.target.checked }))} /> OK
               </label>
             </div>
@@ -2010,20 +2125,43 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
             {/* Débito */}
             <div className="line">
               <strong>Débito</strong>
+              {allowEditSystem ? (
+                <div className="conf-editable-cell">
+                  <div className="conf-input-box">
+                    <span className="conf-input-prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={systemDebit / 100}
+                      disabled={review}
+                      onChange={e => setSystemDebit(Math.round(Number(e.target.value) * 100))}
+                      title="Ajustar Débito registrado no PDV"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <span className="conf-val-static">{brl(systemDebit)}</span>
+              )}
               <div className="conf-editable-cell">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={systemDebit / 100}
-                  disabled={review}
-                  onChange={e => setSystemDebit(Math.round(Number(e.target.value) * 100))}
-                  title="Ajustar Débito registrado no PDV"
-                />
+                <div className="conf-input-box">
+                  <span className="conf-input-prefix">R$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={activeDebit / 100}
+                    disabled={review}
+                    onChange={e => updateActiveBank("debit", Math.round(Number(e.target.value) * 100))}
+                    title={`Débito conferido na máquina (${str(activeBank, "name") || "Máquina"})`}
+                  />
+                </div>
+                {displayBanks.length > 1 && (
+                  <span className="conf-sub-total">Total máquinas: {brl(totalDebitFound)}</span>
+                )}
               </div>
-              <span>{brl(totalDebitFound)}</span>
               <Difference value={debitDiff} />
-              <label>
+              <label className="conf-check-label">
                 <input type="checkbox" checked={checks.debit} disabled={review} onChange={e => setChecks(c => ({ ...c, debit: e.target.checked }))} /> OK
               </label>
             </div>
@@ -2031,20 +2169,43 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
             {/* PIX */}
             <div className="line">
               <strong>PIX</strong>
+              {allowEditSystem ? (
+                <div className="conf-editable-cell">
+                  <div className="conf-input-box">
+                    <span className="conf-input-prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={systemPix / 100}
+                      disabled={review}
+                      onChange={e => setSystemPix(Math.round(Number(e.target.value) * 100))}
+                      title="Ajustar PIX registrado no PDV"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <span className="conf-val-static">{brl(systemPix)}</span>
+              )}
               <div className="conf-editable-cell">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={systemPix / 100}
-                  disabled={review}
-                  onChange={e => setSystemPix(Math.round(Number(e.target.value) * 100))}
-                  title="Ajustar PIX registrado no PDV"
-                />
+                <div className="conf-input-box">
+                  <span className="conf-input-prefix">R$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={activePix / 100}
+                    disabled={review}
+                    onChange={e => updateActiveBank("pix", Math.round(Number(e.target.value) * 100))}
+                    title={`PIX conferido na máquina (${str(activeBank, "name") || "Máquina"})`}
+                  />
+                </div>
+                {displayBanks.length > 1 && (
+                  <span className="conf-sub-total">Total máquinas: {brl(totalPixFound)}</span>
+                )}
               </div>
-              <span>{brl(totalPixFound)}</span>
               <Difference value={pixDiff} />
-              <label>
+              <label className="conf-check-label">
                 <input type="checkbox" checked={checks.pix} disabled={review} onChange={e => setChecks(c => ({ ...c, pix: e.target.checked }))} /> OK
               </label>
             </div>
@@ -2052,20 +2213,29 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
             {/* Taxa de Serviço */}
             <div className="line">
               <strong>Taxa de Serviço</strong>
+              {allowEditSystem ? (
+                <div className="conf-editable-cell">
+                  <div className="conf-input-box">
+                    <span className="conf-input-prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={systemServiceFee / 100}
+                      disabled={review}
+                      onChange={e => setSystemServiceFee(Math.round(Number(e.target.value) * 100))}
+                      title="Ajustar Taxa de Serviço registrada no PDV"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <span className="conf-val-static">{brl(systemServiceFee)}</span>
+              )}
               <div className="conf-editable-cell">
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={systemServiceFee / 100}
-                  disabled={review}
-                  onChange={e => setSystemServiceFee(Math.round(Number(e.target.value) * 100))}
-                  title="Ajustar Taxa de Serviço registrada no PDV"
-                />
+                <span className="conf-val-static">{brl(systemServiceFee)}</span>
               </div>
-              <span>{brl(systemServiceFee)}</span>
               <Difference value={0} />
-              <label>
+              <label className="conf-check-label">
                 <input type="checkbox" checked={checks.serviceFee} disabled={review} onChange={e => setChecks(c => ({ ...c, serviceFee: e.target.checked }))} /> OK
               </label>
             </div>
@@ -2534,7 +2704,14 @@ function BankRatesTab(){
 }
 
 function Money({name,label,disabled=false}:{name:string;label:string;disabled?:boolean}){return <label>{label}<input name={name} type="number" step="0.01" min="0" defaultValue="0" disabled={disabled}/></label>}
-function Difference({value}:{value:number}){return <span className={`difference-pill ${value===0?"ok":value>0?"surplus":"shortage"}`}>{value===0?"Confere":`${value>0?"Sobra":"Falta"} ${brl(Math.abs(value))}`}</span>}
+function Difference({value}:{value:number}){
+  const rounded = Math.round(value);
+  return (
+    <span className={`difference-pill ${rounded===0?"ok":rounded>0?"surplus":"shortage"}`}>
+      {rounded===0?"Confere":`${rounded>0?"Sobra":"Falta"} ${brl(Math.abs(rounded))}`}
+    </span>
+  );
+}
 function Result({label,systemValue,found,difference}:{label:string;systemValue:number;found:number;difference:number}){return <article><strong>{label}</strong><span>Esperado <b>{brl(systemValue)}</b></span><span>Encontrado <b>{brl(found)}</b></span><Difference value={difference}/></article>}
 function Metric({icon:Icon,tone,label,value}:{icon:typeof ClipboardCheck;tone:string;label:string;value:string}){return <div className={`workspace-metric ${tone}`}><span><Icon size={18}/></span><div><small>{label}</small><strong className={value.length>8?"compact":""}>{value}</strong></div></div>}
 
