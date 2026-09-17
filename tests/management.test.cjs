@@ -897,3 +897,38 @@ test('Takeat: channels without reconciliation are not invented',()=>{
  assert.equal(calculate(db,filters).metrics.gross.value,10000);
  assert.equal(calculate(db,{...filters,channel:'iFood'}).metrics.gross.value,null);
 });
+
+test('Fechamento e conferência: dinheiro esperado negativo sem cobertura resulta em falta e não sobra', () => {
+  const calcCashDiff = (cashExpected, cashFound) => {
+    return cashExpected < 0 ? cashFound - Math.abs(cashExpected) : cashFound - cashExpected;
+  };
+  const diffLabel = (diff) => {
+    const rounded = Math.round(diff);
+    return rounded === 0 ? "Confere" : rounded > 0 ? "Sobra" : "Falta";
+  };
+
+  // User bug case: cashExpected = -10.34 (-1034 cents), cashFound = 0
+  const bugDiff = calcCashDiff(-1034, 0);
+  assert.equal(bugDiff, -1034);
+  assert.equal(diffLabel(bugDiff), "Falta");
+
+  // Fully covered: cashExpected = -10.34, cashFound = 10.34
+  const coveredDiff = calcCashDiff(-1034, 1034);
+  assert.equal(coveredDiff, 0);
+  assert.equal(diffLabel(coveredDiff), "Confere");
+
+  // Over-covered: cashExpected = -10.34, cashFound = 15.00
+  const surplusDiff = calcCashDiff(-1034, 1500);
+  assert.equal(surplusDiff, 466);
+  assert.equal(diffLabel(surplusDiff), "Sobra");
+
+  // Normal positive expected shortage: cashExpected = 50.00, cashFound = 0
+  const normalShortage = calcCashDiff(5000, 0);
+  assert.equal(normalShortage, -5000);
+  assert.equal(diffLabel(normalShortage), "Falta");
+
+  // Normal positive expected surplus: cashExpected = 50.00, cashFound = 60.00
+  const normalSurplus = calcCashDiff(5000, 6000);
+  assert.equal(normalSurplus, 1000);
+  assert.equal(diffLabel(normalSurplus), "Sobra");
+});
