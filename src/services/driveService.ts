@@ -138,11 +138,18 @@ async function authenticatedPost(path: string, body: object): Promise<Response> 
   const user = auth.currentUser;
   if (!user) throw new Error("Faça login novamente para acessar o Google Drive.");
   const token = await user.getIdToken();
-  return fetch(`${DRIVE_WORKER_URL}${path}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
+  try {
+    return await fetch(`${DRIVE_WORKER_URL}${path}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function uploadFileToDrive(file: File, category: DriveCategory): Promise<StoredDriveFile> {
