@@ -517,12 +517,20 @@ export function EmployeeDetailDrawer({
           <div className="rh-tab-content">
             {/* BOX DE UPLOAD DE ARQUIVOS */}
             <div className="rh-upload-panel">
-              <h4>
-                <Upload size={16} /> Anexar Documento ou Contracheque
-              </h4>
-              <p>
-                Os arquivos são salvos com segurança no Google Drive na pasta de documentos da unidade.
-              </p>
+              <div className="rh-upload-top">
+                <div className="rh-upload-title-wrap">
+                  <div className="rh-upload-icon-circle">
+                    <Upload size={18} />
+                  </div>
+                  <div>
+                    <h4>Anexar Documento ou Contracheque</h4>
+                    <p>Armazenamento sincronizado em tempo real com o Google Drive da unidade.</p>
+                  </div>
+                </div>
+                <span className="rh-drive-badge">
+                  <span className="rh-drive-dot" /> Google Drive Conectado
+                </span>
+              </div>
 
               <div className="rh-upload-controls">
                 <div className="rh-control-field">
@@ -534,27 +542,29 @@ export function EmployeeDetailDrawer({
                   >
                     <option value="contracheque">Contracheque / Holerite</option>
                     <option value="atestado">Atestado Médico</option>
-                    <option value="contrato">Contrato de Trabalho / Aditivo</option>
-                    <option value="pessoal">Documento Pessoal (RG/CPF/CTPS)</option>
-                    <option value="aso">Exame / ASO (Admissional/Periódico)</option>
-                    <option value="outros">Outros Termos ou Comprovantes</option>
+                    <option value="contrato">Contrato de Trabalho / Termos</option>
+                    <option value="pessoal">Documento Pessoal (RG / CPF / CNH)</option>
+                    <option value="aso">Exame / ASO (Admissional / Periódico)</option>
+                    <option value="outros">Outros Documentos / Comprovantes</option>
                   </select>
                 </div>
 
                 <div className="rh-control-field">
                   <label>
                     {docCategory === "contracheque"
-                      ? "Mês / Competência (ex: 08/2026)"
+                      ? "Mês / Competência"
                       : docCategory === "atestado"
-                      ? "Dias de afastamento (ex: 2 dias)"
-                      : "Identificação / Detalhes (opcional)"}
+                      ? "Dias de Afastamento"
+                      : "Identificação / Referência"}
                   </label>
                   <input
                     type="text"
                     placeholder={
                       docCategory === "contracheque"
-                        ? "Ex: 08/2026 ou Adiantamento"
-                        : "Ex: Observação ou número"
+                        ? "Ex: 09/2026 ou Adiantamento"
+                        : docCategory === "atestado"
+                        ? "Ex: 2 dias ou CID"
+                        : "Ex: Ficha de admissão ou CTPS"
                     }
                     value={docReference}
                     onChange={(e) => setDocReference(e.target.value)}
@@ -563,9 +573,9 @@ export function EmployeeDetailDrawer({
                 </div>
 
                 <div className="rh-control-field rh-control-file">
-                  <label className="rh-file-input-btn">
-                    <Upload size={15} />
-                    <span>{isUploading ? "Enviando para o Google Drive…" : "Selecionar PDF ou Foto"}</span>
+                  <label className={`rh-file-input-btn ${isUploading ? "loading" : ""}`}>
+                    <Upload size={16} />
+                    <span>{isUploading ? "Enviando ao Drive…" : "Selecionar PDF ou Foto"}</span>
                     <input
                       type="file"
                       className="sr-only"
@@ -581,56 +591,78 @@ export function EmployeeDetailDrawer({
               {uploadSuccess && <div className="rh-alert-msg rh-alert-success">{uploadSuccess}</div>}
             </div>
 
-            {/* FILTRO DE CATEGORIAS */}
-            <div className="rh-doc-filters">
-              {DOCUMENT_CATEGORIES.map((cat) => {
-                const count =
-                  cat.key === "all"
-                    ? employeeDocs.length
-                    : employeeDocs.filter(
-                        (d) =>
-                          d.tags?.includes("tag" in cat ? cat.tag : "") ||
-                          d.title.toLowerCase().includes(cat.key)
-                      ).length;
+            {/* FILTRO DE CATEGORIAS (SEGMENTED PILLS) */}
+            <div className="rh-doc-filters-container">
+              <div className="rh-doc-filters">
+                {DOCUMENT_CATEGORIES.map((cat) => {
+                  const count =
+                    cat.key === "all"
+                      ? employeeDocs.length
+                      : employeeDocs.filter(
+                          (d) =>
+                            d.tags?.includes("tag" in cat ? cat.tag : "") ||
+                            d.title.toLowerCase().includes(cat.key)
+                        ).length;
 
-                return (
-                  <button
-                    key={cat.key}
-                    type="button"
-                    className={`rh-doc-pill ${docFilter === cat.key ? "active" : ""}`}
-                    onClick={() => setDocFilter(cat.key)}
-                  >
-                    {cat.label} ({count})
-                  </button>
-                );
-              })}
+                  const isActive = docFilter === cat.key;
+                  return (
+                    <button
+                      key={cat.key}
+                      type="button"
+                      className={`rh-doc-pill ${isActive ? "active" : ""}`}
+                      onClick={() => setDocFilter(cat.key)}
+                    >
+                      <span>{cat.label}</span>
+                      <span className={`rh-pill-count ${isActive ? "active" : ""}`}>{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* LISTA DE DOCUMENTOS */}
             <div className="rh-doc-list">
               {filteredDocs.length > 0 ? (
                 filteredDocs.map((doc) => {
-                  const isContracheque = doc.tags?.includes("Contracheque") || doc.title.toLowerCase().includes("contracheque") || doc.title.toLowerCase().includes("holerite");
-                  const isAtestado = doc.tags?.includes("Atestado") || doc.title.toLowerCase().includes("atestado");
+                  const isContracheque =
+                    doc.tags?.includes("Contracheque") ||
+                    doc.title.toLowerCase().includes("contracheque") ||
+                    doc.title.toLowerCase().includes("holerite");
+                  const isAtestado =
+                    doc.tags?.includes("Atestado") || doc.title.toLowerCase().includes("atestado");
+                  const isContrato =
+                    doc.tags?.includes("Contrato") || doc.title.toLowerCase().includes("contrato");
 
                   return (
                     <div key={doc.id} className="rh-doc-card">
-                      <div className="rh-doc-icon-wrap">
+                      <div
+                        className={`rh-doc-icon-wrap ${
+                          isContracheque
+                            ? "contracheque"
+                            : isAtestado
+                            ? "atestado"
+                            : isContrato
+                            ? "contrato"
+                            : "geral"
+                        }`}
+                      >
                         {isContracheque ? (
-                          <FileSpreadsheet className="text-indigo-600" size={20} />
+                          <FileSpreadsheet size={20} />
                         ) : isAtestado ? (
-                          <FileCheck className="text-amber-600" size={20} />
+                          <FileCheck size={20} />
+                        ) : isContrato ? (
+                          <ShieldCheck size={20} />
                         ) : (
-                          <FileText className="text-zinc-600" size={20} />
+                          <FileText size={20} />
                         )}
                       </div>
 
                       <div className="rh-doc-info">
-                        <strong>{doc.title}</strong>
+                        <strong title={doc.title}>{doc.title}</strong>
                         <div className="rh-doc-meta">
-                          <span>{doc.size || "Arquivo"}</span>
-                          <span>·</span>
-                          <span>Enviado em {formatDate(doc.uploadDate)}</span>
+                          <span className="rh-doc-size">{doc.size || "Arquivo"}</span>
+                          <span className="rh-doc-bullet">•</span>
+                          <span className="rh-doc-date">Enviado em {formatDate(doc.uploadDate)}</span>
                           {doc.tags?.length ? (
                             <span className="rh-doc-tag-badge">{doc.tags[1] || doc.tags[0]}</span>
                           ) : null}
@@ -638,15 +670,23 @@ export function EmployeeDetailDrawer({
                       </div>
 
                       <div className="rh-doc-actions">
-                        {doc.driveFileId && (
+                        {doc.driveFileId ? (
                           <button
                             type="button"
                             className="rh-btn-doc-download"
-                            onClick={() => downloadFileFromDrive(doc.driveFileId!, doc.originalFileName || doc.title)}
-                            title="Visualizar ou baixar do Google Drive"
+                            onClick={() =>
+                              downloadFileFromDrive(
+                                doc.driveFileId!,
+                                doc.originalFileName || doc.title
+                              )
+                            }
+                            title="Visualizar ou baixar arquivo do Google Drive"
                           >
-                            <Download size={14} /> Baixar
+                            <Download size={14} />
+                            <span>Baixar</span>
                           </button>
+                        ) : (
+                          <span className="text-zinc-400 text-xs">Arquivo local</span>
                         )}
                       </div>
                     </div>
@@ -654,9 +694,11 @@ export function EmployeeDetailDrawer({
                 })
               ) : (
                 <div className="rh-docs-empty">
-                  <FileText size={32} className="text-zinc-400" />
-                  <p>Nenhum documento encontrado nesta categoria.</p>
-                  <small>Utilize o formulário acima para enviar contracheques, atestados ou contratos.</small>
+                  <div className="rh-empty-icon">
+                    <FileText size={26} />
+                  </div>
+                  <p>Nenhum documento encontrado nesta categoria</p>
+                  <small>Utilize o formulário acima para anexar holerites, atestados ou contratos.</small>
                 </div>
               )}
             </div>
