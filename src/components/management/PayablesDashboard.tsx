@@ -255,8 +255,9 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
         setSpreadsheetUrl(result.spreadsheetUrl);
       }
       setBackupMessage(`Planilha central sincronizada com sucesso! (${result.processedRecords} registros).`);
-    } catch {
-      setBackupMessage("Não foi possível atualizar a planilha no Google Sheets agora.");
+    } catch (err: unknown) {
+      console.error("Erro na sincronização:", err);
+      setBackupMessage(err instanceof Error ? err.message : "Não foi possível atualizar a planilha no Google Sheets agora.");
     } finally {
       setBackingUp(false);
     }
