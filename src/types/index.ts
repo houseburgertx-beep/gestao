@@ -184,6 +184,10 @@ export interface Employee {
   vacationEnd?: string;
   documentsCount: number;
   notes?: string;
+  terminationDate?: string;
+  terminationType?: string;
+  terminationNotice?: string;
+  terminationReason?: string;
 }
 
 export interface EmployeeVacation {

@@ -1003,3 +1003,70 @@ test("Google Sheets: formatação das tabelas espelho preserva ID, valores e lin
   assert.equal(cRow.STATUS, "Conferido");
 });
 
+test("RH - Cálculo dinâmico de tempo de casa (calculateTenure)", () => {
+  const { calculateTenure } = require("../src/lib/tenureUtils.ts");
+
+  // Colaborador admitido há 10 dias
+  const tenDaysAgo = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
+  const tenure10d = calculateTenure(tenDaysAgo);
+  assert.equal(tenure10d.years, 0);
+  assert.equal(tenure10d.months, 0);
+  assert.ok(tenure10d.days >= 9 && tenure10d.days <= 11);
+  assert.match(tenure10d.text, /dias? de casa/);
+
+  // Colaborador admitido há 70 dias (~2 meses)
+  const seventyDaysAgo = new Date(Date.now() - 70 * 86400000).toISOString().slice(0, 10);
+  const tenure70d = calculateTenure(seventyDaysAgo);
+  assert.ok(tenure70d.totalDays >= 69 && tenure70d.totalDays <= 71);
+  assert.match(tenure70d.text, /m[eê]s/);
+
+  // Colaborador com data futura ou vazia
+  const emptyTenure = calculateTenure("");
+  assert.equal(emptyTenure.totalDays, 0);
+  assert.equal(emptyTenure.text, "Data não informada");
+
+  // Colaborador desligado usa terminationDate como data fim
+  const termTenure = calculateTenure("2024-01-01", "2024-07-01");
+  assert.equal(termTenure.years, 0);
+  assert.equal(termTenure.months, 6);
+  assert.equal(termTenure.days, 0);
+  assert.equal(termTenure.text, "6 meses de casa");
+});
+
+test("RH - Alertas e acompanhamento de contrato de experiência de 90 dias (getExperienceInfo)", () => {
+  const { getExperienceInfo } = require("../src/lib/tenureUtils.ts");
+
+  // Admitido há 85 dias (restam 5 dias para os 90 dias -> crítico <= 10d)
+  const adm85d = new Date(Date.now() - 85 * 86400000).toISOString().slice(0, 10);
+  const expCritical = getExperienceInfo(adm85d);
+  assert.equal(expCritical.inExperience, true);
+  assert.equal(expCritical.urgency, "critical");
+  assert.ok(expCritical.daysRemaining <= 10 && expCritical.daysRemaining >= 0);
+  assert.match(expCritical.badgeText, /Experiência acaba em|dias restantes/i);
+
+  // Admitido há 70 dias (restam 20 dias -> aviso <= 30d)
+  const adm70d = new Date(Date.now() - 70 * 86400000).toISOString().slice(0, 10);
+  const expWarning = getExperienceInfo(adm70d);
+  assert.equal(expWarning.inExperience, true);
+  assert.equal(expWarning.urgency, "warning");
+  assert.ok(expWarning.daysRemaining <= 30 && expWarning.daysRemaining > 10);
+
+  // Admitido há 15 dias (restam 75 dias -> normal)
+  const adm15d = new Date(Date.now() - 15 * 86400000).toISOString().slice(0, 10);
+  const expNormal = getExperienceInfo(adm15d);
+  assert.equal(expNormal.inExperience, true);
+  assert.equal(expNormal.urgency, "normal");
+
+  // Admitido há 120 dias (já passou dos 90 dias -> concluído)
+  const adm120d = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
+  const expCompleted = getExperienceInfo(adm120d);
+  assert.equal(expCompleted.inExperience, false);
+  assert.equal(expCompleted.urgency, "completed");
+
+  // Colaborador já desligado não fica em alerta de experiência
+  const expTerminated = getExperienceInfo(adm85d, undefined, true);
+  assert.equal(expTerminated.inExperience, false);
+  assert.equal(expTerminated.urgency, "completed");
+});
+
+
