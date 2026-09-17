@@ -3,17 +3,25 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck,
-  Bookmark, Calculator, Check, CheckCircle2, ChevronDown, ChevronUp,
-  ClipboardCheck, Coins, CreditCard, Download, Edit3, FileCheck2,
-  FileText, Landmark, Percent, Plus, Receipt, RotateCcw, Search, Sliders,
-  Sparkles, Store, Trash2, Upload, Users, Wallet, X
+  Bookmark, Calculator, Camera, Check, CheckCircle2, ChevronDown, ChevronUp,
+  ClipboardCheck, Coins, CreditCard, Download, Edit3, Eye, FileCheck2,
+  FileText, Image as ImageIcon, Landmark, Loader2, Paperclip, Percent, Plus,
+  Receipt, RotateCcw, RotateCw, Search, Sliders, Sparkles, Store, Trash2,
+  Upload, Users, Wallet, X, ZoomIn, ZoomOut
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useUnit } from "@/contexts/UnitContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { currency, dateToday, RecordData, str } from "@/domain/management/model";
 import { commitRecords, saveManagement } from "@/services/managementService";
-import { downloadFileFromDrive, nameFileForDrive, uploadFileToDrive } from "@/services/driveService";
+import {
+  compressImageFile,
+  downloadFileFromDrive,
+  formatFileSize,
+  getFileBlobFromDrive,
+  nameFileForDrive,
+  uploadFileToDrive
+} from "@/services/driveService";
 import { validate } from "@/domain/management/operations";
 import "@/components/management/management.css";
 
@@ -31,11 +39,23 @@ const parseBankAmounts=(row:RecordData):Record<string,{credit:number;debit:numbe
     return {};
   }
 };
-const parseAttachments=(row:RecordData):Array<{fileId:string;fileName:string;mimeType:string;size:number}>=>{
-  try{
-    const parsed = JSON.parse(str(row,"attachmentsJson")||"[]");
+
+export type CashAttachment = {
+  fileId: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  dataUrl?: string;
+  uploadedAt?: string;
+};
+
+const parseAttachments = (row: RecordData): CashAttachment[] => {
+  try {
+    const raw = row.attachmentsJson;
+    if (!raw) return [];
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
     return Array.isArray(parsed) ? parsed : [];
-  }catch{
+  } catch {
     return [];
   }
 };
@@ -50,6 +70,213 @@ export function isValidPixKey(key: string): boolean {
   if (/^(\+?55)?\s*\(?\d{2}\)?\s*\d{4,5}-?\d{4}$/.test(clean)) return true;
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean) || /^[0-9a-f]{32}$/i.test(clean)) return true;
   return clean.length >= 5 && !/[<>{}\\]/.test(clean);
+}
+
+export function AttachmentLightbox({
+  attachment,
+  onClose,
+}: {
+  attachment: CashAttachment | null;
+  onClose: () => void;
+}) {
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [blobUrl, setBlobUrl] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!attachment) return;
+    setZoom(1);
+    setRotation(0);
+    setError("");
+
+    if (attachment.dataUrl) {
+      setBlobUrl(attachment.dataUrl);
+      setLoading(false);
+      return;
+    }
+
+    if (attachment.fileId && !attachment.fileId.startsWith("local-")) {
+      setLoading(true);
+      let isMounted = true;
+      getFileBlobFromDrive(attachment.fileId)
+        .then((res) => {
+          if (isMounted) {
+            setBlobUrl(res.url);
+            setLoading(false);
+          }
+        })
+        .catch((err) => {
+          if (isMounted) {
+            setLoading(false);
+            setError(
+              err instanceof Error
+                ? err.message
+                : "Não foi possível carregar o arquivo do Drive."
+            );
+          }
+        });
+      return () => {
+        isMounted = false;
+      };
+    } else {
+      setLoading(false);
+      setError("Este comprovante não possui arquivo sincronizado no Drive.");
+    }
+  }, [attachment]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  if (!attachment) return null;
+
+  const isPdf =
+    attachment.mimeType === "application/pdf" ||
+    attachment.fileName.toLowerCase().endsWith(".pdf");
+
+  const handleDownload = async () => {
+    try {
+      if (blobUrl && !blobUrl.startsWith("blob:")) {
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = attachment.fileName || "comprovante.jpg";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } else if (attachment.fileId && !attachment.fileId.startsWith("local-")) {
+        await downloadFileFromDrive(attachment.fileId, attachment.fileName);
+      } else if (blobUrl) {
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = attachment.fileName || "comprovante";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+    } catch {
+      alert("Erro ao baixar arquivo.");
+    }
+  };
+
+  return (
+    <div className="att-lightbox-overlay" onClick={onClose}>
+      <div className="att-lightbox-container" onClick={(e) => e.stopPropagation()}>
+        <header className="att-lightbox-header">
+          <div className="att-lightbox-title">
+            <FileText size={18} className="text-purple-400 shrink-0" />
+            <div>
+              <strong>{attachment.fileName}</strong>
+              <small>{formatFileSize(attachment.size)}</small>
+            </div>
+          </div>
+          <div className="att-lightbox-controls">
+            {!isPdf && blobUrl && (
+              <>
+                <button
+                  type="button"
+                  title="Girar 90°"
+                  onClick={() => setRotation((r) => (r + 90) % 360)}
+                >
+                  <RotateCw size={14} /> Girar
+                </button>
+                <button
+                  type="button"
+                  title="Diminuir Zoom"
+                  onClick={() => setZoom((z) => Math.max(0.4, Number((z - 0.2).toFixed(1))))}
+                >
+                  <ZoomOut size={14} />
+                </button>
+                <button
+                  type="button"
+                  title="Tamanho Normal"
+                  onClick={() => setZoom(1)}
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  type="button"
+                  title="Aumentar Zoom"
+                  onClick={() => setZoom((z) => Math.min(3.5, Number((z + 0.2).toFixed(1))))}
+                >
+                  <ZoomIn size={14} />
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              className="att-download-btn"
+              title="Baixar comprovante"
+              onClick={handleDownload}
+            >
+              <Download size={14} /> Baixar
+            </button>
+            <button
+              type="button"
+              className="att-close-btn"
+              title="Fechar (Esc)"
+              onClick={onClose}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </header>
+
+        <div className="att-lightbox-body">
+          {loading && (
+            <div className="att-lightbox-loading">
+              <Loader2 className="animate-spin text-purple-400" size={36} />
+              <span>Carregando comprovante do Drive...</span>
+            </div>
+          )}
+
+          {error && !loading && (
+            <div className="att-lightbox-error">
+              <AlertCircle size={36} />
+              <strong>Não foi possível exibir a imagem</strong>
+              <p>{error}</p>
+              {attachment.fileId && !attachment.fileId.startsWith("local-") && (
+                <button
+                  type="button"
+                  className="att-download-btn mt-2"
+                  onClick={handleDownload}
+                >
+                  <Download size={14} /> Tentar Baixar Diretamente
+                </button>
+              )}
+            </div>
+          )}
+
+          {!loading && !error && blobUrl && (
+            <div className="att-lightbox-viewport">
+              {isPdf ? (
+                <iframe
+                  src={blobUrl}
+                  title={attachment.fileName}
+                  className="att-lightbox-iframe"
+                />
+              ) : (
+                <img
+                  src={blobUrl}
+                  alt={attachment.fileName}
+                  className="att-lightbox-img"
+                  style={{
+                    transform: `scale(${zoom}) rotate(${rotation}deg)`,
+                    transition: "transform 0.15s ease",
+                  }}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 type ClosingCalc={systemTotal:number;confirmedTotal:number;cashExpected:number;cashFound:number;cashDifference:number;creditFound:number;creditDifference:number;debitFound:number;debitDifference:number;pixFound:number;pixDifference:number;difference:number;motoboyDifference:number;invoiceDifference:number};
@@ -132,11 +359,18 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
             <div>
               <strong>{unit?.name||"Unidade"}</strong>
               <span>{str(row,"date").split("-").reverse().join("/")} · Turno {str(row,"shift")} · {str(row,"operatorName")}</span>
-              {Number(row.sangriaAmount||0)>0&&(
-                <small className="cash-sangria-badge">
-                  Sangria: {brl(Number(row.sangriaAmount))} ({str(row,"sangriaStatus")||"Registrada"}{str(row,"sangriaRecipient")?` · ${str(row,"sangriaRecipient")}`:""})
-                </small>
-              )}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {Number(row.sangriaAmount||0)>0&&(
+                  <small className="cash-sangria-badge">
+                    Sangria: {brl(Number(row.sangriaAmount))} ({str(row,"sangriaStatus")||"Registrada"}{str(row,"sangriaRecipient")?` · ${str(row,"sangriaRecipient")}`:""})
+                  </small>
+                )}
+                {parseAttachments(row).length > 0 && (
+                  <small className="cash-attachment-badge">
+                    <Paperclip size={11} /> {parseAttachments(row).length} comprovante(s)
+                  </small>
+                )}
+              </div>
             </div>
             <div>
               <small>Entrada total</small>
@@ -337,7 +571,45 @@ function ClosingModal({
   const [fiscalMachines, setFiscalMachines] = useState(() => initialClosing ? toMoneyInput(initialClosing.fiscalMachines) : draft?.fiscalMachines || "");
   const [invoiceIssued, setInvoiceIssued] = useState(() => initialClosing ? toMoneyInput(initialClosing.invoiceIssued) : draft?.invoiceIssued || "");
   const [notes, setNotes] = useState(() => initialClosing ? str(initialClosing, "notes") : draft?.notes || "");
-  const [attachments, setAttachments] = useState<File[]>([]);
+  const [existingAttachments, setExistingAttachments] = useState<CashAttachment[]>(() =>
+    initialClosing ? parseAttachments(initialClosing) : []
+  );
+  const [newFiles, setNewFiles] = useState<{ file: File; previewUrl: string; dataUrl: string; size: number }[]>([]);
+  const [compressingFiles, setCompressingFiles] = useState(false);
+
+  const handleAddFiles = async (fileList: FileList | File[]) => {
+    const remaining = 5 - (existingAttachments.length + newFiles.length);
+    if (remaining <= 0) {
+      alert("Você pode anexar no máximo 5 comprovantes.");
+      return;
+    }
+    const toProcess = Array.from(fileList).slice(0, remaining);
+    setCompressingFiles(true);
+    try {
+      const processed = await Promise.all(
+        toProcess.map(async (file) => {
+          if (file.type && file.type.startsWith("image/")) {
+            const comp = await compressImageFile(file, 1600, 0.75);
+            return {
+              file: comp.file,
+              previewUrl: comp.dataUrl || (typeof window !== "undefined" ? URL.createObjectURL(comp.file) : ""),
+              dataUrl: comp.dataUrl,
+              size: comp.size,
+            };
+          }
+          return {
+            file,
+            previewUrl: typeof window !== "undefined" ? URL.createObjectURL(file) : "",
+            dataUrl: "",
+            size: file.size,
+          };
+        })
+      );
+      setNewFiles((prev) => [...prev, ...processed]);
+    } finally {
+      setCompressingFiles(false);
+    }
+  };
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -498,18 +770,33 @@ function ClosingModal({
         throw new Error("Informe para quem foi entregue a sangria ou onde está guardada na loja.");
       }
 
-      if (attachments.length > 5) {
+      if (existingAttachments.length + newFiles.length > 5) {
         throw new Error("Envie no máximo 5 comprovantes.");
       }
 
-      const uploadedAttachments = [];
-      for (const file of attachments) {
+      const uploadedAttachments: CashAttachment[] = [...existingAttachments];
+      for (const item of newFiles) {
         try {
-          const saved = await uploadFileToDrive(nameFileForDrive(file, `Fechamento ${date} - ${unit}`), "payment_proofs");
-          uploadedAttachments.push({ fileId: saved.fileId, fileName: saved.fileName, mimeType: saved.mimeType, size: saved.size });
+          const named = nameFileForDrive(item.file, `Fechamento ${date} - ${unit}`);
+          const saved = await uploadFileToDrive(named, "payment_proofs");
+          uploadedAttachments.push({
+            fileId: saved.fileId,
+            fileName: saved.fileName,
+            mimeType: saved.mimeType,
+            size: saved.size,
+            dataUrl: item.dataUrl && item.dataUrl.length < 350000 ? item.dataUrl : undefined,
+            uploadedAt: new Date().toISOString()
+          });
         } catch (uploadErr) {
-          console.warn("[Fechamento] Falha ao enviar comprovante para o Drive:", uploadErr);
-          uploadedAttachments.push({ fileId: `local-${file.name}`, fileName: file.name, mimeType: file.type || "application/octet-stream", size: file.size });
+          console.warn("[Fechamento] Falha ao enviar comprovante para o Drive, mantendo fallback com preview:", uploadErr);
+          uploadedAttachments.push({
+            fileId: `local-${Date.now()}-${item.file.name}`,
+            fileName: item.file.name,
+            mimeType: item.file.type || "image/jpeg",
+            size: item.size,
+            dataUrl: item.dataUrl || undefined,
+            uploadedAt: new Date().toISOString()
+          });
         }
       }
 
@@ -1450,23 +1737,95 @@ function ClosingModal({
               {/* Attachments & Observations */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2">
-                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">
-                    Comprovantes (Google Drive)
-                  </label>
-                  <label className="employee-file-upload cursor-pointer">
-                    <Upload size={15} />
-                    <span>{attachments.length ? `${attachments.length} arquivo(s) selecionado(s)` : "Selecionar fotos/PDFs (máx 5)"}</span>
-                    <input
-                      type="file"
-                      multiple
-                      className="sr-only"
-                      accept=".pdf,image/*"
-                      onChange={e => {
-                        const list = Array.from(e.target.files || []);
-                        setAttachments(list.slice(0, 5));
-                      }}
-                    />
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">
+                      Comprovantes / Fotos ({existingAttachments.length + newFiles.length}/5)
+                    </label>
+                    {compressingFiles && (
+                      <span className="text-[11px] text-purple-600 flex items-center gap-1 font-semibold">
+                        <Loader2 size={12} className="animate-spin" /> Otimizando...
+                      </span>
+                    )}
+                  </div>
+
+                  {(existingAttachments.length > 0 || newFiles.length > 0) && (
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      {existingAttachments.map(att => (
+                        <div key={att.fileId} className="flex items-center justify-between gap-2 p-1.5 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs">
+                          <div className="flex items-center gap-2 truncate min-w-0">
+                            {att.dataUrl ? (
+                              <img src={att.dataUrl} alt="" className="w-7 h-7 object-cover rounded shrink-0 border border-zinc-200" />
+                            ) : (
+                              <FileText size={15} className="text-purple-600 shrink-0" />
+                            )}
+                            <span className="truncate font-medium">{att.fileName}</span>
+                            <span className="text-[10px] text-zinc-400 shrink-0">({formatFileSize(att.size)})</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="text-zinc-400 hover:text-red-500 p-1 shrink-0 transition"
+                            title="Remover anexo"
+                            onClick={() => setExistingAttachments(prev => prev.filter(a => a.fileId !== att.fileId))}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                      {newFiles.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-2 p-1.5 bg-purple-50/70 dark:bg-purple-950/40 rounded-lg border border-purple-200 dark:border-purple-800 text-xs">
+                          <div className="flex items-center gap-2 truncate min-w-0">
+                            {item.previewUrl ? (
+                              <img src={item.previewUrl} alt="" className="w-7 h-7 object-cover rounded shrink-0 border border-purple-200" />
+                            ) : (
+                              <FileText size={15} className="text-purple-600 shrink-0" />
+                            )}
+                            <span className="truncate font-medium">{item.file.name}</span>
+                            <span className="text-[10px] text-zinc-400 shrink-0">({formatFileSize(item.size)})</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="text-zinc-400 hover:text-red-500 p-1 shrink-0 transition"
+                            title="Remover anexo"
+                            onClick={() => setNewFiles(prev => prev.filter((_, i) => i !== idx))}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {existingAttachments.length + newFiles.length < 5 && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <label className="flex-1 employee-file-upload cursor-pointer justify-center text-xs py-2">
+                        <Camera size={14} />
+                        <span>Tirar Foto</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="sr-only"
+                          disabled={compressingFiles}
+                          onChange={e => e.target.files && handleAddFiles(e.target.files)}
+                        />
+                      </label>
+                      <label className="flex-1 employee-file-upload cursor-pointer justify-center text-xs py-2">
+                        <Upload size={14} />
+                        <span>Escolher Arquivo</span>
+                        <input
+                          type="file"
+                          multiple
+                          accept=".pdf,image/*"
+                          className="sr-only"
+                          disabled={compressingFiles}
+                          onChange={e => e.target.files && handleAddFiles(e.target.files)}
+                        />
+                      </label>
+                    </div>
+                  )}
+                  <span className="text-[10px] text-zinc-500 dark:text-zinc-400 block">
+                    Fotos são comprimidas para envio rápido e sem erro para o financeiro.
+                  </span>
                 </div>
 
                 <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1">
@@ -1675,10 +2034,95 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   const allChecked = Object.values(checks).every(Boolean);
   const hasDifference = totalDiff !== 0;
 
-  const downloadAttachment = async (fileId: string, fileName: string) => {
+  const [attachmentsList, setAttachmentsList] = useState<CashAttachment[]>(() => parseAttachments(closing));
+  const [previewAttachment, setPreviewAttachment] = useState<CashAttachment | null>(null);
+  const [uploadingAtt, setUploadingAtt] = useState(false);
+
+  const handleAddFinanceAttachment = async (fileList: FileList | File[]) => {
+    if (!fileList.length) return;
+    setUploadingAtt(true);
+    setError("");
     try {
-      setDownloading(fileId);
-      await downloadFileFromDrive(fileId, fileName);
+      const newList: CashAttachment[] = [...attachmentsList];
+      for (const file of Array.from(fileList)) {
+        let fileToSend = file;
+        let clientDataUrl = "";
+        if (file.type && file.type.startsWith("image/")) {
+          const comp = await compressImageFile(file, 1600, 0.75);
+          fileToSend = comp.file;
+          clientDataUrl = comp.dataUrl;
+        }
+        try {
+          const named = nameFileForDrive(fileToSend, `Conferencia ${str(closing, "date")} - ${closing.unitId}`);
+          const saved = await uploadFileToDrive(named, "payment_proofs");
+          newList.push({
+            fileId: saved.fileId,
+            fileName: saved.fileName,
+            mimeType: saved.mimeType,
+            size: saved.size,
+            dataUrl: clientDataUrl && clientDataUrl.length < 350000 ? clientDataUrl : undefined,
+            uploadedAt: new Date().toISOString()
+          });
+        } catch {
+          newList.push({
+            fileId: `local-${Date.now()}-${file.name}`,
+            fileName: file.name,
+            mimeType: file.type || "image/jpeg",
+            size: file.size,
+            dataUrl: clientDataUrl || undefined,
+            uploadedAt: new Date().toISOString()
+          });
+        }
+      }
+      setAttachmentsList(newList);
+      const updatedClosing: RecordData = {
+        ...closing,
+        attachmentsJson: JSON.stringify(newList),
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.uid || ""
+      };
+      await commitRecords([updatedClosing], data, updatedClosing);
+    } catch (err) {
+      setError("Falha ao salvar comprovante.");
+    } finally {
+      setUploadingAtt(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (fileId: string) => {
+    if (!confirm("Deseja remover este comprovante do fechamento?")) return;
+    const updated = attachmentsList.filter(a => a.fileId !== fileId);
+    setAttachmentsList(updated);
+    try {
+      const updatedClosing: RecordData = {
+        ...closing,
+        attachmentsJson: JSON.stringify(updated),
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.uid || ""
+      };
+      await commitRecords([updatedClosing], data, updatedClosing);
+    } catch {
+      alert("Erro ao remover comprovante.");
+    }
+  };
+
+  const downloadAttachment = async (att: CashAttachment) => {
+    try {
+      setDownloading(att.fileId);
+      if (att.dataUrl) {
+        const link = document.createElement("a");
+        link.href = att.dataUrl;
+        link.download = att.fileName || "comprovante.jpg";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        return;
+      }
+      if (att.fileId && !att.fileId.startsWith("local-")) {
+        await downloadFileFromDrive(att.fileId, att.fileName);
+      } else {
+        alert("Comprovante sem arquivo disponível para download.");
+      }
     } catch (e) {
       alert(e instanceof Error ? e.message : "Erro ao baixar arquivo do Drive.");
     } finally {
@@ -1796,6 +2240,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
 
       const updatedClosing: RecordData = {
         ...closing,
+        attachmentsJson: JSON.stringify(attachmentsList),
         status: hasDifference ? "Com divergência" : "Conferido",
         systemCash,
         systemCredit,
@@ -1855,8 +2300,6 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
     }
   };
 
-  const attachmentsList = parseAttachments(closing);
-
   const activeBank = availableBanks.find(b => b.id === activeBankId) || availableBanks[0] || { id: "machine_default", name: "Máquina Principal" };
   const activeCredit = bankVals[activeBank.id]?.credit || 0;
   const activeDebit = bankVals[activeBank.id]?.debit || 0;
@@ -1890,6 +2333,91 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
               <span className="text-blue-700 text-xs">Você pode corrigir qualquer valor digitado pelo operador (vendas do sistema, gaveta ou máquinas). O sistema recalcula tudo em tempo real.</span>
             </div>
           </div>
+        </div>
+
+        {/* Prominent Attachments Section for Finance */}
+        <div className="conf-attachments-card">
+          <div className="conf-attachments-head">
+            <div className="flex items-center gap-2">
+              <Paperclip size={16} className="text-purple-600 shrink-0" />
+              <strong className="text-sm">Comprovantes do Turno ({attachmentsList.length})</strong>
+              {attachmentsList.length > 0 && (
+                <span className="conf-att-pill">{attachmentsList.length} anexo(s) disponível(is)</span>
+              )}
+            </div>
+            <label className="conf-add-att-btn">
+              {uploadingAtt ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              <span>{uploadingAtt ? "Enviando..." : "+ Anexar Comprovante"}</span>
+              <input
+                type="file"
+                multiple
+                accept=".pdf,image/*"
+                className="sr-only"
+                disabled={uploadingAtt}
+                onChange={e => e.target.files && handleAddFinanceAttachment(e.target.files)}
+              />
+            </label>
+          </div>
+
+          {attachmentsList.length === 0 ? (
+            <div className="conf-no-att">
+              <span className="font-semibold text-zinc-700 dark:text-zinc-200">Nenhum comprovante anexado pelo operador no momento do fechamento.</span>
+              <small>Se você recebeu o comprovante via WhatsApp ou foto física, pode clicar em &ldquo;+ Anexar Comprovante&rdquo; acima para registrar na conferência.</small>
+            </div>
+          ) : (
+            <div className="conf-att-grid">
+              {attachmentsList.map(att => {
+                const isPdf = att.mimeType === "application/pdf" || att.fileName.toLowerCase().endsWith(".pdf");
+                return (
+                  <div key={att.fileId} className="conf-att-item">
+                    <div className="conf-att-preview" onClick={() => setPreviewAttachment(att)} title="Clique para visualizar em tela cheia">
+                      {att.dataUrl ? (
+                        <img src={att.dataUrl} alt={att.fileName} className="conf-att-thumb" />
+                      ) : isPdf ? (
+                        <div className="conf-att-icon-box pdf"><FileText size={26} /><span>PDF</span></div>
+                      ) : (
+                        <div className="conf-att-icon-box img"><ImageIcon size={26} /><span>FOTO</span></div>
+                      )}
+                      <div className="conf-att-overlay">
+                        <Eye size={16} /> <span>Visualizar</span>
+                      </div>
+                    </div>
+                    <div className="conf-att-meta">
+                      <span className="conf-att-name" title={att.fileName}>{att.fileName}</span>
+                      <small className="conf-att-size">{formatFileSize(att.size)}</small>
+                    </div>
+                    <div className="conf-att-actions">
+                      <button
+                        type="button"
+                        className="conf-att-action-btn view"
+                        onClick={() => setPreviewAttachment(att)}
+                        title="Visualizar no navegador"
+                      >
+                        <Eye size={12} /> Visualizar
+                      </button>
+                      <button
+                        type="button"
+                        className="conf-att-action-btn download"
+                        disabled={downloading === att.fileId}
+                        onClick={() => downloadAttachment(att)}
+                        title="Baixar arquivo"
+                      >
+                        <Download size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        className="conf-att-action-btn delete"
+                        onClick={() => handleDeleteAttachment(att.fileId)}
+                        title="Remover comprovante"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* 4 Pillars Reconciliation Table with inline editable inputs */}
@@ -2349,26 +2877,6 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         </section>
 
         {/* Attachments Section if any */}
-        {attachmentsList.length > 0 && (
-          <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
-            <strong className="text-xs text-zinc-700 dark:text-zinc-200 block mb-2">Comprovantes anexados pelo operador:</strong>
-            <div className="flex items-center gap-2 flex-wrap">
-              {attachmentsList.map(att => (
-                <button
-                  key={att.fileId}
-                  type="button"
-                  className="mg-icon-act-btn"
-                  disabled={downloading === att.fileId}
-                  onClick={() => downloadAttachment(att.fileId, att.fileName)}
-                >
-                  <Download size={13} />
-                  <span>{downloading === att.fileId ? "Baixando..." : att.fileName}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {review && (
           <div className="confirmation-box">
             <CheckCircle2 size={22} />
@@ -2400,6 +2908,13 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
           </button>
         </footer>
       </div>
+
+      {previewAttachment && (
+        <AttachmentLightbox
+          attachment={previewAttachment}
+          onClose={() => setPreviewAttachment(null)}
+        />
+      )}
     </Modal>
   );
 }
@@ -2410,6 +2925,7 @@ function AuditHistoryTab({closings}:{closings:RecordData[]}){
   const [search,setSearch]=useState("");
   const [filterUnit,setFilterUnit]=useState("");
   const [downloading,setDownloading]=useState<string|null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<CashAttachment | null>(null);
 
   const filtered=closings.filter(c=>{
     if(filterUnit&&c.unitId!==filterUnit)return false;
@@ -2524,12 +3040,12 @@ function AuditHistoryTab({closings}:{closings:RecordData[]}){
                         {attachments.map(att=>(
                           <button
                             key={att.fileId}
+                            type="button"
                             className="audit-att-btn"
-                            disabled={downloading===att.fileId}
-                            onClick={()=>downloadAttachment(att.fileId,att.fileName)}
-                            title={`Baixar ${att.fileName}`}
+                            onClick={()=>setPreviewAttachment(att)}
+                            title={`Visualizar ${att.fileName}`}
                           >
-                            <Download size={12}/> {(att.fileName || "Comprovante").slice(0,18)}...
+                            <Eye size={12}/> {(att.fileName || "Comprovante").slice(0,18)}...
                           </button>
                         ))}
                       </div>
@@ -2550,6 +3066,13 @@ function AuditHistoryTab({closings}:{closings:RecordData[]}){
           </tbody>
         </table>
       </div>
+
+      {previewAttachment && (
+        <AttachmentLightbox
+          attachment={previewAttachment}
+          onClose={() => setPreviewAttachment(null)}
+        />
+      )}
     </section>
   );
 }
