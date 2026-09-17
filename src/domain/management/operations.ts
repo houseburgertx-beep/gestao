@@ -36,7 +36,7 @@ export function validate(record: RecordData, db: Database) {
         value < 0 &&
         !(record.kind === "bankAccounts" && field.key === "balance") &&
         !(record.kind === "cashConferences" && field.key === "difference") &&
-        !(record.kind === "cashClosings" && ["difference", "cashDifference", "creditDifference", "debitDifference", "pixDifference", "motoboyDifference", "invoiceDifference"].includes(field.key))
+        !(record.kind === "cashClosings" && ["difference", "cashDifference", "creditDifference", "debitDifference", "pixDifference", "motoboyDifference", "invoiceDifference", "cashExpected"].includes(field.key))
       )
         throw new Error(`${field.label} não pode ser negativo.`);
     }
