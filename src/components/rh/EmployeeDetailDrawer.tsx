@@ -1,0 +1,826 @@
+"use client";
+
+import React, { useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  Briefcase,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Download,
+  FileCheck,
+  FileSpreadsheet,
+  FileText,
+  Mail,
+  MapPin,
+  Phone,
+  RotateCcw,
+  Trash2,
+  Upload,
+  User,
+  UserMinus,
+  UserCheck,
+  Building2,
+  ExternalLink,
+  CreditCard,
+  ShieldCheck,
+  Clock3,
+} from "lucide-react";
+import { Drawer } from "@/components/ui/Drawer";
+import { Employee, DocumentItem } from "@/types";
+import { calculateTenure, getExperienceInfo, getTodayDateStr } from "@/lib/tenureUtils";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { store } from "@/services/store";
+import {
+  uploadFileToDrive,
+  nameFileForDrive,
+  formatFileSize,
+  downloadFileFromDrive,
+} from "@/services/driveService";
+import { useManagement } from "@/contexts/ManagementContext";
+import { saveManagement } from "@/services/managementService";
+import type { RecordData } from "@/domain/management/model";
+
+interface EmployeeDetailDrawerProps {
+  employee: Employee | null;
+  isOpen: boolean;
+  onClose: () => void;
+  canSeePayroll: boolean;
+  documents: DocumentItem[];
+  onEmployeeUpdated: (updated: Employee) => void;
+  onDocumentsUpdated: () => void;
+  unitName: string;
+}
+
+const DOCUMENT_CATEGORIES = [
+  { key: "all", label: "Todos" },
+  { key: "contracheque", label: "Contracheques / Holerites", tag: "Contracheque" },
+  { key: "atestado", label: "Atestados Médicos", tag: "Atestado" },
+  { key: "contrato", label: "Contrato & Termos", tag: "Contrato" },
+  { key: "pessoal", label: "Documentos Pessoais", tag: "Documentos Pessoais" },
+  { key: "aso", label: "Exames / ASO", tag: "Exame / ASO" },
+  { key: "outros", label: "Outros", tag: "Outros" },
+] as const;
+
+const TERMINATION_TYPES = [
+  "Demissão sem justa causa (pela empresa)",
+  "Pedido de demissão (pelo colaborador)",
+  "Término de contrato de experiência (45 ou 90 dias)",
+  "Rescisão antecipada do contrato de experiência",
+  "Demissão com justa causa (Art. 482 CLT)",
+  "Acordo comum entre as partes (Art. 484-A CLT)",
+  "Término de contrato por prazo determinado",
+] as const;
+
+const NOTICE_TYPES = [
+  "Aviso prévio trabalhado",
+  "Aviso prévio indenizado",
+  "Aviso prévio dispensado",
+  "Não aplicável (Término de experiência/contrato)",
+] as const;
+
+export function EmployeeDetailDrawer({
+  employee,
+  isOpen,
+  onClose,
+  canSeePayroll,
+  documents,
+  onEmployeeUpdated,
+  onDocumentsUpdated,
+  unitName,
+}: EmployeeDetailDrawerProps) {
+  const { data: mgmtData } = useManagement();
+  const [activeTab, setActiveTab] = useState<"profile" | "docs" | "termination">("profile");
+
+  // Document upload state
+  const [docCategory, setDocCategory] = useState<string>("contracheque");
+  const [docReference, setDocReference] = useState<string>("");
+  const [docFilter, setDocFilter] = useState<string>("all");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadSuccess, setUploadSuccess] = useState("");
+
+  // Termination form state
+  const [termDate, setTermDate] = useState(() => getTodayDateStr());
+  const [termType, setTermType] = useState<string>(TERMINATION_TYPES[0]);
+  const [termNotice, setTermNotice] = useState<string>(NOTICE_TYPES[0]);
+  const [termReason, setTermReason] = useState("");
+  const [termChecklist, setTermChecklist] = useState<Record<string, boolean>>({
+    exam: false,
+    materials: false,
+    terms: false,
+  });
+  const [isTerminating, setIsTerminating] = useState(false);
+  const [termSuccess, setTermSuccess] = useState(false);
+
+  if (!employee) return null;
+
+  const tenure = calculateTenure(
+    employee.admissionDate,
+    employee.status === "terminated" ? employee.terminationDate : null
+  );
+
+  const experience = getExperienceInfo(
+    employee.admissionDate,
+    employee.experienceEndDate,
+    employee.status === "terminated"
+  );
+
+  // Filter documents for this employee
+  const employeeDocs = useMemo(() => {
+    return documents.filter((d) => d.employeeId === employee.id && !d.archived);
+  }, [documents, employee.id]);
+
+  const filteredDocs = useMemo(() => {
+    if (docFilter === "all") return employeeDocs;
+    const cat = DOCUMENT_CATEGORIES.find((c) => c.key === docFilter);
+    if (!cat || !("tag" in cat)) return employeeDocs;
+    return employeeDocs.filter(
+      (d) =>
+        d.tags?.includes(cat.tag) ||
+        d.title.toLowerCase().includes(cat.key) ||
+        (d.originalFileName && d.originalFileName.toLowerCase().includes(cat.key))
+    );
+  }, [employeeDocs, docFilter]);
+
+  // Handle Document Upload
+  const handleUploadDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadError("");
+    setUploadSuccess("");
+
+    try {
+      const selectedCategoryObj = DOCUMENT_CATEGORIES.find((c) => c.key === docCategory);
+      const tagLabel = selectedCategoryObj && "tag" in selectedCategoryObj ? selectedCategoryObj.tag : "Geral";
+      
+      const prefix = docReference.trim()
+        ? `${employee.name} - ${tagLabel} (${docReference.trim()})`
+        : `${employee.name} - ${tagLabel}`;
+
+      const saved = await uploadFileToDrive(
+        nameFileForDrive(file, prefix),
+        "documents"
+      );
+
+      await store.addDocument({
+        title: docReference.trim() ? `${file.name} (${docReference.trim()})` : file.name,
+        category: "employees",
+        unitId: employee.unitId,
+        employeeId: employee.id,
+        size: formatFileSize(saved.size),
+        format: file.name.split(".").pop() || "arquivo",
+        url: `drive:${saved.fileId}`,
+        driveFileId: saved.fileId,
+        originalFileName: saved.fileName,
+        mimeType: saved.mimeType,
+        tags: ["Funcionário", tagLabel, "Google Drive"],
+      });
+
+      setUploadSuccess(`Documento "${file.name}" anexado com sucesso!`);
+      setDocReference("");
+      onDocumentsUpdated();
+      e.target.value = "";
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : "Não foi possível enviar o documento.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Handle Employee Termination
+  const handleConfirmTermination = async () => {
+    if (!termDate) {
+      alert("Informe a data do desligamento.");
+      return;
+    }
+    if (!confirm(`Deseja realmente registrar o desligamento de ${employee.name}? O status será alterado para Desligado.`)) {
+      return;
+    }
+
+    setIsTerminating(true);
+    try {
+      const updated: Employee = {
+        ...employee,
+        status: "terminated",
+        terminationDate: termDate,
+        terminationType: termType,
+        terminationNotice: termNotice,
+        terminationReason: termReason.trim(),
+      };
+
+      store.updateEmployee(updated);
+
+      // Sincronizar com mgmtData central caso exista espelho
+      const mgmtRow = mgmtData.employees?.find((r) => r.id === employee.id);
+      if (mgmtRow) {
+        const now = new Date().toISOString();
+        const record: RecordData = {
+          ...mgmtRow,
+          status: "Desligado",
+          terminationDate: termDate,
+          terminationType: termType,
+          updatedAt: now,
+        };
+        await saveManagement(record, mgmtData);
+      }
+
+      onEmployeeUpdated(updated);
+      setTermSuccess(true);
+      setTimeout(() => {
+        setTermSuccess(false);
+      }, 3000);
+    } catch (err) {
+      console.error("Erro ao registrar desligamento:", err);
+      alert("Ocorreu um erro ao registrar o desligamento. Tente novamente.");
+    } finally {
+      setIsTerminating(false);
+    }
+  };
+
+  // Handle Reactivate Employee
+  const handleReactivateEmployee = async () => {
+    if (!confirm(`Deseja reativar o cadastro de ${employee.name}? O status voltará para Ativo.`)) {
+      return;
+    }
+
+    const updated: Employee = {
+      ...employee,
+      status: "active",
+      terminationDate: undefined,
+      terminationType: undefined,
+      terminationNotice: undefined,
+      terminationReason: undefined,
+    };
+
+    store.updateEmployee(updated);
+
+    const mgmtRow = mgmtData.employees?.find((r) => r.id === employee.id);
+    if (mgmtRow) {
+      const now = new Date().toISOString();
+      const record: RecordData = {
+        ...mgmtRow,
+        status: "Ativo",
+        updatedAt: now,
+      };
+      await saveManagement(record, mgmtData);
+    }
+
+    onEmployeeUpdated(updated);
+  };
+
+  return (
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title={employee.name}
+      subtitle={`${employee.role || "Cargo pendente"} · ${employee.department || "Setor pendente"}`}
+      width="xl"
+    >
+      <div className="rh-detail-container">
+        {/* HEADER HERO RESUMO DO COLABORADOR */}
+        <div className="rh-employee-hero">
+          <div className="rh-employee-avatar-wrap">
+            {employee.photoUrl ? (
+              <img src={employee.photoUrl} alt="" className="rh-employee-avatar-img" />
+            ) : (
+              <span className="rh-employee-avatar-initials">
+                {employee.name
+                  .split(" ")
+                  .slice(0, 2)
+                  .map((p) => p[0])
+                  .join("")}
+              </span>
+            )}
+          </div>
+
+          <div className="rh-employee-hero-info">
+            <div className="rh-employee-hero-tags">
+              <span className={`rh-status-badge ${employee.status}`}>
+                {employee.status === "active" && "Ativo"}
+                {employee.status === "vacation" && "Férias"}
+                {employee.status === "leave" && "Afastado"}
+                {employee.status === "terminated" && "Desligado"}
+              </span>
+
+              {/* TEMPO DE CASA DIÁRIO */}
+              <span className="rh-tenure-badge" title="Atualizado diariamente com base na data de admissão">
+                <Clock3 size={13} />
+                <b>{tenure.formatted} de casa</b>
+              </span>
+
+              {/* AVISO DE EXPERIÊNCIA (90 DIAS) */}
+              {experience.isUnderExperience && employee.status !== "terminated" && (
+                <span className={`rh-exp-badge rh-exp-${experience.badgeTone}`}>
+                  {experience.urgency === "critical" ? <AlertTriangle size={13} /> : <Clock size={13} />}
+                  {experience.badgeText}
+                </span>
+              )}
+            </div>
+
+            <p className="rh-employee-hero-sub">
+              Admissão em {formatDate(employee.admissionDate)} · Unidade {unitName}
+            </p>
+          </div>
+
+          {/* BOTÃO RÁPIDO DE AÇÃO */}
+          <div className="rh-employee-hero-actions">
+            {employee.status !== "terminated" ? (
+              <button
+                type="button"
+                className="rh-btn-action-term"
+                onClick={() => setActiveTab("termination")}
+                title="Abrir formulário de rescisão e desligamento"
+              >
+                <UserMinus size={14} /> Registrar Desligamento
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="rh-btn-action-reactivate"
+                onClick={handleReactivateEmployee}
+                title="Reativar colaborador ativo"
+              >
+                <RotateCcw size={14} /> Reativar
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* NAVEGAÇÃO POR ABAS */}
+        <div className="rh-tabs-nav">
+          <button
+            className={`rh-tab-btn ${activeTab === "profile" ? "active" : ""}`}
+            onClick={() => setActiveTab("profile")}
+          >
+            <User size={15} /> Ficha Cadastral
+          </button>
+          <button
+            className={`rh-tab-btn ${activeTab === "docs" ? "active" : ""}`}
+            onClick={() => setActiveTab("docs")}
+          >
+            <FileText size={15} /> Documentos & Contracheques ({employeeDocs.length})
+          </button>
+          <button
+            className={`rh-tab-btn ${activeTab === "termination" ? "active" : ""}`}
+            onClick={() => setActiveTab("termination")}
+          >
+            <UserMinus size={15} /> Desligamento & Rescisão
+          </button>
+        </div>
+
+        {/* ==================================================================== */}
+        {/* ABA 1: FICHA CADASTRAL */}
+        {/* ==================================================================== */}
+        {activeTab === "profile" && (
+          <div className="rh-tab-content">
+            {/* ALERTA DE EXPERIÊNCIA DESTACADO */}
+            {experience.isUnderExperience && employee.status !== "terminated" && (
+              <div className={`rh-card-highlight rh-highlight-${experience.badgeTone}`}>
+                <div className="rh-highlight-header">
+                  <div className="rh-highlight-title">
+                    <Clock size={16} />
+                    <strong>Período de Experiência (90 dias CLT)</strong>
+                  </div>
+                  <span className="rh-highlight-days">
+                    Faltam <b>{experience.daysRemaining} dias</b> para o término
+                  </span>
+                </div>
+                <div className="rh-progress-bar-bg">
+                  <div
+                    className={`rh-progress-bar-fill ${experience.badgeTone}`}
+                    style={{ width: `${Math.min(100, Math.round((experience.daysPassed / 90) * 100))}%` }}
+                  />
+                </div>
+                <div className="rh-highlight-footer">
+                  <span>Dia {experience.daysPassed} de 90</span>
+                  <span>Término da experiência: <b>{formatDate(experience.experienceEndDate)}</b></span>
+                </div>
+              </div>
+            )}
+
+            {/* SEÇÃO: CONTATO */}
+            <div className="rh-section-box">
+              <h3><Phone size={14} /> Contato & Endereço</h3>
+              <dl className="rh-grid-2">
+                <div>
+                  <dt>Telefone / WhatsApp</dt>
+                  <dd>{employee.phone || "Não informado"}</dd>
+                </div>
+                <div>
+                  <dt>E-mail</dt>
+                  <dd>{employee.email || "Não informado"}</dd>
+                </div>
+                <div className="rh-col-span-2">
+                  <dt>Endereço Residencial</dt>
+                  <dd>{employee.address || "Não informado"}</dd>
+                </div>
+              </dl>
+            </div>
+
+            {/* SEÇÃO: CONTRATO DE TRABALHO */}
+            <div className="rh-section-box">
+              <h3><Briefcase size={14} /> Dados Contratuais</h3>
+              <dl className="rh-grid-2">
+                <div>
+                  <dt>Data de Admissão</dt>
+                  <dd>{formatDate(employee.admissionDate)}</dd>
+                </div>
+                <div>
+                  <dt>Tempo de Casa (Atualizado)</dt>
+                  <dd className="text-indigo-900 font-bold">{tenure.formatted}</dd>
+                </div>
+                <div>
+                  <dt>Tipo de Contrato</dt>
+                  <dd>{employee.contractType || "CLT"}</dd>
+                </div>
+                <div>
+                  <dt>Horário / Escala</dt>
+                  <dd>{employee.workHours || "44h semanais (Escala 6x1)"}</dd>
+                </div>
+                <div>
+                  <dt>Gestor Responsável</dt>
+                  <dd>{employee.managerName || "Gerência da Unidade"}</dd>
+                </div>
+                {canSeePayroll && (
+                  <div>
+                    <dt>Salário Base</dt>
+                    <dd className="text-emerald-700 font-bold">{formatCurrency(employee.salary)}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+
+            {/* SEÇÃO: DADOS BANCÁRIOS */}
+            {canSeePayroll && (
+              <div className="rh-section-box">
+                <h3><CreditCard size={14} /> Dados Bancários (Pagamento)</h3>
+                <dl className="rh-grid-2">
+                  <div>
+                    <dt>Banco</dt>
+                    <dd>{employee.bankName || "Não cadastrado"}</dd>
+                  </div>
+                  <div>
+                    <dt>Agência / Conta</dt>
+                    <dd>
+                      {employee.bankAgency ? `Ag. ${employee.bankAgency}` : ""}
+                      {employee.bankAccount ? ` · CC ${employee.bankAccount}` : ""}
+                      {!employee.bankAgency && !employee.bankAccount && "Não informado"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Titular</dt>
+                    <dd>{employee.bankHolderName || employee.name}</dd>
+                  </div>
+                  <div>
+                    <dt>CPF do Titular</dt>
+                    <dd>{employee.bankHolderCpf || employee.cpf || "Não informado"}</dd>
+                  </div>
+                </dl>
+              </div>
+            )}
+
+            {/* SEÇÃO: OBSERVAÇÕES */}
+            {employee.notes && (
+              <div className="rh-section-box">
+                <h3>Observações Gerais</h3>
+                <p className="rh-notes-text">{employee.notes}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* ABA 2: DOCUMENTOS & CONTRACHEQUES */}
+        {/* ==================================================================== */}
+        {activeTab === "docs" && (
+          <div className="rh-tab-content">
+            {/* BOX DE UPLOAD DE ARQUIVOS */}
+            <div className="rh-upload-panel">
+              <h4>
+                <Upload size={16} /> Anexar Documento ou Contracheque
+              </h4>
+              <p>
+                Os arquivos são salvos com segurança no Google Drive na pasta de documentos da unidade.
+              </p>
+
+              <div className="rh-upload-controls">
+                <div className="rh-control-field">
+                  <label>Tipo do Documento</label>
+                  <select
+                    value={docCategory}
+                    onChange={(e) => setDocCategory(e.target.value)}
+                    disabled={isUploading}
+                  >
+                    <option value="contracheque">Contracheque / Holerite</option>
+                    <option value="atestado">Atestado Médico</option>
+                    <option value="contrato">Contrato de Trabalho / Aditivo</option>
+                    <option value="pessoal">Documento Pessoal (RG/CPF/CTPS)</option>
+                    <option value="aso">Exame / ASO (Admissional/Periódico)</option>
+                    <option value="outros">Outros Termos ou Comprovantes</option>
+                  </select>
+                </div>
+
+                <div className="rh-control-field">
+                  <label>
+                    {docCategory === "contracheque"
+                      ? "Mês / Competência (ex: 08/2026)"
+                      : docCategory === "atestado"
+                      ? "Dias de afastamento (ex: 2 dias)"
+                      : "Identificação / Detalhes (opcional)"}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={
+                      docCategory === "contracheque"
+                        ? "Ex: 08/2026 ou Adiantamento"
+                        : "Ex: Observação ou número"
+                    }
+                    value={docReference}
+                    onChange={(e) => setDocReference(e.target.value)}
+                    disabled={isUploading}
+                  />
+                </div>
+
+                <div className="rh-control-field rh-control-file">
+                  <label className="rh-file-input-btn">
+                    <Upload size={15} />
+                    <span>{isUploading ? "Enviando para o Google Drive…" : "Selecionar PDF ou Foto"}</span>
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept=".pdf,image/png,image/jpeg,image/jpg"
+                      disabled={isUploading}
+                      onChange={handleUploadDocument}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {uploadError && <div className="rh-alert-msg rh-alert-error">{uploadError}</div>}
+              {uploadSuccess && <div className="rh-alert-msg rh-alert-success">{uploadSuccess}</div>}
+            </div>
+
+            {/* FILTRO DE CATEGORIAS */}
+            <div className="rh-doc-filters">
+              {DOCUMENT_CATEGORIES.map((cat) => {
+                const count =
+                  cat.key === "all"
+                    ? employeeDocs.length
+                    : employeeDocs.filter(
+                        (d) =>
+                          d.tags?.includes("tag" in cat ? cat.tag : "") ||
+                          d.title.toLowerCase().includes(cat.key)
+                      ).length;
+
+                return (
+                  <button
+                    key={cat.key}
+                    type="button"
+                    className={`rh-doc-pill ${docFilter === cat.key ? "active" : ""}`}
+                    onClick={() => setDocFilter(cat.key)}
+                  >
+                    {cat.label} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* LISTA DE DOCUMENTOS */}
+            <div className="rh-doc-list">
+              {filteredDocs.length > 0 ? (
+                filteredDocs.map((doc) => {
+                  const isContracheque = doc.tags?.includes("Contracheque") || doc.title.toLowerCase().includes("contracheque") || doc.title.toLowerCase().includes("holerite");
+                  const isAtestado = doc.tags?.includes("Atestado") || doc.title.toLowerCase().includes("atestado");
+
+                  return (
+                    <div key={doc.id} className="rh-doc-card">
+                      <div className="rh-doc-icon-wrap">
+                        {isContracheque ? (
+                          <FileSpreadsheet className="text-indigo-600" size={20} />
+                        ) : isAtestado ? (
+                          <FileCheck className="text-amber-600" size={20} />
+                        ) : (
+                          <FileText className="text-zinc-600" size={20} />
+                        )}
+                      </div>
+
+                      <div className="rh-doc-info">
+                        <strong>{doc.title}</strong>
+                        <div className="rh-doc-meta">
+                          <span>{doc.size || "Arquivo"}</span>
+                          <span>·</span>
+                          <span>Enviado em {formatDate(doc.uploadDate)}</span>
+                          {doc.tags?.length ? (
+                            <span className="rh-doc-tag-badge">{doc.tags[1] || doc.tags[0]}</span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="rh-doc-actions">
+                        {doc.driveFileId && (
+                          <button
+                            type="button"
+                            className="rh-btn-doc-download"
+                            onClick={() => downloadFileFromDrive(doc.driveFileId!, doc.originalFileName || doc.title)}
+                            title="Visualizar ou baixar do Google Drive"
+                          >
+                            <Download size={14} /> Baixar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rh-docs-empty">
+                  <FileText size={32} className="text-zinc-400" />
+                  <p>Nenhum documento encontrado nesta categoria.</p>
+                  <small>Utilize o formulário acima para enviar contracheques, atestados ou contratos.</small>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* ABA 3: DESLIGAMENTO & RESCISÃO */}
+        {/* ==================================================================== */}
+        {activeTab === "termination" && (
+          <div className="rh-tab-content">
+            {employee.status === "terminated" ? (
+              <div className="rh-terminated-card">
+                <div className="rh-term-badge-header">
+                  <span className="rh-term-icon"><UserMinus size={22} /></span>
+                  <div>
+                    <h3>Colaborador Desligado</h3>
+                    <p>O contrato foi encerrado e este cadastro encontra-se inativo no sistema.</p>
+                  </div>
+                </div>
+
+                <dl className="rh-grid-2 rh-term-details">
+                  <div>
+                    <dt>Data da Rescisão</dt>
+                    <dd>{formatDate(employee.terminationDate || "") || "Não informada"}</dd>
+                  </div>
+                  <div>
+                    <dt>Tempo Total Trabalhado</dt>
+                    <dd>{tenure.formatted}</dd>
+                  </div>
+                  <div className="rh-col-span-2">
+                    <dt>Tipo de Desligamento</dt>
+                    <dd>{employee.terminationType || "Rescisão Contratual"}</dd>
+                  </div>
+                  {employee.terminationNotice && (
+                    <div className="rh-col-span-2">
+                      <dt>Aviso Prévio</dt>
+                      <dd>{employee.terminationNotice}</dd>
+                    </div>
+                  )}
+                  {employee.terminationReason && (
+                    <div className="rh-col-span-2">
+                      <dt>Motivo / Observações</dt>
+                      <dd>{employee.terminationReason}</dd>
+                    </div>
+                  )}
+                </dl>
+
+                <div className="rh-term-footer-actions">
+                  <button
+                    type="button"
+                    className="rh-btn-reactivate-large"
+                    onClick={handleReactivateEmployee}
+                  >
+                    <RotateCcw size={16} /> Reativar Colaborador no Quadro Ativo
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="rh-termination-form">
+                <div className="rh-term-notice">
+                  <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+                  <div>
+                    <strong>Registro de Rescisão / Desligamento</strong>
+                    <p>
+                      Ao registrar o desligamento, o colaborador sairá do quadro ativo e da folha de pagamento da unidade. Todos os documentos e histórico permanecem arquivados.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rh-form-grid">
+                  <div className="rh-form-group">
+                    <label>Data do Desligamento *</label>
+                    <input
+                      type="date"
+                      value={termDate}
+                      onChange={(e) => setTermDate(e.target.value)}
+                      disabled={isTerminating}
+                    />
+                  </div>
+
+                  <div className="rh-form-group">
+                    <label>Tipo de Desligamento *</label>
+                    <select
+                      value={termType}
+                      onChange={(e) => setTermType(e.target.value)}
+                      disabled={isTerminating}
+                    >
+                      {TERMINATION_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="rh-form-group rh-col-span-2">
+                    <label>Aviso Prévio</label>
+                    <select
+                      value={termNotice}
+                      onChange={(e) => setTermNotice(e.target.value)}
+                      disabled={isTerminating}
+                    >
+                      {NOTICE_TYPES.map((notice) => (
+                        <option key={notice} value={notice}>
+                          {notice}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="rh-form-group rh-col-span-2">
+                    <label>Motivo / Justificativa / Observações (opcional)</label>
+                    <textarea
+                      rows={3}
+                      placeholder="Descreva observações sobre a saída, cumprimento de aviso ou acordos..."
+                      value={termReason}
+                      onChange={(e) => setTermReason(e.target.value)}
+                      disabled={isTerminating}
+                    />
+                  </div>
+
+                  {/* CHECKLIST DE ENCERRAMENTO */}
+                  <div className="rh-form-group rh-col-span-2 rh-checklist-box">
+                    <label>Checklist de Desligamento</label>
+                    <div className="rh-checklist-items">
+                      <label className="rh-check-item">
+                        <input
+                          type="checkbox"
+                          checked={termChecklist.exam}
+                          onChange={(e) =>
+                            setTermChecklist({ ...termChecklist, exam: e.target.checked })
+                          }
+                        />
+                        <span>Exame médico demissional agendado / realizado</span>
+                      </label>
+                      <label className="rh-check-item">
+                        <input
+                          type="checkbox"
+                          checked={termChecklist.materials}
+                          onChange={(e) =>
+                            setTermChecklist({ ...termChecklist, materials: e.target.checked })
+                          }
+                        />
+                        <span>Devolução de uniforme, chaves e materiais da unidade</span>
+                      </label>
+                      <label className="rh-check-item">
+                        <input
+                          type="checkbox"
+                          checked={termChecklist.terms}
+                          onChange={(e) =>
+                            setTermChecklist({ ...termChecklist, terms: e.target.checked })
+                          }
+                        />
+                        <span>Termo de Rescisão (TRCT) e cálculo de verbas gerados</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {termSuccess && (
+                  <div className="rh-alert-msg rh-alert-success">
+                    Desligamento registrado com sucesso! O cadastro foi atualizado.
+                  </div>
+                )}
+
+                <div className="rh-term-submit-row">
+                  <button
+                    type="button"
+                    className="rh-btn-confirm-termination"
+                    onClick={handleConfirmTermination}
+                    disabled={isTerminating}
+                  >
+                    <UserMinus size={16} />
+                    {isTerminating ? "Processando desligamento…" : "Confirmar Desligamento"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </Drawer>
+  );
+}

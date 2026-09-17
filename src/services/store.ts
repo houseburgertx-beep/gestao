@@ -642,6 +642,48 @@ class DataStore {
     return newEmp;
   }
 
+  updateEmployee(emp: Employee): Employee {
+    const employees = this.getEmployees();
+    const index = employees.findIndex((e) => e.id === emp.id);
+    let updatedList: Employee[];
+    if (index >= 0) {
+      updatedList = [...employees];
+      updatedList[index] = { ...updatedList[index], ...emp };
+    } else {
+      updatedList = [emp, ...employees];
+    }
+    this.set(STORAGE_KEYS.EMPLOYEES, updatedList);
+    saveEmployeeToFirestore(emp).catch((err) => console.warn("Erro ao atualizar colaborador no Firestore:", err));
+    
+    if (emp.status === "terminated") {
+      this.addLog({
+        userId: "system",
+        userName: "RH",
+        action: "Desligamento registrado",
+        entityType: "employee",
+        entityId: emp.id,
+        details: `${emp.name} - ${emp.terminationType || "Rescisão contratual"}`,
+      });
+      this.addNotification({
+        type: "vacation",
+        title: "Desligamento registrado",
+        details: [
+          { label: "Colaborador", value: emp.name },
+          { label: "Data do Desligamento", value: emp.terminationDate || new Date().toISOString().slice(0, 10) },
+          { label: "Tipo", value: emp.terminationType || "Não informado" },
+        ],
+        message: `Desligamento de ${emp.name} registrado no sistema.`,
+        link: "/rh",
+        severity: "warning",
+      });
+    }
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("house190_data_updated"));
+    }
+    return emp;
+  }
+
   getVacations(): EmployeeVacation[] {
     return this.get(STORAGE_KEYS.VACATIONS, INITIAL_VACATIONS);
   }
