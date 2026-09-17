@@ -25,12 +25,14 @@ import {
   CreditCard,
   ShieldCheck,
   Clock3,
+  Pencil,
 } from "lucide-react";
 import { Drawer } from "@/components/ui/Drawer";
 import { Employee, DocumentItem } from "@/types";
 import { calculateTenure, getExperienceInfo, getTodayDateStr } from "@/lib/tenureUtils";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { store } from "@/services/store";
+import { EditEmployeeModal } from "./EditEmployeeModal";
 import {
   uploadFileToDrive,
   nameFileForDrive,
@@ -91,6 +93,7 @@ export function EmployeeDetailDrawer({
 }: EmployeeDetailDrawerProps) {
   const { data: mgmtData } = useManagement();
   const [activeTab, setActiveTab] = useState<"profile" | "docs" | "termination">("profile");
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Document upload state
   const [docCategory, setDocCategory] = useState<string>("contracheque");
@@ -290,6 +293,7 @@ export function EmployeeDetailDrawer({
   };
 
   return (
+    <>
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
@@ -345,6 +349,14 @@ export function EmployeeDetailDrawer({
 
           {/* BOTÃO RÁPIDO DE AÇÃO */}
           <div className="rh-employee-hero-actions">
+            <button
+              type="button"
+              className="rh-btn-action-edit"
+              onClick={() => setIsEditModalOpen(true)}
+              title="Editar dados cadastrais do colaborador"
+            >
+              <Pencil size={13} /> Editar
+            </button>
             {employee.status !== "terminated" ? (
               <button
                 type="button"
@@ -882,5 +894,16 @@ export function EmployeeDetailDrawer({
         )}
       </div>
     </Drawer>
+
+    <EditEmployeeModal
+      isOpen={isEditModalOpen}
+      onClose={() => setIsEditModalOpen(false)}
+      employee={employee}
+      onSuccess={(updated) => {
+        onEmployeeUpdated(updated);
+        setIsEditModalOpen(false);
+      }}
+    />
+    </>
   );
 }
