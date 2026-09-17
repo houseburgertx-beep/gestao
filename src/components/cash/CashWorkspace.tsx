@@ -396,11 +396,27 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
       })) as RecordData[];
 
       [row, ...payables].forEach(record => validate(record, data));
-      await commitRecords([row, ...payables], data, row);
-      onSaved();
+
+      // Retry up to 3 times for transient Firebase errors (quota, network)
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await commitRecords([row, ...payables], data, row);
+          onSaved();
+          return;
+        } catch (retryErr) {
+          lastErr = retryErr;
+          const msg = retryErr instanceof Error ? retryErr.message : "";
+          const isTransient = /quota exceeded|resource exhausted|unavailable|deadline exceeded/i.test(msg);
+          if (!isTransient || attempt === 2) break;
+          await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+        }
+      }
+      throw lastErr;
     } catch (e) {
       const message = e instanceof Error ? e.message : "Não foi possível salvar o fechamento.";
-      setError(/quota exceeded|resource exhausted/i.test(message) ? "O Firebase atingiu o limite temporário de uso. Nenhum fechamento foi confirmado; tente novamente mais tarde." : message);
+      console.error("[Fechamento] Erro ao salvar:", e);
+      setError(/quota exceeded|resource exhausted/i.test(message) ? "O Firebase atingiu o limite temporário de uso. Aguarde 1 minuto e tente novamente." : message);
     } finally {
       setBusy(false);
     }
@@ -1530,11 +1546,26 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
       if (sangriaAccountUpdate) {
         recordsToCommit.push(sangriaAccountUpdate);
       }
-
-      await commitRecords(recordsToCommit, data, conference);
-      onSaved();
+      // Retry up to 3 times for transient Firebase errors (quota, network)
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await commitRecords(recordsToCommit, data, conference);
+          onSaved();
+          return;
+        } catch (retryErr) {
+          lastErr = retryErr;
+          const msg = retryErr instanceof Error ? retryErr.message : "";
+          const isTransient = /quota exceeded|resource exhausted|unavailable|deadline exceeded/i.test(msg);
+          if (!isTransient || attempt === 2) break;
+          await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+        }
+      }
+      throw lastErr;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível concluir a conferência.");
+      console.error("[Conferência] Erro ao salvar:", e);
+      const message = e instanceof Error ? e.message : "Não foi possível concluir a conferência.";
+      setError(/quota exceeded|resource exhausted/i.test(message) ? "O Firebase atingiu o limite temporário de uso. Aguarde 1 minuto e tente novamente." : message);
     } finally {
       setBusy(false);
     }
