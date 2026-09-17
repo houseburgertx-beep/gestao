@@ -312,7 +312,7 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
 
       const now = new Date().toISOString();
       const closingId = `closing-${date}-${unit}-unico`;
-      const defaultCategory = data.categories.find(cat => !cat.archived && str(cat, "nature") === "Operacional")?.id || data.categories[0]?.id || "operacional-outros";
+      const defaultCategory = data.categories.find(cat => !cat.archived && str(cat, "nature") === "Operacional")?.id || data.categories[0]?.id || "";
 
       const row: RecordData = {
         id: closingId,
