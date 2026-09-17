@@ -29,10 +29,11 @@ function doPost(e) {
     if (payload.action === "email") return sendNotificationEmail(payload);
     if (payload.action === "upload") return uploadFile(payload);
     if (payload.action === "download") return downloadFile(payload);
+    if (payload.action === "sync_sheets") return syncSheetRecords(payload);
     return jsonResponse({ ok: false, error: "invalid_action" });
   } catch (error) {
     console.error(error);
-    return jsonResponse({ ok: false, error: "request_failed" });
+    return jsonResponse({ ok: false, error: "request_failed", details: String(error) });
   }
 }
 
@@ -117,3 +118,191 @@ function sanitizeFileName(value) {
 function jsonResponse(value) {
   return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON);
 }
+
+// ==========================================================================
+// BANCO DE DADOS ESPELHO & BACKUP EM PLANILHA ÚNICA (GOOGLE SHEETS)
+// ==========================================================================
+const SPREADSHEET_NAME = "HOUSE 190 - BANCO DE DADOS & BACKUP GERAL";
+
+const SHEET_SCHEMAS = {
+  Contas_Pagar: [
+    "ID", "VENCIMENTO", "UNIDADE", "FORNECEDOR", "DESCRICAO", "TIPO",
+    "FORMA_PAGAMENTO", "PARCELA", "VALOR_ORIGINAL", "VALOR_PAGAR",
+    "SALDO_ABERTO", "STATUS", "IMPOSTO", "DOCUMENTO_CODIGO",
+    "LINK_BOLETO_DRIVE", "OBSERVACOES", "ATUALIZADO_EM"
+  ],
+  Pagamentos_Baixas: [
+    "ID", "DATA_BAIXA", "HORARIO", "UNIDADE", "CONTA_BANCARIA",
+    "DESCRICAO", "VALOR_PAGO", "QUEM_PAGOU", "FORMA_PAGAMENTO",
+    "LINK_COMPROVANTE_DRIVE", "ID_OBRIGACAO", "REGISTRADO_EM"
+  ],
+  Fechamentos_Caixa: [
+    "ID", "DATA", "TURNO", "UNIDADE", "OPERADOR", "FATURAMENTO_TOTAL",
+    "DINHEIRO_ESPERADO", "DINHEIRO_INFORMADO", "DIFERENCA_DINHEIRO",
+    "CARTAO_CREDITO", "CARTAO_DEBITO", "PIX", "SANGRIAS",
+    "DIVERGENCIA_GERAL", "STATUS", "REGISTRADO_EM"
+  ],
+  Conferencias_Caixa: [
+    "ID", "ID_FECHAMENTO", "DATA_CAIXA", "UNIDADE", "OPERADOR_CAIXA",
+    "QUEM_CONFERIU", "DATA_CONFERENCIA", "STATUS", "DIVERGENCIA_TOTAL",
+    "NOTAS", "CONCILIACAO_BANCOS_JSON", "REGISTRADO_EM"
+  ],
+  Contas_Bancarias: [
+    "ID", "NOME_CONTA", "BANCO", "UNIDADE", "SALDO_ATUAL",
+    "DATA_SALDO", "CONCILIADO", "ATUALIZADO_POR", "ATUALIZADO_EM"
+  ],
+  Transferencias_Internas: [
+    "ID", "DATA", "CONTA_ORIGEM", "CONTA_DESTINO", "VALOR",
+    "RESPONSAVEL", "OBSERVACOES", "REGISTRADO_EM"
+  ],
+  Fornecedores: [
+    "ID", "NOME", "DOCUMENTO_CNPJ_CPF", "TELEFONE", "CHAVE_PIX",
+    "CATEGORIA", "ATUALIZADO_EM"
+  ],
+  Log_Sincronizacao: [
+    "DATA_HORA", "OPERACAO", "TABELAS_ATUALIZADAS", "QTD_REGISTROS",
+    "STATUS", "USUARIO", "DETALHES"
+  ]
+};
+
+function getOrCreateBackupSpreadsheet() {
+  const properties = PropertiesService.getScriptProperties();
+  let spreadsheetId = properties.getProperty("BACKUP_SPREADSHEET_ID");
+  if (spreadsheetId) {
+    try {
+      return SpreadsheetApp.openById(spreadsheetId);
+    } catch (e) {
+      console.warn("Spreadsheet ID inválido ou não encontrado, buscando por nome:", e);
+    }
+  }
+
+  const rootFolder = getRootFolder();
+  const files = rootFolder.getFilesByName(SPREADSHEET_NAME);
+  let spreadsheet;
+  if (files.hasNext()) {
+    spreadsheet = SpreadsheetApp.open(files.next());
+  } else {
+    spreadsheet = SpreadsheetApp.create(SPREADSHEET_NAME);
+    const file = DriveApp.getFileById(spreadsheet.getId());
+    rootFolder.addFile(file);
+    DriveApp.getRootFolder().removeFile(file);
+  }
+
+  properties.setProperty("BACKUP_SPREADSHEET_ID", spreadsheet.getId());
+  initSpreadsheetSheets(spreadsheet);
+  return spreadsheet;
+}
+
+function initSpreadsheetSheets(spreadsheet) {
+  Object.keys(SHEET_SCHEMAS).forEach((sheetName) => {
+    let sheet = spreadsheet.getSheetByName(sheetName);
+    if (!sheet) {
+      sheet = spreadsheet.insertSheet(sheetName);
+    }
+    const headers = SHEET_SCHEMAS[sheetName];
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(headers);
+      const headerRange = sheet.getRange(1, 1, 1, headers.length);
+      headerRange.setFontWeight("bold");
+      headerRange.setBackground("#1e293b");
+      headerRange.setFontColor("#ffffff");
+      sheet.setFrozenRows(1);
+    }
+  });
+
+  const defaultSheet = spreadsheet.getSheetByName("Página1") || spreadsheet.getSheetByName("Sheet1");
+  if (defaultSheet && spreadsheet.getSheets().length > 1 && defaultSheet.getLastRow() === 0) {
+    try { spreadsheet.deleteSheet(defaultSheet); } catch (e) {}
+  }
+}
+
+function syncSheetRecords(payload) {
+  const spreadsheet = getOrCreateBackupSpreadsheet();
+  initSpreadsheetSheets(spreadsheet);
+  const tables = payload.tables || {};
+  let totalProcessed = 0;
+  const updatedTables = [];
+
+  Object.keys(tables).forEach((sheetName) => {
+    if (!SHEET_SCHEMAS[sheetName]) return;
+    const records = tables[sheetName];
+    if (!Array.isArray(records) || records.length === 0) return;
+
+    let sheet = spreadsheet.getSheetByName(sheetName);
+    if (!sheet) sheet = spreadsheet.insertSheet(sheetName);
+
+    const headers = SHEET_SCHEMAS[sheetName];
+
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(headers);
+      const headerRange = sheet.getRange(1, 1, 1, headers.length);
+      headerRange.setFontWeight("bold");
+      headerRange.setBackground("#1e293b");
+      headerRange.setFontColor("#ffffff");
+      sheet.setFrozenRows(1);
+    }
+
+    const lastRow = sheet.getLastRow();
+    const idRowMap = {};
+    if (lastRow > 1) {
+      const idValues = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (let i = 0; i < idValues.length; i++) {
+        const id = String(idValues[i][0] || "").trim();
+        if (id) idRowMap[id] = i + 2;
+      }
+    }
+
+    const rowsToAppend = [];
+    records.forEach((record) => {
+      const id = String(record.id || record.ID || "").trim();
+      if (!id) return;
+
+      const rowValues = headers.map((header) => {
+        let val = record[header] !== undefined ? record[header] : record[header.toLowerCase()];
+        if (val === undefined || val === null) return "";
+        if (typeof val === "object") return JSON.stringify(val);
+        return String(val);
+      });
+
+      if (idRowMap[id]) {
+        const targetRow = idRowMap[id];
+        sheet.getRange(targetRow, 1, 1, headers.length).setValues([rowValues]);
+      } else {
+        rowsToAppend.push(rowValues);
+      }
+      totalProcessed++;
+    });
+
+    if (rowsToAppend.length > 0) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, rowsToAppend.length, headers.length).setValues(rowsToAppend);
+    }
+    updatedTables.push(`${sheetName} (${records.length})`);
+  });
+
+  try {
+    const logSheet = spreadsheet.getSheetByName("Log_Sincronizacao");
+    if (logSheet) {
+      const nowStr = new Date().toISOString();
+      logSheet.appendRow([
+        nowStr,
+        payload.operation || "upsert_batch",
+        updatedTables.join(", "),
+        totalProcessed,
+        "SUCESSO",
+        payload.userId || payload.userEmail || "sistema",
+        payload.details || "Sincronização em tempo real concluída."
+      ]);
+    }
+  } catch (err) {
+    console.warn("Erro ao registrar log de sync:", err);
+  }
+
+  return jsonResponse({
+    ok: true,
+    spreadsheetId: spreadsheet.getId(),
+    spreadsheetUrl: spreadsheet.getUrl(),
+    processedRecords: totalProcessed,
+    updatedTables,
+  });
+}
+

@@ -184,6 +184,9 @@ async function createRecords(records: RecordData[]) {
     }));
   });
   await batch.commit();
+  void import("@/services/sheetsBackupService")
+    .then(({ replicateToSheet }) => replicateToSheet({}, records))
+    .catch(() => {});
 }
 export async function commitRecords(
   records: RecordData[],
@@ -429,6 +432,9 @@ export async function commitRecords(
     const pix = records.filter((record) => record.kind === "payables" && record.pixKey);
     if (pix.length) void addNotificationToFirestore({type:"payable",eventKind:"pix_request",unitId:origin.unitId,title:"Novas solicitações de PIX",message:`${pix.length} solicitação(ões) de PIX no fechamento de ${unitName}. Total: ${currency(pix.reduce((sum,record) => sum + Number(record.amount || 0),0))}.`,details:pix.slice(0,12).map((record) => ({label:"Pagamento PIX",value:`${str(record,"description")} · ${currency(Number(record.amount || 0))}`})),link:"/contas-a-pagar/",severity:"warning",read:false,timestamp:new Date().toISOString()});
   }
+  void import("@/services/sheetsBackupService")
+    .then(({ replicateToSheet }) => replicateToSheet(state, records))
+    .catch(() => {});
 }
 
 export async function reverseSettlement(
