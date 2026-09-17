@@ -1480,8 +1480,8 @@ function BankAccountModal({
         ...account,
         id: account?.id || safeUUID(),
         kind: "bankAccounts",
-        tenantId,
-        unitId: unit,
+        tenantId: account?.tenantId || tenantId || "house190",
+        unitId: unit || "",
         name: name.trim(),
         bank: bank.trim(),
         balance: balance !== "" ? Math.round(Number(balance) * 100) : null,
@@ -1492,7 +1492,7 @@ function BankAccountModal({
         isSangriaAccount,
         reconciled,
         notes: notes.trim(),
-        version: (account?.version || 0) + 1,
+        version: Number(account?.version || 0),
         createdAt: account?.createdAt || now,
         updatedAt: now,
         createdBy: account?.createdBy || user.uid,
@@ -1502,7 +1502,19 @@ function BankAccountModal({
       await saveManagement(updated, data);
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar a conta.");
+      console.error("Erro ao salvar conta bancária:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        msg.includes("permission") ||
+        msg.includes("Permissão") ||
+        msg.includes("Missing or insufficient")
+      ) {
+        setError(
+          "Permissão insuficiente no Firebase para salvar a conta. Verifique seu login administrativo.",
+        );
+      } else {
+        setError(msg || "Não foi possível salvar a conta.");
+      }
     } finally {
       setBusy(false);
     }
@@ -1524,7 +1536,7 @@ function BankAccountModal({
       const updated: RecordData = {
         ...account,
         archived: true,
-        version: (account.version || 0) + 1,
+        version: Number(account.version || 0),
         updatedAt: now,
         updatedBy: user.uid,
       };
@@ -1581,8 +1593,8 @@ function BankAccountModal({
                   value={unit}
                   disabled={allowedUnit !== "all"}
                   onChange={(e) => setUnit(e.target.value)}
-                  required
                 >
+                  <option value="">Matriz / Geral (Grupo)</option>
                   {data.units
                     .filter(
                       (u) =>
@@ -1814,14 +1826,38 @@ export function InstantPaymentModal({
   const [error, setError] = useState("");
 
   return (
-    <div className="mg-modal-shade">
-      <div className="mg-modal" role="dialog" aria-modal="true">
-        <header>
-          <h2>Pagamento instantâneo</h2>
-          <button onClick={onClose}>×</button>
+    <div
+      className="mg-modal-shade"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !busy) onClose();
+      }}
+    >
+      <div className="mg-modal task-modal-modern" role="dialog" aria-modal="true">
+        <header className="task-modal-header">
+          <div className="task-modal-title-box">
+            <div
+              className="task-modal-icon-badge"
+              style={{ background: "#fef3c7", color: "#d97706" }}
+            >
+              <Zap size={18} />
+            </div>
+            <div>
+              <h2>Pagamento de Despesa</h2>
+              <p>Lançamento de saída com baixa imediata no saldo bancário</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="task-modal-close"
+            onClick={onClose}
+            disabled={busy}
+          >
+            ✕
+          </button>
         </header>
+
         <form
-          className="mg-form"
+          className="task-modal-form"
           onSubmit={async (event) => {
             event.preventDefault();
             if (!user) return;
@@ -1834,14 +1870,14 @@ export function InstantPaymentModal({
               const row: RecordData = {
                 id: safeUUID(),
                 kind: "transactions",
-                tenantId,
-                unitId: unit,
+                tenantId: tenantId || "house190",
+                unitId: unit || "",
                 version: 0,
                 createdAt: now,
                 updatedAt: now,
                 createdBy: user.uid,
                 updatedBy: user.uid,
-                description: String(form.get("description")),
+                description: String(form.get("description") || "").trim(),
                 date: String(form.get("date")),
                 competence: String(form.get("date")).slice(0, 7),
                 direction: "Saída",
@@ -1870,100 +1906,199 @@ export function InstantPaymentModal({
               await saveManagement(row, data);
               onSaved();
             } catch (e) {
-              setError(
-                e instanceof Error ? e.message : "Não foi possível registrar.",
-              );
+              console.error("Erro ao registrar pagamento instantâneo:", e);
+              const msg = e instanceof Error ? e.message : String(e);
+              if (
+                msg.includes("permission") ||
+                msg.includes("Permissão") ||
+                msg.includes("Missing or insufficient")
+              ) {
+                setError(
+                  "Permissão insuficiente no Firebase para registrar a saída. Verifique seu login.",
+                );
+              } else {
+                setError(msg || "Não foi possível registrar.");
+              }
             } finally {
               setBusy(false);
             }
           }}
         >
-          <label className="full">
-            Descrição
-            <input
-              name="description"
-              required
-              placeholder="Ex.: compra emergencial, motoboy ou manutenção"
-            />
-          </label>
-          <label>
-            Unidade da despesa
-            <select
-              required
-              value={unit}
-              onChange={(e) => setUnit(e.target.value)}
+          {/* Card 1: Descrição e Unidade/Conta */}
+          <div className="task-compact-card">
+            <div className="task-field-group full">
+              <label htmlFor="instant-description">
+                Descrição da despesa <span className="task-req">*</span>
+              </label>
+              <input
+                id="instant-description"
+                name="description"
+                type="text"
+                autoFocus
+                required
+                className="task-input-title"
+                placeholder="Ex.: Compra emergencial, motoboy extra, manutenção..."
+              />
+            </div>
+
+            <div className="task-grid-columns-two">
+              <div className="task-field-group">
+                <label htmlFor="instant-unit">
+                  Unidade da despesa <span className="task-req">*</span>
+                </label>
+                <select
+                  id="instant-unit"
+                  name="unit"
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                >
+                  <option value="">Matriz / Geral (Grupo)</option>
+                  {data.units
+                    .filter((u) => !u.archived)
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {str(u, "name")}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="instant-bank">
+                  Conta bancária de saída <span className="task-req">*</span>
+                </label>
+                <select id="instant-bank" name="bank" required defaultValue="">
+                  <option value="">Selecione a conta</option>
+                  {accounts.map((b) => {
+                    const u = data.units.find((unitItem) => unitItem.id === b.unitId);
+                    const uName = u ? str(u, "name") : "Matriz";
+                    return (
+                      <option key={b.id} value={b.id}>
+                        {str(b, "name")} ({str(b, "bank") || "Conta"} · {uName})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Valores e Classificação */}
+          <div className="task-compact-card">
+            <div className="task-grid-columns-three">
+              <div className="task-field-group">
+                <label htmlFor="instant-date">
+                  Data <span className="task-req">*</span>
+                </label>
+                <input
+                  id="instant-date"
+                  name="date"
+                  type="date"
+                  defaultValue={dateToday()}
+                  required
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="instant-amount">
+                  Valor (R$) <span className="task-req">*</span>
+                </label>
+                <input
+                  id="instant-amount"
+                  name="amount"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="0,00"
+                  required
+                  style={{ fontWeight: 700 }}
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="instant-method">
+                  Forma <span className="task-req">*</span>
+                </label>
+                <select id="instant-method" name="method" required defaultValue="PIX">
+                  <option value="PIX">PIX</option>
+                  <option value="Transferência">Transferência</option>
+                  <option value="Débito automático">Débito automático</option>
+                  <option value="Dinheiro">Dinheiro</option>
+                  <option value="Boleto">Boleto</option>
+                  <option value="Cartão Débito">Cartão Débito</option>
+                  <option value="Cartão Crédito">Cartão Crédito</option>
+                  <option value="Outros">Outros</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="task-field-group full">
+              <label htmlFor="instant-category">
+                Categoria da despesa <span className="task-req">*</span>
+              </label>
+              <select id="instant-category" name="category" required defaultValue="">
+                <option value="">Selecione a categoria financeira</option>
+                {data.categories
+                  .filter((c) => !c.archived)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {str(c, "name")}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Card 3: Comprovante */}
+          <div className="task-compact-card">
+            <div className="task-field-group full">
+              <label htmlFor="instant-proof" style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Comprovante / Anexo (opcional)</span>
+                <span style={{ fontSize: "10px", fontWeight: 400, color: "#94a3b8" }}>
+                  Upload direto para o Google Drive
+                </span>
+              </label>
+              <input
+                id="instant-proof"
+                name="proof"
+                type="file"
+                accept=".pdf,image/*"
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div
+              style={{
+                padding: "10px 14px",
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: "8px",
+                color: "#991b1b",
+                fontSize: "12px",
+                fontWeight: 600,
+              }}
             >
-              <option value="">Selecione</option>
-              {data.units
-                .filter((u) => !u.archived)
-                .map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {str(u, "name")}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label>
-            Conta bancária de saída
-            <select name="bank" required>
-              <option value="">Selecione qualquer conta do grupo</option>
-              {accounts.map((b) => {
-                const u = data.units.find((unitItem) => unitItem.id === b.unitId);
-                const uName = u ? str(u, "name") : "Matriz";
-                return (
-                  <option key={b.id} value={b.id}>
-                    {str(b, "name")} ({str(b, "bank") || "Conta"} · {uName})
-                  </option>
-                );
-              })}
-            </select>
-          </label>
-          <label>
-            Data
-            <input name="date" type="date" defaultValue={dateToday()} required />
-          </label>
-          <label>
-            Valor
-            <input name="amount" type="number" min="0.01" step="0.01" required />
-          </label>
-          <label>
-            Categoria
-            <select name="category" required>
-              <option value="">Selecione</option>
-              {data.categories
-                .filter((c) => !c.archived)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {str(c, "name")}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label>
-            Forma
-            <select name="method" required>
-              <option>PIX</option>
-              <option>Transferência</option>
-              <option>Débito automático</option>
-              <option>Dinheiro</option>
-              <option>Outros</option>
-            </select>
-          </label>
-          <label className="full mg-file-field">
-            Comprovante no Google Drive
-            <input name="proof" type="file" accept=".pdf,image/*" />
-          </label>
-          {error && <p className="mg-error">{error}</p>}
-          <footer>
+              {error}
+            </div>
+          )}
+
+          <footer className="task-modal-footer">
             <button
               type="button"
-              className="mg-button secondary"
+              className="workspace-secondary task-btn-cancel"
               onClick={onClose}
+              disabled={busy}
             >
               Cancelar
             </button>
-            <button className="mg-button" disabled={busy}>
-              {busy ? "Salvando…" : "Registrar pagamento"}
+            <button
+              type="submit"
+              className="workspace-primary task-save-submit"
+              disabled={busy}
+              style={{ background: "#4f46e5", borderColor: "#4338ca" }}
+            >
+              {busy ? "Registrando..." : "Confirmar Pagamento"}
             </button>
           </footer>
         </form>
@@ -1989,14 +2124,38 @@ function TransferModal({
   const [busy, setBusy] = useState(false);
 
   return (
-    <div className="mg-modal-shade">
-      <div className="mg-modal" role="dialog" aria-modal="true">
-        <header>
-          <h2>Transferência entre bancos</h2>
-          <button onClick={onClose}>×</button>
+    <div
+      className="mg-modal-shade"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !busy) onClose();
+      }}
+    >
+      <div className="mg-modal task-modal-modern" role="dialog" aria-modal="true">
+        <header className="task-modal-header">
+          <div className="task-modal-title-box">
+            <div
+              className="task-modal-icon-badge"
+              style={{ background: "#e0e7ff", color: "#4f46e5" }}
+            >
+              <ArrowRightLeft size={18} />
+            </div>
+            <div>
+              <h2>Transferência Entre Bancos</h2>
+              <p>Movimentação interna entre contas bancárias ou caixas</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="task-modal-close"
+            onClick={onClose}
+            disabled={busy}
+          >
+            ✕
+          </button>
         </header>
+
         <form
-          className="mg-form"
+          className="task-modal-form"
           onSubmit={async (event) => {
             event.preventDefault();
             if (!user) return;
@@ -2007,15 +2166,15 @@ function TransferModal({
               const from = String(form.get("from") || "");
               const to = String(form.get("to") || "");
               if (!from || !to || from === to)
-                throw new Error("Selecione contas diferentes.");
+                throw new Error("Selecione contas de origem e destino diferentes.");
               const origin = accounts.find((a) => a.id === from);
               if (!origin) throw new Error("Conta de origem inválida.");
               const now = new Date().toISOString();
               const row: RecordData = {
                 id: safeUUID(),
                 kind: "bankTransfers",
-                tenantId,
-                unitId: origin.unitId,
+                tenantId: origin.tenantId || tenantId || "house190",
+                unitId: origin.unitId || "",
                 version: 0,
                 createdAt: now,
                 updatedAt: now,
@@ -2025,70 +2184,143 @@ function TransferModal({
                 toBankId: to,
                 date: String(form.get("date")),
                 amount: Math.round(Number(form.get("amount")) * 100),
-                notes: String(form.get("notes") || ""),
+                notes: String(form.get("notes") || "").trim(),
               };
               await saveManagement(row, data);
               onSaved();
             } catch (e) {
-              setError(
-                e instanceof Error ? e.message : "Não foi possível transferir.",
-              );
+              console.error("Erro ao transferir:", e);
+              const msg = e instanceof Error ? e.message : String(e);
+              if (
+                msg.includes("permission") ||
+                msg.includes("Permissão") ||
+                msg.includes("Missing or insufficient")
+              ) {
+                setError(
+                  "Permissão insuficiente no Firebase para realizar transferência. Verifique seu login.",
+                );
+              } else {
+                setError(msg || "Não foi possível transferir.");
+              }
             } finally {
               setBusy(false);
             }
           }}
         >
-          <label>
-            Conta de origem
-            <select name="from" required>
-              <option value="">Selecione</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {str(a, "name")}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Conta de destino
-            <select name="to" required>
-              <option value="">Selecione</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {str(a, "name")}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Data
-            <input name="date" type="date" defaultValue={dateToday()} required />
-          </label>
-          <label>
-            Valor
-            <input
-              name="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              required
-            />
-          </label>
-          <label className="full">
-            Observações
-            <textarea name="notes" rows={3} />
-          </label>
-          {error && <p className="mg-error">{error}</p>}
-          <footer>
+          <div className="task-compact-card">
+            <div className="task-grid-columns-two">
+              <div className="task-field-group">
+                <label htmlFor="transfer-from">
+                  Conta de Origem (Saída) <span className="task-req">*</span>
+                </label>
+                <select id="transfer-from" name="from" required defaultValue="">
+                  <option value="">Selecione a conta</option>
+                  {accounts.map((a) => {
+                    const u = data.units.find((unitItem) => unitItem.id === a.unitId);
+                    const uName = u ? str(u, "name") : "Matriz";
+                    return (
+                      <option key={a.id} value={a.id}>
+                        {str(a, "name")} ({str(a, "bank") || "Conta"} · {uName})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="transfer-to">
+                  Conta de Destino (Entrada) <span className="task-req">*</span>
+                </label>
+                <select id="transfer-to" name="to" required defaultValue="">
+                  <option value="">Selecione a conta</option>
+                  {accounts.map((a) => {
+                    const u = data.units.find((unitItem) => unitItem.id === a.unitId);
+                    const uName = u ? str(u, "name") : "Matriz";
+                    return (
+                      <option key={a.id} value={a.id}>
+                        {str(a, "name")} ({str(a, "bank") || "Conta"} · {uName})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="task-compact-card">
+            <div className="task-grid-columns-two">
+              <div className="task-field-group">
+                <label htmlFor="transfer-date">
+                  Data da Transferência <span className="task-req">*</span>
+                </label>
+                <input
+                  id="transfer-date"
+                  name="date"
+                  type="date"
+                  defaultValue={dateToday()}
+                  required
+                />
+              </div>
+
+              <div className="task-field-group">
+                <label htmlFor="transfer-amount">
+                  Valor (R$) <span className="task-req">*</span>
+                </label>
+                <input
+                  id="transfer-amount"
+                  name="amount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="0,00"
+                  required
+                  style={{ fontWeight: 700 }}
+                />
+              </div>
+            </div>
+
+            <div className="task-field-group full">
+              <label htmlFor="transfer-notes">Observações / Motivo (opcional)</label>
+              <textarea
+                id="transfer-notes"
+                name="notes"
+                rows={2}
+                placeholder="Ex.: Repasse de troco, sangria de caixa, centralização..."
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div
+              style={{
+                padding: "10px 14px",
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: "8px",
+                color: "#991b1b",
+                fontSize: "12px",
+                fontWeight: 600,
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          <footer className="task-modal-footer">
             <button
               type="button"
-              className="mg-button secondary"
+              className="workspace-secondary task-btn-cancel"
               onClick={onClose}
+              disabled={busy}
             >
               Cancelar
             </button>
-            <button className="mg-button" disabled={busy}>
-              {busy ? "Salvando…" : "Confirmar transferência"}
+            <button
+              type="submit"
+              className="workspace-primary task-save-submit"
+              disabled={busy}
+            >
+              {busy ? "Transferindo..." : "Confirmar Transferência"}
             </button>
           </footer>
         </form>
