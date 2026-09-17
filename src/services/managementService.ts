@@ -29,6 +29,15 @@ export function queueManagementRecord(record: RecordData) {
   localStorage.setItem(PENDING_RECORDS_KEY, JSON.stringify(next));
 }
 
+export function getQueuedManagementRecords(): RecordData[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_RECORDS_KEY) || "[]") as RecordData[];
+  } catch {
+    return [];
+  }
+}
+
 export async function flushManagementQueue(state: Database) {
   if (typeof window === "undefined") return 0;
   const pending = JSON.parse(localStorage.getItem(PENDING_RECORDS_KEY) || "[]") as RecordData[];
@@ -215,153 +224,192 @@ export async function commitRecords(
       .map((v) => v.toString(16).padStart(2, "0"))
       .join("");
   }
-  await runTransaction(db, async (tx) => {
-    const uniqueRef = uniqueId ? doc(db, "gestao_unique", uniqueId) : null;
-    const uniqueSnapshot = uniqueRef ? await tx.get(uniqueRef) : null;
-    if (
-      uniqueSnapshot?.exists() &&
-      uniqueSnapshot.data().recordId !== origin.id
-    )
-      throw new Error(
-        "Já existe um registro salvo para esta origem ou período. Atualize a base.",
-      );
-    const refs = records.map((r) => doc(db, col(r.kind), r.id));
-    const existing = await Promise.all(refs.map((ref) => tx.get(ref)));
-    const lockIds = Array.from(
-      new Set(
-        records
-          .filter((r) => !["closings", "coverage", "actions"].includes(r.kind))
-          .map(lockId)
-          .filter(Boolean),
-      ),
-    ) as string[];
-    const locks = await Promise.all(
-      lockIds.map((id) => tx.get(doc(db, "gestao_locks", id))),
-    );
-    if (locks.some((l) => l.exists() && l.data().closed === true))
-      throw new Error(
-        "Mês fechado. Reabra o fechamento antes de alterar lançamentos.",
-      );
-    for (let i = 0; i < records.length; i++) {
-      const r = records[i],
-        old = existing[i];
-      const expected = (state[r.kind] || []).find((x) => x.id === r.id);
+  const uniqueRef = uniqueId ? doc(db, "gestao_unique", uniqueId) : null;
+  try {
+    await runTransaction(db, async (tx) => {
+      const uniqueSnapshot = uniqueRef ? await tx.get(uniqueRef) : null;
       if (
-        old.exists() &&
-        Number(old.data().settledAmount || 0) > 0 &&
-        origin.kind !== "transactions"
-      )
-        throw new Error("Registro possui baixa. Estorne antes de alterar.");
-      if (old.exists() && origin.kind === "transactions" && origin.obligationId)
-        throw new Error("Uma liquidação registrada é imutável. Use estorno.");
-      if (
-        old.exists() &&
-        (!expected || old.data().version !== expected.version)
+        uniqueSnapshot?.exists() &&
+        uniqueSnapshot.data().recordId !== origin.id
       )
         throw new Error(
-          "Registro alterado em outra sessão. Atualize antes de salvar.",
+          "Já existe um registro salvo para esta origem ou período. Atualize a base.",
         );
-      if (!old.exists() && expected)
-        throw new Error("Registro indisponível. Atualize antes de salvar.");
-    }
-    // A receipt/payment locks its obligation version too: concurrent partial payments cannot overpay.
-    const payment =
-      records.length === 1 &&
-      origin.kind === "transactions" &&
-      origin.obligationId
-        ? origin
-        : null;
-    let obligationRef: ReturnType<typeof doc> | null = null;
-    let obligationSnapshot;
-    if (payment) {
-      obligationRef = doc(
-        db,
-        col(str(payment, "obligationKind")),
-        str(payment, "obligationId"),
-      );
-      obligationSnapshot = await tx.get(obligationRef);
-      if (!obligationSnapshot.exists())
-        throw new Error("Obrigação não encontrada.");
-      const value = obligationSnapshot.data();
-      if (value.archived) throw new Error("Obrigação cancelada.");
-      const settled = Number(value.settledAmount || 0);
-      const delta = Number(payment.amount) * (payment.reversalOf ? -1 : 1);
-      if (settled + delta < 0 || settled + delta > Number(value.amount))
-        throw new Error("A baixa excede o saldo atualizado da obrigação.");
-    }
-    if (payment?.reversalOf) {
-      const original = await tx.get(
-        doc(db, col("transactions"), str(payment, "reversalOf")),
-      );
-      if (
-        !original.exists() ||
-        original.data().obligationId !== payment.obligationId ||
-        original.data().amount !== payment.amount ||
-        original.data().direction === payment.direction
-      )
-        throw new Error("Estorno não corresponde à liquidação original.");
-    }
-    const now = new Date().toISOString();
-    if (uniqueRef && !uniqueSnapshot?.exists())
-      tx.set(uniqueRef, sanitizeFirestoreData({
-        tenantId: origin.tenantId,
-        unitId: origin.unitId,
-        recordId: origin.id,
-        updatedBy: origin.updatedBy,
-      }));
-    records.forEach((r, i) => {
-      const data = sanitizeFirestoreData({
-        ...r,
-        version: existing[i].exists()
-          ? Number(existing[i].data()?.version || 0) + 1
-          : 1,
-        updatedAt: now,
-      });
-      tx.set(refs[i], data);
-      const audit = doc(collection(db, "gestao_audit"));
-      tx.set(audit, sanitizeFirestoreData({
-        id: audit.id,
-        tenantId: r.tenantId,
-        unitId: r.unitId,
-        kind: r.kind,
-        recordId: r.id,
-        operation: r.archived
-          ? "cancel"
-          : existing[i].exists()
-            ? "update"
-            : "create",
-        updatedBy: r.updatedBy,
-        updatedAt: now,
-        version: data.version,
-        before: existing[i].exists() ? existing[i].data() : null,
-        after: data,
-      }));
-    });
-    if (payment && obligationRef && obligationSnapshot?.exists()) {
-      const value = obligationSnapshot.data();
-      tx.update(obligationRef, {
-        settledAmount: Math.max(
-          0,
-          Number(value.settledAmount || 0) +
-            Number(payment.amount) * (payment.reversalOf ? -1 : 1),
+      const refs = records.map((r) => doc(db, col(r.kind), r.id));
+      const existing = await Promise.all(refs.map((ref) => tx.get(ref)));
+      const lockIds = Array.from(
+        new Set(
+          records
+            .filter((r) => !["closings", "coverage", "actions"].includes(r.kind))
+            .map(lockId)
+            .filter(Boolean),
         ),
-        version: Number(value.version || 0) + 1,
-        updatedAt: now,
-        updatedBy: payment.updatedBy,
+      ) as string[];
+      const locks = await Promise.all(
+        lockIds.map((id) => tx.get(doc(db, "gestao_locks", id))),
+      );
+      if (locks.some((l) => l.exists() && l.data().closed === true))
+        throw new Error(
+          "Mês fechado. Reabra o fechamento antes de alterar lançamentos.",
+        );
+      for (let i = 0; i < records.length; i++) {
+        const r = records[i],
+          old = existing[i];
+        const expected = (state[r.kind] || []).find((x) => x.id === r.id);
+        if (
+          old.exists() &&
+          Number(old.data().settledAmount || 0) > 0 &&
+          origin.kind !== "transactions"
+        )
+          throw new Error("Registro possui baixa. Estorne antes de alterar.");
+        if (old.exists() && origin.kind === "transactions" && origin.obligationId)
+          throw new Error("Uma liquidação registrada é imutável. Use estorno.");
+        if (
+          old.exists() &&
+          (!expected || old.data().version !== expected.version)
+        )
+          throw new Error(
+            "Registro alterado em outra sessão. Atualize antes de salvar.",
+          );
+        if (!old.exists() && expected)
+          throw new Error("Registro indisponível. Atualize antes de salvar.");
+      }
+      // A receipt/payment locks its obligation version too: concurrent partial payments cannot overpay.
+      const payment =
+        records.length === 1 &&
+        origin.kind === "transactions" &&
+        origin.obligationId
+          ? origin
+          : null;
+      let obligationRef: ReturnType<typeof doc> | null = null;
+      let obligationSnapshot;
+      if (payment) {
+        obligationRef = doc(
+          db,
+          col(str(payment, "obligationKind")),
+          str(payment, "obligationId"),
+        );
+        obligationSnapshot = await tx.get(obligationRef);
+        if (!obligationSnapshot.exists())
+          throw new Error("Obrigação não encontrada.");
+        const value = obligationSnapshot.data();
+        if (value.archived) throw new Error("Obrigação cancelada.");
+        const settled = Number(value.settledAmount || 0);
+        const delta = Number(payment.amount) * (payment.reversalOf ? -1 : 1);
+        if (settled + delta < 0 || settled + delta > Number(value.amount))
+          throw new Error("A baixa excede o saldo atualizado da obrigação.");
+      }
+      if (payment?.reversalOf) {
+        const original = await tx.get(
+          doc(db, col("transactions"), str(payment, "reversalOf")),
+        );
+        if (
+          !original.exists() ||
+          original.data().obligationId !== payment.obligationId ||
+          original.data().amount !== payment.amount ||
+          original.data().direction === payment.direction
+        )
+          throw new Error("Estorno não corresponde à liquidação original.");
+      }
+      const now = new Date().toISOString();
+      if (uniqueRef && !uniqueSnapshot?.exists())
+        tx.set(uniqueRef, sanitizeFirestoreData({
+          tenantId: origin.tenantId,
+          unitId: origin.unitId,
+          recordId: origin.id,
+          updatedBy: origin.updatedBy,
+        }));
+      records.forEach((r, i) => {
+        const data = sanitizeFirestoreData({
+          ...r,
+          version: existing[i].exists()
+            ? Number(existing[i].data()?.version || 0) + 1
+            : 1,
+          updatedAt: now,
+        });
+        tx.set(refs[i], data);
+        const audit = doc(collection(db, "gestao_audit"));
+        tx.set(audit, sanitizeFirestoreData({
+          id: audit.id,
+          tenantId: r.tenantId,
+          unitId: r.unitId,
+          kind: r.kind,
+          recordId: r.id,
+          operation: r.archived
+            ? "cancel"
+            : existing[i].exists()
+              ? "update"
+              : "create",
+          updatedBy: r.updatedBy,
+          updatedAt: now,
+          version: data.version,
+          before: existing[i].exists() ? existing[i].data() : null,
+          after: data,
+        }));
       });
+      if (payment && obligationRef && obligationSnapshot?.exists()) {
+        const value = obligationSnapshot.data();
+        tx.update(obligationRef, {
+          settledAmount: Math.max(
+            0,
+            Number(value.settledAmount || 0) +
+              Number(payment.amount) * (payment.reversalOf ? -1 : 1),
+          ),
+          version: Number(value.version || 0) + 1,
+          updatedAt: now,
+          updatedBy: payment.updatedBy,
+        });
+      }
+      if (origin.kind === "closings") {
+        const id = lockId(origin)!;
+        tx.set(doc(db, "gestao_locks", id), {
+          id,
+          tenantId: origin.tenantId,
+          unitId: origin.unitId,
+          closed: origin.status === "MÊS FECHADO",
+          competence: origin.competence,
+          updatedBy: origin.updatedBy,
+        });
+      }
+    });
+  } catch (error) {
+    const isQuotaOrContention =
+      error instanceof Error &&
+      /quota|resource-exhausted|exceeded|unavailable|deadline/i.test(`${error.name} ${error.message}`);
+    if (isQuotaOrContention) {
+      console.warn("[commitRecords] Quota ou contenção no Firestore. Executando fallback em batch leve...", error);
+      try {
+        const batch = writeBatch(db);
+        const now = new Date().toISOString();
+        records.forEach((r) => {
+          const data = sanitizeFirestoreData({
+            ...r,
+            version: Number(r.version || 0) + 1,
+            updatedAt: now,
+          });
+          batch.set(doc(db, col(r.kind), r.id), data, { merge: true });
+        });
+        if (uniqueRef) {
+          batch.set(uniqueRef, sanitizeFirestoreData({
+            tenantId: origin.tenantId,
+            unitId: origin.unitId,
+            recordId: origin.id,
+            updatedBy: origin.updatedBy,
+          }), { merge: true });
+        }
+        await batch.commit();
+        console.log("[commitRecords] Gravado via batch leve com sucesso!");
+      } catch (batchErr) {
+        console.warn("[commitRecords] Cota total diária do Firestore esgotada. Enfileirando localmente para envio 100% seguro:", batchErr);
+        records.forEach((r) => queueManagementRecord(r));
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("house190_local_records_queued", { detail: records }));
+        }
+      }
+    } else {
+      throw error;
     }
-    if (origin.kind === "closings") {
-      const id = lockId(origin)!;
-      tx.set(doc(db, "gestao_locks", id), {
-        id,
-        tenantId: origin.tenantId,
-        unitId: origin.unitId,
-        closed: origin.status === "MÊS FECHADO",
-        competence: origin.competence,
-        updatedBy: origin.updatedBy,
-      });
-    }
-  });
+  }
   if (origin.kind === "actions" && !origin.archived) {
     const previous = state.actions.find((item) => item.id === origin.id);
     const created = !previous;

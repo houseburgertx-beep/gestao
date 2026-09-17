@@ -8,7 +8,7 @@ import {
   monthEnd,
   cents,
 } from "@/domain/management/model";
-import { flushManagementQueue, saveManagement, subscribeManagement } from "@/services/managementService";
+import { flushManagementQueue, getQueuedManagementRecords, saveManagement, subscribeManagement } from "@/services/managementService";
 import { store } from "@/services/store";
 import { persistTakeatReports, subscribeTakeatReports } from "@/services/takeatManagementService";
 import type { RecordData } from "@/domain/management/model";
@@ -105,7 +105,13 @@ export function ManagementProvider({
       tenantId,
       allowedUnit,
       (kind, rows) => {
-        setData((previous) => ({ ...previous, [kind]: rows }));
+        setData((previous) => {
+          const queued = getQueuedManagementRecords().filter((r) => r.kind === kind);
+          const map = new Map<string, RecordData>();
+          rows.forEach((r) => map.set(r.id, r));
+          queued.forEach((r) => { if (!map.has(r.id)) map.set(r.id, r); });
+          return { ...previous, [kind]: Array.from(map.values()) };
+        });
         setErrors((previous) => {
           const next = { ...previous };
           delete next[kind];
@@ -123,6 +129,21 @@ export function ManagementProvider({
       },
     );
   }, [user?.uid, userProfile?.role, userProfile?.unitId, tenantId, allowedUnit, revision]);
+  useEffect(() => {
+    const handleLocalQueued = (e: Event) => {
+      const records = (e as CustomEvent<RecordData[]>).detail || [];
+      setData((prev) => {
+        const next = { ...prev };
+        records.forEach((r) => {
+          const current = (next[r.kind] || []).filter((item) => item.id !== r.id);
+          next[r.kind] = [r, ...current];
+        });
+        return next;
+      });
+    };
+    window.addEventListener("house190_local_records_queued", handleLocalQueued);
+    return () => window.removeEventListener("house190_local_records_queued", handleLocalQueued);
+  }, []);
   useEffect(() => {
     if (!user || pending.length) return;
     const syncPending = () => {

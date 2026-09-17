@@ -504,8 +504,13 @@ function ClosingModal({
 
       const uploadedAttachments = [];
       for (const file of attachments) {
-        const saved = await uploadFileToDrive(nameFileForDrive(file, `Fechamento ${date} - ${unit}`), "payment_proofs");
-        uploadedAttachments.push({ fileId: saved.fileId, fileName: saved.fileName, mimeType: saved.mimeType, size: saved.size });
+        try {
+          const saved = await uploadFileToDrive(nameFileForDrive(file, `Fechamento ${date} - ${unit}`), "payment_proofs");
+          uploadedAttachments.push({ fileId: saved.fileId, fileName: saved.fileName, mimeType: saved.mimeType, size: saved.size });
+        } catch (uploadErr) {
+          console.warn("[Fechamento] Falha ao enviar comprovante para o Drive:", uploadErr);
+          uploadedAttachments.push({ fileId: `local-${file.name}`, fileName: file.name, mimeType: file.type || "application/octet-stream", size: file.size });
+        }
       }
 
       const now = new Date().toISOString();
