@@ -180,6 +180,7 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   const [systemCredit, setSystemCredit] = useState("");
   const [systemDebit, setSystemDebit] = useState("");
   const [systemPix, setSystemPix] = useState("");
+  const [systemServiceFee, setSystemServiceFee] = useState("");
   const [showOtherChannels, setShowOtherChannels] = useState(false);
   const [systemIfoodOnline, setSystemIfoodOnline] = useState("");
   const [systemIfoodVoucher, setSystemIfoodVoucher] = useState("");
@@ -230,8 +231,9 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   const cSysCredit = c(systemCredit);
   const cSysDebit = c(systemDebit);
   const cSysPix = c(systemPix);
+  const cSysServiceFee = c(systemServiceFee);
   const cOther = c(systemIfoodOnline) + c(systemIfoodVoucher) + c(systemTerm) + c(systemClub) + c(systemAccrual);
-  const cSysTotal = cSysCash + cSysCredit + cSysDebit + cSysPix + cOther;
+  const cSysTotal = cSysCash + cSysCredit + cSysDebit + cSysPix + cSysServiceFee + cOther;
 
   const cOpening = c(openingAmount);
   const cCashIn = c(cashIn);
@@ -334,6 +336,7 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         systemTerm: c(systemTerm),
         systemClub: c(systemClub),
         systemAccrual: c(systemAccrual),
+        systemServiceFee: cSysServiceFee,
         openingAmount: cOpening,
         cashIn: cCashIn,
         cashOutflows: cOutflows,
@@ -510,7 +513,7 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
                 </div>
               </div>
 
-              <div className="closing-cards-grid-4">
+              <div className="closing-cards-grid-5">
                 <div className="closing-value-card">
                   <label>Dinheiro no Sistema</label>
                   <div className="closing-input-wrapper">
@@ -567,6 +570,21 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
                       placeholder="0,00"
                       value={systemPix}
                       onChange={e => setSystemPix(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="closing-value-card">
+                  <label>Taxa de Serviço</label>
+                  <div className="closing-input-wrapper">
+                    <span className="prefix">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      value={systemServiceFee}
+                      onChange={e => setSystemServiceFee(e.target.value)}
                     />
                   </div>
                 </div>
@@ -986,8 +1004,15 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
                   <h3>Auditoria, Comprovantes & Resumo do Fechamento</h3>
                   <p>Confirme os valores apurados e envie para a conferência financeira.</p>
                 </div>
-                <div className={`closing-summary-pill ${cTotalDiff === 0 ? "ok" : "danger"}`}>
-                  Divergência Geral: <b>{cTotalDiff === 0 ? "Caixa Quadrado" : brl(cTotalDiff)}</b>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {cSysServiceFee > 0 && (
+                    <div className="closing-summary-pill ok">
+                      Taxa de Serviço: <b>{brl(cSysServiceFee)}</b>
+                    </div>
+                  )}
+                  <div className={`closing-summary-pill ${cTotalDiff === 0 ? "ok" : "danger"}`}>
+                    Divergência Geral: <b>{cTotalDiff === 0 ? "Caixa Quadrado" : brl(cTotalDiff)}</b>
+                  </div>
                 </div>
               </div>
 
@@ -1266,6 +1291,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   const [systemCredit, setSystemCredit] = useState<number>(() => closingValue(closing, "systemCredit"));
   const [systemDebit, setSystemDebit] = useState<number>(() => closingValue(closing, "systemDebit"));
   const [systemPix, setSystemPix] = useState<number>(() => closingValue(closing, "systemPix"));
+  const [systemServiceFee, setSystemServiceFee] = useState<number>(() => closingValue(closing, "systemServiceFee"));
   const otherSales = closingValue(closing, "systemIfoodOnline") + closingValue(closing, "systemIfoodVoucher") + closingValue(closing, "systemTerm") + closingValue(closing, "systemClub") + closingValue(closing, "systemAccrual");
 
   // Editable physical cash drawer values
@@ -1291,7 +1317,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
     return res;
   });
 
-  const [checks, setChecks] = useState({ cash: false, credit: false, debit: false, pix: false });
+  const [checks, setChecks] = useState({ cash: false, credit: false, debit: false, pix: false, serviceFee: false });
   const [notes, setNotes] = useState(() => str(closing, "conferenceNotes") || str(closing, "notes") || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -1310,7 +1336,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   const debitDiff = totalDebitFound - systemDebit;
   const pixDiff = totalPixFound - systemPix;
   const totalDiff = cashDiff + creditDiff + debitDiff + pixDiff;
-  const systemTotal = systemCash + systemCredit + systemDebit + systemPix + otherSales;
+  const systemTotal = systemCash + systemCredit + systemDebit + systemPix + systemServiceFee + otherSales;
 
   // Active banks to display (those with values > 0 or in initialSaved, or all)
   const displayBanks = allBanks.filter(b => initialSaved[b.id] !== undefined || (bankVals[b.id]?.credit || 0) > 0 || (bankVals[b.id]?.debit || 0) > 0 || (bankVals[b.id]?.pix || 0) > 0 || allBanks.length <= 3);
@@ -1475,6 +1501,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         systemCredit,
         systemDebit,
         systemPix,
+        systemServiceFee,
         systemTotal,
         openingAmount,
         cashIn,
@@ -1738,6 +1765,27 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
               <Difference value={pixDiff} />
               <label>
                 <input type="checkbox" checked={checks.pix} disabled={review} onChange={e => setChecks(c => ({ ...c, pix: e.target.checked }))} /> OK
+              </label>
+            </div>
+
+            {/* Taxa de Serviço */}
+            <div className="line">
+              <strong>Taxa de Serviço</strong>
+              <div className="conf-editable-cell">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={systemServiceFee / 100}
+                  disabled={review}
+                  onChange={e => setSystemServiceFee(Math.round(Number(e.target.value) * 100))}
+                  title="Ajustar Taxa de Serviço registrada no PDV"
+                />
+              </div>
+              <span>{brl(systemServiceFee)}</span>
+              <Difference value={0} />
+              <label>
+                <input type="checkbox" checked={checks.serviceFee} disabled={review} onChange={e => setChecks(c => ({ ...c, serviceFee: e.target.checked }))} /> OK
               </label>
             </div>
           </div>
