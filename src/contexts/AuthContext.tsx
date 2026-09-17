@@ -11,8 +11,9 @@ import {
   deleteUser,
 } from "firebase/auth";
 import { deleteApp, getApps, initializeApp } from "firebase/app";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { auth, db, firebaseConfig } from "@/lib/firebase";
+import { normalizeRole } from "@/components/layout/managementNavigation";
 
 export interface UserProfile {
   uid: string;
@@ -31,6 +32,8 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   registerUser: (email: string, pass: string, name: string, role?: string, unitId?: string) => Promise<void>;
+  updateUserProfile: (uid: string, patch: Partial<UserProfile>) => Promise<void>;
+  deleteUserProfile: (uid: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
 }
 
@@ -42,6 +45,8 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   logout: async () => {},
   registerUser: async () => {},
+  updateUserProfile: async () => {},
+  deleteUserProfile: async () => {},
   resetPassword: async () => {},
 });
 
@@ -52,12 +57,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [accessError, setAccessError] = useState("");
 
   useEffect(() => {
+    let resolved = false;
+
+    // Safety fallback: if Firebase auth or Firestore takes longer than 4s, stop loading so user can log in
+    const fallbackTimer = setTimeout(() => {
+      if (!resolved) {
+        setLoading(false);
+      }
+    }, 4000);
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         try {
           const userDocRef = doc(db, "users", currentUser.uid);
-          const snap = await getDoc(userDocRef);
+          
+          // Fetch with 4s timeout to prevent hanging on slow connection
+          const snap = await Promise.race([
+            getDoc(userDocRef),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("Timeout ao buscar perfil")), 4000)
+            ),
+          ]);
+
           if (snap.exists()) {
             const profile = snap.data() as UserProfile;
             if (profile.active === false) {
@@ -89,15 +111,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {
           console.warn("Erro ao buscar perfil do usuário no Firestore:", e);
           setAccessError("Não foi possível validar seu perfil no Firebase. Tente novamente.");
-          await fbSignOut(auth);
+          try { await fbSignOut(auth); } catch {}
+        } finally {
+          resolved = true;
+          setLoading(false);
         }
       } else {
         setUserProfile(null);
+        resolved = true;
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(fallbackTimer);
+      unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, pass: string) => {
@@ -118,8 +147,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     role: string = "manager",
     unitId: string = "all"
   ) => {
-    if (!user || userProfile?.role !== "admin") {
-      throw new Error("Apenas administradores podem cadastrar usuários.");
+    const norm = normalizeRole(userProfile?.role);
+    if (!user || (norm !== "admin" && norm !== "accountant")) {
+      throw new Error("Apenas administradores e gestores financeiros podem cadastrar usuários.");
     }
 
     const secondaryName = "house190-user-management";
@@ -140,6 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       try {
         await setDoc(doc(db, "users", cred.user.uid), newProfile);
+        window.dispatchEvent(new Event("house190-users-updated"));
       } catch (error) {
         await deleteUser(cred.user).catch(() => {});
         throw error;
@@ -148,6 +179,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       await deleteApp(secondaryApp);
     }
+  };
+
+  const updateUserProfile = async (uid: string, patch: Partial<UserProfile>) => {
+    const norm = normalizeRole(userProfile?.role);
+    if (!user || (norm !== "admin" && norm !== "accountant")) {
+      throw new Error("Apenas administradores e gestores financeiros podem alterar usuários.");
+    }
+    await setDoc(doc(db, "users", uid), patch, { merge: true });
+    window.dispatchEvent(new Event("house190-users-updated"));
+  };
+
+  const deleteUserProfile = async (uid: string) => {
+    const norm = normalizeRole(userProfile?.role);
+    if (!user || (norm !== "admin" && norm !== "accountant")) {
+      throw new Error("Apenas administradores e gestores financeiros podem excluir usuários.");
+    }
+    if (uid === user.uid) {
+      throw new Error("Você não pode excluir o seu próprio usuário enquanto estiver conectado.");
+    }
+    await deleteDoc(doc(db, "users", uid));
+    window.dispatchEvent(new Event("house190-users-updated"));
   };
 
   const resetPassword = async (email: string) => {
@@ -164,6 +216,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         logout,
         registerUser,
+        updateUserProfile,
+        deleteUserProfile,
         resetPassword,
       }}
     >

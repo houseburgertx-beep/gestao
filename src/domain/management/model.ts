@@ -117,6 +117,9 @@ export const DATASETS = [
   "goals",
   "positions",
   "bankAccounts",
+  "bankTransfers",
+  "cashClosings",
+  "cashConferences",
 ];
 const nature = () =>
   opt("nature", "Natureza", [
@@ -194,9 +197,25 @@ export const DEFINITIONS: Record<string, Definition> = {
     fields: [
       f("name", "Nome"),
       f("bank", "Banco / caixa"),
-      f("balance", "Saldo conciliado (R$)", "money"),
-      f("balanceDate", "Data do saldo", "date"),
+      f("balance", "Saldo conciliado (R$)", "money", false),
+      f("balanceDate", "Data do saldo", "date", false),
+      f("creditFeePct", "Taxa Crédito (%)", "percent", false),
+      f("debitFeePct", "Taxa Débito (%)", "percent", false),
+      f("pixFeePct", "Taxa PIX (%)", "percent", false),
+      f("isSangriaAccount", "Caixa exclusivo de sangria", "check", false),
       f("reconciled", "Saldo conferido", "check"),
+      f("notes", "Observações", "textarea", false),
+    ],
+  },
+  bankTransfers: {
+    label: "Transferências bancárias",
+    singular: "transferência bancária",
+    dated: "date",
+    fields: [
+      ref("fromBankId", "Conta de origem", "bankAccounts"),
+      f("toBankId", "Conta de destino"),
+      f("date", "Data da transferência", "date"),
+      amount(),
       f("notes", "Observações", "textarea", false),
     ],
   },
@@ -262,31 +281,43 @@ export const DEFINITIONS: Record<string, Definition> = {
     dated: "dueDate",
     fields: [
       opt("obligationType", "Tipo da conta", [
+        "Despesa Fixa",
+        "Fornecedor / Mercadoria",
+        "Imposto / Tributo",
+        "Serviço / Terceirizado",
+        "Folha / Pessoal",
+        "Pró-labore / Sócios",
+        "Empréstimo / Financiamento",
+        "Outros",
+        // Compatibilidade com registros legados e testes
+        "Conta fixa",
         "Boleto",
         "Débito",
         "Imposto",
-        "Conta fixa",
         "Cheque",
         "Empréstimo",
-        "Outros",
       ]),
       f("description", "Descrição"),
-      ref("supplierId", "Fornecedor", "suppliers", false),
       ref("categoryId", "Categoria", "categories", false),
-      ref("costCenterId", "Centro de custo", "costCenters", false),
+      ref("supplierId", "Fornecedor", "suppliers", false),
       f("competence", "Competência", "month", false),
       due(),
       f("originalAmount", "Valor original (R$)", "money", false),
       f("amount", "Valor a pagar (R$)", "money"),
       opt("paymentMethod", "Forma de pagamento", [
         "Boleto",
-        "Débito automático",
         "PIX",
-        "Transferência",
+        "Débito automático",
+        "Cartão de Crédito",
+        "Cartão de Débito",
+        "Transferência bancária",
+        "Dinheiro em espécie",
         "Cheque",
+        "Outros",
+        // Compatibilidade com registros legados
+        "Transferência",
         "Dinheiro",
         "Cartão",
-        "Outros",
       ], false),
       f("documentNumber", "Código / número do boleto", "text", false),
       opt("nature", "Natureza", [
@@ -545,6 +576,76 @@ export const DEFINITIONS: Record<string, Definition> = {
       f("notes", "Observações", "textarea", false),
     ],
   },
+  cashClosings: {
+    label: "Fechamentos de caixa",
+    singular: "fechamento de caixa",
+    dated: "date",
+    fields: [
+      f("date", "Data", "date"),
+      opt("shift", "Turno", ["Único"]),
+      f("operatorName", "Operador responsável"),
+      f("systemCash", "Sistema: dinheiro", "money"),
+      f("systemCredit", "Sistema: crédito", "money"),
+      f("systemDebit", "Sistema: débito", "money"),
+      f("systemPix", "Sistema: PIX", "money"),
+      f("systemIfoodOnline", "Sistema: iFood Online", "money"),
+      f("systemIfoodVoucher", "Sistema: iFood Voucher", "money"),
+      f("systemTerm", "Sistema: notas a prazo", "money"),
+      f("systemClub", "Sistema: resgate Clube", "money"),
+      f("systemAccrual", "Sistema: acréscimos", "money"),
+      f("openingAmount", "Fundo inicial (R$)", "money"),
+      f("cashIn", "Suprimentos (R$)", "money"),
+      f("cashOutflows", "Saídas em dinheiro (R$)", "money"),
+      f("cashOutflowsJson", "Detalhamento das saídas em dinheiro", "text", false),
+      f("sangriaAmount", "Sangria/retirada (R$)", "money"),
+      opt("sangriaStatus", "Destino da sangria", ["Na loja", "Entregue a responsável", "Não se aplica", ""], false),
+      f("sangriaRecipient", "Responsável / Localização da sangria", "text", false),
+      f("closingFloat", "Troco final (R$)", "money"),
+      f("bankAmountsJson", "Cartões e PIX por banco"),
+      f("reviewedBankAmountsJson", "Valores conferidos por banco", "text", false),
+      f("netBankAmountsJson", "Valores líquidos por banco", "text", false),
+      f("systemTotal", "Total do sistema", "money"),
+      f("countedTotal", "Total informado", "money"),
+      f("cashExpected", "Dinheiro esperado", "money"),
+      f("cashFound", "Dinheiro encontrado", "money"),
+      f("cashDifference", "Diferença em dinheiro", "money"),
+      f("creditFound", "Crédito encontrado", "money"),
+      f("creditDifference", "Diferença em crédito", "money"),
+      f("debitFound", "Débito encontrado", "money"),
+      f("debitDifference", "Diferença em débito", "money"),
+      f("pixFound", "PIX encontrado", "money"),
+      f("pixDifference", "Diferença em PIX", "money"),
+      f("difference", "Diferença", "money"),
+      f("motoboySystem", "Motoboys no sistema", "money"),
+      f("motoboyPaid", "Motoboys pagos", "money"),
+      f("motoboyDifference", "Diferença de motoboys", "money"),
+      f("ifoodAudit", "Auditoria iFood", "money"),
+      f("fiscalMachines", "Máquinas fiscais", "money"),
+      f("invoiceIssued", "Notas emitidas", "money"),
+      f("invoiceDifference", "Diferença das notas", "money"),
+      f("pixRequestsJson", "Solicitações PIX", "text", false),
+      f("attachmentsJson", "Comprovantes no Drive", "text", false),
+      opt("status", "Situação", ["Rascunho", "Aguardando conferência", "Conferido", "Com divergência"]),
+      f("notes", "Ocorrências e observações", "textarea", false),
+    ],
+  },
+  cashConferences: {
+    label: "Conferências de caixa",
+    singular: "conferência de caixa",
+    dated: "date",
+    fields: [
+      f("date", "Data", "date"),
+      f("closingId", "Fechamento relacionado"),
+      f("operatorName", "Operador"),
+      f("beforeBalancesJson", "Saldos anteriores"),
+      f("afterBalancesJson", "Saldos confirmados"),
+      f("checksJson", "Conciliações confirmadas"),
+      f("difference", "Diferença apurada (R$)", "money"),
+      opt("status", "Situação", ["Conferido", "Com divergência"]),
+      f("reviewedBy", "Conferido por"),
+      f("notes", "Observações", "textarea", false),
+    ],
+  },
   coverage: {
     label: "Conferência das bases",
     singular: "conferência de cobertura",
@@ -649,3 +750,36 @@ export function addMonths(date: string, n: number) {
 export function emptyDatabase(): Database {
   return Object.fromEntries(Object.keys(DEFINITIONS).map((k) => [k, []]));
 }
+
+export const PRIMARY_OBLIGATION_TYPES = [
+  "Despesa Fixa",
+  "Fornecedor / Mercadoria",
+  "Imposto / Tributo",
+  "Serviço / Terceirizado",
+  "Folha / Pessoal",
+  "Pró-labore / Sócios",
+  "Empréstimo / Financiamento",
+  "Outros",
+] as const;
+
+export const PRIMARY_PAYMENT_METHODS = [
+  "Boleto",
+  "PIX",
+  "Débito automático",
+  "Cartão de Crédito",
+  "Cartão de Débito",
+  "Transferência bancária",
+  "Dinheiro em espécie",
+  "Cheque",
+  "Outros",
+] as const;
+
+export function normalizeObligationType(type?: string): string {
+  if (!type) return "Outros";
+  if (type === "Conta fixa" || type === "Despesa Fixa") return "Despesa Fixa";
+  if (type === "Boleto" || type === "Débito") return "Fornecedor / Mercadoria";
+  if (type === "Imposto" || type === "Imposto / Tributo") return "Imposto / Tributo";
+  if (type === "Empréstimo" || type === "Empréstimo / Financiamento") return "Empréstimo / Financiamento";
+  return type;
+}
+

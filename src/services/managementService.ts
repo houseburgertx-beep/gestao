@@ -6,6 +6,7 @@ import {
   query,
   where,
   runTransaction,
+  writeBatch,
   Unsubscribe,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -14,9 +15,37 @@ import {
   Database,
   DEFINITIONS,
   str,
+  currency,
 } from "@/domain/management/model";
 import { buildRecords, validate } from "@/domain/management/operations";
+import { addNotificationToFirestore } from "./firestoreService";
 const col = (kind: string) => "gestao_" + kind;
+const PENDING_RECORDS_KEY = "house190_pending_management_records";
+
+export function queueManagementRecord(record: RecordData) {
+  if (typeof window === "undefined") return;
+  const current = JSON.parse(localStorage.getItem(PENDING_RECORDS_KEY) || "[]") as RecordData[];
+  const next = [...current.filter((item) => item.id !== record.id), record];
+  localStorage.setItem(PENDING_RECORDS_KEY, JSON.stringify(next));
+}
+
+export async function flushManagementQueue(state: Database) {
+  if (typeof window === "undefined") return 0;
+  const pending = JSON.parse(localStorage.getItem(PENDING_RECORDS_KEY) || "[]") as RecordData[];
+  let saved = 0;
+  for (const record of pending) {
+    try {
+      await saveManagement(record, state);
+      const remaining = (JSON.parse(localStorage.getItem(PENDING_RECORDS_KEY) || "[]") as RecordData[]).filter((item) => item.id !== record.id);
+      localStorage.setItem(PENDING_RECORDS_KEY, JSON.stringify(remaining));
+      saved += 1;
+    } catch (error) {
+      if (error instanceof Error && /quota|resource-exhausted/i.test(`${error.name} ${error.message}`)) break;
+      throw error;
+    }
+  }
+  return saved;
+}
 export function subscribeManagement(
   tenantId: string,
   unitId: string,
@@ -45,16 +74,69 @@ function lockId(record: RecordData) {
     ? `${record.tenantId}_${record.unitId}_${month}`
     : null;
 }
+export function sanitizeFirestoreData<T>(data: T): T {
+  if (data === null || data === undefined) return data;
+  if (Array.isArray(data)) {
+    return data.map(sanitizeFirestoreData) as unknown as T;
+  }
+  if (typeof data === "object" && !(data instanceof Date)) {
+    const clean: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        clean[key] = sanitizeFirestoreData(value);
+      }
+    }
+    return clean;
+  }
+  return data;
+}
+
 export async function saveManagement(
   record: RecordData,
   state: Database,
   archive = false,
 ) {
-  if (!archive) validate(record, state);
+  let prepared = { ...record };
+  let scannedSupplier: RecordData | null = null;
+  if (!archive && prepared.kind === "payables" && !prepared.supplierId && str(prepared, "scannedSupplierName")) {
+    const supplierName = str(prepared, "scannedSupplierName").trim();
+    const supplierDocument = str(prepared, "scannedSupplierDocument").replace(/\D/g, "");
+    const existingSupplier = state.suppliers.find((item) =>
+      (supplierDocument && str(item, "document").replace(/\D/g, "") === supplierDocument) ||
+      str(item, "name").trim().toLocaleLowerCase("pt-BR") === supplierName.toLocaleLowerCase("pt-BR"),
+    );
+    if (existingSupplier) prepared.supplierId = existingSupplier.id;
+    else {
+      const supplierId = `scan-${supplierDocument || supplierName.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").slice(0, 60)}`;
+      scannedSupplier = {
+        id: supplierId,
+        kind: "suppliers",
+        tenantId: prepared.tenantId,
+        unitId: "",
+        version: 0,
+        createdAt: prepared.createdAt,
+        updatedAt: prepared.updatedAt,
+        createdBy: prepared.createdBy,
+        updatedBy: prepared.updatedBy,
+        name: supplierName,
+        document: supplierDocument,
+      };
+      prepared.supplierId = supplierId;
+    }
+  }
+  delete prepared.scannedSupplierName;
+  delete prepared.scannedSupplierDocument;
+  // The supplier is part of this same atomic write and is not in the live
+  // subscription yet. Validate the payable against the pending supplier too.
+  const validationState = scannedSupplier
+    ? { ...state, suppliers: [...state.suppliers, scannedSupplier] }
+    : state;
+  if (!archive) validate(prepared, validationState);
   const outgoing = archive
-    ? [{ ...record, archived: true }]
-    : buildRecords(record);
-  if (!archive) validate(outgoing[0], state);
+    ? [{ ...prepared, archived: true }]
+    : buildRecords(prepared);
+  if (scannedSupplier) outgoing.unshift(scannedSupplier);
+  if (!archive) validate(outgoing[0], validationState);
   const obsolete = (state.payables || []).filter(
     (p) => p.sourceId === record.id && !outgoing.some((x) => x.id === p.id),
   );
@@ -65,8 +147,34 @@ export async function saveManagement(
         .map((p) => ({ ...p, archived: true })),
     );
   else outgoing.push(...obsolete.map((p) => ({ ...p, archived: true })));
-  await commitRecords(outgoing, state, record);
+  const allNew = !archive && outgoing.every((item) => !(state[item.kind] || []).some((saved) => saved.id === item.id));
+  if (prepared.kind === "payables" && allNew) await createRecords(outgoing);
+  else await commitRecords(outgoing, state, prepared);
   return outgoing;
+}
+
+async function createRecords(records: RecordData[]) {
+  const batch = writeBatch(db);
+  const now = new Date().toISOString();
+  records.forEach((record) => {
+    const saved = sanitizeFirestoreData({ ...record, version: 1, updatedAt: now });
+    batch.set(doc(db, col(record.kind), record.id), saved);
+    const audit = doc(collection(db, "gestao_audit"));
+    batch.set(audit, sanitizeFirestoreData({
+      id: audit.id,
+      tenantId: record.tenantId,
+      unitId: record.unitId,
+      kind: record.kind,
+      recordId: record.id,
+      operation: "create",
+      updatedBy: record.updatedBy,
+      updatedAt: now,
+      version: 1,
+      before: null,
+      after: saved,
+    }));
+  });
+  await batch.commit();
 }
 export async function commitRecords(
   records: RecordData[],
@@ -84,6 +192,8 @@ export async function commitRecords(
     inventory: ["productId", "date"],
     positions: ["date"],
     closings: ["competence"],
+    cashClosings: ["date", "shift"],
+    cashConferences: ["closingId"],
     goals: ["start", "end", "channel"],
     loanInstallments: ["loanId", "number"],
     loans: ["contract"],
@@ -193,23 +303,23 @@ export async function commitRecords(
     }
     const now = new Date().toISOString();
     if (uniqueRef && !uniqueSnapshot?.exists())
-      tx.set(uniqueRef, {
+      tx.set(uniqueRef, sanitizeFirestoreData({
         tenantId: origin.tenantId,
         unitId: origin.unitId,
         recordId: origin.id,
         updatedBy: origin.updatedBy,
-      });
+      }));
     records.forEach((r, i) => {
-      const data = {
+      const data = sanitizeFirestoreData({
         ...r,
         version: existing[i].exists()
           ? Number(existing[i].data()?.version || 0) + 1
           : 1,
         updatedAt: now,
-      };
+      });
       tx.set(refs[i], data);
       const audit = doc(collection(db, "gestao_audit"));
-      tx.set(audit, {
+      tx.set(audit, sanitizeFirestoreData({
         id: audit.id,
         tenantId: r.tenantId,
         unitId: r.unitId,
@@ -225,7 +335,7 @@ export async function commitRecords(
         version: data.version,
         before: existing[i].exists() ? existing[i].data() : null,
         after: data,
-      });
+      }));
     });
     if (payment && obligationRef && obligationSnapshot?.exists()) {
       const value = obligationSnapshot.data();
@@ -252,6 +362,25 @@ export async function commitRecords(
       });
     }
   });
+  if (origin.kind === "actions" && !origin.archived) {
+    const previous = state.actions.find((item) => item.id === origin.id);
+    const created = !previous;
+    const completed = previous?.status !== "Concluído" && origin.status === "Concluído";
+    if (created || completed) void addNotificationToFirestore({
+      type:"task",eventKind:created ? "task_created" : "task_completed",unitId:origin.unitId,
+      title:created ? "Nova tarefa criada" : "Tarefa concluída",
+      message:`${str(origin,"problem")} · responsável: ${str(origin,"owner") || "DADO PENDENTE"}.`,
+      details:[{label:"Tarefa",value:str(origin,"problem") || "DADO PENDENTE"},{label:"Descrição",value:str(origin,"action") || "DADO PENDENTE"},{label:"Responsável",value:str(origin,"owner") || "DADO PENDENTE"},{label:"Prazo",value:str(origin,"dueDate").split("-").reverse().join("/") || "DADO PENDENTE"},{label:"Status",value:str(origin,"status") || "Pendente"}],
+      link:"/tarefas/",severity:completed ? "success" : "info",read:false,timestamp:new Date().toISOString()
+    });
+  }
+  if (["cashClosings", "cashConferences"].includes(origin.kind) && !origin.archived) {
+    const difference = Number(origin.difference || 0);
+    const unitName = String(state.units.find((unit) => unit.id === origin.unitId)?.name || origin.unitId);
+    void addNotificationToFirestore({type:"approval",eventKind:"cash_closing",unitId:origin.unitId,title:origin.kind === "cashClosings" ? "Fechamento de caixa enviado" : "Conferência de caixa concluída",message:`${unitName} · ${str(origin,"date").split("-").reverse().join("/")} · ${difference === 0 ? "Sem divergência no fechamento principal." : `Divergência: ${currency(difference)}.`}`,details:[{label:"Unidade",value:unitName},{label:"Data",value:str(origin,"date").split("-").reverse().join("/")},{label:"Operador",value:str(origin,"operatorName") || "DADO PENDENTE"},{label:"Situação",value:str(origin,"status")},{label:"Diferença",value:currency(difference)}],link:origin.kind === "cashClosings" ? "/conferencia-caixa/" : "/fechamento-caixa/",severity:difference !== 0 ? "warning" : "success",read:false,timestamp:new Date().toISOString()});
+    const pix = records.filter((record) => record.kind === "payables" && record.pixKey);
+    if (pix.length) void addNotificationToFirestore({type:"payable",eventKind:"pix_request",unitId:origin.unitId,title:"Novas solicitações de PIX",message:`${pix.length} solicitação(ões) de PIX no fechamento de ${unitName}. Total: ${currency(pix.reduce((sum,record) => sum + Number(record.amount || 0),0))}.`,details:pix.slice(0,12).map((record) => ({label:"Pagamento PIX",value:`${str(record,"description")} · ${currency(Number(record.amount || 0))}`})),link:"/contas-a-pagar/",severity:"warning",read:false,timestamp:new Date().toISOString()});
+  }
 }
 
 export async function reverseSettlement(

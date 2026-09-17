@@ -18,8 +18,9 @@ import {
   Check,
   Percent,
 } from "lucide-react";
-import Link from "next/link";
 import { useManagement } from "@/contexts/ManagementContext";
+import { calculate } from "@/domain/management/engine";
+import { currency as formatManagedCurrency, monthEnd, percent as formatManagedPercent } from "@/domain/management/model";
 import { store } from "@/services/store";
 import { useUnit } from "@/contexts/UnitContext";
 import { UnitId } from "@/types";
@@ -61,7 +62,7 @@ const UNIT_LABELS: Record<string, string> = {
 };
 
 export default function FaturamentoPage() {
-  const { data: managementData }=useManagement();
+  const { data: managementData, filters: managementFilters }=useManagement();
   const { currentUnit, activeUnitData } = useUnit();
 
   // Mode: Diário vs Mensal
@@ -195,6 +196,17 @@ export default function FaturamentoPage() {
   const pctDelivery = totalGeral > 0 ? (totalDelivery / totalGeral) * 100 : 0;
   const pctIfood = totalGeral > 0 ? (totalIfood / totalGeral) * 100 : 0;
 
+  const goals = useMemo(() => {
+    const month = viewMode === "daily" ? selectedDate.slice(0, 7) : selectedMonth;
+    return calculate(managementData, {
+      ...managementFilters,
+      start: `${month}-01`,
+      end: monthEnd(`${month}-01`),
+      unitId: currentUnit === "all" ? "" : currentUnit,
+      channel: "",
+    }).metrics;
+  }, [managementData, managementFilters, currentUnit, selectedDate, selectedMonth, viewMode]);
+
   const isAnyUnitConnected = Object.values(unitConnections).some(Boolean);
   const isCurrentConnected =
     currentUnit === "all" ? isAnyUnitConnected : Boolean(unitConnections[currentUnit]);
@@ -262,6 +274,12 @@ export default function FaturamentoPage() {
       setSyncing(false);
     }
   };
+
+  useEffect(() => {
+    const syncFromHeader = () => void handleSyncTakeat();
+    window.addEventListener("sync-takeat-sales", syncFromHeader);
+    return () => window.removeEventListener("sync-takeat-sales", syncFromHeader);
+  });
 
   // Abrir Modal de Credenciais
   const handleOpenCredsModal = (unitId?: Exclude<UnitId, "all">) => {
@@ -440,13 +458,12 @@ export default function FaturamentoPage() {
 
   return (
     <div className="space-y-6">
-      <Link href="/faturamento" className="text-sm text-teal-700">← Voltar ao faturamento integrado</Link>
       {/* Header Executivo & Clean */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-zinc-200/70 pb-4 dark:border-zinc-800">
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-              Integração Takeat
+              Vendas
             </h1>
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium ${
@@ -465,8 +482,8 @@ export default function FaturamentoPage() {
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
             {activeUnitData.id === "all"
-              ? "Consolidação de vendas oficiais de todas as filiais House 190"
-              : `Faturamento oficial da filial ${activeUnitData.name}`}
+              ? "Vendas oficiais da Takeat, canais e acompanhamento das metas do grupo"
+              : `Vendas oficiais e metas da filial ${activeUnitData.name}`}
           </p>
         </div>
 
@@ -710,6 +727,40 @@ export default function FaturamentoPage() {
           </div>
         </div>
       </div>
+
+      {/* Metas do mês, calculadas apenas com dados cadastrados */}
+      <section className="rounded-xl border border-violet-200/70 bg-gradient-to-r from-violet-50 to-white p-4 shadow-2xs dark:border-violet-900/50 dark:from-violet-950/20 dark:to-zinc-900">
+        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">Meta do mês</h2>
+            <p className="mt-0.5 text-[11px] text-zinc-500">Acompanhamento da unidade selecionada com base nas metas cadastradas.</p>
+          </div>
+          {goals.goalPct.value !== null && (
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${goals.goalPct.value >= 100 ? "bg-emerald-100 text-emerald-700" : goals.goalPct.value >= 80 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"}`}>
+              {goals.goalPct.value >= 100 ? "Meta atingida" : goals.goalPct.value >= 80 ? "Meta próxima" : "Meta em atenção"}
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          {[
+            ["Meta", formatManagedCurrency(goals.goal.value)],
+            ["Realizado", formatManagedCurrency(goals.gross.value)],
+            ["Atingimento", formatManagedPercent(goals.goalPct.value)],
+            ["Falta vender", formatManagedCurrency(goals.remaining.value)],
+            ["Projeção", formatManagedCurrency(goals.projection.value)],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-white/80 bg-white/85 p-3 dark:border-zinc-800 dark:bg-zinc-900/85">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">{label}</span>
+              <strong className={`mt-1 block text-base tabular-nums ${value === "DADO PENDENTE" ? "text-xs text-amber-700" : "text-zinc-900 dark:text-zinc-50"}`}>{value}</strong>
+            </div>
+          ))}
+        </div>
+        {goals.goalPct.value !== null && (
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-violet-100 dark:bg-zinc-800">
+            <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-emerald-500 transition-all" style={{ width: `${Math.min(100, Math.max(0, goals.goalPct.value))}%` }} />
+          </div>
+        )}
+      </section>
 
       {/* Gráfico & Distribuição por Canais */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

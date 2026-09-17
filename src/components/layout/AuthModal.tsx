@@ -4,7 +4,8 @@ import React, { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogOut, UserPlus, Check, AlertCircle } from "lucide-react";
+import { LogOut, UserPlus, Check, AlertCircle, Users } from "lucide-react";
+import { normalizeRole } from "./managementNavigation";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -121,20 +122,33 @@ export function AuthModal({ isOpen, onClose, required = false }: AuthModalProps)
                   Conectado à Nuvem (Firebase)
                 </span>
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
-                  {userProfile?.role === "admin" ? "Diretoria / Master" : "Gerência"}
+                  {["admin", "accountant"].includes(normalizeRole(userProfile?.role)) ? "Diretoria & Gestão Geral" : "Operação"}
                 </span>
               </div>
             </div>
           </div>
 
+          {["admin", "accountant"].includes(normalizeRole(userProfile?.role)) && (
+            <button
+              onClick={() => {
+                onClose();
+                window.dispatchEvent(new CustomEvent("open-user-management"));
+              }}
+              className="w-full p-2.5 rounded-xl border border-purple-200 dark:border-purple-900 bg-purple-50/70 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 text-xs font-bold flex items-center justify-center gap-2 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition shadow-xs"
+            >
+              <Users size={16} />
+              <span>Gerenciar Usuários e Permissões</span>
+            </button>
+          )}
+
           <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4 flex items-center justify-between">
-            {userProfile?.role === "admin" && (
+            {["admin", "accountant"].includes(normalizeRole(userProfile?.role)) && (
               <button
                 onClick={() => setTab("register")}
                 className="text-xs text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 flex items-center gap-1.5"
               >
                 <UserPlus className="h-3.5 w-3.5" />
-                <span>Cadastrar outro usuário</span>
+                <span>Cadastro rápido de usuário</span>
               </button>
             )}
             <Button variant="danger" size="sm" onClick={handleLogout} className="gap-1.5">
@@ -185,7 +199,7 @@ export function AuthModal({ isOpen, onClose, required = false }: AuthModalProps)
                     <option value="admin">Administrador Geral</option>
                     <option value="manager">Gerente de Unidade</option>
                     <option value="operator">Operador / Caixa</option>
-                    <option value="accountant">Contabilidade / Fiscal</option>
+                    <option value="accountant">Financeiro — acesso completo</option>
                   </select>
                 </div>
                 <div>

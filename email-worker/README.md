@@ -1,10 +1,10 @@
 # E-mails das notificações
 
-Este Cloudflare Worker recebe notificações autenticadas pelo Firebase, busca os usuários ativos e envia o e-mail por um Google Apps Script da conta HOUSE 190.
+Este Cloudflare Worker recebe notificações autenticadas pelo Firebase e envia e-mails pelo Google Apps Script da conta HOUSE 190. Diretoria (`admin`) e financeiro (`accountant`) recebem avisos gerais e tarefas concluídas. Gerentes recebem somente novas tarefas da própria unidade. Operadores não recebem e-mails.
 
 ## Configuração
 
-Instale as dependências e grave os três valores protegidos no Cloudflare:
+Instale as dependências e grave os dois valores protegidos no Cloudflare:
 
 ```sh
 npm install
@@ -22,4 +22,8 @@ npm run check
 npm run deploy
 ```
 
-O Worker busca os e-mails ativos na coleção `users` do Firebase. A URL e o segredo do Apps Script ficam armazenados como segredos no Cloudflare e não entram no repositório nem no site público.
+A diretoria sincroniza a lista de usuários ao abrir o painel e a cada hora pelo endpoint autenticado `/notifications/directory`. A lista é consultada no Firestore com as permissões da diretoria e fica no KV `NOTIFICATION_DIRECTORY`. Falhas de sincronização preservam a última lista válida. Os eventos usam essa lista, sem ler o Firestore a cada envio. Usuários inativos são excluídos.
+
+O HTML usa tabelas e estilos inline para Gmail e dispositivos móveis. Avisos de caixa e tarefas são disparados após o salvamento confirmado; RH verifica prazos enquanto o painel está aberto. A rotina de RH com o painel fechado ainda não está configurada.
+
+A URL e o segredo do Apps Script ficam armazenados como segredos no Cloudflare e não entram no site público. Anexos continuam privados no Google Drive.

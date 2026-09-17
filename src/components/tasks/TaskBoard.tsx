@@ -2,13 +2,37 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DragDropContext, Draggable, Droppable, DropResult } from "@hello-pangea/dnd";
-import { AlertCircle, CalendarDays, CheckCircle2, Clock3, ListChecks, Plus, Search, UserRound } from "lucide-react";
+import {
+  AlertCircle,
+  AlignLeft,
+  Building2,
+  Calendar,
+  CalendarDays,
+  CheckCircle2,
+  CheckSquare,
+  Clock3,
+  FileText,
+  Flag,
+  ListChecks,
+  Plus,
+  Search,
+  Sparkles,
+  Tag,
+  Trash2,
+  User,
+  UserRound,
+} from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { RecordData, dateToday, str } from "@/domain/management/model";
 import { saveManagement } from "@/services/managementService";
 import { RecordForm } from "@/components/management/RecordTable";
 import "@/components/management/management.css";
+
+const safeUUID = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
 
 const COLUMNS = [
   { status: "Pendente", label: "A fazer", color: "purple" },
@@ -108,7 +132,34 @@ export function TaskBoard() {
                           <Draggable draggableId={task.id} index={index} key={task.id}>
                             {(drag, dragging) => (
                               <article ref={drag.innerRef} {...drag.draggableProps} {...drag.dragHandleProps} className={`task-card ${dragging.isDragging ? "is-dragging" : ""}`} onClick={() => setEditing(task)}>
-                                <div className="task-card-top"><span className={`task-priority ${priority.toLocaleLowerCase()}`}>{priority}</span><small>{unit?.name || "Unidade pendente"}</small></div>
+                                <div className="task-card-top">
+                                  <span className={`task-priority ${priority.toLocaleLowerCase()}`}>{priority}</span>
+                                  <div className="task-card-top-right">
+                                    <small>{unit?.name || "Unidade pendente"}</small>
+                                    <button
+                                      type="button"
+                                      className="task-card-delete-btn"
+                                      title="Excluir tarefa"
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (!user) return;
+                                        if (!confirm(`Deseja realmente excluir a tarefa "${str(task, "problem")}"?`)) return;
+                                        try {
+                                          await saveManagement(
+                                            { ...task, archived: true, updatedBy: user.uid, updatedAt: new Date().toISOString() },
+                                            data,
+                                            true
+                                          );
+                                          setMessage(`Tarefa "${str(task, "problem")}" excluída.`);
+                                        } catch (err) {
+                                          setMessage(err instanceof Error ? err.message : "Erro ao excluir a tarefa.");
+                                        }
+                                      }}
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  </div>
+                                </div>
                                 <h3>{str(task, "problem")}</h3>
                                 {task.action && <p>{str(task, "action")}</p>}
                                 <footer><span><UserRound size={13} /> {str(task, "owner")}</span><span className={isOverdue ? "overdue" : ""}><CalendarDays size={13} /> {shortDate(str(task, "dueDate"))}</span></footer>
@@ -129,8 +180,334 @@ export function TaskBoard() {
       </DragDropContext>
 
       {editing !== null && (
-        <RecordForm kind="actions" record={editing || undefined} suggestedUnit={selectedUnit} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setMessage("Tarefa salva no Firebase e compartilhada com os gerentes."); }} />
+        <TaskModal
+          task={editing || undefined}
+          suggestedUnit={selectedUnit}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            setMessage("Tarefa salva no Firebase e compartilhada com a equipe.");
+          }}
+        />
       )}
+    </div>
+  );
+}
+
+function TaskModal({
+  task,
+  suggestedUnit = "",
+  onClose,
+  onSaved,
+}: {
+  task?: RecordData;
+  suggestedUnit?: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { data, tenantId, allowedUnit } = useManagement();
+  const { user, userProfile } = useAuth();
+  const [unit, setUnit] = useState(() => task?.unitId || suggestedUnit || (allowedUnit !== "all" ? allowedUnit : (data.units[0]?.id || "")));
+  const [problem, setProblem] = useState(() => (task ? str(task, "problem") : ""));
+  const [action, setAction] = useState(() => (task ? str(task, "action") : ""));
+  const [owner, setOwner] = useState(() => (task ? str(task, "owner") : "") || userProfile?.displayName || "");
+  const [dueDate, setDueDate] = useState(() => (task ? str(task, "dueDate") : "") || dateToday());
+  const [priority, setPriority] = useState(() => (task ? str(task, "priority") : "") || "Normal");
+  const [status, setStatus] = useState(() => (task ? str(task, "status") : "") || "Pendente");
+  const [notes, setNotes] = useState(() => (task ? str(task, "notes") : ""));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const employees = useMemo(() => {
+    const fromStaff = data.employees.filter((e) => !e.archived && (!unit || e.unitId === unit)).map((e) => str(e, "name"));
+    const fromTasks = data.actions.map((t) => str(t, "owner")).filter(Boolean);
+    return Array.from(new Set([...fromStaff, ...fromTasks, userProfile?.displayName || ""])).filter(Boolean).sort();
+  }, [data.employees, data.actions, unit, userProfile]);
+
+  const setQuickDate = (daysAhead: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    setDueDate(d.toISOString().slice(0, 10));
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    if (!problem.trim()) {
+      setError("Informe o título da tarefa.");
+      return;
+    }
+    if (!owner.trim()) {
+      setError("Informe o responsável pela tarefa.");
+      return;
+    }
+    if (!dueDate) {
+      setError("Informe o prazo de vencimento.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+
+    try {
+      const now = new Date().toISOString();
+      const updated: RecordData = {
+        ...task,
+        id: task?.id || safeUUID(),
+        kind: "actions",
+        tenantId,
+        unitId: unit,
+        problem: problem.trim(),
+        action: action.trim(),
+        owner: owner.trim(),
+        dueDate,
+        priority,
+        status,
+        notes: notes.trim(),
+        version: (task?.version || 0) + 1,
+        createdAt: task?.createdAt || now,
+        updatedAt: now,
+        createdBy: task?.createdBy || user.uid,
+        updatedBy: user.uid,
+      };
+
+      await saveManagement(updated, data);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar a tarefa.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const isNew = !task;
+
+  return (
+    <div className="mg-modal-shade" onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+      <div className="mg-modal task-modal-modern" role="dialog" aria-modal="true">
+        <header className="task-modal-header">
+          <div className="task-modal-title-box">
+            <div className="task-modal-icon-badge">
+              <ListChecks size={20} />
+            </div>
+            <div>
+              <h2>{isNew ? "Nova Tarefa" : "Editar Tarefa"}</h2>
+              <p>{isNew ? "Defina o que precisa ser feito, o responsável e o prazo de entrega." : `Atualizando tarefa: ${problem}`}</p>
+            </div>
+          </div>
+          <button type="button" className="task-modal-close" onClick={onClose} disabled={busy} title="Fechar">
+            ✕
+          </button>
+        </header>
+
+        <form className="task-modal-form" onSubmit={handleSave}>
+          {/* Section 1: Título e Detalhes da Tarefa */}
+          <div className="task-compact-card">
+            <div className="task-field-group full">
+              <label htmlFor="task-title">
+                <CheckSquare size={14} className="task-sec-icon" />
+                Título da Tarefa <span className="task-req">*</span>
+              </label>
+              <input
+                id="task-title"
+                type="text"
+                autoFocus
+                className="task-input-title"
+                placeholder="Ex.: Conferir validade dos insumos na câmara fria"
+                value={problem}
+                onChange={(e) => setProblem(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="task-field-group full">
+              <label htmlFor="task-action">
+                <AlignLeft size={13} />
+                Como fazer / Orientações (opcional)
+              </label>
+              <textarea
+                id="task-action"
+                rows={2}
+                placeholder="Instruções passo a passo, critérios de conclusão ou avisos..."
+                value={action}
+                onChange={(e) => setAction(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Section 2: Unidade, Responsável e Prazo em Grid */}
+          <div className="task-compact-card">
+            <div className="task-grid-columns-three">
+              {/* Unidade */}
+              <div className="task-field-group">
+                <label htmlFor="task-unit">
+                  <Building2 size={13} /> Unidade
+                </label>
+                <select
+                  id="task-unit"
+                  value={unit}
+                  disabled={allowedUnit !== "all"}
+                  onChange={(e) => setUnit(e.target.value)}
+                  required
+                >
+                  {data.units
+                    .filter((u) => !u.archived && (allowedUnit === "all" || u.id === allowedUnit))
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {str(u, "name")}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Responsável */}
+              <div className="task-field-group">
+                <label htmlFor="task-owner">
+                  <UserRound size={13} /> Responsável <span className="task-req">*</span>
+                </label>
+                <input
+                  id="task-owner"
+                  type="text"
+                  list="employee-owners"
+                  placeholder="Nome do colaborador"
+                  value={owner}
+                  onChange={(e) => setOwner(e.target.value)}
+                  required
+                />
+                <datalist id="employee-owners">
+                  {employees.map((emp) => (
+                    <option key={emp} value={emp} />
+                  ))}
+                </datalist>
+              </div>
+
+              {/* Data Limite */}
+              <div className="task-field-group">
+                <label htmlFor="task-duedate">
+                  <Calendar size={13} /> Prazo de Entrega <span className="task-req">*</span>
+                </label>
+                <input
+                  id="task-duedate"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  required
+                />
+                <div className="task-quick-dates">
+                  <button type="button" onClick={() => setQuickDate(0)}>Hoje</button>
+                  <button type="button" onClick={() => setQuickDate(1)}>Amanhã</button>
+                  <button type="button" onClick={() => setQuickDate(3)}>+3d</button>
+                  <button type="button" onClick={() => setQuickDate(7)}>+7d</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Prioridade e Observações */}
+          <div className="task-compact-card">
+            <div className="task-grid-columns-two-compact">
+              {/* Prioridade */}
+              <div className="task-field-group">
+                <label>
+                  <Flag size={13} /> Prioridade
+                </label>
+                <div className="task-priority-inline-chips">
+                  {[
+                    { key: "Baixa", label: "Baixa", tone: "baixa" },
+                    { key: "Normal", label: "Normal", tone: "normal" },
+                    { key: "Alta", label: "Alta", tone: "alta" },
+                    { key: "Urgente", label: "Urgente", tone: "urgente" },
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      className={`task-priority-pill ${item.tone} ${priority === item.key ? "selected" : ""}`}
+                      onClick={() => setPriority(item.key)}
+                    >
+                      <span className="task-priority-dot" />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Observações internas */}
+              <div className="task-field-group">
+                <label htmlFor="task-notes">
+                  <FileText size={13} /> Observações / Links (opcional)
+                </label>
+                <input
+                  id="task-notes"
+                  type="text"
+                  placeholder="Anotações internas, contatos..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {error && <div className="mg-error">{error}</div>}
+
+          <footer className="task-modal-footer">
+            {!isNew && task && (
+              <button
+                type="button"
+                className="mg-button danger task-btn-delete"
+                style={{
+                  marginRight: "auto",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  background: "#fef2f2",
+                  color: "#dc2626",
+                  border: "1px solid #fecaca",
+                  padding: "9px 14px",
+                  borderRadius: "8px",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  cursor: "pointer",
+                }}
+                disabled={busy}
+                onClick={async () => {
+                  if (!user) return;
+                  if (!confirm(`Tem certeza que deseja excluir a tarefa "${problem}"?`)) return;
+                  setBusy(true);
+                  try {
+                    await saveManagement(
+                      { ...task, archived: true, updatedBy: user.uid, updatedAt: new Date().toISOString() },
+                      data,
+                      true
+                    );
+                    onSaved();
+                    onClose();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Erro ao excluir a tarefa.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <Trash2 size={13} /> Excluir Tarefa
+              </button>
+            )}
+            <button
+              type="button"
+              className="mg-button secondary task-btn-cancel"
+              onClick={onClose}
+              disabled={busy}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="workspace-primary task-save-submit"
+              disabled={busy}
+            >
+              {busy ? "Salvando..." : isNew ? "Criar Tarefa" : "Salvar Alterações"}
+            </button>
+          </footer>
+        </form>
+      </div>
     </div>
   );
 }

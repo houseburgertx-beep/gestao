@@ -173,6 +173,15 @@ export interface Employee {
   managerName: string;
   status: EmployeeStatus;
   bankData?: string;
+  bankName?: string;
+  bankAgency?: string;
+  bankAccount?: string;
+  bankAccountType?: 'corrente' | 'poupanca';
+  bankHolderCpf?: string;
+  bankHolderName?: string;
+  experienceEndDate?: string;
+  vacationStart?: string;
+  vacationEnd?: string;
   documentsCount: number;
   notes?: string;
 }
@@ -257,11 +266,13 @@ export interface Task {
 }
 
 export interface DocumentItem {
+  archived?: boolean;
   id: string;
   title: string;
   category: 'finance' | 'fiscal' | 'hr' | 'contracts' | 'suppliers' | 'employees' | 'companies' | 'other';
   unitId: UnitId;
   expirationDate?: string;
+  employeeId?: string;
   uploadDate: string;
   size: string;
   format: string;
@@ -284,6 +295,9 @@ export interface ActivityLog {
 }
 
 export interface AppNotification {
+  eventKind?: string;
+  unitId?: string;
+  details?: { label: string; value: string }[];
   id: string;
   type: 'payable' | 'approval' | 'tax' | 'task' | 'goal' | 'vacation' | 'doc';
   title: string;

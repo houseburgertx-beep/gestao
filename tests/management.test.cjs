@@ -4,6 +4,46 @@ const fs = require("node:fs");
 const ts = require("typescript");
 const Module = require("node:module");
 const path = require("node:path");
+test("E-mails: operador excluído; gerente recebe apenas nova tarefa da própria unidade", () => {
+  const source = ts.transpileModule(fs.readFileSync(path.join(__dirname,"../email-worker/src/recipients.ts"),"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+  const module={exports:{}};new Function("module","exports",source)(module,module.exports);
+  const users=[{id:"1",email:"admin@example.com",role:"admin",active:true},{id:"2",email:"finance@example.com",role:"accountant",active:true},{id:"3",email:"manager@example.com",role:"manager",unitId:"teixeira",active:true},{id:"4",email:"operator@example.com",role:"operator",unitId:"teixeira",active:true},{id:"5",email:"inactive@example.com",role:"admin",active:false}];
+  assert.deepEqual(module.exports.recipientsFor(users,{kind:"cash_closing"}),["admin@example.com","finance@example.com"]);
+  assert.deepEqual(module.exports.recipientsFor(users,{kind:"task_created",unitId:"teixeira"}),["admin@example.com","finance@example.com","manager@example.com"]);
+  assert.deepEqual(module.exports.recipientsFor(users,{kind:"task_completed",unitId:"teixeira"}),["admin@example.com","finance@example.com"]);
+  assert.deepEqual(module.exports.recipientsFor(users,{kind:"task_created",unitId:"foodpark"}),["admin@example.com","finance@example.com"]);
+});
+test("Apps Script: o redirecionamento busca a resposta por GET sem repetir o envio", async () => {
+  const worker = fs.readFileSync(path.join(__dirname, "../email-worker/src/index.ts"), "utf8");
+  const functionSource = worker.slice(worker.indexOf("async function callGoogleScript("), worker.indexOf("async function sendEmail("));
+  const compiled = ts.transpileModule(functionSource, {compilerOptions: {target: ts.ScriptTarget.ES2020}}).outputText;
+  const calls = [];
+  const callGoogleScript = new Function("fetch", compiled + "; return callGoogleScript;")(async (url, init) => {
+    calls.push({url, init});
+    return calls.length === 1 ? new Response(null, {status: 302, headers: {Location: "https://script.googleusercontent.com/macros/echo?test=1"}}) : Response.json({ok: true, fileId: "test-file"});
+  });
+  assert.equal((await callGoogleScript({GOOGLE_SCRIPT_URL: "https://script.google.com/macros/s/test/exec", GOOGLE_SCRIPT_SECRET: "test"}, {action: "upload"})).fileId, "test-file");
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].init.method, "POST");
+  assert.equal(calls[1].init.method, "GET");
+  assert.equal(calls[1].init.body, undefined);
+});
+test("Apps Script: recupera 404 temporário lendo novamente sem duplicar o POST", async () => {
+  const worker = fs.readFileSync(path.join(__dirname, "../email-worker/src/index.ts"), "utf8");
+  const source = worker.slice(worker.indexOf("async function callGoogleScript("), worker.indexOf("async function sendEmail("));
+  const compiled = ts.transpileModule(source, {compilerOptions: {target: ts.ScriptTarget.ES2020}}).outputText;
+  const calls = [];
+  const call = new Function("fetch", "setTimeout", compiled + ";return callGoogleScript;")(async (url, init) => {
+    calls.push(init);
+    if (calls.length === 1) return new Response(null, {status:302,headers:{Location:"https://script.googleusercontent.com/macros/echo?test=1"}});
+    if (calls.length < 4) return new Response("Unavailable", {status:404});
+    return Response.json({ok:true,fileId:"saved-file"});
+  }, (callback) => callback());
+  assert.equal((await call({GOOGLE_SCRIPT_URL:"https://script.google.com/macros/s/test/exec",GOOGLE_SCRIPT_SECRET:"test"},{action:"upload"})).fileId,"saved-file");
+  assert.equal(calls.filter(c => c.method === "POST").length,1);
+  assert.equal(calls.filter(c => c.method === "GET").length,3);
+  assert.ok(calls.slice(1).every(c => !c.body));
+});
 require.extensions[".ts"] = (module, filename) =>
   module._compile(
     ts.transpileModule(fs.readFileSync(filename, "utf8"), {
@@ -14,6 +54,139 @@ require.extensions[".ts"] = (module, filename) =>
     }).outputText,
     filename,
   );
+test("NF-e OESA reconhece a duplicata e não confunde produtos ou chave com boleto", () => {
+  const { parseDebtDocument } = require("../src/domain/management/documentParsing.ts");
+  const result = parseDebtDocument("Recebemos de OESA COMERCIO E REPRESENTACOES SA os produtos constantes na Nota Fiscal Eletrônica NF-e Nº: 177985 Emissão: 01/09/2026 DANFE CHAVE DE ACESSO 2926.0981.6119.3100.4549.5500.1000.1779.8515.3531.8567 CNPJ/CPF 81.611.931/0045-49 DESTINATÁRIO/REMETENTE A.M. GOURMET 42.549.171/0001-14 FATURAS DUPLICATAS FATURA VALOR ORIGINAL VALOR DESCONTO VALOR LÍQUIDO DUPLICATA VENCIMENTO VALOR 177985 1.705,09 0,00 1.705,09 001 22/09/2026 1.705,09 CÁLCULO DE IMPOSTO VALOR TOTAL DOS PRODUTOS 1.685,60");
+  assert.equal(result.supplierName, "OESA COMERCIO E REPRESENTACOES SA");
+  assert.equal(result.supplierDocument, "81.611.931/0045-49");
+  assert.equal(result.amount, 170509);
+  assert.equal(result.dueDate, "2026-09-22");
+  assert.equal(result.documentNumber, "NF-e 177985");
+  assert.equal(result.obligationType, "Débito");
+  assert.equal(parseDebtDocument("NF-e Nº: Série: Emissão: 177985 1 01/09/2026 DANFE").documentNumber, "NF-e 177985");
+});
+test("Registro de empregado (PDF): extrai colaborador, CPF, cargo, admissão, salário e notas", () => {
+  const { parseEmployeeDocument } = require("../src/domain/management/documentParsing.ts");
+  const samplePdfText = `
+Categoria
+Doc. militar 
+DOMINGOS PEREIRA DE SOUZA
+NAIR DIAS FARIAS 
+Empregado
+Residência
+Beneficiários 
+GLEUCE DIAS DE SOUZA
+Rua PROFESSORA MARIA ANTUNES, JARDIM LIBERDADE, TEIXEIRA
+DE FREITAS, BA, - CEP: 45994-390 
+FILIAÇÃO
+Pai
+Mãe 
+0868043 
+CTPS 
+1508 
+02/05/2000 
+086.804.315-08 
+CPF 
+BA 
+TEIXEIRA DE FREITAS - BA   BRASIL   Solteiro 
+Título Eleitoral   Inscr. Órgão de Classe
+Estado civil País da nacionalidade Local do nascimento Data de nascimento
+Cart. Nac. Habilitação UF CTPS
+Cédula de Identidade   Data de emissão   Órgão/UF emissor
+Data de expedição da CTPS
+Zona
+Série
+Seção 
+FGTS   Opção em 
+01/04/2026 
+Data de Admissão 
+01/04/2026 
+Salário   Por 
+Mês 
+Horário de Trabalho 
+das 16:00 as 00:00 
+Horário de Intervalo
+Conta vinculada no banco   Data da Retificação
+PROGRAMA DE INTEGRAÇÃO SOCIAL - PIS
+Cadastrado em   Sob nº   Domicílio bancário
+Nº banco   Agência código
+ALTERAÇÕES DE SALÁRIO, CARGO E/OU FUNÇÃO
+FÉRIAS - PERÍODO AQUISITIVO   FÉRIAS - PERÍODO DE GOZO   Obs.: (Anotar advertências, suspensões, transferências, etc.)
+RESCISÃO DE CONTRATO DE TRABALHO ACIDENTES DE TRABALHO, DOENÇAS OU DOENÇAS PROFISSIONAIS
+CONTRIBUIÇÃO SINDICAL
+End. da agência 
+GLEUCE DIAS DE SOUZA 
+OBSERVAÇÕES 
+Tipo do desligamento:
+Data da saída: 
+2.000,00 R$ 
+Categoria   Cor 
+Preta   Sexo 
+Masculino   Grau de instrução 
+Ensino Médio Completo 
+Telefone Celular Telefone Residencial 
+Não 
+Deficiência
+Cargo 
+SUPERVISOR GERAL   Função   C.B.O. 
+520110 
+FÉRIAS - PERÍODO ABONO PECUNIÁRIO 
+000037
+PC CASTRO ALVES, 436, CENTRO, TEIXEIRA DE FREITAS, BA,
+52.910.864/0001-44 
+Endereço
+Nº Autenticar 
+CNPJ 
+REGISTRO DE EMPREGADO 
+HOUSE BURGUER 190 HAMBURGUERIA LTDA
+37 
+Empregador
+Matrícula eSocial 
+SSP 
+`;
+  const result = parseEmployeeDocument(samplePdfText);
+  assert.equal(result.name, "GLEUCE DIAS DE SOUZA");
+  assert.equal(result.cpf, "086.804.315-08");
+  assert.equal(result.birthDate, "2000-05-02");
+  assert.equal(result.admissionDate, "2026-04-01");
+  assert.equal(result.role, "SUPERVISOR GERAL");
+  assert.equal(result.salary, 2000);
+  assert.equal(result.salaryCents, 200000);
+  assert.equal(result.salaryFormatted, "2.000,00");
+  assert.equal(result.workHours, "das 16:00 as 00:00");
+  assert.equal(result.unitId, "teixeira");
+  assert.equal(result.department, "Gerência / Administrativo");
+  assert.equal(result.contractType, "CLT");
+  assert.equal(result.cbo, "520110");
+  assert.equal(result.ctps, "0868043");
+  assert.equal(result.serie, "1508");
+  assert.equal(result.esocial, "37");
+  assert.equal(result.motherName, "NAIR DIAS FARIAS");
+  assert.equal(result.fatherName, "DOMINGOS PEREIRA DE SOUZA");
+  assert.ok(result.notes.includes("CTPS: 0868043"));
+  assert.ok(result.notes.includes("CBO: 520110"));
+
+  const labeled = parseEmployeeDocument(`
+    FICHA CADASTRAL DE COLABORADOR
+    Nome do Empregado: João Carlos da Silva
+    CPF: 123.456.789-10
+    Data de Nascimento: 15/08/1996
+    Cargo: Chapeiro Especialista
+    Data de Admissão: 10/01/2026
+    Salário Base: R$ 1.850,00
+    Horário de Trabalho: 44h semanais
+    Endereço: Av. Santos Dumont, 120, Eunápolis - BA - CEP: 45820-000
+  `);
+  assert.equal(labeled.name, "João Carlos da Silva");
+  assert.equal(labeled.cpf, "123.456.789-10");
+  assert.equal(labeled.birthDate, "1996-08-15");
+  assert.equal(labeled.admissionDate, "2026-01-10");
+  assert.equal(labeled.role, "Chapeiro Especialista");
+  assert.equal(labeled.salary, 1850);
+  assert.equal(labeled.salaryCents, 185000);
+  assert.equal(labeled.unitId, "eunapolis");
+  assert.equal(labeled.department, "Cozinha / Produção");
+});
 const {
   calculate,
   isCovered,
@@ -86,6 +259,26 @@ function fixture() {
   ];
   return db;
 }
+test("Conta com fornecedor novo valida e grava ambos no mesmo lote; cadastro existente é reutilizado", async () => {
+  const worker = fs.readFileSync(path.join(__dirname, "../src/services/managementService.ts"), "utf8");
+  const source = worker.slice(worker.indexOf("export async function saveManagement("), worker.indexOf("async function createRecords(" )).replace("export async", "async");
+  const compiled = ts.transpileModule(source, {compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText;
+  const writes = [];
+  const save = new Function("str","validate","buildRecords","createRecords","commitRecords",compiled + ";return saveManagement;")((r,k)=>String(r[k]||""),validate,buildRecords,async rows=>writes.push(rows),async rows=>writes.push(rows));
+  const state = fixture();
+  const payable = record("payables",{obligationType:"Boleto",status:"Pendente",description:"Nota do fornecedor",dueDate:"2026-09-22",amount:170509,scannedSupplierName:"OESA",scannedSupplierDocument:"81.611.931/0045-49"});
+  await save(payable,state);
+  assert.equal(writes.length,1);
+  const supplier = writes[0].find(r=>r.kind === "suppliers");
+  const account = writes[0].find(r=>r.kind === "payables");
+  assert.equal(supplier.name,"OESA");
+  assert.equal(account.supplierId,supplier.id);
+  assert.equal(state.suppliers.length,0);
+  state.suppliers.push(supplier);
+  await save({...payable,id:"another-account"},state);
+  assert.equal(writes[1].filter(r=>r.kind === "suppliers").length,0);
+  assert.equal(writes[1].find(r=>r.kind === "payables").supplierId,supplier.id);
+});
 function complete(db) {
   for (const u of db.units)
     for (const dataset of DATASETS)
@@ -408,7 +601,7 @@ test("provisões explicitam férias, terço e décimo terceiro", () => {
   assert.equal(r.thirteenth, 10000);
   assert.equal(r.fgts, 9600);
 });
-test("baixa acima do saldo ou em conta de outra unidade é bloqueada", () => {
+test("baixa acima do saldo ou conta inexistente é bloqueada; permite contas do grupo", () => {
   const db = fixture();
   const r = record("payables", { id: "p", amount: 10000 });
   db.payables = [r];
@@ -420,8 +613,11 @@ test("baixa acima do saldo ou em conta de outra unidade é bloqueada", () => {
     settlement(r, db, 10001, "2026-09-20", "bank", "test", "tx"),
   );
   assert.throws(() =>
-    settlement(r, db, 1, "2026-09-20", "other", "test", "tx"),
+    settlement(r, db, 1, "2026-09-20", "invalid_bank_id", "test", "tx"),
   );
+  const ok = settlement(r, db, 5000, "2026-09-20", "other", "test", "tx");
+  assert.equal(ok.amount, 5000);
+  assert.equal(ok.bankAccountId, "other");
 });
 test("score não redistribui pesos na falta de posição patrimonial", () => {
   const db = complete(fixture());

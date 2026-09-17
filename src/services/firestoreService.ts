@@ -25,6 +25,24 @@ import type {
   DocumentItem,
 } from "@/types";
 
+// Helper to remove undefined fields recursively so Firestore never crashes
+export function cleanForFirestore<T>(data: T): T {
+  if (data === null || data === undefined) return data;
+  if (Array.isArray(data)) {
+    return data.map(cleanForFirestore) as unknown as T;
+  }
+  if (typeof data === "object" && !(data instanceof Date)) {
+    const clean: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        clean[key] = cleanForFirestore(value);
+      }
+    }
+    return clean;
+  }
+  return data;
+}
+
 // ==========================================
 // 1. EMPLOYEES (COLABORADORES)
 // ==========================================
@@ -41,12 +59,13 @@ export async function getEmployeesFromFirestore(): Promise<Employee[]> {
 
 export async function saveEmployeeToFirestore(employee: Employee): Promise<string> {
   const colRef = collection(db, "employees");
+  const cleanData = cleanForFirestore(employee);
   if (employee.id) {
     const docRef = doc(db, "employees", employee.id);
-    await setDoc(docRef, employee, { merge: true });
+    await setDoc(docRef, cleanData, { merge: true });
     return employee.id;
   } else {
-    const docRef = await addDoc(colRef, employee);
+    const docRef = await addDoc(colRef, cleanData);
     await updateDoc(docRef, { id: docRef.id });
     return docRef.id;
   }
@@ -85,12 +104,13 @@ export async function getSuppliersFromFirestore(): Promise<Supplier[]> {
 
 export async function saveSupplierToFirestore(supplier: Supplier): Promise<string> {
   const colRef = collection(db, "suppliers");
+  const cleanData = cleanForFirestore(supplier);
   if (supplier.id) {
     const docRef = doc(db, "suppliers", supplier.id);
-    await setDoc(docRef, supplier, { merge: true });
+    await setDoc(docRef, cleanData, { merge: true });
     return supplier.id;
   } else {
-    const docRef = await addDoc(colRef, supplier);
+    const docRef = await addDoc(colRef, cleanData);
     await updateDoc(docRef, { id: docRef.id });
     return docRef.id;
   }
@@ -129,12 +149,13 @@ export async function getAccountsPayableFromFirestore(): Promise<AccountPayable[
 
 export async function saveAccountPayableToFirestore(account: AccountPayable): Promise<string> {
   const colRef = collection(db, "accounts_payable");
+  const cleanData = cleanForFirestore(account);
   if (account.id) {
     const docRef = doc(db, "accounts_payable", account.id);
-    await setDoc(docRef, account, { merge: true });
+    await setDoc(docRef, cleanData, { merge: true });
     return account.id;
   } else {
-    const docRef = await addDoc(colRef, account);
+    const docRef = await addDoc(colRef, cleanData);
     await updateDoc(docRef, { id: docRef.id });
     return docRef.id;
   }
@@ -173,12 +194,13 @@ export async function getGoalsFromFirestore(): Promise<UnitGoal[]> {
 
 export async function saveGoalToFirestore(goal: UnitGoal): Promise<string> {
   const colRef = collection(db, "unit_goals");
+  const cleanData = cleanForFirestore(goal);
   if (goal.id) {
     const docRef = doc(db, "unit_goals", goal.id);
-    await setDoc(docRef, goal, { merge: true });
+    await setDoc(docRef, cleanData, { merge: true });
     return goal.id;
   } else {
-    const docRef = await addDoc(colRef, goal);
+    const docRef = await addDoc(colRef, cleanData);
     await updateDoc(docRef, { id: docRef.id });
     return docRef.id;
   }
@@ -216,14 +238,17 @@ export async function addNotificationToFirestore(
 ): Promise<string> {
   try {
     const colRef = collection(db, "notifications");
-    const docRef = await addDoc(colRef, {
+    const docRef = doc(colRef);
+    const cleanPayload = cleanForFirestore({
       ...notification,
+      id: docRef.id,
       timestamp: notification.timestamp || new Date().toISOString(),
       read: false,
       readBy: [],
     });
-    await updateDoc(docRef, { id: docRef.id });
-    await sendNotificationEmail(docRef.id, notification);
+    const results = await Promise.allSettled([setDoc(docRef, cleanPayload), sendNotificationEmail(docRef.id, notification)]);
+    results.forEach((result) => { if (result.status === "rejected") console.warn("Falha em um canal de notificação:", result.reason); });
+    if (results[1].status === "rejected") return "";
     return docRef.id;
   } catch (error) {
     console.warn("Erro ao salvar notificação:", error);
@@ -285,7 +310,7 @@ export async function saveTakeatRevenuesToCloud(revenues: DailyRevenue[]): Promi
     for (const rev of revenues) {
       if (!rev.id) continue;
       const docRef = doc(db, "daily_revenues", rev.id);
-      await setDoc(docRef, rev, { merge: true });
+      await setDoc(docRef, cleanForFirestore(rev), { merge: true });
     }
   } catch (error) {
     console.warn("Erro ao salvar faturamento na nuvem:", error);
@@ -317,9 +342,7 @@ export async function getDocumentsFromFirestore(): Promise<DocumentItem[]> {
 }
 
 export async function saveDocumentToFirestore(item: DocumentItem): Promise<string> {
-  const cleanItem = Object.fromEntries(
-    Object.entries(item).filter(([, value]) => value !== undefined)
-  ) as DocumentItem;
+  const cleanItem = cleanForFirestore(item);
   await setDoc(doc(db, "documents", item.id), cleanItem, { merge: true });
   return item.id;
 }
@@ -327,7 +350,7 @@ export async function saveDocumentToFirestore(item: DocumentItem): Promise<strin
 export function subscribeDocuments(callback: (items: DocumentItem[]) => void): Unsubscribe {
   return onSnapshot(
     collection(db, "documents"),
-    (snapshot) => callback(snapshot.docs.map((item) => ({ ...item.data(), id: item.id } as DocumentItem))),
+    (snapshot) => callback(snapshot.docs.map((item) => ({ ...item.data(), id: item.id } as DocumentItem)).filter((item) => !item.archived)),
     (error) => console.warn("Erro ao sincronizar documentos:", error)
   );
 }

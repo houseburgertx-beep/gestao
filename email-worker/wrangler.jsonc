@@ -5,6 +5,7 @@
   "compatibility_date": "2026-09-09",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "kv_namespaces": [{"binding":"NOTIFICATION_DIRECTORY","id":"e1b1307c8e1b4f959f9ea036d6e1e37c"}],
   "observability": {
     "enabled": true,
     "logs": {

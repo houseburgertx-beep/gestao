@@ -7,16 +7,12 @@ import {
   Upload,
   FileText,
   Download,
-  AlertTriangle,
-  Clock,
-  Tag,
-  Building,
-  CheckCircle2,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { store } from "@/services/store";
 import { useUnit } from "@/contexts/UnitContext";
 import { DocumentItem } from "@/types";
-import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -24,16 +20,16 @@ import { downloadFileFromDrive, formatFileSize, nameFileForDrive, uploadFileToDr
 import { subscribeDocuments } from "@/services/firestoreService";
 
 export default function DocumentosPage() {
-  const { filterByUnit } = useUnit();
+  const { filterByUnit, currentUnit } = useUnit();
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
 
   // New Doc Form
   const [newTitle, setNewTitle] = useState("");
   const [newCategory, setNewCategory] = useState<DocumentItem["category"]>("contracts");
-  const [newExpiration, setNewExpiration] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -54,6 +50,12 @@ export default function DocumentosPage() {
     return unsubscribe;
   }, [filterByUnit]);
 
+  useEffect(() => {
+    const openForm = () => setIsUploadModalOpen(true);
+    window.addEventListener("open-document-form", openForm);
+    return () => window.removeEventListener("open-document-form", openForm);
+  }, []);
+
   const filteredDocs = documents.filter((d) => {
     if (categoryFilter !== "all" && d.category !== categoryFilter) return false;
     if (!searchQuery) return true;
@@ -66,19 +68,26 @@ export default function DocumentosPage() {
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle || !selectedFile) return;
+    if (!newTitle || (!selectedFile && !editingDocument)) return;
 
     setUploading(true);
     setUploadError("");
     try {
+      if (editingDocument) {
+        await store.updateDocument({...editingDocument, title: newTitle, category: newCategory});
+        setEditingDocument(null);
+        setIsUploadModalOpen(false);
+        setNewTitle("");
+        return;
+      }
+      if (!selectedFile) return;
       const driveFile = nameFileForDrive(selectedFile, newTitle);
       const stored = await uploadFileToDrive(driveFile, "documents");
       const extension = selectedFile.name.split(".").pop()?.toLowerCase() || "arquivo";
-      store.addDocument({
+      await store.addDocument({
         title: newTitle,
         category: newCategory,
-        unitId: "all",
-        expirationDate: newExpiration || undefined,
+        unitId: currentUnit === "all" ? "all" : currentUnit,
         size: formatFileSize(stored.size),
         format: extension,
         url: `drive:${stored.fileId}`,
@@ -89,7 +98,6 @@ export default function DocumentosPage() {
       });
       setIsUploadModalOpen(false);
       setNewTitle("");
-      setNewExpiration("");
       setSelectedFile(null);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Não foi possível enviar o arquivo.");
@@ -113,15 +121,15 @@ export default function DocumentosPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-zinc-200/60 pb-4 dark:border-zinc-800">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Biblioteca de Documentos & Compliance
+            Documentos
           </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Centralização de alvarás, contratos sociais, manuais, certidões e comprovantes
+            Biblioteca segura para armazenar e organizar arquivos no Google Drive.
           </p>
         </div>
         <Button
           size="sm"
-          onClick={() => setIsUploadModalOpen(true)}
+          onClick={() => { setEditingDocument(null); setNewTitle(""); setSelectedFile(null); setUploadError(""); setIsUploadModalOpen(true); }}
           className="gap-1.5"
         >
           <Upload className="h-3.5 w-3.5" />
@@ -129,17 +137,9 @@ export default function DocumentosPage() {
         </Button>
       </div>
 
-      {/* Alert about upcoming expirations */}
-      <div className="p-4 rounded-lg border border-amber-200/80 bg-amber-50/40 flex items-center justify-between text-xs dark:bg-amber-950/20 dark:border-amber-900/40">
-        <div className="flex items-center gap-2.5">
-          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-          <span className="text-zinc-700 dark:text-zinc-300">
-            <strong>Atenção ao Vencimento:</strong> O Alvará Sanitário Municipal de Teixeira de Freitas vence em <strong>30/09/2026</strong>. Protocolo de renovação já iniciado.
-          </span>
-        </div>
-        <span className="text-[11px] font-semibold text-amber-800 uppercase dark:text-amber-300">
-          Urgente
-        </span>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <DocumentMetric icon={FolderLock} label="Documentos salvos" value={String(documents.length)} tone="violet" />
+        <DocumentMetric icon={Upload} label="Armazenamento" value="Google Drive" tone="amber" />
       </div>
 
       {/* Filters Bar */}
@@ -176,16 +176,12 @@ export default function DocumentosPage() {
               <th className="py-3 px-4">Documento</th>
               <th className="py-3 px-4">Categoria</th>
               <th className="py-3 px-4">Unidade</th>
-              <th className="py-3 px-4">Vencimento</th>
               <th className="py-3 px-4">Tamanho</th>
               <th className="py-3 px-4 text-right">Ação</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {filteredDocs.map((doc) => {
-              const isExpiringSoon =
-                doc.expirationDate && doc.expirationDate <= "2026-09-30";
-
               return (
                 <tr key={doc.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/50">
                   <td className="py-3 px-4 font-medium text-zinc-900 dark:text-zinc-100">
@@ -212,25 +208,17 @@ export default function DocumentosPage() {
                   <td className="py-3 px-4 uppercase text-[10px] font-mono text-zinc-500">
                     {doc.unitId}
                   </td>
-                  <td className="py-3 px-4 tabular-nums">
-                    {doc.expirationDate ? (
-                      <span
-                        className={
-                          isExpiringSoon
-                            ? "font-semibold text-rose-600 dark:text-rose-400"
-                            : "text-zinc-600 dark:text-zinc-400"
-                        }
-                      >
-                        {formatDate(doc.expirationDate)}
-                      </span>
-                    ) : (
-                      <span className="text-zinc-400">Indeterminado</span>
-                    )}
-                  </td>
                   <td className="py-3 px-4 text-zinc-500 font-mono text-[11px]">
                     {doc.size}
                   </td>
                   <td className="py-3 px-4 text-right">
+                    <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="outline" onClick={() => { setEditingDocument(doc); setNewTitle(doc.title); setNewCategory(doc.category); setSelectedFile(null); setUploadError(""); setIsUploadModalOpen(true); }}><Pencil className="h-3 w-3" /> Editar</Button>
+                    <Button size="sm" variant="outline" onClick={async () => {
+                      if (!confirm(`Excluir “${doc.title}” do painel? O arquivo será preservado no Google Drive como backup.`)) return;
+                      try { await store.updateDocument({...doc, archived: true}); setDocuments((items) => items.filter((item) => item.id !== doc.id)); }
+                      catch (error) { alert(error instanceof Error ? error.message : "Não foi possível excluir. O documento foi mantido."); }
+                    }}><Trash2 className="h-3 w-3" /> Excluir</Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -241,10 +229,18 @@ export default function DocumentosPage() {
                       <Download className="h-3 w-3" />
                       <span>Baixar</span>
                     </Button>
+                    </div>
                   </td>
                 </tr>
               );
             })}
+            {!filteredDocs.length && (
+              <tr>
+                <td colSpan={5} className="px-4 py-12 text-center text-xs text-zinc-500">
+                  Nenhum documento encontrado. Use “Novo documento” para salvar o primeiro arquivo.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -253,8 +249,8 @@ export default function DocumentosPage() {
       <Modal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
-        title="Enviar Novo Documento"
-        subtitle="Adicione contratos, certidões ou alvarás para gestão de vencimentos"
+        title={editingDocument ? "Editar documento" : "Enviar Novo Documento"}
+        subtitle="O arquivo será armazenado com segurança no Google Drive"
       >
         <form onSubmit={handleUploadSubmit} className="space-y-4 text-xs">
           <div>
@@ -271,7 +267,7 @@ export default function DocumentosPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div>
             <div>
               <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
                 Categoria
@@ -288,20 +284,9 @@ export default function DocumentosPage() {
               </select>
             </div>
 
-            <div>
-              <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
-                Data de Vencimento
-              </label>
-              <input
-                type="date"
-                value={newExpiration}
-                onChange={(e) => setNewExpiration(e.target.value)}
-                className="w-full h-9 px-3 rounded border border-zinc-200 bg-white dark:bg-zinc-800 dark:border-zinc-700 focus:outline-none"
-              />
-            </div>
           </div>
 
-          <label className="block border-2 border-dashed border-zinc-200 rounded-lg p-6 text-center text-zinc-500 hover:border-zinc-400 transition-colors cursor-pointer dark:border-zinc-700">
+          {!editingDocument && <label className="block border-2 border-dashed border-zinc-200 rounded-lg p-6 text-center text-zinc-500 hover:border-zinc-400 transition-colors cursor-pointer dark:border-zinc-700">
             <Upload className="h-6 w-6 mx-auto text-zinc-400 mb-2" />
             <p className="font-medium">{selectedFile ? selectedFile.name : "Clique para selecionar o arquivo"}</p>
             <p className="text-[11px] text-zinc-400 mt-1">PDF, foto, planilha ou documento até 8 MB</p>
@@ -312,7 +297,7 @@ export default function DocumentosPage() {
               accept=".pdf,.xlsx,.xls,.docx,.doc,.png,.jpg,.jpeg,.webp,.zip"
               onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
             />
-          </label>
+          </label>}
 
           {uploadError && <p className="text-xs text-rose-600">{uploadError}</p>}
 
@@ -320,12 +305,26 @@ export default function DocumentosPage() {
             <Button type="button" variant="outline" size="sm" onClick={() => setIsUploadModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" size="sm" disabled={uploading || !selectedFile}>
-              {uploading ? "Salvando no Drive..." : "Concluir Upload"}
+            <Button type="submit" size="sm" disabled={uploading || (!selectedFile && !editingDocument)}>
+              {uploading ? "Salvando..." : editingDocument ? "Salvar alterações" : "Concluir Upload"}
             </Button>
           </div>
         </form>
       </Modal>
+    </div>
+  );
+}
+
+function DocumentMetric({ icon: Icon, label, value, tone }: { icon: typeof FolderLock; label: string; value: string; tone: "violet" | "amber" | "rose" }) {
+  const tones = {
+    violet: "bg-violet-50 text-violet-700",
+    amber: "bg-amber-50 text-amber-700",
+    rose: "bg-rose-50 text-rose-700",
+  };
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-zinc-200/80 bg-white p-4 shadow-2xs">
+      <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${tones[tone]}`}><Icon className="h-4 w-4" /></span>
+      <div><span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">{label}</span><strong className="text-xl text-zinc-900">{value}</strong></div>
     </div>
   );
 }

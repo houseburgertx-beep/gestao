@@ -2,28 +2,37 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Search, Plus, Bell, Menu, User as UserIcon } from "lucide-react";
+import { Search, Plus, Bell, Menu, User as UserIcon, Users } from "lucide-react";
 import { UnitSelector } from "@/components/layout/UnitSelector";
 import { CommandPalette } from "@/components/layout/CommandPalette";
 import { QuickCreateModal } from "@/components/layout/QuickCreateModal";
 import { NotificationCenter } from "@/components/layout/NotificationCenter";
 import { AuthModal } from "@/components/layout/AuthModal";
+import { UserManagementModal } from "@/components/users/UserManagementModal";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
 import { subscribeNotifications } from "@/services/firestoreService";
+import { normalizeRole } from "@/components/layout/managementNavigation";
 import { AppNotification } from "@/types";
 
 export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void }) {
   const { user, userProfile } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const legacy = (pathname.startsWith("/legado") || pathname.startsWith("/integracoes")) || ["/rh", "/tarefas", "/documentos", "/fornecedores", "/auditoria"].some(p => pathname.startsWith(p));
+  const cleanPath = (pathname || "").replace(/^\/gestao/, "") || "/";
   const [isCommandOpen, setIsCommandOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const seenNotificationIds = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    const openUserMgmt = () => setIsUserManagementOpen(true);
+    window.addEventListener("open-user-management", openUserMgmt);
+    return () => window.removeEventListener("open-user-management", openUserMgmt);
+  }, []);
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
@@ -56,37 +65,57 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       list.forEach((notification) => seenNotificationIds.current?.add(notification.id));
 
       if (newNotification && typeof window !== "undefined" && window.Notification?.permission === "granted") {
-        new window.Notification(newNotification.title, {
-          body: newNotification.message,
-          icon: "/gestao/icon.svg",
-        });
+        try {
+          new window.Notification(newNotification.title, {
+            body: newNotification.message,
+            icon: "/gestao/icon.svg",
+          });
+        } catch {}
       }
     });
     return () => unsub();
   }, [user]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-  const primaryActionLabel = pathname.startsWith("/tarefas")
+  const primaryActionLabel = cleanPath.startsWith("/tarefas")
     ? "Nova tarefa"
-    : pathname.startsWith("/rh")
+      : cleanPath.startsWith("/rh")
       ? "Novo colaborador"
-      : pathname.startsWith("/fornecedores")
+      : cleanPath.startsWith("/fechamento-caixa")
+        ? "Novo fechamento"
+      : cleanPath.startsWith("/conferencia-caixa")
+        ? "Nova conferência"
+      : cleanPath.startsWith("/fornecedores")
         ? "Novo fornecedor"
+      : cleanPath.startsWith("/documentos")
+        ? "Novo documento"
+      : cleanPath.startsWith("/faturamento") || cleanPath.startsWith("/integracoes/takeat")
+        ? "Atualizar vendas"
       : "Nova conta";
   const openNewRecord = () => {
-    if (pathname.startsWith("/tarefas")) {
+    if (cleanPath.startsWith("/tarefas")) {
       window.dispatchEvent(new CustomEvent("open-task-form"));
       return;
     }
-    if (pathname.startsWith("/rh")) {
+    if (cleanPath.startsWith("/rh")) {
       window.dispatchEvent(new CustomEvent("open-employee-form"));
       return;
     }
-    if (pathname.startsWith("/fornecedores")) {
+    if (cleanPath.startsWith("/fechamento-caixa")) { window.dispatchEvent(new CustomEvent("open-cashClosings-form")); return; }
+    if (cleanPath.startsWith("/conferencia-caixa")) { window.dispatchEvent(new CustomEvent("open-cashConferences-form")); return; }
+    if (cleanPath.startsWith("/fornecedores")) {
       window.dispatchEvent(new CustomEvent("open-supplier-form"));
       return;
     }
-    if (pathname === "/" || pathname.startsWith("/contas-a-pagar")) {
+    if (cleanPath.startsWith("/documentos")) {
+      window.dispatchEvent(new CustomEvent("open-document-form"));
+      return;
+    }
+    if (cleanPath.startsWith("/faturamento") || cleanPath.startsWith("/integracoes/takeat")) {
+      window.dispatchEvent(new CustomEvent("sync-takeat-sales"));
+      return;
+    }
+    if (cleanPath === "/" || cleanPath.startsWith("/contas-a-pagar")) {
       window.dispatchEvent(new CustomEvent("open-payable-form"));
       return;
     }
@@ -104,7 +133,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
           >
             <Menu className="h-5 w-5" />
           </button>
-          {legacy ? <UnitSelector /> : <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Gestão do grupo</span>}
+          <UnitSelector />
         </div>
 
         {/* Center / Search: Command Palette Trigger */}
@@ -157,7 +186,17 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
           </button>
 
           {/* Profile Badge / Auth Trigger */}
-          <div className="flex items-center pl-2 border-l border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center gap-1.5 pl-2 border-l border-zinc-200 dark:border-zinc-800">
+            {user && ["admin", "accountant"].includes(normalizeRole(userProfile?.role)) && (
+              <button
+                onClick={() => setIsUserManagementOpen(true)}
+                title="Gerenciar Usuários"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-purple-700 dark:hover:text-purple-300 transition"
+              >
+                <Users className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                <span className="hidden sm:inline font-semibold">Usuários</span>
+              </button>
+            )}
             {user ? (
               <button
                 onClick={() => setIsAuthOpen(true)}
@@ -205,6 +244,10 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
+      />
+      <UserManagementModal
+        isOpen={isUserManagementOpen}
+        onClose={() => setIsUserManagementOpen(false)}
       />
     </>
   );

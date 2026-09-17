@@ -68,8 +68,8 @@ export async function uploadFileToDrive(file: File, category: DriveCategory): Pr
     base64: arrayBufferToBase64(await file.arrayBuffer()),
     category,
   });
-  const result = (await response.json().catch(() => null)) as (StoredDriveFile & { error?: string }) | null;
-  if (!response.ok || !result?.fileId) throw new Error(result?.error || "Não foi possível salvar o arquivo no Drive.");
+  const result = (await response.json().catch(() => null)) as (StoredDriveFile & { error?: string; message?: string }) | null;
+  if (!response.ok || !result?.fileId) throw new Error(result?.message || "Não foi possível salvar o arquivo no Google Drive. Tente novamente; a conta ainda não foi cadastrada.");
   return result;
 }
 

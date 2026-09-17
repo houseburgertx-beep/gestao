@@ -46,6 +46,7 @@ import {
 } from "@/domain/management/model";
 import "./management.css";
 import { TakeatConnection } from "./TakeatConnection";
+import { ManagementPeriodFilter } from "./ManagementPeriodFilter";
 const METRIC_LABELS: Record<string, string> = {
   projectedProfit: "Resultado provável · orçamento",
   marketingPct: "Marketing / receita líquida",
@@ -251,7 +252,8 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
       }),
     [data, filters, allowedUnit],
   );
-  const incomplete = loading || Object.keys(errors).length > 0;
+  const managementErrors = Object.entries(errors).filter(([key]) => key !== "takeat");
+  const incomplete = loading || managementErrors.length > 0;
   // An unavailable source must never leave previously calculated financial totals looking authoritative.
   if (incomplete) {
     Object.values(result.metrics).forEach((m) => {
@@ -279,24 +281,6 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
       [key]: value,
       ...(["companyId", "brandId"].includes(key) ? { unitId: "" } : {}),
     }));
-  const selectPeriod = (period: string) => {
-    let start = today,
-      end = today;
-    if (period === "month") {
-      start = today.slice(0, 7) + "-01";
-      end = monthEnd(today);
-    }
-    if (period === "year") {
-      start = today.slice(0, 4) + "-01-01";
-      end = today.slice(0, 4) + "-12-31";
-    }
-    if (period === "week") {
-      const weekday = new Date(today + "T12:00:00Z").getUTCDay();
-      start = addDays(today, -((weekday + 6) % 7));
-      end = addDays(start, 6);
-    }
-    setFilters((f) => ({ ...f, start, end }));
-  };
   return (
     <div className="mg-shell">
       <header className="mg-page-header">
@@ -316,6 +300,14 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
           </p>
         </div>
         <div className="mg-header-actions">
+          <ManagementPeriodFilter
+            filters={filters}
+            setFilters={setFilters}
+            units={data.units}
+            allowedUnit={allowedUnit}
+            view={view}
+            change={change}
+          />
           <span className={"mg-sync " + (incomplete ? "is-warning" : "")}>
             {incomplete ? "VERIFICAR DADOS" : "ATUALIZADO"}
           </span>
@@ -328,88 +320,8 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
           </button>
         </div>
       </header>
-      {view !== "data" && (
-      <section className="mg-filters mg-filters-simple" aria-label="Filtros de gestão">
-        <label>
-          Unidade
-          <select
-            value={allowedUnit === "all" ? filters.unitId : allowedUnit}
-            disabled={allowedUnit !== "all"}
-            onChange={(e) => change("unitId", e.target.value)}
-          >
-            <option value="">Consolidado do grupo</option>
-            {data.units
-              .filter(
-                (r) =>
-                  !r.archived &&
-                  (!filters.companyId || r.companyId === filters.companyId) &&
-                  (!filters.brandId || r.brandId === filters.brandId),
-              )
-              .map((r) => (
-                <option key={r.id} value={r.id}>
-                  {str(r, "name")}
-                </option>
-              ))}
-          </select>
-        </label>
-        {view !== "payables" && (
-          <label>
-            Canal
-            <select
-              value={filters.channel}
-              onChange={(e) => change("channel", e.target.value)}
-            >
-              <option value="">Todos os canais</option>
-              {CHANNELS.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-          </label>
-        )}
-        <label>
-          Mês
-          <input
-            type="month"
-            value={filters.start.slice(0, 7)}
-            onChange={(e) => {
-              if (e.target.value)
-                setFilters((f) => ({
-                  ...f,
-                  start: e.target.value + "-01",
-                  end: monthEnd(e.target.value + "-01"),
-                }));
-            }}
-          />
-        </label>
-        <div className="mg-periods">
-          {[
-            ["day", "Hoje"],
-            ["week", "Semana"],
-            ["month", "Mês"],
-            ["year", "Ano"],
-          ].map(([p, l]) => (
-            <button key={p} onClick={() => selectPeriod(p)}>
-              {l}
-            </button>
-          ))}
-        </div>
-        <details className="mg-more-filters">
-          <summary>Escolher datas específicas</summary>
-          <div>
-            <label>
-              De
-              <input type="date" value={filters.start} max={filters.end} onChange={(e) => change("start", e.target.value)} />
-            </label>
-            <label>
-              Até
-              <input type="date" value={filters.end} min={filters.start} onChange={(e) => change("end", e.target.value)} />
-            </label>
-          </div>
-        </details>
-      </section>
-      )}
       {["health", "revenues", "goals"].includes(view) && <TakeatConnection />}
-      {Object.keys(errors).length > 0 && (
+      {managementErrors.length > 0 && (
         <div role="alert" className="mg-notice">
           <AlertTriangle size={20} />
           <div>
@@ -420,9 +332,9 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
             </p>
             <details>
               <summary>Detalhes das bases</summary>
-              {Object.keys(errors).map((k) => (
+              {managementErrors.map(([k, message]) => (
                 <p key={k}>
-                  {DEFINITIONS[k]?.label}: {errors[k]}
+                  {DEFINITIONS[k]?.label}: {message}
                 </p>
               ))}
             </details>
@@ -452,7 +364,7 @@ export function ManagementPage({ view = "health" }: { view?: string }) {
         <ExtendedView view={view} result={result} filters={filters} />
       )}
       <footer className="mg-footer">
-        Valores não informados aparecem como <span>DADO PENDENTE.</span>
+        <span>Gestão House 190 · Dados sincronizados e consolidados por competência e caixa.</span>
       </footer>
     </div>
   );

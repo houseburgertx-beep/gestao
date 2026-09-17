@@ -18,36 +18,56 @@ const UnitContext = createContext<UnitContextType | undefined>(undefined);
 const STORAGE_KEY = "house190_active_unit";
 
 export function UnitProvider({ children }: { children: React.ReactNode }) {
-  const {filters,setFilters,allowedUnit}=useManagement();
+  const { filters, setFilters, allowedUnit } = useManagement();
   const [currentUnit, setCurrentUnitState] = useState<UnitId>("all");
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
+    if (allowedUnit !== "all") {
+      setCurrentUnitState(allowedUnit as UnitId);
+      setFilters((f) => ({ ...f, unitId: allowedUnit }));
+      return;
+    }
     const saved = localStorage.getItem(STORAGE_KEY) as UnitId | null;
     if (saved && UNITS.some((u) => u.id === saved)) {
       setCurrentUnitState(saved);
+      setFilters((f) => ({ ...f, unitId: saved === "all" ? "" : saved }));
     }
-  }, []);
+  }, [allowedUnit, setFilters]);
 
-  useEffect(()=>{
-    const selected=allowedUnit === "all" ? filters.unitId || "all" : allowedUnit;
-    if(UNITS.some(u=>u.id===selected)) setCurrentUnitState(selected as UnitId);
-  },[filters.unitId,allowedUnit]);
+  useEffect(() => {
+    if (allowedUnit !== "all") {
+      if (currentUnit !== allowedUnit) {
+        setCurrentUnitState(allowedUnit as UnitId);
+      }
+      return;
+    }
+    const selected = filters.unitId || "all";
+    if (selected !== currentUnit && UNITS.some((u) => u.id === selected)) {
+      setCurrentUnitState(selected as UnitId);
+    }
+  }, [filters.unitId, allowedUnit, currentUnit]);
 
   const setCurrentUnit = (unit: UnitId) => {
-    setFilters(f=>({...f,unitId:unit === "all" ? "" : unit}));
-    setCurrentUnitState(unit);
+    const target = allowedUnit === "all" ? unit : (allowedUnit as UnitId);
+    setFilters((f) => ({ ...f, unitId: target === "all" ? "" : target }));
+    setCurrentUnitState(target);
     if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEY, unit);
+      localStorage.setItem(STORAGE_KEY, target);
     }
   };
 
-  const activeUnitData = UNITS.find((u) => u.id === currentUnit) || UNITS[0];
+  const availableUnits = allowedUnit === "all"
+    ? UNITS
+    : UNITS.filter((u) => u.id === allowedUnit);
+
+  const activeUnitData = UNITS.find((u) => u.id === currentUnit) || availableUnits[0] || UNITS[0];
 
   const filterByUnit = <T extends { unitId?: UnitId | Exclude<UnitId, "all"> }>(items: T[]): T[] => {
-    if (currentUnit === "all") return items;
-    return items.filter((item) => !item.unitId || item.unitId === "all" || item.unitId === currentUnit);
+    const effectiveUnit = allowedUnit !== "all" ? allowedUnit : currentUnit;
+    if (effectiveUnit === "all") return items;
+    return items.filter((item) => !item.unitId || item.unitId === "all" || item.unitId === effectiveUnit);
   };
 
   return (
@@ -55,7 +75,7 @@ export function UnitProvider({ children }: { children: React.ReactNode }) {
       value={{
         currentUnit,
         setCurrentUnit,
-        units: UNITS,
+        units: availableUnits,
         activeUnitData,
         filterByUnit,
       }}

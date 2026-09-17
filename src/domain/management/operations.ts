@@ -34,7 +34,9 @@ export function validate(record: RecordData, db: Database) {
         throw new Error(`${field.label}: valor monetário inválido.`);
       if (
         value < 0 &&
-        !(record.kind === "bankAccounts" && field.key === "balance")
+        !(record.kind === "bankAccounts" && field.key === "balance") &&
+        !(record.kind === "cashConferences" && field.key === "difference") &&
+        !(record.kind === "cashClosings" && ["difference", "cashDifference", "creditDifference", "debitDifference", "pixDifference", "motoboyDifference", "invoiceDifference"].includes(field.key))
       )
         throw new Error(`${field.label} não pode ser negativo.`);
     }
@@ -50,7 +52,13 @@ export function validate(record: RecordData, db: Database) {
       !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(value))
     )
       throw new Error("Competência inválida.");
-    if (field.type === "select" && !field.options?.includes(String(value)))
+    if (
+      field.type === "select" &&
+      value !== "" &&
+      value !== undefined &&
+      value !== null &&
+      !field.options?.includes(String(value))
+    )
       throw new Error(`${field.label}: opção inválida.`);
     if (field.type === "ref") {
       const target = (db[field.ref!] || []).find(
@@ -196,6 +204,8 @@ export function validate(record: RecordData, db: Database) {
     inventory: ["productId", "date"],
     positions: ["date"],
     closings: ["competence"],
+    cashClosings: ["date", "shift"],
+    cashConferences: ["closingId"],
     goals: ["start", "end", "channel"],
     loanInstallments: ["loanId", "number"],
     loans: ["contract"],
@@ -381,8 +391,8 @@ export function settlement(
   )
     throw new Error("Valor da baixa deve ser positivo e não exceder o saldo.");
   const bank = db.bankAccounts.find((r) => r.id === bankId && !r.archived);
-  if (!bank || bank.unitId !== record.unitId)
-    throw new Error("Selecione uma conta da mesma unidade.");
+  if (!bank)
+    throw new Error("Conta bancária de saída inválida ou inativa.");
   const row: RecordData = {
     id,
     kind: "transactions",

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import {MANAGEMENT_NAV} from "./managementNavigation";
+import {navigationForRole} from "./managementNavigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -29,12 +29,11 @@ interface NavItem {
   badge?: number;
 }
 
-const NAV_ITEMS: NavItem[] = MANAGEMENT_NAV;
-
 export function Sidebar() {
   const pathname = usePathname();
   const { activeUnitData } = useUnit();
   const { user, userProfile } = useAuth();
+  const NAV_ITEMS: NavItem[] = navigationForRole(userProfile?.role);
 
   return (
     <aside className="hidden lg:flex w-64 flex-col fixed inset-y-0 left-0 bg-[#17162f] border-r border-[#29264d] z-30 select-none text-white">
@@ -61,10 +60,11 @@ export function Sidebar() {
           Áreas principais
         </div>
         {NAV_ITEMS.map((item) => {
+          const current = pathname || "/";
           const isActive =
             item.href === "/"
-              ? pathname === "/" || pathname.startsWith("/contas-a-pagar")
-              : pathname.startsWith(item.href);
+              ? current === "/" || current === "/gestao" || current === "/gestao/" || current.includes("/contas-a-pagar")
+              : current.includes(item.href);
           const Icon = item.icon;
 
           return (
@@ -117,7 +117,7 @@ export function Sidebar() {
                 {userProfile?.displayName || user?.email || "Usuário"}
               </span>
               <span className="text-[10px] text-[#77729d]">
-                {userProfile?.role === "admin" ? "Diretoria & Gestão" : userProfile?.role || "Acesso Firebase"}
+                {userProfile?.role === "admin" ? "Diretoria & Gestão" : userProfile?.role === "accountant" ? "Financeiro" : userProfile?.role === "manager" ? "Gerente da unidade" : userProfile?.role === "operator" ? "Operador de caixa" : "Acesso Firebase"}
               </span>
             </div>
           </div>
