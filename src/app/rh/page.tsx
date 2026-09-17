@@ -292,10 +292,14 @@ export default function RhPage() {
                   {exp.inExperience && employee.status === "active" && (
                     <span
                       className={`people-card-exp-badge exp-${exp.urgency}`}
-                      title={`Período de experiência até ${formatDate(exp.endDateStr)}`}
+                      title={`Contrato de experiência CLT: Dia ${exp.daysPassed} de 90 (Término em ${formatDate(exp.endDateStr)})`}
                     >
                       {exp.urgency === "critical" ? "🚨" : "⏳"}{" "}
-                      {exp.daysRemaining <= 0 ? "Fim hoje!" : `${exp.daysRemaining}d exp.`}
+                      {exp.daysRemaining <= 0
+                        ? "Fim hoje!"
+                        : exp.daysRemaining <= 30
+                        ? `Faltam ${exp.daysRemaining}d`
+                        : `Dia ${exp.daysPassed}/90`}
                     </span>
                   )}
                 </div>

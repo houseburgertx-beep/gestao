@@ -43,13 +43,62 @@ export function getTodayDateStr(): string {
 }
 
 /**
+ * Faz o parsing seguro e universal de datas em formatos comuns (YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, ISO).
+ * Evita o bug de RangeError e inversão de dia/mês no V8.
+ */
+export function parseDateToUTC(dateInput?: string | Date | null): Date | null {
+  if (!dateInput) return null;
+  if (dateInput instanceof Date) {
+    return isNaN(dateInput.getTime()) ? null : dateInput;
+  }
+  if (typeof dateInput !== "string") return null;
+
+  const trimmed = dateInput.trim();
+  if (trimmed.length < 8) return null;
+
+  // Formato brasileiro: DD/MM/YYYY ou DD-MM-YYYY
+  const brMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  if (brMatch) {
+    const day = parseInt(brMatch[1], 10);
+    const month = parseInt(brMatch[2], 10) - 1;
+    const year = parseInt(brMatch[3], 10);
+    const d = new Date(Date.UTC(year, month, day, 12, 0, 0));
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // Formato ISO / padrão: YYYY-MM-DD ou YYYY/MM/DD
+  const isoMatch = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+  if (isoMatch) {
+    const year = parseInt(isoMatch[1], 10);
+    const month = parseInt(isoMatch[2], 10) - 1;
+    const day = parseInt(isoMatch[3], 10);
+    const d = new Date(Date.UTC(year, month, day, 12, 0, 0));
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // Fallback para ISO com horário
+  const clean = trimmed.split("T")[0];
+  const cleanIsoMatch = clean.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (cleanIsoMatch) {
+    const year = parseInt(cleanIsoMatch[1], 10);
+    const month = parseInt(cleanIsoMatch[2], 10) - 1;
+    const day = parseInt(cleanIsoMatch[3], 10);
+    const d = new Date(Date.UTC(year, month, day, 12, 0, 0));
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  const raw = new Date(trimmed);
+  return isNaN(raw.getTime()) ? null : raw;
+}
+
+/**
  * Calcula o tempo de casa com precisão diária a partir da data de admissão.
  */
 export function calculateTenure(
   admissionDateStr?: string | null,
   endDateStr?: string | null
 ): TenureResult {
-  if (!admissionDateStr || admissionDateStr.length < 10) {
+  if (!admissionDateStr || admissionDateStr.trim().length < 8) {
     return {
       years: 0,
       months: 0,
@@ -61,12 +110,10 @@ export function calculateTenure(
     };
   }
 
-  const start = new Date(admissionDateStr.slice(0, 10) + "T12:00:00Z");
-  const end = endDateStr
-    ? new Date(endDateStr.slice(0, 10) + "T12:00:00Z")
-    : new Date(getTodayDateStr() + "T12:00:00Z");
+  const start = parseDateToUTC(admissionDateStr);
+  const end = endDateStr ? parseDateToUTC(endDateStr) : parseDateToUTC(getTodayDateStr());
 
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+  if (!start || !end) {
     return {
       years: 0,
       months: 0,
@@ -152,7 +199,7 @@ export function getExperienceInfo(
   explicitEndDateStr?: string | null,
   isTerminated = false
 ): ExperienceInfo {
-  if (isTerminated || !admissionDateStr || admissionDateStr.length < 10) {
+  if (isTerminated || !admissionDateStr || admissionDateStr.trim().length < 8) {
     return {
       isUnderExperience: false,
       inExperience: false,
@@ -167,8 +214,8 @@ export function getExperienceInfo(
     };
   }
 
-  const start = new Date(admissionDateStr.slice(0, 10) + "T12:00:00Z");
-  if (isNaN(start.getTime())) {
+  const start = parseDateToUTC(admissionDateStr);
+  if (!start) {
     return {
       isUnderExperience: false,
       inExperience: false,
@@ -183,22 +230,24 @@ export function getExperienceInfo(
     };
   }
 
-  // Data final da experiência: explícita ou padrão de 90 dias
+  // Data final da experiência: explícita ou padrão de 90 dias da CLT
   let expEnd: Date;
-  if (explicitEndDateStr && explicitEndDateStr.length >= 10) {
-    expEnd = new Date(explicitEndDateStr.slice(0, 10) + "T12:00:00Z");
+  if (explicitEndDateStr && explicitEndDateStr.trim().length >= 8) {
+    const parsedExp = parseDateToUTC(explicitEndDateStr);
+    expEnd = parsedExp || new Date(start.getTime() + 90 * 86400000);
   } else {
     expEnd = new Date(start.getTime() + 90 * 86400000);
   }
 
   const expEndDateStr = expEnd.toISOString().slice(0, 10);
-  const today = new Date(getTodayDateStr() + "T12:00:00Z");
+  const today = parseDateToUTC(getTodayDateStr()) || new Date();
 
   const totalDaysExp = Math.max(1, Math.round((expEnd.getTime() - start.getTime()) / 86400000));
   const daysPassed = Math.max(0, Math.round((today.getTime() - start.getTime()) / 86400000));
   const daysRemaining = Math.round((expEnd.getTime() - today.getTime()) / 86400000);
 
-  if (daysRemaining <= 0 || daysPassed >= 90) {
+  // Se já ultrapassou os 90 dias (dias cumpridos > 90 e dias restantes < 0)
+  if (daysPassed > totalDaysExp || daysRemaining < 0) {
     return {
       isUnderExperience: false,
       inExperience: false,
@@ -217,7 +266,11 @@ export function getExperienceInfo(
   let badgeTone: ExperienceInfo["badgeTone"] = "info";
   let badgeText = "";
 
-  if (daysRemaining <= 10) {
+  if (daysRemaining === 0) {
+    urgency = "critical";
+    badgeTone = "danger";
+    badgeText = "Último dia da experiência hoje!";
+  } else if (daysRemaining <= 10) {
     urgency = "critical";
     badgeTone = "danger";
     badgeText = `Experiência acaba em ${daysRemaining} ${daysRemaining === 1 ? "dia" : "dias"}`;

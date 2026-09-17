@@ -1025,24 +1025,40 @@ test("RH - Cálculo dinâmico de tempo de casa (calculateTenure)", () => {
   assert.equal(emptyTenure.totalDays, 0);
   assert.equal(emptyTenure.text, "Data não informada");
 
-  // Colaborador desligado usa terminationDate como data fim
-  const termTenure = calculateTenure("2024-01-01", "2024-07-01");
-  assert.equal(termTenure.years, 0);
-  assert.equal(termTenure.months, 6);
-  assert.equal(termTenure.days, 0);
-  assert.equal(termTenure.text, "6 meses de casa");
+  // Colaborador com data em formato brasileiro DD/MM/YYYY
+  const brTenure = calculateTenure("01/01/2024", "01/07/2024");
+  assert.equal(brTenure.years, 0);
+  assert.equal(brTenure.months, 6);
+  assert.equal(brTenure.text, "6 meses de casa");
 });
 
 test("RH - Alertas e acompanhamento de contrato de experiência de 90 dias (getExperienceInfo)", () => {
   const { getExperienceInfo } = require("../src/lib/tenureUtils.ts");
 
+  // Formato brasileiro DD/MM/YYYY funcionando perfeitamente
+  const adm85d = new Date(Date.now() - 85 * 86400000);
+  const pad = (n) => String(n).padStart(2, "0");
+  const admBr = `${pad(adm85d.getUTCDate())}/${pad(adm85d.getUTCMonth() + 1)}/${adm85d.getUTCFullYear()}`;
+  const expBr = getExperienceInfo(admBr);
+  assert.equal(expBr.inExperience, true);
+  assert.equal(expBr.urgency, "critical");
+  assert.ok(expBr.daysRemaining <= 10 && expBr.daysRemaining >= 0);
+
   // Admitido há 85 dias (restam 5 dias para os 90 dias -> crítico <= 10d)
-  const adm85d = new Date(Date.now() - 85 * 86400000).toISOString().slice(0, 10);
-  const expCritical = getExperienceInfo(adm85d);
+  const adm85dStr = new Date(Date.now() - 85 * 86400000).toISOString().slice(0, 10);
+  const expCritical = getExperienceInfo(adm85dStr);
   assert.equal(expCritical.inExperience, true);
   assert.equal(expCritical.urgency, "critical");
   assert.ok(expCritical.daysRemaining <= 10 && expCritical.daysRemaining >= 0);
   assert.match(expCritical.badgeText, /Experiência acaba em|dias restantes/i);
+
+  // Admitido há 90 dias (vencendo exatamente hoje -> crítico, último dia)
+  const adm90d = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const expDay0 = getExperienceInfo(adm90d);
+  assert.equal(expDay0.inExperience, true);
+  assert.equal(expDay0.urgency, "critical");
+  assert.equal(expDay0.daysRemaining, 0);
+  assert.equal(expDay0.badgeText, "Último dia da experiência hoje!");
 
   // Admitido há 70 dias (restam 20 dias -> aviso <= 30d)
   const adm70d = new Date(Date.now() - 70 * 86400000).toISOString().slice(0, 10);
@@ -1064,7 +1080,7 @@ test("RH - Alertas e acompanhamento de contrato de experiência de 90 dias (getE
   assert.equal(expCompleted.urgency, "completed");
 
   // Colaborador já desligado não fica em alerta de experiência
-  const expTerminated = getExperienceInfo(adm85d, undefined, true);
+  const expTerminated = getExperienceInfo(adm85dStr, undefined, true);
   assert.equal(expTerminated.inExperience, false);
   assert.equal(expTerminated.urgency, "completed");
 });

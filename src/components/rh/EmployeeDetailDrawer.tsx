@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Briefcase,
@@ -113,6 +113,41 @@ export function EmployeeDetailDrawer({
   const [isTerminating, setIsTerminating] = useState(false);
   const [termSuccess, setTermSuccess] = useState(false);
 
+  // Sync state whenever selected employee changes
+  useEffect(() => {
+    if (employee) {
+      setActiveTab("profile");
+      setDocFilter("all");
+      setUploadError("");
+      setUploadSuccess("");
+      setTermSuccess(false);
+      setTermDate(employee.terminationDate || getTodayDateStr());
+      setTermType(employee.terminationType || TERMINATION_TYPES[0]);
+      setTermNotice(employee.terminationNotice || NOTICE_TYPES[0]);
+      setTermReason(employee.terminationReason || "");
+      setTermChecklist({ exam: false, materials: false, terms: false });
+    }
+  }, [employee?.id]);
+
+  // Filter documents for this employee (TOP LEVEL HOOKS - NEVER CONDITIONAL)
+  const employeeDocs = useMemo(() => {
+    if (!employee) return [];
+    return documents.filter((d) => d.employeeId === employee.id && !d.archived);
+  }, [documents, employee?.id]);
+
+  const filteredDocs = useMemo(() => {
+    if (!employee) return [];
+    if (docFilter === "all") return employeeDocs;
+    const cat = DOCUMENT_CATEGORIES.find((c) => c.key === docFilter);
+    if (!cat || !("tag" in cat)) return employeeDocs;
+    return employeeDocs.filter(
+      (d) =>
+        d.tags?.includes(cat.tag) ||
+        d.title.toLowerCase().includes(cat.key) ||
+        (d.originalFileName && d.originalFileName.toLowerCase().includes(cat.key))
+    );
+  }, [employeeDocs, docFilter, employee]);
+
   if (!employee) return null;
 
   const tenure = calculateTenure(
@@ -125,23 +160,6 @@ export function EmployeeDetailDrawer({
     employee.experienceEndDate,
     employee.status === "terminated"
   );
-
-  // Filter documents for this employee
-  const employeeDocs = useMemo(() => {
-    return documents.filter((d) => d.employeeId === employee.id && !d.archived);
-  }, [documents, employee.id]);
-
-  const filteredDocs = useMemo(() => {
-    if (docFilter === "all") return employeeDocs;
-    const cat = DOCUMENT_CATEGORIES.find((c) => c.key === docFilter);
-    if (!cat || !("tag" in cat)) return employeeDocs;
-    return employeeDocs.filter(
-      (d) =>
-        d.tags?.includes(cat.tag) ||
-        d.title.toLowerCase().includes(cat.key) ||
-        (d.originalFileName && d.originalFileName.toLowerCase().includes(cat.key))
-    );
-  }, [employeeDocs, docFilter]);
 
   // Handle Document Upload
   const handleUploadDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
