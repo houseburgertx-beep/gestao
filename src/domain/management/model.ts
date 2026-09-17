@@ -593,6 +593,7 @@ export const DEFINITIONS: Record<string, Definition> = {
       f("systemTerm", "Sistema: notas a prazo", "money"),
       f("systemClub", "Sistema: resgate Clube", "money"),
       f("systemAccrual", "Sistema: acréscimos", "money"),
+      f("systemServiceFee", "Sistema: taxa de serviço", "money", false),
       f("openingAmount", "Fundo inicial (R$)", "money"),
       f("cashIn", "Suprimentos (R$)", "money"),
       f("cashOutflows", "Saídas em dinheiro (R$)", "money"),

@@ -5070,6 +5070,30 @@
   }
 }
 
+.closing-cards-grid-5 {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 960px) {
+  .closing-cards-grid-5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .closing-cards-grid-5 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 440px) {
+  .closing-cards-grid-5 {
+    grid-template-columns: 1fr;
+  }
+}
+
 .closing-value-card {
   display: flex;
   flex-direction: column;
