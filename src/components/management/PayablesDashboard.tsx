@@ -16,6 +16,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
 } from "lucide-react";
 import {
   Bar,
@@ -33,7 +34,7 @@ import {
 import { useManagement } from "@/contexts/ManagementContext";
 import { addDays, currency, normalizeObligationType, RecordData, str } from "@/domain/management/model";
 import { Filters, outstanding, payableStatus } from "@/domain/management/engine";
-import { backupPayablesSpreadsheet } from "@/services/payablesBackupService";
+import { fullSyncToSheet, getCachedSpreadsheetUrl } from "@/services/sheetsBackupService";
 import { downloadFileFromDrive } from "@/services/driveService";
 import { RecordTable, SettlementForm, formatDateBR, formatShortUnit } from "./RecordTable";
 import { InstantPaymentModal } from "@/components/finance/BankWorkspace";
@@ -243,15 +244,19 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
     document.getElementById(`record-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
+  const [spreadsheetUrl, setSpreadsheetUrl] = useState<string | null>(() => getCachedSpreadsheetUrl());
+
   const createBackup = async () => {
     setBackingUp(true);
     setBackupMessage("");
     try {
-      const rows = data.payables || [];
-      await backupPayablesSpreadsheet(data, rows, true);
-      setBackupMessage("Backup em planilha gerado com sucesso no Google Drive.");
+      const result = await fullSyncToSheet(data);
+      if (result.spreadsheetUrl) {
+        setSpreadsheetUrl(result.spreadsheetUrl);
+      }
+      setBackupMessage(`Planilha central sincronizada com sucesso! (${result.processedRecords} registros).`);
     } catch {
-      setBackupMessage("Não foi possível gerar a planilha no Drive agora.");
+      setBackupMessage("Não foi possível atualizar a planilha no Google Sheets agora.");
     } finally {
       setBackingUp(false);
     }
@@ -276,9 +281,21 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
           <button className="payables-hero-btn-instant" onClick={() => setInstantOpen(true)} title="Registrar baixa rápida">
             <ReceiptText size={16} /> Pagamento instantâneo
           </button>
-          <button className="payables-hero-btn-backup" onClick={createBackup} disabled={backingUp} title="Sincronizar planilha no Google Drive">
-            <FileSpreadsheet size={16} /> {backingUp ? "Criando…" : "Gerar backup agora"}
+          <button className="payables-hero-btn-backup" onClick={createBackup} disabled={backingUp} title="Sincronizar toda a base na Planilha Única do Google Sheets">
+            <FileSpreadsheet size={16} /> {backingUp ? "Sincronizando…" : "Sincronizar Planilha"}
           </button>
+          {spreadsheetUrl && (
+            <a
+              href={spreadsheetUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="payables-hero-btn-backup"
+              style={{ background: "#059669", borderColor: "#059669", color: "#ffffff", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "6px" }}
+              title="Abrir a planilha central no Google Sheets"
+            >
+              <ExternalLink size={15} /> Abrir Planilha Google
+            </a>
+          )}
         </div>
       </section>
 

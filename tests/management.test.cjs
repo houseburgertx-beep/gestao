@@ -932,3 +932,74 @@ test('Fechamento e conferência: dinheiro esperado negativo sem cobertura result
   assert.equal(normalSurplus, 1000);
   assert.equal(diffLabel(normalSurplus), "Sobra");
 });
+
+test("Google Sheets: formatação das tabelas espelho preserva ID, valores e links", () => {
+  const {
+    formatPayableRow,
+    formatSettlementRow,
+    formatCashClosingRow,
+    formatCashConferenceRow,
+  } = require("../src/services/sheetsBackupService.ts");
+
+  const db = {
+    units: [{ id: "u-tx", name: "House 190 Teixeira" }],
+    suppliers: [{ id: "s-carne", name: "Frigorífico Frijoa" }],
+    bankAccounts: [{ id: "b-stone", name: "Stone Teixeira" }],
+    payables: [],
+    transactions: [],
+  };
+
+  const payable = {
+    id: "pay-100",
+    unitId: "u-tx",
+    supplierId: "s-carne",
+    description: "Compra semanal de carne",
+    dueDate: "2026-09-25",
+    amount: 150000,
+    originalAmount: 150000,
+    obligationType: "Insumos",
+    paymentMethod: "Boleto",
+    documentFileId: "drive-file-boleto-123",
+  };
+
+  const pRow = formatPayableRow(payable, db, "2026-09-17");
+  assert.equal(pRow.ID, "pay-100");
+  assert.equal(pRow.UNIDADE, "House 190 Teixeira");
+  assert.equal(pRow.FORNECEDOR, "Frigorífico Frijoa");
+  assert.equal(pRow.LINK_BOLETO_DRIVE, "https://drive.google.com/open?id=drive-file-boleto-123");
+  assert.equal(pRow.VALOR_PAGAR, "1.500,00");
+
+  const settlement = {
+    id: "tx-200",
+    unitId: "u-tx",
+    bankAccountId: "b-stone",
+    description: "Baixa: Compra semanal de carne",
+    amount: 150000,
+    date: "2026-09-17",
+    operatorName: "Gleuce",
+    paymentProofFileId: "drive-proof-456",
+  };
+
+  const sRow = formatSettlementRow(settlement, db);
+  assert.equal(sRow.ID, "tx-200");
+  assert.equal(sRow.CONTA_BANCARIA, "Stone Teixeira");
+  assert.equal(sRow.QUEM_PAGOU, "Gleuce");
+  assert.equal(sRow.LINK_COMPROVANTE_DRIVE, "https://drive.google.com/open?id=drive-proof-456");
+
+  const closing = {
+    id: "close-300",
+    date: "2026-09-17",
+    unitId: "u-tx",
+    operatorName: "Operador 1",
+    systemTotal: 500000,
+    cashExpected: 100000,
+    cashFound: 95000,
+    cashDifference: -5000,
+    status: "Conferido",
+  };
+  const cRow = formatCashClosingRow(closing, db);
+  assert.equal(cRow.ID, "close-300");
+  assert.equal(cRow.DIFERENCA_DINHEIRO, "-50,00");
+  assert.equal(cRow.STATUS, "Conferido");
+});
+

@@ -228,11 +228,11 @@ export default {
     }
     if (!isAllowedOrigin(origin)) return jsonResponse({ error: "origin_not_allowed" }, 403, origin);
     const url = new URL(request.url);
-    if (request.method !== "POST" || !["/notifications/email", "/notifications/directory", "/files/upload", "/files/download"].includes(url.pathname)) {
+    if (request.method !== "POST" || !["/notifications/email", "/notifications/directory", "/files/upload", "/files/download", "/sheets/sync"].includes(url.pathname)) {
       return jsonResponse({ error: "not_found" }, 404, origin);
     }
     const contentLength = Number(request.headers.get("Content-Length") || "0");
-    const maxRequestSize = url.pathname === "/files/upload" ? 11250000 : 8192;
+    const maxRequestSize = ["/files/upload", "/sheets/sync"].includes(url.pathname) ? 11250000 : 8192;
     if (contentLength > maxRequestSize) return jsonResponse({ error: "payload_too_large" }, 413, origin);
 
     let verifiedUser: { userId: string; email: string };
@@ -270,6 +270,22 @@ export default {
         if (Math.floor(payload.base64.length * 0.75) > MAX_FILE_BYTES) return jsonResponse({ error: "file_too_large" }, 413, origin);
         const result = await callGoogleScript(env, { action: "upload", ...payload, userId: verifiedUser.userId });
         return jsonResponse({ ok: true, fileId: result.fileId, fileName: result.fileName, mimeType: result.mimeType, size: result.size }, 200, origin);
+      }
+
+      if (url.pathname === "/sheets/sync") {
+        const syncPayload = payload as { tables?: Record<string, unknown[]>; operation?: string; details?: string };
+        if (!syncPayload || typeof syncPayload !== "object" || !syncPayload.tables) {
+          return jsonResponse({ error: "invalid_payload" }, 400, origin);
+        }
+        const result = await callGoogleScript(env, {
+          action: "sync_sheets",
+          tables: syncPayload.tables,
+          operation: syncPayload.operation || "upsert_batch",
+          details: syncPayload.details,
+          userId: verifiedUser.userId,
+          userEmail: verifiedUser.email,
+        });
+        return jsonResponse(result, 200, origin);
       }
 
       const download = payload as { fileId?: unknown };
