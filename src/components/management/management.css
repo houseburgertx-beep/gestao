@@ -2886,6 +2886,38 @@
   border-color: #a7f3d0 !important;
 }
 
+.cash-status-icon.ok {
+  background: #ecfdf5 !important;
+  color: #059669 !important;
+}
+
+.cash-divergence-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.conf-conferred-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
 .cash-reopen-btn {
   display: inline-flex;
   align-items: center;

@@ -61,6 +61,28 @@ const parseAttachments = (row: RecordData): CashAttachment[] => {
 };
 const closingValue=(row:RecordData,key:string,fallback=0)=>typeof row[key]==="number"?Number(row[key]):fallback;
 
+export const isClosingConferred = (
+  closing: RecordData,
+  cashConferences?: RecordData[]
+): boolean => {
+  if (closing.status === "Conferido") return true;
+  if (closing.conferredAt || closing.conferredBy) return true;
+  if (cashConferences && cashConferences.some(c => !c.archived && c.closingId === closing.id)) {
+    return true;
+  }
+  if (
+    closing.reviewedBankAmountsJson &&
+    closing.reviewedBankAmountsJson !== "{}" &&
+    closing.reviewedBankAmountsJson !== "null"
+  ) {
+    return true;
+  }
+  if (closing.conferenceNotes) {
+    return true;
+  }
+  return false;
+};
+
 export function isValidPixKey(key: string): boolean {
   const clean = key.trim();
   if (!clean) return false;
@@ -283,18 +305,63 @@ type ClosingCalc={systemTotal:number;confirmedTotal:number;cashExpected:number;c
 const emptyCalc:ClosingCalc={systemTotal:0,confirmedTotal:0,cashExpected:0,cashFound:0,cashDifference:0,creditFound:0,creditDifference:0,debitFound:0,debitDifference:0,pixFound:0,pixDifference:0,difference:0,motoboyDifference:0,invoiceDifference:0};
 
 export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
-  const { data } = useManagement(); const { userProfile }=useAuth();
-  const [closingOpen,setClosingOpen]=useState(false); const [editingClosing,setEditingClosing]=useState<RecordData|null>(null); const [reviewing,setReviewing]=useState<RecordData|null>(null); const [message,setMessage]=useState("");
-  const [confTab,setConfTab]=useState<"queue"|"audit"|"rates">("queue");
-  const [queueFilter,setQueueFilter]=useState<string>("all");
-  useEffect(()=>{if(mode!=="closing")return;const open=()=>{ setEditingClosing(null); setClosingOpen(true); };window.addEventListener("open-cashClosings-form",open);return()=>window.removeEventListener("open-cashClosings-form",open);},[mode]);
-  const today=dateToday(); const closings=data.cashClosings.filter(row=>!row.archived).sort((a,b)=>str(b,"date").localeCompare(str(a,"date")));
-  const visible=mode==="closing"?(userProfile?.role==="operator"?closings.filter(r=>r.unitId===userProfile.unitId):closings):closings.filter(r=>r.status!=="Rascunho");
-  const todayRows=visible.filter(r=>str(r,"date")===today); const difference=todayRows.reduce((sum,row)=>sum+Number(row.difference||0),0); const pending=closings.filter(row=>row.status==="Aguardando conferência"||row.status==="Com divergência");
-  const filteredQueue=visible.filter(row=>{
-    if(queueFilter==="pending")return row.status==="Aguardando conferência";
-    if(queueFilter==="divergent")return row.status==="Com divergência";
-    if(queueFilter==="reviewed")return row.status==="Conferido";
+  const { data } = useManagement(); const { user, userProfile } = useAuth();
+  const [closingOpen, setClosingOpen] = useState(false); const [editingClosing, setEditingClosing] = useState<RecordData|null>(null); const [reviewing, setReviewing] = useState<RecordData|null>(null); const [message, setMessage] = useState("");
+  const [confTab, setConfTab] = useState<"queue"|"audit"|"rates">("queue");
+  const [queueFilter, setQueueFilter] = useState<string>("all");
+
+  useEffect(() => {
+    if (mode !== "closing") return;
+    const open = () => { setEditingClosing(null); setClosingOpen(true); };
+    window.addEventListener("open-cashClosings-form", open);
+    return () => window.removeEventListener("open-cashClosings-form", open);
+  }, [mode]);
+
+  const isConferred = (row: RecordData) => isClosingConferred(row, data.cashConferences);
+
+  const getEffectiveStatus = (row: RecordData) => {
+    if (isConferred(row)) return "Conferido";
+    return str(row, "status") || "Aguardando conferência";
+  };
+
+  // Auto-heal existing conferred closings that were saved with status "Com divergência"
+  useEffect(() => {
+    if (!user) return;
+    const toHeal = data.cashClosings.filter(
+      r => !r.archived && r.status !== "Conferido" && isConferred(r)
+    );
+    if (toHeal.length > 0) {
+      const now = new Date().toISOString();
+      const updates = toHeal.map(r => ({
+        ...r,
+        status: "Conferido",
+        conferredAt: r.conferredAt || now,
+        conferredBy: r.conferredBy || (userProfile?.displayName || user.email || user.uid),
+        updatedAt: now,
+        updatedBy: user.uid
+      }));
+      commitRecords(updates, data, updates[0]).catch(err => {
+        console.warn("[CashWorkspace] Falha ao auto-atualizar status de caixas conferidos:", err);
+      });
+    }
+  }, [data.cashClosings, data.cashConferences, user, userProfile]);
+
+  const today = dateToday();
+  const closings = data.cashClosings.filter(row => !row.archived).sort((a, b) => str(b, "date").localeCompare(str(a, "date")));
+  const visible = mode === "closing"
+    ? (userProfile?.role === "operator" ? closings.filter(r => r.unitId === userProfile.unitId) : closings)
+    : closings.filter(r => r.status !== "Rascunho");
+
+  const todayRows = visible.filter(r => str(r, "date") === today);
+  const difference = todayRows.reduce((sum, row) => sum + Number(row.difference || 0), 0);
+
+  const pending = closings.filter(row => !isConferred(row) && row.status !== "Rascunho");
+  const reviewed = closings.filter(row => isConferred(row));
+
+  const filteredQueue = visible.filter(row => {
+    if (queueFilter === "pending") return !isConferred(row);
+    if (queueFilter === "divergent") return Number(row.difference || 0) !== 0;
+    if (queueFilter === "reviewed") return isConferred(row);
     return true;
   });
 
@@ -303,8 +370,8 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
     <section className="workspace-metrics">
       <Metric icon={Wallet} tone="purple" label="Registros de hoje" value={String(todayRows.length)}/>
       <Metric icon={Calculator} tone={difference===0?"green":"red"} label="Diferença do dia" value={brl(difference)}/>
-      <Metric icon={AlertTriangle} tone={pending.length>0?"red":"blue"} label="Aguardando financeiro" value={String(pending.length)}/>
-      <Metric icon={CheckCircle2} tone="green" label="Conferidos" value={String(closings.filter(r=>r.status==="Conferido").length)}/>
+      <Metric icon={AlertTriangle} tone={pending.length>0?"red":"green"} label="Aguardando financeiro" value={String(pending.length)}/>
+      <Metric icon={CheckCircle2} tone="green" label="Conferidos" value={String(reviewed.length)}/>
     </section>
     {message&&<p className="workspace-message">{message}</p>}
 
@@ -339,13 +406,13 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
                 Todos ({visible.length})
               </button>
               <button className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${queueFilter==="pending"?"bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300":"text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`} onClick={()=>setQueueFilter("pending")}>
-                Pendentes ({visible.filter(r=>r.status==="Aguardando conferência").length})
+                Pendentes ({visible.filter(r=>!isConferred(r)).length})
               </button>
               <button className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${queueFilter==="divergent"?"bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300":"text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`} onClick={()=>setQueueFilter("divergent")}>
-                Divergências ({visible.filter(r=>r.status==="Com divergência").length})
+                Divergências ({visible.filter(r=>Number(r.difference||0)!==0).length})
               </button>
               <button className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${queueFilter==="reviewed"?"bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300":"text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`} onClick={()=>setQueueFilter("reviewed")}>
-                Conferidos ({visible.filter(r=>r.status==="Conferido").length})
+                Conferidos ({visible.filter(r=>isConferred(r)).length})
               </button>
             </div>
           )}
@@ -354,8 +421,10 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
         {filteredQueue.length?filteredQueue.map(row=>{
           const unit=data.units.find(u=>u.id===row.unitId);
           const hasDiff=Number(row.difference||0)!==0;
+          const rowConferred=isConferred(row);
+          const effectiveStatus=getEffectiveStatus(row);
           return <article key={row.id}>
-            <div className="cash-status-icon"><ClipboardCheck size={18}/></div>
+            <div className={`cash-status-icon ${rowConferred ? "ok" : ""}`}><ClipboardCheck size={18}/></div>
             <div>
               <strong>{unit?.name||"Unidade"}</strong>
               <span>{str(row,"date").split("-").reverse().join("/")} · Turno {str(row,"shift")} · {str(row,"operatorName")}</span>
@@ -380,9 +449,27 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
               <small>Diferença total</small>
               <b className={!hasDiff?"ok":"bad"}>{currency(Number(row.difference||0))}</b>
             </div>
-            <span className={`cash-badge ${str(row,"status").toLowerCase().replace(/\s+/g,"-")}`}>{str(row,"status")}</span>
-            {mode==="conference"&&<button className="workspace-primary" onClick={()=>setReviewing(row)}><BadgeCheck size={15}/> {row.status==="Conferido"?"Rever":"Conferir Caixa"}</button>}
-            {mode==="closing"&&row.status!=="Conferido"&&(
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={`cash-badge ${effectiveStatus.toLowerCase().replace(/\s+/g,"-")}`}>
+                {rowConferred ? "Conferido" : effectiveStatus}
+              </span>
+              {rowConferred && hasDiff && (
+                <span className="cash-divergence-pill" title="Divergência registrada e aprovada pelo financeiro">
+                  Dif. {currency(Number(row.difference||0))}
+                </span>
+              )}
+            </div>
+            {mode==="conference"&&(
+              <button
+                className={rowConferred ? "workspace-secondary" : "workspace-primary"}
+                onClick={()=>setReviewing(row)}
+                title={rowConferred ? "Conferência concluída. Clique para rever detalhes." : "Clique para conferir o caixa."}
+              >
+                {rowConferred ? <Check size={14}/> : <BadgeCheck size={15}/>}
+                <span>{rowConferred ? "Rever" : "Conferir Caixa"}</span>
+              </button>
+            )}
+            {mode==="closing"&&!rowConferred&&(
               <button
                 type="button"
                 className="cash-reopen-btn"
@@ -862,7 +949,7 @@ function ClosingModal({
         invoiceDifference: cInvoiceDiff,
         pixRequestsJson: JSON.stringify(requestedPix),
         attachmentsJson: JSON.stringify(uploadedAttachments),
-        status: cTotalDiff === 0 ? "Aguardando conferência" : "Com divergência",
+        status: "Aguardando conferência",
         notes: notes.trim()
       };
 
@@ -2145,7 +2232,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
       try {
         previousNetAmounts = JSON.parse(str(closing, "netBankAmountsJson") || "{}");
       } catch {}
-      const isAlreadyConferred = str(closing, "status") === "Conferido";
+      const isAlreadyConferred = isClosingConferred(closing, data.cashConferences);
 
       // Update bank account balances with NET amounts (or delta if already conferred)
       const updates = bankCalculations.map(calcItem => {
@@ -2233,7 +2320,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         afterBalancesJson: JSON.stringify(afterNetValues),
         checksJson: JSON.stringify(checks),
         difference: totalDiff,
-        status: hasDifference ? "Com divergência" : "Conferido",
+        status: "Conferido",
         reviewedBy: userProfile?.displayName || user.email || user.uid,
         notes: notes.trim() || "Conferência aprovada com conciliação bancária."
       };
@@ -2241,7 +2328,11 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
       const updatedClosing: RecordData = {
         ...closing,
         attachmentsJson: JSON.stringify(attachmentsList),
-        status: hasDifference ? "Com divergência" : "Conferido",
+        status: "Conferido",
+        conferredAt: now,
+        conferredBy: userProfile?.displayName || user.email || user.uid,
+        conferenceId: conference.id,
+        conferenceNotes: notes.trim(),
         systemCash,
         systemCredit,
         systemDebit,
@@ -2267,8 +2358,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         netBankAmountsJson: JSON.stringify(afterNetValues),
         conferredSangriaAmount: sangriaAmount,
         updatedAt: now,
-        updatedBy: user.uid,
-        conferenceNotes: notes.trim()
+        updatedBy: user.uid
       };
 
       const recordsToCommit: RecordData[] = [...updates, conference, updatedClosing];
@@ -2304,6 +2394,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   const activeCredit = bankVals[activeBank.id]?.credit || 0;
   const activeDebit = bankVals[activeBank.id]?.debit || 0;
   const activePix = bankVals[activeBank.id]?.pix || 0;
+  const isAlreadyConferred = isClosingConferred(closing, data.cashConferences);
 
   return (
     <Modal title="Conferência Financeira do Caixa" onClose={onClose} wide>
@@ -2311,7 +2402,14 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         {/* Summary Info */}
         <div className="conference-summary">
           <div>
-            <span>FECHAMENTO DE CAIXA</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span>FECHAMENTO DE CAIXA</span>
+              {isAlreadyConferred && (
+                <span className="conf-conferred-badge">
+                  <CheckCircle2 size={12} /> Conferência Concluída
+                </span>
+              )}
+            </div>
             <strong>{str(closing, "date").split("-").reverse().join("/")} · {str(closing, "shift")}</strong>
             <small>Operador: {str(closing, "operatorName")} · Total Vendas Sistema: {currency(systemTotal)}</small>
           </div>
@@ -2904,7 +3002,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
               setReview(true);
             }}
           >
-            {busy ? "Atualizando bancos…" : review ? "Confirmar e atualizar bancos" : "Revisar e aprovar"}
+            {busy ? "Atualizando bancos…" : review ? (isAlreadyConferred ? "Atualizar e salvar conferência" : "Confirmar e atualizar bancos") : (isAlreadyConferred ? "Rever alterações" : "Revisar e aprovar")}
           </button>
         </footer>
       </div>
