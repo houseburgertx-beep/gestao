@@ -5907,3 +5907,547 @@
   border-radius: 8px;
   background: #ffffff;
 }
+
+/* ==========================================================================
+   EXTRATO MINIMALISTA DE CONTA BANCÁRIA (ENTRADAS, SAÍDAS, QUEM FEZ)
+   ========================================================================== */
+.bank-stmt-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 580px;
+  max-height: 88vh;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  animation: bankFadeIn 0.15s ease-out;
+}
+
+.bank-stmt-header {
+  padding: 16px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bank-stmt-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bank-stmt-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bank-stmt-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+.bank-stmt-unit {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.bank-stmt-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.bank-stmt-balance-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  background: #f8fafc;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.bank-stmt-balance-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+}
+
+.bank-stmt-balance-val {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.bank-stmt-balance-val.is-positive {
+  color: #059669;
+}
+
+.bank-stmt-balance-val.is-negative {
+  color: #dc2626;
+}
+
+.bank-stmt-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.bank-stmt-close-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.bank-stmt-summary-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.bank-stmt-summary-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.bank-stmt-summary-box.inflow {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.bank-stmt-summary-box.outflow {
+  border-color: #fecdd3;
+  background: #fff1f2;
+}
+
+.bank-stmt-summary-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bank-stmt-summary-box.inflow .bank-stmt-summary-icon {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.bank-stmt-summary-box.outflow .bank-stmt-summary-icon {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+.bank-stmt-summary-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.bank-stmt-summary-info span {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.bank-stmt-summary-box.inflow .bank-stmt-summary-info strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #15803d;
+  font-variant-numeric: tabular-nums;
+}
+
+.bank-stmt-summary-box.outflow .bank-stmt-summary-info strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #be123c;
+  font-variant-numeric: tabular-nums;
+}
+
+.bank-stmt-summary-info small {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.bank-stmt-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+}
+
+.bank-stmt-filter-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.bank-stmt-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bank-stmt-tab:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.bank-stmt-tab.active {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.bank-stmt-tab.active.inflow {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+
+.bank-stmt-tab.active.outflow {
+  background: #ffe4e6;
+  color: #be123c;
+  border-color: #fca5a5;
+}
+
+.bank-stmt-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.bank-stmt-search-icon {
+  position: absolute;
+  left: 8px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.bank-stmt-search-box input {
+  padding: 4px 24px 4px 26px;
+  font-size: 11px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  width: 170px;
+  background: #f8fafc;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.bank-stmt-search-box input:focus {
+  background: #ffffff;
+  border-color: #6366f1;
+  width: 200px;
+}
+
+.bank-stmt-search-clear {
+  position: absolute;
+  right: 6px;
+  background: transparent;
+  border: none;
+  font-size: 10px;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.bank-stmt-body {
+  padding: 8px 16px;
+  overflow-y: auto;
+  max-height: 48vh;
+  min-height: 180px;
+}
+
+.bank-stmt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bank-stmt-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #f1f5f9;
+  background: #ffffff;
+  transition: all 0.15s ease;
+}
+
+.bank-stmt-item:hover {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.bank-stmt-type-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bank-stmt-type-icon.inflow {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.bank-stmt-type-icon.outflow {
+  background: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+}
+
+.bank-stmt-type-icon.base {
+  background: #eef2ff;
+  color: #4f46e5;
+  border: 1px solid #c7d2fe;
+}
+
+.bank-stmt-item-center {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.bank-stmt-item-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.bank-stmt-item-title {
+  font-size: 12px;
+  font-weight: 650;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 280px;
+}
+
+.bank-stmt-method-chip {
+  font-size: 9px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.bank-stmt-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  color: #64748b;
+  flex-wrap: wrap;
+}
+
+.bank-stmt-meta-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #475569;
+  font-weight: 500;
+}
+
+.bank-stmt-meta-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #0f172a;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.bank-stmt-meta-details {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.bank-stmt-item-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.bank-stmt-val {
+  font-size: 13px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.bank-stmt-val.inflow {
+  color: #059669;
+}
+
+.bank-stmt-val.outflow {
+  color: #dc2626;
+}
+
+.bank-stmt-val.base {
+  color: #4f46e5;
+}
+
+.bank-stmt-proof-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bank-stmt-proof-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.bank-stmt-empty {
+  padding: 36px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.bank-stmt-empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.bank-stmt-empty h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: #334155;
+}
+
+.bank-stmt-empty p {
+  margin: 0;
+  font-size: 11px;
+  color: #94a3b8;
+  max-width: 320px;
+}
+
+.bank-stmt-footer {
+  padding: 10px 20px;
+  background: #f8fafc;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bank-stmt-footer-hint {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.bank-stmt-footer-close {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bank-stmt-footer-close:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+@media (max-width: 600px) {
+  .bank-stmt-header {
+    flex-wrap: wrap;
+  }
+  .bank-stmt-balance-pill {
+    order: 3;
+    width: 100%;
+    align-items: center;
+    margin-top: 6px;
+  }
+  .bank-stmt-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .bank-stmt-search-box input {
+    width: 100%;
+  }
+  .bank-stmt-item-title {
+    max-width: 170px;
+  }
+}
+

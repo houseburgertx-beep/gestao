@@ -5,6 +5,7 @@ import {
   ArrowRightLeft,
   CalendarDays,
   CreditCard,
+  Eye,
   Landmark,
   LayoutGrid,
   List,
@@ -24,6 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { currency, dateToday, RecordData, str } from "@/domain/management/model";
 import { saveManagement } from "@/services/managementService";
 import "@/components/management/management.css";
+import { BankStatementModal } from "./BankStatementModal";
 
 const safeUUID = () =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -159,6 +161,7 @@ function getUnitShortName(unitName: string) {
 export function BankWorkspace() {
   const { data, tenantId } = useManagement();
   const [editingBank, setEditingBank] = useState<RecordData | false | null>(null);
+  const [viewingStatementAccount, setViewingStatementAccount] = useState<RecordData | null>(null);
   const [quickModal, setQuickModal] = useState<{
     account?: RecordData;
     mode: "add" | "set";
@@ -709,6 +712,14 @@ export function BankWorkspace() {
                     <button
                       type="button"
                       className="bank-quick-btn icon-only"
+                      onClick={() => setViewingStatementAccount(account)}
+                      title="Ver saídas, entradas e quem realizou as movimentações"
+                    >
+                      <Eye size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="bank-quick-btn icon-only"
                       onClick={() => setEditingBank(account)}
                       title="Configurações completas da conta"
                     >
@@ -868,6 +879,14 @@ export function BankWorkspace() {
                           <button
                             type="button"
                             className="bank-quick-btn icon-only"
+                            onClick={() => setViewingStatementAccount(account)}
+                            title="Ver saídas, entradas e quem realizou as movimentações"
+                          >
+                            <Eye size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            className="bank-quick-btn icon-only"
                             onClick={() => setEditingBank(account)}
                             title="Editar configurações da conta"
                           >
@@ -949,6 +968,21 @@ export function BankWorkspace() {
             setQuickModal(null);
             setMessage(msg);
           }}
+        />
+      )}
+
+      {/* Extrato e Movimentações Minimalistas da Conta (Entradas, Saídas, Quem Fez) */}
+      {viewingStatementAccount !== null && (
+        <BankStatementModal
+          account={viewingStatementAccount}
+          accounts={accounts}
+          data={data}
+          currentBalanceValue={currentBalance(
+            viewingStatementAccount,
+            data.transactions,
+            data.bankTransfers || [],
+          )}
+          onClose={() => setViewingStatementAccount(null)}
         />
       )}
 
