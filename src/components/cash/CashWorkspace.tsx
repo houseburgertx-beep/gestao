@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck,
-  Calculator, Check, CheckCircle2, ChevronDown, ChevronUp,
+  Bookmark, Calculator, Check, CheckCircle2, ChevronDown, ChevronUp,
   ClipboardCheck, Coins, CreditCard, Download, Edit3, FileCheck2,
-  FileText, Landmark, Percent, Plus, Receipt, Search, Sliders,
+  FileText, Landmark, Percent, Plus, Receipt, RotateCcw, Search, Sliders,
   Sparkles, Store, Trash2, Upload, Users, Wallet, X
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
@@ -57,10 +57,10 @@ const emptyCalc:ClosingCalc={systemTotal:0,confirmedTotal:0,cashExpected:0,cashF
 
 export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
   const { data } = useManagement(); const { userProfile }=useAuth();
-  const [closingOpen,setClosingOpen]=useState(false); const [reviewing,setReviewing]=useState<RecordData|null>(null); const [message,setMessage]=useState("");
+  const [closingOpen,setClosingOpen]=useState(false); const [editingClosing,setEditingClosing]=useState<RecordData|null>(null); const [reviewing,setReviewing]=useState<RecordData|null>(null); const [message,setMessage]=useState("");
   const [confTab,setConfTab]=useState<"queue"|"audit"|"rates">("queue");
   const [queueFilter,setQueueFilter]=useState<string>("all");
-  useEffect(()=>{if(mode!=="closing")return;const open=()=>setClosingOpen(true);window.addEventListener("open-cashClosings-form",open);return()=>window.removeEventListener("open-cashClosings-form",open);},[mode]);
+  useEffect(()=>{if(mode!=="closing")return;const open=()=>{ setEditingClosing(null); setClosingOpen(true); };window.addEventListener("open-cashClosings-form",open);return()=>window.removeEventListener("open-cashClosings-form",open);},[mode]);
   const today=dateToday(); const closings=data.cashClosings.filter(row=>!row.archived).sort((a,b)=>str(b,"date").localeCompare(str(a,"date")));
   const visible=mode==="closing"?(userProfile?.role==="operator"?closings.filter(r=>r.unitId===userProfile.unitId):closings):closings.filter(r=>r.status!=="Rascunho");
   const todayRows=visible.filter(r=>str(r,"date")===today); const difference=todayRows.reduce((sum,row)=>sum+Number(row.difference||0),0); const pending=closings.filter(row=>row.status==="Aguardando conferência"||row.status==="Com divergência");
@@ -72,7 +72,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
   });
 
   return <div className="workspace-shell cash-workspace">
-    <header className="workspace-header"><div><span className="workspace-eyebrow">FECHAMENTO DE CAIXA HOUSE 190</span><h1>{mode==="closing"?"Fechamento de caixa":"Conferência financeira"}</h1><p>{mode==="closing"?"Entrada total e conciliação objetiva de Dinheiro, Crédito, Débito e PIX.":"Compare os valores apurados, revise divergências, audite motoboys e aprove os saldos líquidos dos bancos."}</p></div>{mode==="closing"&&<button className="workspace-primary" onClick={()=>setClosingOpen(true)}><Plus size={16}/> Novo fechamento</button>}</header>
+    <header className="workspace-header"><div><span className="workspace-eyebrow">FECHAMENTO DE CAIXA HOUSE 190</span><h1>{mode==="closing"?"Fechamento de caixa":"Conferência financeira"}</h1><p>{mode==="closing"?"Entrada total e conciliação objetiva de Dinheiro, Crédito, Débito e PIX.":"Compare os valores apurados, revise divergências, audite motoboys e aprove os saldos líquidos dos bancos."}</p></div>{mode==="closing"&&<button className="workspace-primary" onClick={()=>{ setEditingClosing(null); setClosingOpen(true); }}><Plus size={16}/> Novo fechamento</button>}</header>
     <section className="workspace-metrics">
       <Metric icon={Wallet} tone="purple" label="Registros de hoje" value={String(todayRows.length)}/>
       <Metric icon={Calculator} tone={difference===0?"green":"red"} label="Diferença do dia" value={brl(difference)}/>
@@ -148,58 +148,172 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
             </div>
             <span className={`cash-badge ${str(row,"status").toLowerCase().replace(/\s+/g,"-")}`}>{str(row,"status")}</span>
             {mode==="conference"&&<button className="workspace-primary" onClick={()=>setReviewing(row)}><BadgeCheck size={15}/> {row.status==="Conferido"?"Rever":"Conferir Caixa"}</button>}
+            {mode==="closing"&&row.status!=="Conferido"&&(
+              <button
+                type="button"
+                className="cash-reopen-btn"
+                title="Reabrir este fechamento para corrigir ou ajustar valores antes da conferência do financeiro"
+                onClick={()=>{ setEditingClosing(row); setClosingOpen(true); }}
+              >
+                <RotateCcw size={12}/> Reabrir
+              </button>
+            )}
           </article>;
         }):<div className="people-empty"><FileCheck2 size={30}/><strong>Nenhum fechamento encontrado</strong><span>{mode==="closing"?"Use “Novo fechamento” para iniciar.":"Nenhum caixa encontrado para este filtro."}</span></div>}
       </section>
     )}
 
-    {closingOpen&&<ClosingModal onClose={()=>setClosingOpen(false)} onSaved={()=>{setClosingOpen(false);setMessage("Fechamento enviado ao financeiro para conferência.");}}/>}
+    {closingOpen&&(
+      <ClosingModal
+        initialClosing={editingClosing}
+        onClose={()=>{ setClosingOpen(false); setEditingClosing(null); }}
+        onSaved={()=>{
+          const wasReopen = Boolean(editingClosing);
+          setClosingOpen(false);
+          setEditingClosing(null);
+          setMessage(wasReopen ? "Fechamento atualizado com sucesso e reenviado ao financeiro." : "Fechamento enviado ao financeiro para conferência.");
+        }}
+      />
+    )}
     {reviewing&&<ConferenceModal closing={reviewing} onClose={()=>setReviewing(null)} onSaved={()=>{setReviewing(null);setMessage("Conferência aprovada e saldos bancários atualizados com desconto de taxas.");}}/>}
   </div>;
 }
 
 function Modal({title,onClose,children,wide=false}:{title:string;onClose:()=>void;children:React.ReactNode;wide?:boolean}){return <div className="mg-modal-shade"><div className={`mg-modal ${wide?"cash-modal-wide":""}`} role="dialog" aria-modal="true"><header><h2>{title}</h2><button onClick={onClose}><X size={20}/></button></header>{children}</div></div>}
 
-function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+const DRAFT_KEY = "house190_closing_draft";
+
+function loadDraftData() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+const toMoneyInput = (val: unknown) => (typeof val === "number" && val !== 0 ? String(val / 100) : "");
+
+const parseOutflows = (json: unknown) => {
+  try {
+    if (typeof json === "string" && json.trim()) {
+      const parsed = JSON.parse(json);
+      if (Array.isArray(parsed)) return parsed.map(item => ({
+        id: item.id || safeUUID(),
+        name: String(item.name || ""),
+        amount: typeof item.amount === "number" ? String(item.amount / 100) : String(item.amount || "")
+      }));
+    }
+  } catch {}
+  return [];
+};
+
+const parsePixRequests = (json: unknown) => {
+  try {
+    if (typeof json === "string" && json.trim()) {
+      const parsed = JSON.parse(json);
+      if (Array.isArray(parsed)) return parsed.map(item => ({
+        id: item.id || safeUUID(),
+        name: String(item.name || ""),
+        key: String(item.key || ""),
+        description: String(item.description || ""),
+        amount: typeof item.amount === "number" ? String(item.amount / 100) : String(item.amount || "")
+      }));
+    }
+  } catch {}
+  return [];
+};
+
+function ClosingModal({
+  initialClosing = null,
+  onClose,
+  onSaved
+}: {
+  initialClosing?: RecordData | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const { data, tenantId, allowedUnit } = useManagement();
   const { currentUnit } = useUnit();
   const { user, userProfile } = useAuth();
 
+  const draft = useMemo(() => (!initialClosing ? loadDraftData() : null), [initialClosing]);
+  const [hasDraft, setHasDraft] = useState(() => Boolean(draft));
+  const [draftSavedMsg, setDraftSavedMsg] = useState("");
+
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(1);
   const [unit, setUnit] = useState<string>(() => {
+    if (initialClosing?.unitId) return initialClosing.unitId;
+    if (draft?.unit) return draft.unit;
     if (allowedUnit !== "all") return allowedUnit;
     if (currentUnit !== "all") return currentUnit;
     return data.units[0]?.id || "";
   });
-  const [date, setDate] = useState(dateToday());
-  const [operatorName, setOperatorName] = useState(userProfile?.displayName || "");
-  const [shift, setShift] = useState("Único");
+  const [date, setDate] = useState(() => {
+    if (initialClosing) return str(initialClosing, "date") || dateToday();
+    if (draft?.date) return draft.date;
+    return dateToday();
+  });
+  const [operatorName, setOperatorName] = useState(() => {
+    if (initialClosing) return str(initialClosing, "operatorName") || "";
+    if (draft?.operatorName) return draft.operatorName;
+    return userProfile?.displayName || "";
+  });
+  const [shift, setShift] = useState(() => {
+    if (initialClosing) return str(initialClosing, "shift") || "Único";
+    if (draft?.shift) return draft.shift;
+    return "Único";
+  });
 
   // Step 1: Vendas PDV (strings in R$)
-  const [systemCash, setSystemCash] = useState("");
-  const [systemCredit, setSystemCredit] = useState("");
-  const [systemDebit, setSystemDebit] = useState("");
-  const [systemPix, setSystemPix] = useState("");
-  const [systemServiceFee, setSystemServiceFee] = useState("");
-  const [showOtherChannels, setShowOtherChannels] = useState(false);
-  const [systemIfoodOnline, setSystemIfoodOnline] = useState("");
-  const [systemIfoodVoucher, setSystemIfoodVoucher] = useState("");
-  const [systemTerm, setSystemTerm] = useState("");
-  const [systemClub, setSystemClub] = useState("");
-  const [systemAccrual, setSystemAccrual] = useState("");
+  const [systemCash, setSystemCash] = useState(() => initialClosing ? toMoneyInput(initialClosing.systemCash) : draft?.systemCash || "");
+  const [systemCredit, setSystemCredit] = useState(() => initialClosing ? toMoneyInput(initialClosing.systemCredit) : draft?.systemCredit || "");
+  const [systemDebit, setSystemDebit] = useState(() => initialClosing ? toMoneyInput(initialClosing.systemDebit) : draft?.systemDebit || "");
+  const [systemPix, setSystemPix] = useState(() => initialClosing ? toMoneyInput(initialClosing.systemPix) : draft?.systemPix || "");
+  const [systemServiceFee, setSystemServiceFee] = useState(() => initialClosing ? toMoneyInput(initialClosing.systemServiceFee) : draft?.systemServiceFee || "");
+  const [showOtherChannels, setShowOtherChannels] = useState(() => {
+    if (initialClosing) return Boolean(initialClosing.systemIfoodOnline || initialClosing.systemIfoodVoucher || initialClosing.systemTerm || initialClosing.systemClub || initialClosing.systemAccrual);
+    return Boolean(draft?.showOtherChannels);
+  });
+  const [systemIfoodOnline, setSystemIfoodOnline] = useState(() => initialClosing ? toMoneyInput(initialClosing.systemIfoodOnline) : draft?.systemIfoodOnline || "");
+  const [systemIfoodVoucher, setSystemIfoodVoucher] = useState(() => initialClosing ? toMoneyInput(initialClosing.systemIfoodVoucher) : draft?.systemIfoodVoucher || "");
+  const [systemTerm, setSystemTerm] = useState(() => initialClosing ? toMoneyInput(initialClosing.systemTerm) : draft?.systemTerm || "");
+  const [systemClub, setSystemClub] = useState(() => initialClosing ? toMoneyInput(initialClosing.systemClub) : draft?.systemClub || "");
+  const [systemAccrual, setSystemAccrual] = useState(() => initialClosing ? toMoneyInput(initialClosing.systemAccrual) : draft?.systemAccrual || "");
 
   // Step 2: Dinheiro & Caixa
-  const [openingAmount, setOpeningAmount] = useState("");
-  const [cashIn, setCashIn] = useState("");
-  const [sangriaAmount, setSangriaAmount] = useState("");
-  const [sangriaStatus, setSangriaStatus] = useState("Na loja");
-  const [sangriaRecipient, setSangriaRecipient] = useState("");
-  const [closingFloat, setClosingFloat] = useState("");
-  const [outflows, setOutflows] = useState<Array<{ id: string; name: string; amount: string }>>([]);
+  const [openingAmount, setOpeningAmount] = useState(() => initialClosing ? toMoneyInput(initialClosing.openingAmount) : draft?.openingAmount || "");
+  const [cashIn, setCashIn] = useState(() => initialClosing ? toMoneyInput(initialClosing.cashIn) : draft?.cashIn || "");
+  const [sangriaAmount, setSangriaAmount] = useState(() => initialClosing ? toMoneyInput(initialClosing.sangriaAmount) : draft?.sangriaAmount || "");
+  const [sangriaStatus, setSangriaStatus] = useState(() => initialClosing ? str(initialClosing, "sangriaStatus") || "Na loja" : draft?.sangriaStatus || "Na loja");
+  const [sangriaRecipient, setSangriaRecipient] = useState(() => initialClosing ? str(initialClosing, "sangriaRecipient") || "" : draft?.sangriaRecipient || "");
+  const [closingFloat, setClosingFloat] = useState(() => initialClosing ? toMoneyInput(initialClosing.closingFloat) : draft?.closingFloat || "");
+  const [outflows, setOutflows] = useState<Array<{ id: string; name: string; amount: string }>>(() => {
+    if (initialClosing) return parseOutflows(initialClosing.cashOutflowsJson);
+    if (Array.isArray(draft?.outflows)) return draft.outflows;
+    return [];
+  });
 
   // Step 3: Maquininhas
   const banks = useMemo(() => data.bankAccounts.filter(row => !row.archived && row.unitId === unit), [data.bankAccounts, unit]);
-  const [machines, setMachines] = useState<Record<string, { used: boolean; credit: string; debit: string; pix: string }>>({});
+  const [machines, setMachines] = useState<Record<string, { used: boolean; credit: string; debit: string; pix: string }>>(() => {
+    if (initialClosing) {
+      const saved = parseBankAmounts(initialClosing);
+      const res: Record<string, { used: boolean; credit: string; debit: string; pix: string }> = {};
+      Object.entries(saved).forEach(([bId, v]) => {
+        res[bId] = {
+          used: true,
+          credit: v.credit ? String(v.credit / 100) : "",
+          debit: v.debit ? String(v.debit / 100) : "",
+          pix: v.pix ? String(v.pix / 100) : ""
+        };
+      });
+      return res;
+    }
+    if (draft?.machines && typeof draft.machines === "object") return draft.machines;
+    return {};
+  });
 
   useEffect(() => {
     setMachines(prev => {
@@ -212,17 +326,101 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
   }, [banks]);
 
   // Step 4: Extras & Envio
-  const [pixRequests, setPixRequests] = useState<Array<{ id: string; name: string; key: string; description: string; amount: string }>>([]);
-  const [motoboySystem, setMotoboySystem] = useState("");
-  const [motoboyPaid, setMotoboyPaid] = useState("");
-  const [ifoodAudit, setIfoodAudit] = useState("");
-  const [fiscalMachines, setFiscalMachines] = useState("");
-  const [invoiceIssued, setInvoiceIssued] = useState("");
-  const [notes, setNotes] = useState("");
+  const [pixRequests, setPixRequests] = useState<Array<{ id: string; name: string; key: string; description: string; amount: string }>>(() => {
+    if (initialClosing) return parsePixRequests(initialClosing.pixRequestsJson);
+    if (Array.isArray(draft?.pixRequests)) return draft.pixRequests;
+    return [];
+  });
+  const [motoboySystem, setMotoboySystem] = useState(() => initialClosing ? toMoneyInput(initialClosing.motoboySystem) : draft?.motoboySystem || "");
+  const [motoboyPaid, setMotoboyPaid] = useState(() => initialClosing ? toMoneyInput(initialClosing.motoboyPaid) : draft?.motoboyPaid || "");
+  const [ifoodAudit, setIfoodAudit] = useState(() => initialClosing ? toMoneyInput(initialClosing.ifoodAudit) : draft?.ifoodAudit || "");
+  const [fiscalMachines, setFiscalMachines] = useState(() => initialClosing ? toMoneyInput(initialClosing.fiscalMachines) : draft?.fiscalMachines || "");
+  const [invoiceIssued, setInvoiceIssued] = useState(() => initialClosing ? toMoneyInput(initialClosing.invoiceIssued) : draft?.invoiceIssued || "");
+  const [notes, setNotes] = useState(() => initialClosing ? str(initialClosing, "notes") : draft?.notes || "");
   const [attachments, setAttachments] = useState<File[]>([]);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  const handleDiscardDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {}
+    setHasDraft(false);
+    setSystemCash("");
+    setSystemCredit("");
+    setSystemDebit("");
+    setSystemPix("");
+    setSystemServiceFee("");
+    setShowOtherChannels(false);
+    setSystemIfoodOnline("");
+    setSystemIfoodVoucher("");
+    setSystemTerm("");
+    setSystemClub("");
+    setSystemAccrual("");
+    setOpeningAmount("");
+    setCashIn("");
+    setSangriaAmount("");
+    setSangriaStatus("Na loja");
+    setSangriaRecipient("");
+    setClosingFloat("");
+    setOutflows([]);
+    setMachines({});
+    setPixRequests([]);
+    setMotoboySystem("");
+    setMotoboyPaid("");
+    setIfoodAudit("");
+    setFiscalMachines("");
+    setInvoiceIssued("");
+    setNotes("");
+  };
+
+  const handleSaveDraft = () => {
+    try {
+      const draftObj = {
+        unit, date, shift, operatorName, systemCash, systemCredit, systemDebit, systemPix,
+        systemServiceFee, showOtherChannels, systemIfoodOnline, systemIfoodVoucher, systemTerm, systemClub,
+        systemAccrual, openingAmount, cashIn, sangriaAmount, sangriaStatus, sangriaRecipient, closingFloat,
+        outflows, machines, pixRequests, motoboySystem, motoboyPaid, ifoodAudit, fiscalMachines, invoiceIssued, notes,
+        savedAt: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draftObj));
+      setDraftSavedMsg("Rascunho Salvo!");
+      setHasDraft(true);
+      setTimeout(() => setDraftSavedMsg(""), 3000);
+    } catch {
+      setDraftSavedMsg("Erro ao salvar");
+    }
+  };
+
+  useEffect(() => {
+    if (initialClosing) return;
+    const timer = setTimeout(() => {
+      try {
+        const hasContent = Boolean(
+          systemCash || systemCredit || systemDebit || systemPix || systemServiceFee ||
+          openingAmount || closingFloat || outflows.length || Object.values(machines).some(m => m.used) ||
+          pixRequests.length || motoboySystem || motoboyPaid || ifoodAudit || fiscalMachines || invoiceIssued || notes
+        );
+        if (hasContent) {
+          const draftObj = {
+            unit, date, shift, operatorName, systemCash, systemCredit, systemDebit, systemPix,
+            systemServiceFee, showOtherChannels, systemIfoodOnline, systemIfoodVoucher, systemTerm, systemClub,
+            systemAccrual, openingAmount, cashIn, sangriaAmount, sangriaStatus, sangriaRecipient, closingFloat,
+            outflows, machines, pixRequests, motoboySystem, motoboyPaid, ifoodAudit, fiscalMachines, invoiceIssued, notes,
+            savedAt: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+          };
+          localStorage.setItem(DRAFT_KEY, JSON.stringify(draftObj));
+        }
+      } catch {}
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [
+    initialClosing, unit, date, shift, operatorName, systemCash, systemCredit, systemDebit, systemPix,
+    systemServiceFee, showOtherChannels, systemIfoodOnline, systemIfoodVoucher, systemTerm, systemClub,
+    systemAccrual, openingAmount, cashIn, sangriaAmount, sangriaStatus, sangriaRecipient, closingFloat,
+    outflows, machines, pixRequests, motoboySystem, motoboyPaid, ifoodAudit, fiscalMachines, invoiceIssued, notes
+  ]);
 
   // Cent helpers
   const c = (val: string) => Math.max(0, Math.round(Number(val || 0) * 100));
@@ -311,18 +509,23 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
       }
 
       const now = new Date().toISOString();
-      const closingId = `closing-${date}-${unit}-unico`;
-      const defaultCategory = data.categories.find(cat => !cat.archived && str(cat, "nature") === "Operacional")?.id || data.categories[0]?.id || "";
+      const closingId = initialClosing?.id || `closing-${date}-${unit}-unico`;
+      const defaultCategory =
+        data.categories.find(cat => !cat.archived && str(cat, "nature").toLowerCase() === "operacional")?.id ||
+        data.categories.find(cat => !cat.archived && str(cat, "dreLine") === "Operacionais")?.id ||
+        data.categories.find(cat => !cat.archived)?.id ||
+        "";
 
       const row: RecordData = {
+        ...(initialClosing || {}),
         id: closingId,
         kind: "cashClosings",
         tenantId,
         unitId: unit,
-        version: 0,
-        createdAt: now,
+        version: initialClosing ? Number(initialClosing.version || 0) : 0,
+        createdAt: initialClosing?.createdAt || now,
         updatedAt: now,
-        createdBy: user.uid,
+        createdBy: initialClosing?.createdBy || user.uid,
         updatedBy: user.uid,
         date,
         shift,
@@ -382,7 +585,7 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         createdBy: user.uid,
         updatedBy: user.uid,
         obligationType: "Outros",
-        categoryId: defaultCategory,
+        ...(defaultCategory ? { categoryId: defaultCategory } : {}),
         description: `PIX — ${request.description} (${request.name})`,
         competence: date.slice(0, 7),
         dueDate: date,
@@ -402,6 +605,9 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           await commitRecords([row, ...payables], data, row);
+          try {
+            localStorage.removeItem(DRAFT_KEY);
+          } catch {}
           onSaved();
           return;
         } catch (retryErr) {
@@ -414,9 +620,14 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
       }
       throw lastErr;
     } catch (e) {
+      handleSaveDraft();
       const message = e instanceof Error ? e.message : "Não foi possível salvar o fechamento.";
       console.error("[Fechamento] Erro ao salvar:", e);
-      setError(/quota exceeded|resource exhausted/i.test(message) ? "O Firebase atingiu o limite temporário de uso. Aguarde 1 minuto e tente novamente." : message);
+      if (/quota exceeded|resource exhausted/i.test(message)) {
+        setError("O Firebase atingiu o limite temporário de requisições. Seus dados foram salvos como RASCUNHO no navegador para você não perder nada. Aguarde 1 a 2 minutos e tente enviar novamente.");
+      } else {
+        setError(message);
+      }
     } finally {
       setBusy(false);
     }
@@ -435,13 +646,37 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
         {/* Header */}
         <header className="closing-modal-header">
           <div>
-            <h2>Fechamento de Caixa</h2>
-            <p>Conferência simplificada e intuitiva para o operador de loja.</p>
+            <h2>{initialClosing ? "Reabertura de Fechamento" : "Fechamento de Caixa"}</h2>
+            <p>{initialClosing ? "Ajuste os valores deste turno e reenvie para a conferência financeira." : "Conferência simplificada e intuitiva para o operador de loja."}</p>
           </div>
           <button type="button" className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition" onClick={onClose}>
             <X size={20} />
           </button>
         </header>
+
+        {/* Reopen or Draft Notice Banner */}
+        {initialClosing ? (
+          <div className="mx-6 mt-3 flex items-center justify-between p-2.5 px-3.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs text-indigo-900 dark:text-indigo-200">
+            <div className="flex items-center gap-2">
+              <RotateCcw size={14} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+              <span>Você está reabrindo o fechamento de <b>{str(initialClosing, "date").split("-").reverse().join("/")} ({str(initialClosing, "operatorName")})</b>. Ajuste os valores e clique em salvar no final.</span>
+            </div>
+          </div>
+        ) : hasDraft ? (
+          <div className="mx-6 mt-3 flex items-center justify-between p-2.5 px-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-900 dark:text-amber-200">
+            <div className="flex items-center gap-2">
+              <Bookmark size={14} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <span>Rascunho recuperado automaticamente. Os valores preenchidos anteriormente estão preservados.</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleDiscardDraft}
+              className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline transition ml-3 flex-shrink-0"
+            >
+              Descartar rascunho
+            </button>
+          </div>
+        ) : null}
 
         {/* Identification Meta Bar */}
         <div className="closing-meta-bar">
@@ -1272,7 +1507,17 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           </div>
 
           <div className="flex items-center gap-2">
-            <button type="button" className="mg-button secondary" onClick={onClose}>
+            {!initialClosing && (
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition flex items-center gap-1.5"
+                onClick={handleSaveDraft}
+                title="Salvar rascunho neste navegador para não perder nenhuma informação"
+              >
+                <Bookmark size={13} /> {draftSavedMsg || "Salvar Rascunho"}
+              </button>
+            )}
+            <button type="button" className="mg-button secondary" onClick={onClose} disabled={busy}>
               Cancelar
             </button>
             {activeStep > 1 && (
@@ -1286,7 +1531,7 @@ function ClosingModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
               </button>
             ) : (
               <button type="button" className="mg-button" disabled={busy || !unit} onClick={handleSubmit}>
-                {busy ? "Enviando ao financeiro..." : "Finalizar e Enviar Fechamento"}
+                {busy ? "Enviando ao financeiro..." : initialClosing ? "Salvar e Reenviar Fechamento" : "Finalizar e Enviar Fechamento"}
               </button>
             )}
           </div>
