@@ -314,8 +314,10 @@ export default {
         unauthorized: "A chave de conexão entre o serviço e o Google Apps Script não confere.",
         daily_quota_exceeded: "O limite diário de envio de e-mails do Google foi atingido.",
         request_failed: "O Google Apps Script falhou. Verifique suas execuções e autorizações do Gmail e Google Drive.",
+        invalid_action: "O Google Apps Script em execução ainda não possui a ação de sincronizar planilha (sync_sheets). Atualize o Code.gs no Apps Script.",
       };
-      return jsonResponse({ error: "service_unavailable", message: messages[reason] || "O Google Apps Script está indisponível. O envio não foi concluído." }, 503, origin);
+      const displayMessage = messages[reason] || `O Google Apps Script retornou erro: ${reason}.`;
+      return jsonResponse({ error: "service_unavailable", reason, message: displayMessage }, 503, origin);
     }
   },
 } satisfies ExportedHandler<EmailEnv>;
