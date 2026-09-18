@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck,
+  AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, Bike,
   Bookmark, Calculator, Camera, Check, CheckCircle2, ChevronDown, ChevronUp,
   ClipboardCheck, Coins, CreditCard, Download, Edit3, Eye, FileCheck2,
   FileText, Image as ImageIcon, Landmark, Loader2, Paperclip, Percent, Plus,
-  Receipt, RotateCcw, RotateCw, Search, Sliders, Sparkles, Store, Trash2,
-  Upload, Users, Wallet, X, ZoomIn, ZoomOut
+  Receipt, RotateCcw, RotateCw, Search, Share2, Sliders, Smartphone, Sparkles, Store, Trash2,
+  Upload, Users, Wallet, X, Zap, ZoomIn, ZoomOut
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useUnit } from "@/contexts/UnitContext";
@@ -305,6 +305,41 @@ export function AttachmentLightbox({
 type ClosingCalc={systemTotal:number;confirmedTotal:number;cashExpected:number;cashFound:number;cashDifference:number;creditFound:number;creditDifference:number;debitFound:number;debitDifference:number;pixFound:number;pixDifference:number;difference:number;motoboyDifference:number;invoiceDifference:number};
 const emptyCalc:ClosingCalc={systemTotal:0,confirmedTotal:0,cashExpected:0,cashFound:0,cashDifference:0,creditFound:0,creditDifference:0,debitFound:0,debitDifference:0,pixFound:0,pixDifference:0,difference:0,motoboyDifference:0,invoiceDifference:0};
 
+function generateWhatsAppClosingText(row: RecordData, unitName: string) {
+  const dateFormatted = str(row, "date").split("-").reverse().join("/");
+  const shift = str(row, "shift") || "Único";
+  const op = str(row, "operatorName") || "Operador";
+  const sysTotal = brl(Number(row.systemTotal || 0));
+  const sangria = Number(row.sangriaAmount || 0);
+  const diff = Number(row.difference || 0);
+  const diffText = diff === 0 ? "🟢 100% Batido (R$ 0,00)" : diff > 0 ? `🟡 Sobra de ${brl(diff)}` : `🔴 Falta de ${brl(Math.abs(diff))}`;
+
+  let text = `*📊 FECHAMENTO DE CAIXA — HOUSE BURGER*\n`;
+  text += `📍 *Unidade:* ${unitName}\n`;
+  text += `📅 *Data:* ${dateFormatted} (Turno: ${shift})\n`;
+  text += `👤 *Operador:* ${op}\n\n`;
+  text += `*💰 TOTAL FATURADO:* ${sysTotal}\n`;
+  text += `• Dinheiro PDV: ${brl(Number(row.systemCash || 0))}\n`;
+  text += `• Cartão Crédito: ${brl(Number(row.systemCredit || 0))}\n`;
+  text += `• Cartão Débito: ${brl(Number(row.systemDebit || 0))}\n`;
+  text += `• PIX PDV: ${brl(Number(row.systemPix || 0))}\n`;
+  if (Number(row.systemServiceFee || 0) > 0) {
+    text += `• Taxa de Serviço: ${brl(Number(row.systemServiceFee || 0))}\n`;
+  }
+  text += `\n*💵 GAVETA & SANGRIA:*\n`;
+  text += `• Sangria Retirada: ${brl(sangria)}${str(row, "sangriaRecipient") ? ` (${str(row, "sangriaRecipient")})` : ""}\n`;
+  text += `• Troco Final Gaveta: ${brl(Number(row.closingFloat || 0))}\n`;
+  if (Number(row.cashOutflows || 0) > 0) {
+    text += `• Saídas da Gaveta: ${brl(Number(row.cashOutflows || 0))}\n`;
+  }
+  text += `\n*⚖️ RESULTADO / CONFERÊNCIA:*\n`;
+  text += `• Veredito: ${diffText}\n`;
+  if (str(row, "notes")) {
+    text += `\n📝 *Obs:* ${str(row, "notes")}\n`;
+  }
+  return text;
+}
+
 export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
   const { data } = useManagement(); const { user, userProfile } = useAuth();
   const [closingOpen, setClosingOpen] = useState(false); const [editingClosing, setEditingClosing] = useState<RecordData|null>(null); const [reviewing, setReviewing] = useState<RecordData|null>(null); const [message, setMessage] = useState("");
@@ -463,55 +498,70 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
                 </span>
               )}
             </div>
-            {mode==="conference"&&(
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
-                className={rowConferred ? "workspace-secondary" : "workspace-primary"}
-                onClick={()=>setReviewing(row)}
-                title={rowConferred ? "Conferência concluída. Clique para rever detalhes." : "Clique para conferir o caixa."}
+                type="button"
+                className="cash-whatsapp-btn"
+                title="Compartilhar demonstrativo do fechamento no WhatsApp"
+                onClick={() => {
+                  const uObj = data.units.find(u => u.id === row.unitId);
+                  const unitName = (uObj ? str(uObj, "name") : "") || String(row.unitId || "Unidade");
+                  const text = generateWhatsAppClosingText(row, unitName);
+                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+                }}
               >
-                {rowConferred ? <Check size={14}/> : <BadgeCheck size={15}/>}
-                <span>{rowConferred ? "Rever" : "Conferir Caixa"}</span>
+                <Share2 size={12} /> WhatsApp
               </button>
-            )}
-            {mode==="closing"&&!rowConferred&&(
-              <div className="flex items-center gap-2">
+              {mode==="conference"&&(
                 <button
-                  type="button"
-                  className="cash-reopen-btn"
-                  title="Reabrir este fechamento para corrigir ou ajustar valores antes da conferência do financeiro"
-                  onClick={()=>{ setEditingClosing(row); setClosingOpen(true); }}
+                  className={rowConferred ? "workspace-secondary" : "workspace-primary"}
+                  onClick={()=>setReviewing(row)}
+                  title={rowConferred ? "Conferência concluída. Clique para rever detalhes." : "Clique para conferir o caixa."}
                 >
-                  <RotateCcw size={12}/> Reabrir
+                  {rowConferred ? <Check size={14}/> : <BadgeCheck size={15}/>}
+                  <span>{rowConferred ? "Rever" : "Conferir Caixa"}</span>
                 </button>
-                <button
-                  type="button"
-                  className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition border border-rose-200 dark:border-rose-900 flex items-center gap-1"
-                  title="Excluir este fechamento de caixa caso tenha sido lançado com data errada ou duplicado"
-                  onClick={async () => {
-                    const unitName = data.units.find(u => u.id === row.unitId)?.name || row.unitId;
-                    const formattedDate = str(row, "date").split("-").reverse().join("/");
-                    if (!window.confirm(`Tem certeza que deseja excluir o fechamento de ${formattedDate} (${unitName})? Caso tenha lançado com a data errada, você poderá lançar novamente com a data certa.`)) return;
-                    try {
-                      const rowToDelete = { ...row, updatedBy: user?.uid || row.updatedBy };
-                      await saveManagement(rowToDelete, data, true);
-                      setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
-                    } catch (err) {
-                      console.warn("Falha no soft-delete do fechamento, tentando exclusão direta:", err);
+              )}
+              {mode==="closing"&&!rowConferred&&(
+                <>
+                  <button
+                    type="button"
+                    className="cash-reopen-btn"
+                    title="Reabrir este fechamento para corrigir ou ajustar valores antes da conferência do financeiro"
+                    onClick={()=>{ setEditingClosing(row); setClosingOpen(true); }}
+                  >
+                    <RotateCcw size={12}/> Reabrir
+                  </button>
+                  <button
+                    type="button"
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition border border-rose-200 dark:border-rose-900 flex items-center gap-1"
+                    title="Excluir este fechamento de caixa caso tenha sido lançado com data errada ou duplicado"
+                    onClick={async () => {
+                      const unitName = data.units.find(u => u.id === row.unitId)?.name || row.unitId;
+                      const formattedDate = str(row, "date").split("-").reverse().join("/");
+                      if (!window.confirm(`Tem certeza que deseja excluir o fechamento de ${formattedDate} (${unitName})? Caso tenha lançado com a data errada, você poderá lançar novamente com a data certa.`)) return;
                       try {
-                        const { deleteDoc, doc } = await import("firebase/firestore");
-                        await deleteDoc(doc(db, "gestao_cashClosings", row.id));
+                        const rowToDelete = { ...row, updatedBy: user?.uid || row.updatedBy };
+                        await saveManagement(rowToDelete, data, true);
                         setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
-                      } catch (delErr) {
-                        console.error("Erro ao excluir fechamento:", delErr);
-                        alert("Não foi possível excluir o fechamento: " + (delErr instanceof Error ? delErr.message : String(delErr)));
+                      } catch (err) {
+                        console.warn("Falha no soft-delete do fechamento, tentando exclusão direta:", err);
+                        try {
+                          const { deleteDoc, doc } = await import("firebase/firestore");
+                          await deleteDoc(doc(db, "gestao_cashClosings", row.id));
+                          setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
+                        } catch (delErr) {
+                          console.error("Erro ao excluir fechamento:", delErr);
+                          alert("Não foi possível excluir o fechamento: " + (delErr instanceof Error ? delErr.message : String(delErr)));
+                        }
                       }
-                    }
-                  }}
-                >
-                  <Trash2 size={12}/> Excluir
-                </button>
-              </div>
-            )}
+                    }}
+                  >
+                    <Trash2 size={12}/> Excluir
+                  </button>
+                </>
+              )}
+            </div>
           </article>;
         }):<div className="people-empty"><FileCheck2 size={30}/><strong>Nenhum fechamento encontrado</strong><span>{mode==="closing"?"Use “Novo fechamento” para iniciar.":"Nenhum caixa encontrado para este filtro."}</span></div>}
       </section>
@@ -658,6 +708,7 @@ function ClosingModal({
     if (Array.isArray(draft?.outflows)) return draft.outflows;
     return [];
   });
+  const [showOutflowsAccordion, setShowOutflowsAccordion] = useState(true);
 
   // Step 3: Maquininhas
   const banks = useMemo(() => data.bankAccounts.filter(row => !row.archived && row.unitId === unit), [data.bankAccounts, unit]);
@@ -1130,10 +1181,10 @@ function ClosingModal({
   };
 
   const stepsList = [
-    { id: 1 as const, title: "1. Vendas PDV", icon: Receipt },
-    { id: 2 as const, title: "2. Dinheiro & Gaveta", icon: Coins },
-    { id: 3 as const, title: "3. Maquininhas", icon: CreditCard },
-    { id: 4 as const, title: "4. Auditoria & Envio", icon: Sparkles },
+    { id: 1 as const, title: "1. Fechamento Lado a Lado", icon: Sliders },
+    { id: 2 as const, title: "2. Motoboys & Notas Fiscais", icon: Bike },
+    { id: 3 as const, title: "3. Solicitações de PIX", icon: Zap },
+    { id: 4 as const, title: "4. Comprovantes & Observações", icon: Sparkles },
   ];
 
   return (
@@ -1230,11 +1281,22 @@ function ClosingModal({
 
           <div className="closing-meta-item">
             <span>Turno:</span>
-            <select value={shift} onChange={e => setShift(e.target.value)}>
-              <option value="Único">Turno Único</option>
-              <option value="Almoço">Almoço</option>
-              <option value="Jantar">Jantar</option>
-            </select>
+            <div className="shift-pills-wrap">
+              {[
+                { id: "Único", label: "⭐ Único" },
+                { id: "Almoço", label: "☀️ Almoço" },
+                { id: "Jantar", label: "🌙 Jantar" }
+              ].map(s => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className={`shift-pill-btn ${shift === s.id ? "active" : ""}`}
+                  onClick={() => setShift(s.id)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -1261,703 +1323,709 @@ function ClosingModal({
 
         {/* Step Content */}
         <div className="closing-modal-body">
-          {/* STEP 1: VENDAS DO SISTEMA (PDV) */}
+          {/* STEP 1: FECHAMENTO LADO A LADO (SPLIT-SCREEN + CARDS COLORIDOS) */}
           {activeStep === 1 && (
             <div className="space-y-4">
-              <div className="closing-section-lead">
-                <div>
-                  <h3>Valores do Sistema (PDV)</h3>
-                  <p>Informe o total que apareceu no relatório de vendas do seu sistema.</p>
-                </div>
-                <div className="closing-summary-pill neutral">
-                  Total Vendas: <b>{brl(cSysTotal)}</b>
-                </div>
-              </div>
-
-              <div className="closing-cards-grid-5">
-                <div className="closing-value-card">
-                  <label>Dinheiro no Sistema</label>
-                  <div className="closing-input-wrapper">
-                    <span className="prefix">R$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00"
-                      value={systemCash}
-                      onChange={e => setSystemCash(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="closing-value-card">
-                  <label>Cartão de Crédito</label>
-                  <div className="closing-input-wrapper">
-                    <span className="prefix">R$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00"
-                      value={systemCredit}
-                      onChange={e => setSystemCredit(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="closing-value-card">
-                  <label>Cartão de Débito</label>
-                  <div className="closing-input-wrapper">
-                    <span className="prefix">R$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00"
-                      value={systemDebit}
-                      onChange={e => setSystemDebit(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="closing-value-card">
-                  <label>PIX no Sistema</label>
-                  <div className="closing-input-wrapper">
-                    <span className="prefix">R$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00"
-                      value={systemPix}
-                      onChange={e => setSystemPix(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="closing-value-card">
-                  <label>Taxa de Serviço</label>
-                  <div className="closing-input-wrapper">
-                    <span className="prefix">R$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00"
-                      value={systemServiceFee}
-                      onChange={e => setSystemServiceFee(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Collapsible Other Channels */}
-              <div className="pt-2">
-                <button
-                  type="button"
-                  className="flex items-center gap-2 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition py-1"
-                  onClick={() => setShowOtherChannels(!showOtherChannels)}
-                >
-                  {showOtherChannels ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                  <span>{showOtherChannels ? "Ocultar outros canais de recebimento" : "+ Adicionar outros recebimentos (iFood, Voucher, Faturado...)"}</span>
-                </button>
-
-                {showOtherChannels && (
-                  <div className="closing-cards-grid mt-3 p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                    <div className="closing-value-card">
-                      <label>iFood Online</label>
-                      <div className="closing-input-wrapper">
-                        <span className="prefix">R$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0,00"
-                          value={systemIfoodOnline}
-                          onChange={e => setSystemIfoodOnline(e.target.value)}
-                        />
-                      </div>
+              <div className="closing-split-grid">
+                {/* Coluna 1: O QUE O SISTEMA DIZ (PDV) */}
+                <div className="closing-col-panel">
+                  <div className="closing-col-header">
+                    <div className="closing-col-title">
+                      <Receipt size={16} className="text-indigo-600" />
+                      <span>O QUE O SISTEMA DIZ (PDV)</span>
                     </div>
-
-                    <div className="closing-value-card">
-                      <label>iFood Voucher</label>
-                      <div className="closing-input-wrapper">
-                        <span className="prefix">R$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0,00"
-                          value={systemIfoodVoucher}
-                          onChange={e => setSystemIfoodVoucher(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="closing-value-card">
-                      <label>Faturado / A Prazo</label>
-                      <div className="closing-input-wrapper">
-                        <span className="prefix">R$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0,00"
-                          value={systemTerm}
-                          onChange={e => setSystemTerm(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="closing-value-card">
-                      <label>Resgate Clube</label>
-                      <div className="closing-input-wrapper">
-                        <span className="prefix">R$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0,00"
-                          value={systemClub}
-                          onChange={e => setSystemClub(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="closing-value-card">
-                      <label>Acréscimos / Gorjetas</label>
-                      <div className="closing-input-wrapper">
-                        <span className="prefix">R$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0,00"
-                          value={systemAccrual}
-                          onChange={e => setSystemAccrual(e.target.value)}
-                        />
-                      </div>
+                    <div className="closing-col-total">
+                      Total: <b>{brl(cSysTotal)}</b>
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
-          )}
 
-          {/* STEP 2: DINHEIRO & CAIXA FÍSICO */}
-          {activeStep === 2 && (
-            <div className="space-y-4">
-              <div className="closing-section-lead">
-                <div>
-                  <h3>Contagem do Dinheiro e Gaveta Física</h3>
-                  <p>Troco inicial, suprimentos, saídas em espécie e sangria retirada.</p>
-                </div>
-                <div className={`closing-summary-pill ${cCashDiff === 0 ? "ok" : cCashDiff > 0 ? "warn" : "danger"}`}>
-                  Diferença: <b>{cCashDiff === 0 ? "Caixa conferido" : `${cCashDiff > 0 ? "Sobra" : "Falta"} ${brl(Math.abs(cCashDiff))}`}</b>
-                </div>
-              </div>
-
-              <div className="closing-cards-grid-4">
-                <div className="closing-value-card">
-                  <label>Troco Inicial (Abertura)</label>
-                  <div className="closing-input-wrapper">
-                    <span className="prefix">R$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00"
-                      value={openingAmount}
-                      onChange={e => setOpeningAmount(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="closing-value-card">
-                  <label>Suprimentos (Entradas)</label>
-                  <div className="closing-input-wrapper">
-                    <span className="prefix">R$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00"
-                      value={cashIn}
-                      onChange={e => setCashIn(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="closing-value-card">
-                  <label>Sangria (Retirada)</label>
-                  <div className="closing-input-wrapper">
-                    <span className="prefix">R$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00"
-                      value={sangriaAmount}
-                      onChange={e => setSangriaAmount(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="closing-value-card">
-                  <label>Troco Final na Gaveta</label>
-                  <div className="closing-input-wrapper">
-                    <span className="prefix">R$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0,00"
-                      value={closingFloat}
-                      onChange={e => setClosingFloat(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Sangria Destination if sangria > 0 */}
-              {cSangria > 0 && (
-                <div className="p-3.5 bg-purple-50 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800 flex flex-wrap items-center gap-3 text-xs">
-                  <strong className="text-purple-900 dark:text-purple-300">Destino da sangria ({brl(cSangria)}):</strong>
-                  <select
-                    value={sangriaStatus}
-                    onChange={e => setSangriaStatus(e.target.value)}
-                    className="p-1.5 rounded-lg border border-purple-300 bg-white dark:bg-zinc-900 font-semibold"
-                  >
-                    <option value="Na loja">Está guardado na loja (Cofre)</option>
-                    <option value="Entregue a responsável">Entregue a responsável</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={sangriaRecipient}
-                    onChange={e => setSangriaRecipient(e.target.value)}
-                    placeholder="Para quem foi entregue ou onde está guardado (obrigatório)"
-                    className="flex-1 min-w-[220px] p-1.5 rounded-lg border border-purple-300 bg-white dark:bg-zinc-900 font-semibold text-xs"
-                    required
-                  />
-                </div>
-              )}
-
-              {/* Outflows (Saídas em dinheiro) */}
-              <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <strong className="text-xs text-zinc-700 dark:text-zinc-200 font-bold">Saídas em Dinheiro (Despesas pagas da gaveta)</strong>
-                    <p className="text-[11px] text-zinc-400">Registre pagamentos de motoboy avulso, compras rápidas ou fornecedores pagos em espécie.</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="cash-add text-xs py-1 px-2.5"
-                    onClick={() => setOutflows(rows => [...rows, { id: safeUUID(), name: "", amount: "" }])}
-                  >
-                    + Adicionar saída
-                  </button>
-                </div>
-
-                {outflows.map((row, idx) => (
-                  <div key={row.id} className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Descrição (ex.: Compra emergencial, motoboy)"
-                      value={row.name}
-                      onChange={e => setOutflows(rows => rows.map(r => r.id === row.id ? { ...r, name: e.target.value } : r))}
-                      className="flex-1 p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs"
-                    />
-                    <div className="w-36 relative">
-                      <span className="absolute left-2.5 top-2 text-xs text-zinc-400">R$</span>
+                  {/* Card Verde: Dinheiro */}
+                  <div className="thematic-card thematic-card-green">
+                    <div className="thematic-card-head text-emerald-800 dark:text-emerald-300">
+                      <span><Coins size={14} className="text-emerald-600" /> Dinheiro no Sistema</span>
+                      <span className="font-bold">{brl(cSysCash)}</span>
+                    </div>
+                    <div className="closing-input-wrapper">
+                      <span className="prefix">R$</span>
                       <input
                         type="number"
                         step="0.01"
                         min="0"
                         placeholder="0,00"
-                        value={row.amount}
-                        onChange={e => setOutflows(rows => rows.map(r => r.id === row.id ? { ...r, amount: e.target.value } : r))}
-                        className="w-full pl-8 pr-2 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold"
+                        value={systemCash}
+                        onChange={e => setSystemCash(e.target.value)}
                       />
                     </div>
+                  </div>
+
+                  {/* Card Azul: Cartões */}
+                  <div className="thematic-card thematic-card-blue">
+                    <div className="thematic-card-head text-blue-800 dark:text-blue-300">
+                      <span><CreditCard size={14} className="text-blue-600" /> Cartões no PDV</span>
+                      <span className="font-bold">{brl(cSysCredit + cSysDebit)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Crédito</label>
+                        <div className="closing-input-wrapper">
+                          <span className="prefix">R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0,00"
+                            value={systemCredit}
+                            onChange={e => setSystemCredit(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Débito</label>
+                        <div className="closing-input-wrapper">
+                          <span className="prefix">R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0,00"
+                            value={systemDebit}
+                            onChange={e => setSystemDebit(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Roxo: PIX */}
+                  <div className="thematic-card thematic-card-purple">
+                    <div className="thematic-card-head text-purple-800 dark:text-purple-300">
+                      <span><Smartphone size={14} className="text-purple-600" /> PIX no Sistema</span>
+                      <span className="font-bold">{brl(cSysPix)}</span>
+                    </div>
+                    <div className="closing-input-wrapper">
+                      <span className="prefix">R$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0,00"
+                        value={systemPix}
+                        onChange={e => setSystemPix(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Card Âmbar: Taxa de Serviço */}
+                  <div className="thematic-card thematic-card-amber">
+                    <div className="thematic-card-head text-amber-800 dark:text-amber-300">
+                      <span><Sparkles size={14} className="text-amber-600" /> Taxa de Serviço</span>
+                      <span className="font-bold">{brl(cSysServiceFee)}</span>
+                    </div>
+                    <div className="closing-input-wrapper">
+                      <span className="prefix">R$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0,00"
+                        value={systemServiceFee}
+                        onChange={e => setSystemServiceFee(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Collapsible: Outros canais */}
+                  <div className="modern-collapsible">
                     <button
                       type="button"
-                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition"
-                      onClick={() => setOutflows(rows => rows.filter(r => r.id !== row.id))}
-                      aria-label={`Remover saída ${idx + 1}`}
+                      className="modern-collapsible-trigger"
+                      onClick={() => setShowOtherChannels(!showOtherChannels)}
                     >
-                      <Trash2 size={16} />
+                      <span>Outros canais (iFood, Voucher, Faturado...)</span>
+                      {showOtherChannels ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                     </button>
+                    {showOtherChannels && (
+                      <div className="modern-collapsible-body">
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">iFood Online</label>
+                            <div className="closing-input-wrapper">
+                              <span className="prefix">R$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0,00"
+                                value={systemIfoodOnline}
+                                onChange={e => setSystemIfoodOnline(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">iFood Voucher</label>
+                            <div className="closing-input-wrapper">
+                              <span className="prefix">R$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0,00"
+                                value={systemIfoodVoucher}
+                                onChange={e => setSystemIfoodVoucher(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Faturado / Prazo</label>
+                            <div className="closing-input-wrapper">
+                              <span className="prefix">R$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0,00"
+                                value={systemTerm}
+                                onChange={e => setSystemTerm(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Resgate Clube</label>
+                            <div className="closing-input-wrapper">
+                              <span className="prefix">R$</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0,00"
+                                value={systemClub}
+                                onChange={e => setSystemClub(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Acréscimos / Gorjetas</label>
+                          <div className="closing-input-wrapper">
+                            <span className="prefix">R$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0,00"
+                              value={systemAccrual}
+                              onChange={e => setSystemAccrual(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ))}
-
-                <div className="flex items-center justify-between text-xs pt-2 border-t border-zinc-200 dark:border-zinc-800 font-semibold">
-                  <span>Total de saídas registradas:</span>
-                  <b className="text-zinc-900 dark:text-zinc-100">{brl(cOutflows)}</b>
                 </div>
-              </div>
 
-              {/* Real-time cash feedback card */}
-              <div className={`closing-feedback-card ${cCashDiff === 0 ? "ok" : "diff"}`}>
-                <div className="space-y-1">
-                  <div>Esperado: <b>{brl(cCashExpected)}</b> <small className="text-[11px] opacity-75">(Troco inicial + Dinheiro PDV + Suprimentos − Saídas)</small></div>
-                  <div>Contado: <b>{brl(cCashFound)}</b> <small className="text-[11px] opacity-75">(Sangria {brl(cSangria)} + Troco Gaveta {brl(cClosingFloat)})</small></div>
+                {/* Coluna 2: O QUE VOCÊ TEM NO BALCÃO (Apuração Real) */}
+                <div className="closing-col-panel">
+                  <div className="closing-col-header">
+                    <div className="closing-col-title">
+                      <Store size={16} className="text-purple-600" />
+                      <span>O QUE VOCÊ TEM NO BALCÃO</span>
+                    </div>
+                    <div className="closing-col-total">
+                      Total: <b>{brl(cTotalConfirmed)}</b>
+                    </div>
+                  </div>
+
+                  {/* Dinheiro & Gaveta */}
+                  <div className="p-3 bg-white dark:bg-zinc-800/80 rounded-xl border border-zinc-200 dark:border-zinc-700/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                        <Coins size={14} className="text-emerald-600" /> Dinheiro Físico & Gaveta
+                      </span>
+                      <Difference value={cCashDiff} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Troco Inicial</label>
+                        <div className="closing-input-wrapper">
+                          <span className="prefix">R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0,00"
+                            value={openingAmount}
+                            onChange={e => setOpeningAmount(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Suprimentos</label>
+                        <div className="closing-input-wrapper">
+                          <span className="prefix">R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0,00"
+                            value={cashIn}
+                            onChange={e => setCashIn(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sangria Hero Box */}
+                    <div className="sangria-hero-box">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-black text-purple-900 dark:text-purple-200">
+                          💰 Sangria (Retirada da Gaveta)
+                        </label>
+                        <span className="text-xs font-extrabold text-purple-800 dark:text-purple-300">
+                          {brl(cSangria)}
+                        </span>
+                      </div>
+                      <div className="closing-input-wrapper">
+                        <span className="prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={sangriaAmount}
+                          onChange={e => setSangriaAmount(e.target.value)}
+                        />
+                      </div>
+                      {cSangria > 0 && (
+                        <div className="space-y-2 pt-1">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <select
+                              value={sangriaStatus}
+                              onChange={e => setSangriaStatus(e.target.value)}
+                              className="p-1.5 rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-zinc-900 font-semibold text-xs text-purple-950 dark:text-purple-200"
+                            >
+                              <option value="Na loja">Guardado no cofre da loja</option>
+                              <option value="Entregue a responsável">Entregue a responsável</option>
+                            </select>
+                            <input
+                              type="text"
+                              value={sangriaRecipient}
+                              onChange={e => setSangriaRecipient(e.target.value)}
+                              placeholder="Para quem / Onde guardado *"
+                              className="p-1.5 rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-zinc-900 font-medium text-xs"
+                              required
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Troco Final que Ficou na Gaveta</label>
+                      <div className="closing-input-wrapper">
+                        <span className="prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={closingFloat}
+                          onChange={e => setClosingFloat(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Saídas em Dinheiro (Gaveta) Retrátil */}
+                    <div className="modern-collapsible">
+                      <button
+                        type="button"
+                        className="modern-collapsible-trigger"
+                        onClick={() => setShowOutflowsAccordion(!showOutflowsAccordion)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>🧾 Saídas da Gaveta ({outflows.length})</span>
+                          <span className="font-bold text-zinc-900 dark:text-zinc-100">{brl(cOutflows)}</span>
+                        </div>
+                        {showOutflowsAccordion ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                      </button>
+                      {showOutflowsAccordion && (
+                        <div className="modern-collapsible-body">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] text-zinc-400">Despesas pagas em espécie</span>
+                            <button
+                              type="button"
+                              className="cash-add text-xs py-1 px-2.5"
+                              onClick={() => setOutflows(rows => [...rows, { id: safeUUID(), name: "", amount: "" }])}
+                            >
+                              + Adicionar saída
+                            </button>
+                          </div>
+                          {outflows.length > 0 ? (
+                            outflows.map((row, idx) => (
+                              <div key={row.id} className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  placeholder="Descrição (ex.: Compra emergencial)"
+                                  value={row.name}
+                                  onChange={e => setOutflows(rows => rows.map(r => r.id === row.id ? { ...r, name: e.target.value } : r))}
+                                  className="flex-1 p-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs"
+                                />
+                                <div className="w-28 relative">
+                                  <span className="absolute left-2 top-1.5 text-xs text-zinc-400">R$</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    placeholder="0,00"
+                                    value={row.amount}
+                                    onChange={e => setOutflows(rows => rows.map(r => r.id === row.id ? { ...r, amount: e.target.value } : r))}
+                                    className="w-full pl-7 pr-2 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition"
+                                  onClick={() => setOutflows(rows => rows.filter(r => r.id !== row.id))}
+                                  aria-label={`Remover saída ${idx + 1}`}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-[11px] text-zinc-400 italic">Nenhuma saída de dinheiro registrada nesta gaveta.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Maquininhas de Cartão & PIX */}
+                  <div className="p-3 bg-white dark:bg-zinc-800/80 rounded-xl border border-zinc-200 dark:border-zinc-700/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                        <CreditCard size={14} className="text-blue-600" /> Maquininhas de Cartão & PIX
+                      </span>
+                      <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                        Total: {brl(cCreditFound + cDebitFound + cPixFound)}
+                      </span>
+                    </div>
+
+                    {banks.length ? (
+                      <div className="space-y-2.5">
+                        {banks.map(bank => {
+                          const m = machines[bank.id] || { used: false, credit: "", debit: "", pix: "" };
+                          const machineTotal = c(m.credit) + c(m.debit) + c(m.pix);
+                          return (
+                            <div key={bank.id} className={`closing-machine-card ${m.used ? "active" : ""}`}>
+                              <div className="closing-machine-header">
+                                <label className="flex items-center gap-2 cursor-pointer font-bold text-xs text-zinc-800 dark:text-zinc-100">
+                                  <input
+                                    type="checkbox"
+                                    checked={m.used}
+                                    onChange={e => setMachines(prev => ({
+                                      ...prev,
+                                      [bank.id]: { ...m, used: e.target.checked }
+                                    }))}
+                                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                                  />
+                                  <Landmark size={15} className="text-indigo-600" />
+                                  <span>{str(bank, "name")}</span>
+                                </label>
+                                {m.used && (
+                                  <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                                    {brl(machineTotal)}
+                                  </span>
+                                )}
+                              </div>
+                              {m.used && (
+                                <div className="grid grid-cols-3 gap-2 pt-1">
+                                  <div>
+                                    <label className="text-[9px] font-semibold text-zinc-500 uppercase block mb-1">Crédito</label>
+                                    <div className="closing-input-wrapper">
+                                      <span className="prefix">R$</span>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        placeholder="0,00"
+                                        value={m.credit}
+                                        onChange={e => setMachines(prev => ({
+                                          ...prev,
+                                          [bank.id]: { ...m, credit: e.target.value }
+                                        }))}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="text-[9px] font-semibold text-zinc-500 uppercase block mb-1">Débito</label>
+                                    <div className="closing-input-wrapper">
+                                      <span className="prefix">R$</span>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        placeholder="0,00"
+                                        value={m.debit}
+                                        onChange={e => setMachines(prev => ({
+                                          ...prev,
+                                          [bank.id]: { ...m, debit: e.target.value }
+                                        }))}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="text-[9px] font-semibold text-zinc-500 uppercase block mb-1">PIX</label>
+                                    <div className="closing-input-wrapper">
+                                      <span className="prefix">R$</span>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        placeholder="0,00"
+                                        value={m.pix}
+                                        onChange={e => setMachines(prev => ({
+                                          ...prev,
+                                          [bank.id]: { ...m, pix: e.target.value }
+                                        }))}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-zinc-400 italic">Nenhuma máquina cadastrada para esta unidade.</p>
+                    )}
+                  </div>
                 </div>
-                <Difference value={cCashDiff} />
               </div>
             </div>
           )}
 
-          {/* STEP 3: MAQUININHAS & BANCOS */}
+          {/* STEP 2: MOTOBOYS & NOTAS FISCAIS */}
+          {activeStep === 2 && (
+            <div className="space-y-4">
+              <div className="closing-section-lead">
+                <div>
+                  <h3>Auditoria de Motoboys e Notas Fiscais</h3>
+                  <p>Confronte o custo de motoboy do turno e as notas fiscais emitidas.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Auditoria de Motoboys */}
+                <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <strong className="text-xs text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
+                      <Bike size={16} className="text-indigo-600" /> Auditoria de Motoboys
+                    </strong>
+                    <Difference value={cMotoboyDiff} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-500 block mb-1">Sistema (Registrado)</label>
+                      <div className="closing-input-wrapper">
+                        <span className="prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={motoboySystem}
+                          onChange={e => setMotoboySystem(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-500 block mb-1">Total Efetivamente Pago</label>
+                      <div className="closing-input-wrapper">
+                        <span className="prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={motoboyPaid}
+                          onChange={e => setMotoboyPaid(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 pt-1 border-t border-zinc-200 dark:border-zinc-800">
+                    Diferença de entregas: <b>{brl(cMotoboyDiff)}</b>
+                  </div>
+                </div>
+
+                {/* Auditoria Fiscal */}
+                <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <strong className="text-xs text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
+                      <Receipt size={16} className="text-purple-600" /> Auditoria Fiscal (Notas)
+                    </strong>
+                    <Difference value={cInvoiceDiff} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[10px] font-semibold text-zinc-500 block mb-1">iFood</label>
+                      <div className="closing-input-wrapper">
+                        <span className="prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={ifoodAudit}
+                          onChange={e => setIfoodAudit(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-zinc-500 block mb-1">Máquinas</label>
+                      <div className="closing-input-wrapper">
+                        <span className="prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={fiscalMachines}
+                          onChange={e => setFiscalMachines(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-zinc-500 block mb-1">Emitidas</label>
+                      <div className="closing-input-wrapper">
+                        <span className="prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0,00"
+                          value={invoiceIssued}
+                          onChange={e => setInvoiceIssued(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 pt-1 border-t border-zinc-200 dark:border-zinc-800">
+                    Diferença Fiscal (Base − Emitidas): <b>{brl(cInvoiceDiff)}</b>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: SOLICITAÇÕES DE PIX (CONTAS A PAGAR) */}
           {activeStep === 3 && (
             <div className="space-y-4">
               <div className="closing-section-lead">
                 <div>
-                  <h3>Conferência de Maquininhas de Cartão & Bancos</h3>
-                  <p>Marque as máquinas utilizadas e digite o fechamento / comprovante de cada uma.</p>
+                  <h3>Solicitações de PIX (Contas a Pagar do Fechamento)</h3>
+                  <p>Valores que precisam ser pagos urgentemente via PIX pela gerência ou financeiro.</p>
                 </div>
-                <div className="closing-summary-pill neutral">
-                  Total Maquininhas: <b>{brl(cCreditFound + cDebitFound + cPixFound)}</b>
-                </div>
+                <button
+                  type="button"
+                  className="cash-add text-xs py-1.5 px-3"
+                  onClick={() => setPixRequests(rows => [...rows, { id: safeUUID(), name: "", key: "", description: "", amount: "" }])}
+                >
+                  + Adicionar solicitação de PIX
+                </button>
               </div>
 
-              {/* Side-by-side comparison with step 1 PDV */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-                  <div>
-                    <span className="text-[11px] text-zinc-500 font-semibold block">Crédito</span>
-                    <small className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                      {brl(cCreditFound)} <span className="font-normal text-zinc-400">/ PDV {brl(cSysCredit)}</span>
-                    </small>
-                  </div>
-                  <Difference value={cCreditDiff} />
-                </div>
-
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-                  <div>
-                    <span className="text-[11px] text-zinc-500 font-semibold block">Débito</span>
-                    <small className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                      {brl(cDebitFound)} <span className="font-normal text-zinc-400">/ PDV {brl(cSysDebit)}</span>
-                    </small>
-                  </div>
-                  <Difference value={cDebitDiff} />
-                </div>
-
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-                  <div>
-                    <span className="text-[11px] text-zinc-500 font-semibold block">PIX</span>
-                    <small className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
-                      {brl(cPixFound)} <span className="font-normal text-zinc-400">/ PDV {brl(cSysPix)}</span>
-                    </small>
-                  </div>
-                  <Difference value={cPixDiff} />
-                </div>
-              </div>
-
-              {/* Bank Machines List */}
-              {banks.length ? (
-                <div className="space-y-3">
-                  {banks.map(bank => {
-                    const m = machines[bank.id] || { used: false, credit: "", debit: "", pix: "" };
-                    const machineTotal = c(m.credit) + c(m.debit) + c(m.pix);
+              {pixRequests.length > 0 ? (
+                <div className="space-y-2.5">
+                  {pixRequests.map((item, idx) => {
+                    const keyValid = !item.key.trim() || isValidPixKey(item.key);
                     return (
-                      <div key={bank.id} className={`closing-machine-card ${m.used ? "active" : ""}`}>
-                        <div className="closing-machine-header">
-                          <label className="flex items-center gap-2.5 cursor-pointer font-bold text-sm text-zinc-800 dark:text-zinc-100">
-                            <input
-                              type="checkbox"
-                              checked={m.used}
-                              onChange={e => setMachines(prev => ({
-                                ...prev,
-                                [bank.id]: { ...m, used: e.target.checked }
-                              }))}
-                              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <Landmark size={17} className="text-indigo-600" />
-                            <span>{str(bank, "name")}</span>
-                            <small className="text-xs font-normal text-zinc-400">({str(bank, "bank") || "Conta"})</small>
-                          </label>
-
-                          {m.used && (
-                            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
-                              Subtotal: {brl(machineTotal)}
-                            </span>
-                          )}
+                      <div key={item.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 items-center p-3 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
+                        <div>
+                          <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Favorecido (Nome)</label>
+                          <input
+                            type="text"
+                            placeholder="Ex.: Fornecedor Verduras"
+                            value={item.name}
+                            onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, name: e.target.value } : r))}
+                            className="w-full p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs"
+                          />
                         </div>
-
-                        {m.used ? (
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                            <div className="closing-value-card">
-                              <label>Crédito nesta máquina</label>
-                              <div className="closing-input-wrapper">
-                                <span className="prefix">R$</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  placeholder="0,00"
-                                  value={m.credit}
-                                  onChange={e => setMachines(prev => ({
-                                    ...prev,
-                                    [bank.id]: { ...m, credit: e.target.value }
-                                  }))}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="closing-value-card">
-                              <label>Débito nesta máquina</label>
-                              <div className="closing-input-wrapper">
-                                <span className="prefix">R$</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  placeholder="0,00"
-                                  value={m.debit}
-                                  onChange={e => setMachines(prev => ({
-                                    ...prev,
-                                    [bank.id]: { ...m, debit: e.target.value }
-                                  }))}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="closing-value-card">
-                              <label>PIX nesta máquina</label>
-                              <div className="closing-input-wrapper">
-                                <span className="prefix">R$</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  placeholder="0,00"
-                                  value={m.pix}
-                                  onChange={e => setMachines(prev => ({
-                                    ...prev,
-                                    [bank.id]: { ...m, pix: e.target.value }
-                                  }))}
-                                />
-                              </div>
-                            </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Chave PIX</label>
+                          <input
+                            type="text"
+                            placeholder="CPF, CNPJ, e-mail, telefone..."
+                            value={item.key}
+                            onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, key: e.target.value } : r))}
+                            className={`w-full p-2 rounded-lg border text-xs ${!keyValid ? "border-rose-500 bg-rose-50 dark:bg-rose-950/30" : "border-zinc-300 dark:border-zinc-700"}`}
+                          />
+                          {!keyValid && <span className="text-[10px] text-rose-500 block mt-0.5">Formato inválido</span>}
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Motivo / Descrição</label>
+                          <input
+                            type="text"
+                            placeholder="Ex.: Gás de cozinha emergencial"
+                            value={item.description}
+                            onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, description: e.target.value } : r))}
+                            className="w-full p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Valor (R$)</label>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0,00"
+                              value={item.amount}
+                              onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, amount: e.target.value } : r))}
+                              className="flex-1 p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
+                            />
+                            <button
+                              type="button"
+                              className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition"
+                              onClick={() => setPixRequests(rows => rows.filter(r => r.id !== item.id))}
+                              aria-label={`Remover solicitação PIX ${idx + 1}`}
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
-                        ) : (
-                          <p className="text-xs text-zinc-400 pl-6">Máquina não utilizada neste turno. Marque para informar comprovantes.</p>
-                        )}
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <div className="people-empty py-6">
-                  <Landmark size={24} />
-                  <strong>Nenhuma máquina cadastrada para esta unidade.</strong>
-                  <span>Selecione a loja correspondente na barra superior.</span>
+                <div className="people-empty py-8 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">
+                  <Zap size={28} className="text-zinc-400" />
+                  <strong>Nenhuma solicitação de PIX lançada neste turno</strong>
+                  <span>Se precisou realizar pagamentos emergenciais via PIX, clique no botão acima para lançar a conta a pagar.</span>
                 </div>
               )}
             </div>
           )}
 
-          {/* STEP 4: AUDITORIA, EXTRAS & ENVIO */}
+          {/* STEP 4: COMPROVANTES & OBSERVAÇÕES */}
           {activeStep === 4 && (
             <div className="space-y-4">
               <div className="closing-section-lead">
                 <div>
-                  <h3>Auditoria, Comprovantes & Resumo do Fechamento</h3>
-                  <p>Confirme os valores apurados e envie para a conferência financeira.</p>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {cSysServiceFee > 0 && (
-                    <div className="closing-summary-pill ok">
-                      Taxa de Serviço: <b>{brl(cSysServiceFee)}</b>
-                    </div>
-                  )}
-                  <div className={`closing-summary-pill ${cTotalDiff === 0 ? "ok" : "danger"}`}>
-                    Divergência Geral: <b>{cTotalDiff === 0 ? "Caixa Quadrado" : brl(cTotalDiff)}</b>
-                  </div>
+                  <h3>Comprovantes, Fotos & Observações</h3>
+                  <p>Anexe fotos dos fechamentos das maquininhas e deixe observações importantes sobre o turno.</p>
                 </div>
               </div>
 
-              {/* 4 Pillars Summary Cards */}
-              <div className="closing-cards-grid-4">
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1">
-                  <span className="text-[11px] text-zinc-500 font-semibold block">Dinheiro Físico</span>
-                  <div className="text-xs">Esp.: <b>{brl(cCashExpected)}</b></div>
-                  <div className="text-xs">Cont.: <b>{brl(cCashFound)}</b></div>
-                  <Difference value={cCashDiff} />
-                </div>
-
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1">
-                  <span className="text-[11px] text-zinc-500 font-semibold block">Cartão Crédito</span>
-                  <div className="text-xs">PDV: <b>{brl(cSysCredit)}</b></div>
-                  <div className="text-xs">Máq.: <b>{brl(cCreditFound)}</b></div>
-                  <Difference value={cCreditDiff} />
-                </div>
-
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1">
-                  <span className="text-[11px] text-zinc-500 font-semibold block">Cartão Débito</span>
-                  <div className="text-xs">PDV: <b>{brl(cSysDebit)}</b></div>
-                  <div className="text-xs">Máq.: <b>{brl(cDebitFound)}</b></div>
-                  <Difference value={cDebitDiff} />
-                </div>
-
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1">
-                  <span className="text-[11px] text-zinc-500 font-semibold block">PIX no Turno</span>
-                  <div className="text-xs">PDV: <b>{brl(cSysPix)}</b></div>
-                  <div className="text-xs">Máq.: <b>{brl(cPixFound)}</b></div>
-                  <Difference value={cPixDiff} />
-                </div>
-              </div>
-
-              {/* PIX Requests (Emergency payables) */}
-              <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <strong className="text-xs text-zinc-700 dark:text-zinc-200 font-bold">Solicitações de PIX (Contas a Pagar)</strong>
-                    <p className="text-[11px] text-zinc-400">Solicitações de pagamento para aprovação do financeiro.</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="cash-add text-xs py-1 px-2.5"
-                    onClick={() => setPixRequests(rows => [...rows, { id: safeUUID(), name: "", key: "", description: "", amount: "" }])}
-                  >
-                    + Adicionar PIX
-                  </button>
-                </div>
-
-                {pixRequests.map((item, idx) => {
-                  const keyValid = !item.key.trim() || isValidPixKey(item.key);
-                  return (
-                    <div key={item.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-center p-2.5 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                      <input
-                        type="text"
-                        placeholder="Favorecido (nome)"
-                        value={item.name}
-                        onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, name: e.target.value } : r))}
-                        className="p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs"
-                      />
-                      <div>
-                        <input
-                          type="text"
-                          placeholder="Chave PIX"
-                          value={item.key}
-                          onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, key: e.target.value } : r))}
-                          className={`w-full p-1.5 rounded border text-xs ${!keyValid ? "border-rose-500 bg-rose-50" : "border-zinc-300 dark:border-zinc-700"}`}
-                        />
-                        {!keyValid && <span className="text-[10px] text-rose-500 block">Formato inválido</span>}
-                      </div>
-                      <input
-                        type="text"
-                        placeholder="Motivo / Descrição"
-                        value={item.description}
-                        onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, description: e.target.value } : r))}
-                        className="p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs"
-                      />
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="R$ 0,00"
-                          value={item.amount}
-                          onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, amount: e.target.value } : r))}
-                          className="flex-1 p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
-                        />
-                        <button
-                          type="button"
-                          className="p-1 text-rose-500 hover:bg-rose-50 rounded"
-                          onClick={() => setPixRequests(rows => rows.filter(r => r.id !== item.id))}
-                          aria-label={`Remover solicitação PIX ${idx + 1}`}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Optional Audits (Motoboy & Fiscal) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2">
-                  <strong className="text-xs text-zinc-700 dark:text-zinc-300">Auditoria de Motoboys</strong>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="text-[11px] text-zinc-500">
-                      Sistema
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={motoboySystem}
-                        onChange={e => setMotoboySystem(e.target.value)}
-                        className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
-                      />
-                    </label>
-                    <label className="text-[11px] text-zinc-500">
-                      Pago
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={motoboyPaid}
-                        onChange={e => setMotoboyPaid(e.target.value)}
-                        className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
-                      />
-                    </label>
-                  </div>
-                  <div className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
-                    Diferença Motoboy: <b>{brl(cMotoboyDiff)}</b>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2">
-                  <strong className="text-xs text-zinc-700 dark:text-zinc-300">Auditoria Fiscal (Notas)</strong>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <label className="text-[11px] text-zinc-500">
-                      iFood
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={ifoodAudit}
-                        onChange={e => setIfoodAudit(e.target.value)}
-                        className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
-                      />
-                    </label>
-                    <label className="text-[11px] text-zinc-500">
-                      Máquinas
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={fiscalMachines}
-                        onChange={e => setFiscalMachines(e.target.value)}
-                        className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
-                      />
-                    </label>
-                    <label className="text-[11px] text-zinc-500">
-                      Emitidas
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={invoiceIssued}
-                        onChange={e => setInvoiceIssued(e.target.value)}
-                        className="w-full p-1.5 rounded border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
-                      />
-                    </label>
-                  </div>
-                  <div className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
-                    Diferença Fiscal: <b>{brl(cInvoiceDiff)}</b>
-                  </div>
-                </div>
-              </div>
-
-              {/* Attachments & Observations */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Comprovantes */}
+                <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">
-                      Comprovantes / Fotos ({existingAttachments.length + newFiles.length}/5)
+                    <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+                      <Camera size={15} className="text-purple-600" /> Comprovantes / Fotos ({existingAttachments.length + newFiles.length}/5)
                     </label>
                     {compressingFiles && (
                       <span className="text-[11px] text-purple-600 flex items-center gap-1 font-semibold">
@@ -1967,46 +2035,50 @@ function ClosingModal({
                   </div>
 
                   {(existingAttachments.length > 0 || newFiles.length > 0) && (
-                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                       {existingAttachments.map(att => (
-                        <div key={att.fileId} className="flex items-center justify-between gap-2 p-1.5 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs">
-                          <div className="flex items-center gap-2 truncate min-w-0">
+                        <div key={att.fileId} className="flex items-center justify-between gap-2 p-2 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs">
+                          <div className="flex items-center gap-2.5 truncate min-w-0">
                             {att.dataUrl ? (
-                              <img src={att.dataUrl} alt="" className="w-7 h-7 object-cover rounded shrink-0 border border-zinc-200" />
+                              <img src={att.dataUrl} alt="" className="w-8 h-8 object-cover rounded-lg shrink-0 border border-zinc-200" />
                             ) : (
-                              <FileText size={15} className="text-purple-600 shrink-0" />
+                              <FileText size={18} className="text-purple-600 shrink-0" />
                             )}
-                            <span className="truncate font-medium">{att.fileName}</span>
-                            <span className="text-[10px] text-zinc-400 shrink-0">({formatFileSize(att.size)})</span>
+                            <div className="truncate min-w-0">
+                              <p className="truncate font-semibold">{att.fileName}</p>
+                              <span className="text-[10px] text-zinc-400 block">{formatFileSize(att.size)}</span>
+                            </div>
                           </div>
                           <button
                             type="button"
-                            className="text-zinc-400 hover:text-red-500 p-1 shrink-0 transition"
+                            className="text-zinc-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 shrink-0 transition"
                             title="Remover anexo"
                             onClick={() => setExistingAttachments(prev => prev.filter(a => a.fileId !== att.fileId))}
                           >
-                            <Trash2 size={13} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       ))}
                       {newFiles.map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between gap-2 p-1.5 bg-purple-50/70 dark:bg-purple-950/40 rounded-lg border border-purple-200 dark:border-purple-800 text-xs">
-                          <div className="flex items-center gap-2 truncate min-w-0">
+                        <div key={idx} className="flex items-center justify-between gap-2 p-2 bg-purple-50/70 dark:bg-purple-950/40 rounded-xl border border-purple-200 dark:border-purple-800 text-xs">
+                          <div className="flex items-center gap-2.5 truncate min-w-0">
                             {item.previewUrl ? (
-                              <img src={item.previewUrl} alt="" className="w-7 h-7 object-cover rounded shrink-0 border border-purple-200" />
+                              <img src={item.previewUrl} alt="" className="w-8 h-8 object-cover rounded-lg shrink-0 border border-purple-200" />
                             ) : (
-                              <FileText size={15} className="text-purple-600 shrink-0" />
+                              <FileText size={18} className="text-purple-600 shrink-0" />
                             )}
-                            <span className="truncate font-medium">{item.file.name}</span>
-                            <span className="text-[10px] text-zinc-400 shrink-0">({formatFileSize(item.size)})</span>
+                            <div className="truncate min-w-0">
+                              <p className="truncate font-semibold">{item.file.name}</p>
+                              <span className="text-[10px] text-zinc-400 block">{formatFileSize(item.size)}</span>
+                            </div>
                           </div>
                           <button
                             type="button"
-                            className="text-zinc-400 hover:text-red-500 p-1 shrink-0 transition"
+                            className="text-zinc-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 shrink-0 transition"
                             title="Remover anexo"
                             onClick={() => setNewFiles(prev => prev.filter((_, i) => i !== idx))}
                           >
-                            <Trash2 size={13} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       ))}
@@ -2015,8 +2087,8 @@ function ClosingModal({
 
                   {existingAttachments.length + newFiles.length < 5 && (
                     <div className="flex items-center gap-2 pt-1">
-                      <label className="flex-1 employee-file-upload cursor-pointer justify-center text-xs py-2">
-                        <Camera size={14} />
+                      <label className="flex-1 employee-file-upload cursor-pointer justify-center text-xs py-2.5">
+                        <Camera size={15} />
                         <span>Tirar Foto</span>
                         <input
                           type="file"
@@ -2027,8 +2099,8 @@ function ClosingModal({
                           onChange={e => e.target.files && handleAddFiles(e.target.files)}
                         />
                       </label>
-                      <label className="flex-1 employee-file-upload cursor-pointer justify-center text-xs py-2">
-                        <Upload size={14} />
+                      <label className="flex-1 employee-file-upload cursor-pointer justify-center text-xs py-2.5">
+                        <Upload size={15} />
                         <span>Escolher Arquivo</span>
                         <input
                           type="file"
@@ -2042,20 +2114,21 @@ function ClosingModal({
                     </div>
                   )}
                   <span className="text-[10px] text-zinc-500 dark:text-zinc-400 block">
-                    Fotos são comprimidas para envio rápido e sem erro para o financeiro.
+                    Fotos são automaticamente compactadas para rápido upload e economia de armazenamento.
                   </span>
                 </div>
 
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-1">
+                {/* Observações */}
+                <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-2 flex flex-col">
                   <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 block">
                     Observações do Turno
                   </label>
                   <textarea
-                    rows={2}
-                    placeholder="Explique eventuais sobras, faltas ou ocorrências..."
+                    rows={6}
+                    placeholder="Explique qualquer divergência ocorrida, sobra, falta, trocas de notas, cancelamentos ou observações para o financeiro..."
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
-                    className="w-full p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs outline-none focus:border-indigo-500"
+                    className="w-full flex-1 p-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs outline-none focus:border-indigo-500 resize-none"
                   />
                 </div>
               </div>
@@ -2065,27 +2138,51 @@ function ClosingModal({
           {error && <p className="mg-error">{error}</p>}
         </div>
 
-        {/* Persistent Sticky Footer */}
+        {/* Persistent Sticky Footer with Verdict Semaphore & 4 Pillars */}
         <footer className="closing-footer-sticky">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-zinc-500">
-              Passo {activeStep} de 4
-            </span>
-            {activeStep === 2 && (
-              <span className={`closing-summary-pill ${cCashDiff === 0 ? "ok" : cCashDiff > 0 ? "warn" : "danger"}`}>
-                Gaveta: {cCashDiff === 0 ? "Confere" : `${cCashDiff > 0 ? "Sobra" : "Falta"} ${brl(Math.abs(cCashDiff))}`}
-              </span>
-            )}
-            {activeStep === 3 && (
-              <span className={`closing-summary-pill ${cCreditDiff === 0 && cDebitDiff === 0 && cPixDiff === 0 ? "ok" : "warn"}`}>
-                {cCreditDiff === 0 && cDebitDiff === 0 && cPixDiff === 0 ? "Maquininhas conferem" : "Diferença em maquininhas"}
-              </span>
-            )}
-            {activeStep === 4 && (
-              <span className={`closing-summary-pill ${cTotalDiff === 0 ? "ok" : "danger"}`}>
-                {cTotalDiff === 0 ? "Caixa 100% quadrado" : `Divergência: ${brl(cTotalDiff)}`}
-              </span>
-            )}
+          <div className="verdict-semaphore-wrap">
+            {/* Semaphore Banner */}
+            <div className={`verdict-banner ${cTotalDiff === 0 ? "ok" : cTotalDiff > 0 ? "warn" : "diff"}`}>
+              {cTotalDiff === 0 ? (
+                <>
+                  <CheckCircle2 size={16} />
+                  <span>Caixa 100% Batido (R$ 0,00)</span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle size={16} />
+                  <span>{cTotalDiff > 0 ? `Sobra no Caixa: +${brl(cTotalDiff)}` : `Diferença no Caixa: ${brl(cTotalDiff)}`}</span>
+                </>
+              )}
+            </div>
+
+            {/* 4 Pillars Mini Stats */}
+            <div className="verdict-mini-stats">
+              <div className="verdict-mini-stat" title={`Dinheiro: Esperado ${brl(cCashExpected)} | Contado ${brl(cCashFound)}`}>
+                <span>Dinheiro</span>
+                <strong className={cCashDiff === 0 ? "text-emerald-600" : cCashDiff > 0 ? "text-amber-600" : "text-rose-600"}>
+                  {cCashDiff === 0 ? "OK" : brl(cCashDiff)}
+                </strong>
+              </div>
+              <div className="verdict-mini-stat" title={`Crédito: PDV ${brl(cSysCredit)} | Máquinas ${brl(cCreditFound)}`}>
+                <span>Crédito</span>
+                <strong className={cCreditDiff === 0 ? "text-emerald-600" : cCreditDiff > 0 ? "text-amber-600" : "text-rose-600"}>
+                  {cCreditDiff === 0 ? "OK" : brl(cCreditDiff)}
+                </strong>
+              </div>
+              <div className="verdict-mini-stat" title={`Débito: PDV ${brl(cSysDebit)} | Máquinas ${brl(cDebitFound)}`}>
+                <span>Débito</span>
+                <strong className={cDebitDiff === 0 ? "text-emerald-600" : cDebitDiff > 0 ? "text-amber-600" : "text-rose-600"}>
+                  {cDebitDiff === 0 ? "OK" : brl(cDebitDiff)}
+                </strong>
+              </div>
+              <div className="verdict-mini-stat" title={`PIX: PDV ${brl(cSysPix)} | Máquinas ${brl(cPixFound)}`}>
+                <span>PIX</span>
+                <strong className={cPixDiff === 0 ? "text-emerald-600" : cPixDiff > 0 ? "text-amber-600" : "text-rose-600"}>
+                  {cPixDiff === 0 ? "OK" : brl(cPixDiff)}
+                </strong>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -2108,9 +2205,14 @@ function ClosingModal({
               </button>
             )}
             {activeStep < 4 ? (
-              <button type="button" className="mg-button" onClick={() => setActiveStep((activeStep + 1) as any)}>
-                Avançar <ArrowRight size={15} />
-              </button>
+              <>
+                <button type="button" className="mg-button secondary" onClick={() => setActiveStep((activeStep + 1) as any)}>
+                  Próximo ({stepsList.find(s => s.id === activeStep + 1)?.title.split(". ")[1]}) <ArrowRight size={15} />
+                </button>
+                <button type="button" className="mg-button" disabled={busy || !unit} onClick={handleSubmit}>
+                  {busy ? "Enviando..." : initialClosing ? "Salvar e Reenviar" : "Finalizar Fechamento"}
+                </button>
+              </>
             ) : (
               <button type="button" className="mg-button" disabled={busy || !unit} onClick={handleSubmit}>
                 {busy ? "Enviando ao financeiro..." : initialClosing ? "Salvar e Reenviar Fechamento" : "Finalizar e Enviar Fechamento"}

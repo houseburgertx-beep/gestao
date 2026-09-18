@@ -5254,13 +5254,13 @@
    FECHAMENTO DE CAIXA MODERNO, MINIMALISTA & ERGONÔMICO
    ========================================================================== */
 .closing-modal-container {
-  width: min(960px, calc(100vw - 24px));
-  max-width: 960px;
-  max-height: 92vh;
+  width: min(1180px, calc(100vw - 20px));
+  max-width: 1180px;
+  max-height: 94vh;
   display: flex;
   flex-direction: column;
   background: #ffffff;
-  border-radius: 16px;
+  border-radius: 20px;
   overflow: hidden;
   box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
 }
@@ -5598,6 +5598,358 @@
   background: #fafbfc;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+/* ==========================================================================
+   SPLIT-SCREEN LADO A LADO & CARDS TEMÁTICOS COLORIDOS (HOUSE BURGER)
+   ========================================================================== */
+.closing-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 880px) {
+  .closing-split-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+.closing-col-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.dark .closing-col-panel {
+  background: #181b24;
+  border-color: #272b37;
+}
+
+.closing-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dark .closing-col-header {
+  border-color: #272b37;
+}
+
+.closing-col-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.dark .closing-col-title {
+  color: #f1f5f9;
+}
+
+.closing-col-total {
+  font-size: 16px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.dark .closing-col-total {
+  color: #ffffff;
+}
+
+/* Thematic Cards */
+.thematic-card {
+  border-radius: 14px;
+  padding: 14px 16px;
+  border: 1px solid;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.thematic-card:focus-within {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.thematic-card-green {
+  background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%);
+  border-color: #bbf7d0;
+}
+
+.dark .thematic-card-green {
+  background: linear-gradient(180deg, rgba(22, 101, 52, 0.15) 0%, rgba(24, 27, 36, 0.8) 100%);
+  border-color: #166534;
+}
+
+.thematic-card-blue {
+  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+  border-color: #bfdbfe;
+}
+
+.dark .thematic-card-blue {
+  background: linear-gradient(180deg, rgba(30, 64, 175, 0.15) 0%, rgba(24, 27, 36, 0.8) 100%);
+  border-color: #1e40af;
+}
+
+.thematic-card-purple {
+  background: linear-gradient(180deg, #faf5ff 0%, #ffffff 100%);
+  border-color: #e9d5ff;
+}
+
+.dark .thematic-card-purple {
+  background: linear-gradient(180deg, rgba(126, 34, 206, 0.15) 0%, rgba(24, 27, 36, 0.8) 100%);
+  border-color: #6b21a8;
+}
+
+.thematic-card-amber {
+  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%);
+  border-color: #fde68a;
+}
+
+.dark .thematic-card-amber {
+  background: linear-gradient(180deg, rgba(180, 83, 9, 0.15) 0%, rgba(24, 27, 36, 0.8) 100%);
+  border-color: #78350f;
+}
+
+.thematic-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.thematic-card-head span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Turno Pills Selector */
+.shift-pills-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 10px;
+}
+
+.dark .shift-pills-wrap {
+  background: #272b37;
+}
+
+.shift-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.shift-pill-btn.active {
+  background: #ffffff;
+  color: #4338ca;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.dark .shift-pill-btn.active {
+  background: #3730a3;
+  color: #ffffff;
+}
+
+/* Sangria Hero Card */
+.sangria-hero-box {
+  background: linear-gradient(135deg, #f5f3ff 0%, #fae8ff 100%);
+  border: 1.5px solid #d8b4fe;
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dark .sangria-hero-box {
+  background: linear-gradient(135deg, rgba(109, 40, 217, 0.2) 0%, rgba(147, 51, 234, 0.1) 100%);
+  border-color: #7e22ce;
+}
+
+/* Collapsible Box (Saídas, Outros canais, etc.) */
+.modern-collapsible {
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.dark .modern-collapsible {
+  background: #181b24;
+  border-color: #272b37;
+}
+
+.modern-collapsible-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  background: #f8fafc;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.dark .modern-collapsible-trigger {
+  background: #1f2330;
+  color: #cbd5e1;
+}
+
+.modern-collapsible-trigger:hover {
+  background: #f1f5f9;
+}
+
+.modern-collapsible-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.dark .modern-collapsible-body {
+  border-color: #272b37;
+}
+
+/* Verdict Semaphore */
+.verdict-semaphore-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.verdict-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.verdict-banner.ok {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.dark .verdict-banner.ok {
+  background: rgba(6, 95, 70, 0.2);
+  color: #6ee7b7;
+  border-color: #065f46;
+}
+
+.verdict-banner.diff {
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+}
+
+.dark .verdict-banner.diff {
+  background: rgba(190, 18, 60, 0.2);
+  color: #fda4af;
+  border-color: #9f1239;
+}
+
+.verdict-banner.warn {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.dark .verdict-banner.warn {
+  background: rgba(180, 83, 9, 0.2);
+  color: #fcd34d;
+  border-color: #b45309;
+}
+
+.verdict-mini-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.verdict-mini-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 7px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  font-size: 10px;
+}
+
+.dark .verdict-mini-stat {
+  background: #1e222d;
+  border-color: #333846;
+}
+
+.verdict-mini-stat span {
+  font-size: 9px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.verdict-mini-stat strong {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* WhatsApp Share Button */
+.cash-whatsapp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #25d366;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(37, 211, 102, 0.2);
+}
+
+.cash-whatsapp-btn:hover {
+  background: #20ba5a;
+  transform: translateY(-1px);
 }
 
 .conf-edit-banner {
