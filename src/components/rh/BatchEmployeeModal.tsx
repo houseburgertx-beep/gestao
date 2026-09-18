@@ -232,7 +232,7 @@ export function BatchEmployeeModal({ isOpen, onClose, onSuccess }: BatchEmployee
         const mgmtRecord: RecordData = {
           id: empId,
           kind: "employees",
-          tenantId: tenantId || "house-burgers",
+          tenantId: tenantId || "house190",
           unitId: row.unitId || "teixeira",
           version: 0,
           createdAt: now,

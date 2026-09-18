@@ -111,6 +111,10 @@ export function ValeQuickModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user?.uid) {
+      setError("Você precisa estar autenticado para realizar lançamentos.");
+      return;
+    }
     if (!selectedEmployee) {
       setError("Selecione um colaborador.");
       return;
@@ -129,6 +133,8 @@ export function ValeQuickModal({
 
     try {
       const now = new Date().toISOString();
+      const currentUid = user.uid;
+      const currentTenantId = tenantId || "house190";
       const valeId = `vale-${selectedEmployee.id}-${Date.now()}`;
       const payableId = `payable-${valeId}`;
       const unitId = selectedEmployee.unitId || "teixeira";
@@ -137,13 +143,13 @@ export function ValeQuickModal({
       const valeRecord: RecordData = {
         id: valeId,
         kind: "employeeVales",
-        tenantId: tenantId || "house-burgers",
+        tenantId: currentTenantId,
         unitId,
         version: 0,
         createdAt: now,
         updatedAt: now,
-        createdBy: user?.uid || "system",
-        updatedBy: user?.uid || "system",
+        createdBy: currentUid,
+        updatedBy: currentUid,
         employeeId: selectedEmployee.id,
         employeeName: selectedEmployee.name,
         type,
@@ -164,13 +170,13 @@ export function ValeQuickModal({
       const payableRecord: RecordData = {
         id: payableId,
         kind: "payables",
-        tenantId: tenantId || "house-burgers",
+        tenantId: currentTenantId,
         unitId,
         version: 0,
         createdAt: now,
         updatedAt: now,
-        createdBy: user?.uid || "system",
-        updatedBy: user?.uid || "system",
+        createdBy: currentUid,
+        updatedBy: currentUid,
         obligationType: "Folha / Pessoal",
         description: `${
           type === "Consumo da Loja" ? "Consumo Loja (-20%)" : "Vale/Adiantamento"
