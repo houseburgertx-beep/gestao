@@ -32,6 +32,8 @@ export default function NfeRecebidaPage() {
 
   const [selectedUnit, setSelectedUnit] = useState<UnitId>(currentUnit || "all");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "imported">("all");
+  const [docTypeFilter, setDocTypeFilter] = useState<"all" | "entrada" | "manifesto">("all");
+  const [manifestFilter, setManifestFilter] = useState<"all" | "ciencia" | "confirmacao" | "desconhecimento" | "nao_realizada">("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [nfes, setNfes] = useState<ReceivedNfe[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -61,8 +63,11 @@ export default function NfeRecebidaPage() {
     chave: "",
     fornecedorNome: "",
     fornecedorCnpj: "",
+    destinatarioCnpj: "",
     dataEmissao: new Date().toISOString().substring(0, 10),
     valorTotal: "",
+    tipoDocumento: "manifesto" as "entrada" | "manifesto",
+    manifestationType: "ciencia" as "ciencia" | "confirmacao" | "desconhecimento" | "nao_realizada",
   });
 
   const loadNfes = () => {
@@ -89,29 +94,35 @@ export default function NfeRecebidaPage() {
       if (selectedUnit !== "all" && n.unitId !== selectedUnit) return false;
       if (statusFilter === "pending" && n.importedToPayable) return false;
       if (statusFilter === "imported" && !n.importedToPayable) return false;
+      if (docTypeFilter !== "all") {
+        const isManifest = n.tipoDocumento === "manifesto" || n.manifestationType === "ciencia" || n.manifestationType === "nao_realizada" || n.manifestationType === "desconhecimento";
+        if (docTypeFilter === "manifesto" && !isManifest) return false;
+        if (docTypeFilter === "entrada" && isManifest) return false;
+      }
+      if (manifestFilter !== "all" && n.manifestationType !== manifestFilter) return false;
       if (searchTerm) {
         const q = searchTerm.toLowerCase();
         const matchFornecedor = n.fornecedorNome?.toLowerCase().includes(q);
         const matchCnpj = n.fornecedorCnpj?.includes(q);
+        const matchDestCnpj = n.destinatarioCnpj?.includes(q);
         const matchNum = n.numero?.includes(q);
         const matchChave = n.chave?.includes(q);
-        if (!matchFornecedor && !matchCnpj && !matchNum && !matchChave) return false;
+        if (!matchFornecedor && !matchCnpj && !matchDestCnpj && !matchNum && !matchChave) return false;
       }
       return true;
     });
-  }, [nfes, selectedUnit, statusFilter, searchTerm]);
+  }, [nfes, selectedUnit, statusFilter, docTypeFilter, manifestFilter, searchTerm]);
 
   // Totais
   const stats = useMemo(() => {
     const totalCount = filteredNfes.length;
     const totalValue = filteredNfes.reduce((acc, curr) => acc + (curr.valorTotal || 0), 0);
+    const manifestoCount = filteredNfes.filter((n) => n.tipoDocumento === "manifesto" || n.manifestationType === "ciencia" || n.manifestationType === "nao_realizada").length;
+    const entradaCount = filteredNfes.filter((n) => n.tipoDocumento === "entrada" || n.manifestationType === "confirmacao").length;
     const pendingCount = filteredNfes.filter((n) => !n.importedToPayable).length;
-    const pendingValue = filteredNfes
-      .filter((n) => !n.importedToPayable)
-      .reduce((acc, curr) => acc + (curr.valorTotal || 0), 0);
     const importedCount = filteredNfes.filter((n) => n.importedToPayable).length;
 
-    return { totalCount, totalValue, pendingCount, pendingValue, importedCount };
+    return { totalCount, totalValue, manifestoCount, entradaCount, pendingCount, importedCount };
   }, [filteredNfes]);
 
   const handleCopyKey = (key: string) => {
@@ -221,9 +232,12 @@ export default function NfeRecebidaPage() {
       chave: manualForm.chave || `3526${Date.now()}550010000000011`,
       fornecedorNome: manualForm.fornecedorNome,
       fornecedorCnpj: manualForm.fornecedorCnpj,
+      destinatarioCnpj: manualForm.destinatarioCnpj,
       dataEmissao: manualForm.dataEmissao,
       valorTotal: val,
       status: "autorizada",
+      tipoDocumento: manualForm.tipoDocumento,
+      manifestationType: manualForm.manifestationType,
       source: "manual",
       syncedAt: new Date().toISOString(),
     };
@@ -298,7 +312,7 @@ export default function NfeRecebidaPage() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
           <span className="text-xs font-semibold uppercase text-zinc-400 tracking-wider">Total de Notas</span>
           <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mt-2">
@@ -308,7 +322,23 @@ export default function NfeRecebidaPage() {
         </div>
 
         <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-          <span className="text-xs font-semibold uppercase text-zinc-400 tracking-wider">Valor em Compras</span>
+          <span className="text-xs font-semibold uppercase text-indigo-500 tracking-wider">Do Manifesto (CNPJ)</span>
+          <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-2">
+            {stats.manifestoCount} <span className="text-xs font-normal text-zinc-500">notas</span>
+          </div>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Emitidas contra seu CNPJ (SEFAZ)</p>
+        </div>
+
+        <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+          <span className="text-xs font-semibold uppercase text-blue-500 tracking-wider">Confirmadas / Entrada</span>
+          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-2">
+            {stats.entradaCount} <span className="text-xs font-normal text-zinc-500">notas</span>
+          </div>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Com manifestação confirmada</p>
+        </div>
+
+        <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+          <span className="text-xs font-semibold uppercase text-zinc-400 tracking-wider">Valor Total</span>
           <div className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mt-2 text-rose-600 dark:text-rose-400">
             R$ {stats.totalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </div>
@@ -316,22 +346,11 @@ export default function NfeRecebidaPage() {
         </div>
 
         <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-          <span className="text-xs font-semibold uppercase text-amber-500 tracking-wider">Pendentes de Lançamento</span>
-          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-2">
-            {stats.pendingCount}{" "}
-            <span className="text-xs font-normal text-zinc-500">
-              (R$ {stats.pendingValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
-            </span>
-          </div>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Aguardando envio para Contas a Pagar</p>
-        </div>
-
-        <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-          <span className="text-xs font-semibold uppercase text-emerald-500 tracking-wider">Lançadas / Conciliadas</span>
+          <span className="text-xs font-semibold uppercase text-emerald-500 tracking-wider">Lançadas / Financeiro</span>
           <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">
             {stats.importedCount} <span className="text-xs font-normal text-zinc-500">notas</span>
           </div>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Já integradas no financeiro</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Integradas no Contas a Pagar</p>
         </div>
       </div>
 
@@ -352,15 +371,28 @@ export default function NfeRecebidaPage() {
           </select>
         </div>
 
-        {/* Filtro de Status */}
+        {/* Filtro de Tipo: Entrada vs Manifesto */}
         <div className="flex items-center gap-2 w-full md:w-auto">
           <Filter size={16} className="text-zinc-400" />
+          <select
+            value={docTypeFilter}
+            onChange={(e) => setDocTypeFilter(e.target.value as any)}
+            className="px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-rose-500 font-medium"
+          >
+            <option value="all">Todos os Tipos</option>
+            <option value="manifesto">📑 Do Manifesto (Emitidas no CNPJ)</option>
+            <option value="entrada">📥 Entrada Confirmada</option>
+          </select>
+        </div>
+
+        {/* Filtro de Status de Lançamento */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
             className="px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
           >
-            <option value="all">Todos os Status</option>
+            <option value="all">Status Financeiro (Todos)</option>
             <option value="pending">Pendentes de Lançamento</option>
             <option value="imported">Já Importadas</option>
           </select>
@@ -373,7 +405,7 @@ export default function NfeRecebidaPage() {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por fornecedor, CNPJ, número da nota ou chave..."
+            placeholder="Buscar por fornecedor, CNPJ (emitente/destinatário), NF-e ou chave..."
             className="w-full pl-10 pr-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
           />
         </div>
@@ -412,11 +444,12 @@ export default function NfeRecebidaPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider">
                 <tr>
-                  <th className="py-3.5 px-4">Loja Destino</th>
+                  <th className="py-3.5 px-4">Loja / Destinatário</th>
                   <th className="py-3.5 px-4">Emissão</th>
                   <th className="py-3.5 px-4">NF-e</th>
-                  <th className="py-3.5 px-4">Fornecedor</th>
+                  <th className="py-3.5 px-4">Fornecedor (Emitente)</th>
                   <th className="py-3.5 px-4">Valor Total</th>
+                  <th className="py-3.5 px-4">Tipo / Manifesto</th>
                   <th className="py-3.5 px-4">Status Fiscal</th>
                   <th className="py-3.5 px-4">No Financeiro</th>
                   <th className="py-3.5 px-4 text-right">Ações</th>
@@ -432,6 +465,11 @@ export default function NfeRecebidaPage() {
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
                         {unitLabels[nfe.unitId] || nfe.unitId}
                       </span>
+                      {nfe.destinatarioCnpj && (
+                        <div className="text-[11px] font-mono text-zinc-400 mt-0.5">
+                          CNPJ: {nfe.destinatarioCnpj}
+                        </div>
+                      )}
                     </td>
 
                     <td className="py-3.5 px-4 whitespace-nowrap text-zinc-600 dark:text-zinc-300">
@@ -454,6 +492,27 @@ export default function NfeRecebidaPage() {
 
                     <td className="py-3.5 px-4 whitespace-nowrap font-bold text-zinc-900 dark:text-zinc-100">
                       R$ {nfe.valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </td>
+
+                    {/* Coluna Tipo / Manifesto */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      {nfe.manifestationType === "confirmacao" || nfe.tipoDocumento === "entrada" ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                          📥 Entrada (Confirmada)
+                        </span>
+                      ) : nfe.manifestationType === "ciencia" ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                          📑 Manifesto (Ciência)
+                        </span>
+                      ) : nfe.manifestationType === "desconhecimento" ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                          ⚠️ Desconhecida
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                          📑 Manifesto (Pendente)
+                        </span>
+                      )}
                     </td>
 
                     <td className="py-3.5 px-4 whitespace-nowrap">
@@ -533,7 +592,7 @@ export default function NfeRecebidaPage() {
             </div>
 
             <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4 bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-xl">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-xl">
                 <div>
                   <span className="text-xs text-zinc-400 block">Fornecedor / Emitente</span>
                   <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
@@ -544,11 +603,28 @@ export default function NfeRecebidaPage() {
                   </span>
                 </div>
                 <div>
-                  <span className="text-xs text-zinc-400 block">Unidade / Loja Destino</span>
+                  <span className="text-xs text-zinc-400 block">Destinatário (Sua Empresa)</span>
                   <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                     {unitLabels[selectedNfeDetails.unitId]}
                   </span>
-                  <span className="text-xs text-zinc-500 block mt-0.5">Origem: {selectedNfeDetails.source}</span>
+                  <span className="text-xs text-zinc-500 block font-mono mt-0.5">
+                    CNPJ: {selectedNfeDetails.destinatarioCnpj || "Vinculado à unidade"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-zinc-400 block">Situação no Manifesto</span>
+                  <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 block">
+                    {selectedNfeDetails.manifestationType === "confirmacao"
+                      ? "Confirmação da Operação"
+                      : selectedNfeDetails.manifestationType === "ciencia"
+                      ? "Ciência da Emissão"
+                      : selectedNfeDetails.manifestationType === "desconhecimento"
+                      ? "Desconhecimento da Operação"
+                      : "Pendente de Manifestação"}
+                  </span>
+                  <span className="text-xs text-zinc-500 block mt-0.5">
+                    Origem: {selectedNfeDetails.source}
+                  </span>
                 </div>
               </div>
 
@@ -790,6 +866,34 @@ export default function NfeRecebidaPage() {
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                      CNPJ Destinatário (Sua Loja)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="00.000.000/0000-00"
+                      value={manualForm.destinatarioCnpj}
+                      onChange={(e) => setManualForm({ ...manualForm, destinatarioCnpj: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                      Origem / Tipo de Documento
+                    </label>
+                    <select
+                      value={manualForm.tipoDocumento}
+                      onChange={(e) => setManualForm({ ...manualForm, tipoDocumento: e.target.value as any })}
+                      className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm"
+                    >
+                      <option value="manifesto">📑 Do Manifesto (Emitida no CNPJ)</option>
+                      <option value="entrada">📥 Entrada Confirmada</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
                       Data de Emissão
                     </label>
                     <input
@@ -802,18 +906,35 @@ export default function NfeRecebidaPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
-                    Valor Total (R$) *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: 1.450,00"
-                    value={manualForm.valorTotal}
-                    onChange={(e) => setManualForm({ ...manualForm, valorTotal: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-semibold"
-                    required
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                      Valor Total (R$) *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: 1.450,00"
+                      value={manualForm.valorTotal}
+                      onChange={(e) => setManualForm({ ...manualForm, valorTotal: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm font-semibold"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                      Status no Manifesto
+                    </label>
+                    <select
+                      value={manualForm.manifestationType}
+                      onChange={(e) => setManualForm({ ...manualForm, manifestationType: e.target.value as any })}
+                      className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm"
+                    >
+                      <option value="ciencia">Ciência da Emissão</option>
+                      <option value="confirmacao">Confirmação da Operação</option>
+                      <option value="nao_realizada">Pendente de Manifestação</option>
+                      <option value="desconhecimento">Desconhecimento</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>

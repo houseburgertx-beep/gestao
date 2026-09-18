@@ -798,15 +798,16 @@ export function processOfficialRevenue(
 }
 
 /**
- * Consulta as Notas Fiscais Recebidas (NF-e de compras/entrada) na Takeat.
+ * Consulta as Notas Fiscais Recebidas (NF-e de compras/entrada e Manifesto) na Takeat.
  * 
  * Usa a API V1: GET /v1/nfe-received
  * Parâmetros obrigatórios: start_date, end_date (ISO 8601 com segundos)
  * Intervalo máximo: 92 dias
  * 
- * Docs: A listagem retorna array completo sem paginação.
- * Campos: identification.access_key, identification.number, issuer.name,
- *         issuer.document, amounts.total, timestamps.issued_at, etc.
+ * Docs Takeat / Focus NFe:
+ * - pendente=true: retorna notas do Manifesto (manifestação null, 'ciencia' ou 'desconhecimento').
+ * - pendente=false: retorna notas confirmadas ('confirmacao').
+ * Fazemos busca agregando AMBOS os estados para capturar 100% das notas emitidas contra o CNPJ da loja!
  */
 export async function fetchTakeatReceivedNfes(
   credentials: TakeatCredentials,
@@ -829,111 +830,135 @@ export async function fetchTakeatReceivedNfes(
   const now = new Date();
   const end = new Date(now.getTime());
   const start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  // Formato ISO com segundos conforme exige a API V1
+  // Formato ISO com segundos conforme exige a API V1 (ex: 2026-09-01T03:00:00)
   const startDate = start.toISOString().replace(/\.\d{3}Z$/, "");
   const endDate = end.toISOString().replace(/\.\d{3}Z$/, "");
 
   const restaurantParam = credentials.restaurantId ? `&restaurant_id=${credentials.restaurantId}` : "";
 
-  // URLs em ordem de prioridade — API pública V1 primeiro, depois clusters do backend PDV
-  const urlsToTry = [
-    `https://backend-pdv-2.takeat.app/v1/nfe-received?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&pendente=true${restaurantParam}`,
-    `https://backend-pdv-2.takeat.app/v1/nfe-received?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&pendente=false${restaurantParam}`,
-    `https://backend-pdv.takeat.app/v1/nfe-received?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&pendente=true${restaurantParam}`,
-    `https://backend-pdv.takeat.app/v1/nfe-received?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&pendente=false${restaurantParam}`,
-    // Endpoints legados como fallback
-    `https://backend-pdv-2.takeat.app/restaurants/nfe-received?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}${restaurantParam}`,
-    `https://backend-pdv.takeat.app/restaurants/nfe-received?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}${restaurantParam}`,
+  // Buscamos tanto notas do manifesto (pendente=true: ciencia/desconhecimento/sem manifesto)
+  // quanto notas confirmadas (pendente=false)
+  const queryConfigs = [
+    { pendente: true, tipoPadrao: "manifesto" },
+    { pendente: false, tipoPadrao: "entrada" },
   ];
 
+  const baseEndpoints = [
+    "https://backend-pdv-2.takeat.app/v1/nfe-received",
+    "https://backend-pdv.takeat.app/v1/nfe-received",
+  ];
+
+  const gatheredMap = new Map<string, ReceivedNfe>();
   let lastError = "";
 
-  for (const url of urlsToTry) {
-    try {
-      let res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      });
-
-      // Se 401 e temos credenciais, tenta renovar token
-      if (res.status === 401 && credentials.email && credentials.password) {
-        try {
-          const authRes = await authenticateTakeat(credentials.email, credentials.password);
-          token = authRes.token;
-          if (onTokenRefreshed) onTokenRefreshed(token);
-
-          res = await fetch(url, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: "application/json",
-            },
-          });
-        } catch {}
-      }
-
-      if (res.ok) {
-        const json = await res.json();
-        const list = Array.isArray(json) ? json : json.data || json.items || [];
-        
-        if (!Array.isArray(list)) continue;
-
-        return list.map((item: any) => {
-          // Mapeia campos da API V1 (identification, issuer, amounts, timestamps)
-          const identification = item.identification || {};
-          const issuer = item.issuer || {};
-          const amounts = item.amounts || {};
-          const timestamps = item.timestamps || {};
-          const status = item.status || {};
-
-          return {
-            id: String(item.id || Math.random()),
-            nfeReceivedId: item.id,
-            unitId: credentials.unitId,
-            brand: credentials.brand,
-            // V1 usa identification.number; legado usa numero
-            numero: String(identification.number || item.numero || item.number || item.numero_nfe || "S/N"),
-            serie: String(identification.series || identification.serie || item.serie || "1"),
-            // V1 usa identification.access_key; legado usa chave
-            chave: String(identification.access_key || item.chave || item.chave_nfe || item.access_key || ""),
-            // V1 usa issuer.name / issuer.document; legado usa emitente_nome / emitente_cnpj
-            fornecedorNome: issuer.name || item.emitente_nome || item.fornecedor_nome || item.supplier_name || item.company_name || "Fornecedor",
-            fornecedorCnpj: issuer.document || item.emitente_cnpj || item.fornecedor_cnpj || item.supplier_cnpj || "",
-            // V1 usa timestamps.issued_at; legado usa data_emissao
-            dataEmissao: (timestamps.issued_at || item.data_emissao || item.issue_date || new Date().toISOString()).substring(0, 10),
-            // V1 usa amounts.total (string decimal); legado usa valor_total
-            valorTotal: parseBRLNumber(amounts.total || item.valor_total || item.total_amount || item.valor || 0),
-            status: (status.situation === "cancelada" || item.status === "cancelada")
-              ? "cancelada" as const
-              : (status.situation === "processando" || item.status === "processando")
-                ? "processando" as const
-                : "autorizada" as const,
-            source: "takeat" as const,
-            syncedAt: new Date().toISOString(),
-          };
+  for (const cfg of queryConfigs) {
+    for (const base of baseEndpoints) {
+      const url = `${base}?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&pendente=${cfg.pendente}${restaurantParam}`;
+      try {
+        let res = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
         });
-      }
 
-      // Salva último erro para diagnóstico
-      if (res.status === 503) {
-        lastError = "Fiscal não configurado na Takeat (marca sem credencial fiscal).";
-      } else if (res.status === 404) {
-        lastError = "Marca ou restaurante não encontrado.";
-      } else {
-        try {
-          const errJson = await res.json();
-          lastError = errJson.message || errJson.key || `HTTP ${res.status}`;
-        } catch {
+        // Se 401 e temos credenciais, tenta renovar token
+        if (res.status === 401 && credentials.email && credentials.password) {
+          try {
+            const authRes = await authenticateTakeat(credentials.email, credentials.password);
+            token = authRes.token;
+            if (onTokenRefreshed) onTokenRefreshed(token);
+
+            res = await fetch(url, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: "application/json",
+              },
+            });
+          } catch {}
+        }
+
+        if (res.ok) {
+          const json = await res.json();
+          const list = Array.isArray(json) ? json : json.data || json.items || [];
+          
+          if (Array.isArray(list)) {
+            for (const item of list) {
+              const identification = item.identification || {};
+              const issuer = item.issuer || {};
+              const amounts = item.amounts || {};
+              const timestamps = item.timestamps || {};
+              const status = item.status || {};
+              const manifestation = item.manifestation || {};
+              const recipient = item.recipient || item.invoice?.recipient || {};
+
+              const chave = String(identification.access_key || item.chave || item.chave_nfe || item.access_key || "");
+              const id = String(item.id || item.nfe_received_id || chave || Math.random());
+
+              const rawManifestType = manifestation.type || item.manifesto_tipo || item.manifestacao_tipo;
+              let manifestType: "ciencia" | "confirmacao" | "desconhecimento" | "nao_realizada" | string = "nao_realizada";
+              if (rawManifestType) {
+                const cleanType = String(rawManifestType).toLowerCase();
+                if (cleanType.includes("ciencia") || cleanType.includes("ciência")) {
+                  manifestType = "ciencia";
+                } else if (cleanType.includes("confirma")) {
+                  manifestType = "confirmacao";
+                } else if (cleanType.includes("desconhec")) {
+                  manifestType = "desconhecimento";
+                } else {
+                  manifestType = cleanType;
+                }
+              } else if (!cfg.pendente) {
+                manifestType = "confirmacao";
+              }
+
+              const nfeRecord: ReceivedNfe = {
+                id,
+                nfeReceivedId: item.id,
+                unitId: credentials.unitId,
+                brand: credentials.brand,
+                numero: String(identification.number || item.numero || item.number || item.numero_nfe || "S/N"),
+                serie: String(identification.series || identification.serie || item.serie || "1"),
+                chave,
+                fornecedorNome: issuer.name || item.emitente_nome || item.fornecedor_nome || item.supplier_name || item.company_name || "Fornecedor",
+                fornecedorCnpj: issuer.document || item.emitente_cnpj || item.fornecedor_cnpj || item.supplier_cnpj || "",
+                destinatarioCnpj: recipient.cnpj || recipient.cnpj_destinatario || item.destinatario_cnpj || "",
+                destinatarioNome: recipient.nome_destinatario || item.destinatario_nome || "",
+                dataEmissao: (timestamps.issued_at || item.data_emissao || item.issue_date || new Date().toISOString()).substring(0, 10),
+                valorTotal: parseBRLNumber(amounts.total || item.valor_total || item.total_amount || item.valor || 0),
+                status: (status.situation === "cancelada" || item.status === "cancelada")
+                  ? "cancelada"
+                  : (status.situation === "processando" || item.status === "processando")
+                    ? "processando"
+                    : "autorizada",
+                manifestationType: manifestType,
+                manifestedAt: manifestation.manifested_at || item.manifestado_em || null,
+                tipoDocumento: manifestType === "confirmacao" ? "entrada" : "manifesto",
+                source: "takeat",
+                syncedAt: new Date().toISOString(),
+              };
+
+              const deduplicationKey = chave || id;
+              gatheredMap.set(deduplicationKey, nfeRecord);
+            }
+            // Conseguiu ler deste endpoint base com sucesso, passa para a próxima queryConfig
+            break;
+          }
+        } else {
           lastError = `HTTP ${res.status}`;
         }
+      } catch (e: any) {
+        lastError = e.message || "Erro de conexão";
       }
-    } catch (e: any) {
-      lastError = e.message || "Erro de conexão";
     }
   }
 
-  // Se nenhuma URL retornou dados, retorna array vazio (não joga erro para não travar a UI)
+  const result = Array.from(gatheredMap.values());
+  if (result.length > 0) {
+    return result;
+  }
+
+  // Se nenhuma URL retornou dados, registra no console para diagnóstico
   console.warn(`[Takeat NF-e] Nenhuma nota encontrada para ${credentials.unitId}: ${lastError}`);
   return [];
 }

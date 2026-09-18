@@ -102,6 +102,11 @@ export interface ReceivedNfe {
   dataRecebimento?: string;
   valorTotal: number;
   status: "autorizada" | "cancelada" | "processando";
+  manifestationType?: "ciencia" | "confirmacao" | "desconhecimento" | "nao_realizada" | string | null;
+  manifestedAt?: string | null;
+  destinatarioCnpj?: string;
+  destinatarioNome?: string;
+  tipoDocumento?: "entrada" | "manifesto" | string;
   importedToPayable?: boolean;
   payableId?: string;
   items?: ReceivedNfeItem[];
