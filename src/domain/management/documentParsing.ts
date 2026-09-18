@@ -273,3 +273,47 @@ export function parseEmployeeDocument(text: string): ParsedEmployeeDocument {
     notes,
   };
 }
+/**
+ * Splits a multi-page employee registration PDF (like "Ficha de Empregado 5035")
+ * into individual employee records. Each page delimited by "REGISTRO DE EMPREGADO".
+ */
+export function parseMultiPageEmployeeDocument(text: string): ParsedEmployeeDocument[] {
+  // Split by the page header marker present on every page of the batch PDF
+  const segments = text
+    .split(/(?=REGISTRO DE EMPREGADO)/i)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 50);
+
+  if (segments.length <= 1) {
+    // Single page or no marker found — try splitting by CPF occurrences as fallback
+    const cpfRegex = /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g;
+    const cpfMatches: RegExpExecArray[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = cpfRegex.exec(text)) !== null) cpfMatches.push(m);
+    if (cpfMatches.length <= 1) {
+      // Really just one employee
+      const parsed = parseEmployeeDocument(text);
+      return parsed.name || parsed.cpf ? [parsed] : [];
+    }
+    // Multiple CPFs found — split around each CPF occurrence
+    const results: ParsedEmployeeDocument[] = [];
+    const positions = cpfMatches.map((m) => m.index!);
+    for (let i = 0; i < positions.length; i++) {
+      const start = Math.max(0, positions[i] - 500);
+      const end = i + 1 < positions.length ? positions[i + 1] + 500 : text.length;
+      const chunk = text.slice(start, end);
+      const parsed = parseEmployeeDocument(chunk);
+      if (parsed.name || parsed.cpf) results.push(parsed);
+    }
+    return results;
+  }
+
+  const results: ParsedEmployeeDocument[] = [];
+  for (const segment of segments) {
+    const parsed = parseEmployeeDocument(segment);
+    if (parsed.name || parsed.cpf) {
+      results.push(parsed);
+    }
+  }
+  return results;
+}
