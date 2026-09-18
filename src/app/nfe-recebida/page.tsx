@@ -2,6 +2,10 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useUnit } from "@/contexts/UnitContext";
+import { useManagement } from "@/contexts/ManagementContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { saveManagement } from "@/services/managementService";
+import { RecordData } from "@/domain/management/model";
 import { store } from "@/services/store";
 import { ReceivedNfe, ReceivedNfeItem } from "@/types/takeat";
 import { UnitId } from "@/types";
@@ -31,6 +35,8 @@ import {
 
 export default function NfeRecebidaPage() {
   const { currentUnit } = useUnit();
+  const { data, tenantId } = useManagement();
+  const { user, userProfile } = useAuth();
 
   const [selectedUnit, setSelectedUnit] = useState<UnitId>(currentUnit || "all");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "imported">("all");
@@ -232,22 +238,123 @@ export default function NfeRecebidaPage() {
     setTimeout(() => setSyncMessage(null), 6000);
   };
 
-  const handleConfirmImport = () => {
+  const handleConfirmImport = async () => {
     if (!importingNfe) return;
 
     const parts = importingNfe.dataEmissao.split("-");
-    const competence = parts.length === 3 ? `${parts[1]}/${parts[0]}` : "09/2026";
+    const competence = parts.length === 3 ? `${parts[0]}-${parts[1]}` : "2026-09";
 
-    const created = store.addAccount({
+    const cleanCnpj = (importingNfe.fornecedorCnpj || "").replace(/\D/g, "");
+    const cleanName = (importingNfe.fornecedorNome || "").trim().toLowerCase();
+
+    // 1. Localiza ou cadastra de imediato o fornecedor
+    let existingSupplier = (data.suppliers || []).find((s) => {
+      const sDoc = String(s.document || "").replace(/\D/g, "");
+      const sName = String(s.name || "").trim().toLowerCase();
+      return (cleanCnpj && sDoc === cleanCnpj) || (sName && sName === cleanName);
+    });
+
+    let supplierId = existingSupplier?.id;
+
+    if (!supplierId) {
+      supplierId = `sup-${Date.now()}`;
+      const now = new Date().toISOString();
+      const newSupplierRecord: RecordData = {
+        id: supplierId,
+        kind: "suppliers",
+        tenantId: tenantId || "house190",
+        unitId: importingNfe.unitId,
+        version: 0,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: user?.uid || "usr-nfe",
+        updatedBy: user?.uid || "usr-nfe",
+        name: importingNfe.fornecedorNome.trim(),
+        document: importingNfe.fornecedorCnpj || "",
+        category: importCategory,
+        status: "Ativo",
+      };
+
+      try {
+        await saveManagement(newSupplierRecord, data);
+      } catch (e) {
+        console.error("Erro ao salvar fornecedor no management:", e);
+      }
+
+      // Cadastra também no store de fornecedores
+      store.addSupplier({
+        legalName: importingNfe.fornecedorNome.trim(),
+        tradeName: importingNfe.fornecedorNome.trim(),
+        cnpjCpf: importingNfe.fornecedorCnpj || "",
+        phone: "",
+        email: "",
+        address: "",
+        category: importCategory,
+      });
+    }
+
+    // 2. Criação do Contas a Pagar no Management (para refletir no Contas a Pagar oficial)
+    const payableId = `cp-${Date.now()}`;
+    const centsVal = Math.round(importingNfe.valorTotal * 100);
+    const now = new Date().toISOString();
+
+    const matchedCategory =
+      (data.categories || []).find((c) =>
+        !c.archived && String(c.name || "").toLowerCase().includes(importCategory.toLowerCase().slice(0, 5))
+      )?.id || "";
+
+    const payableRecord: RecordData = {
+      id: payableId,
+      kind: "payables",
+      tenantId: tenantId || "house190",
+      unitId: importingNfe.unitId,
+      version: 0,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: user?.uid || "usr-nfe",
+      updatedBy: user?.uid || "usr-nfe",
+      obligationType: "Fornecedor / Mercadoria",
+      description: `NF-e nº ${importingNfe.numero} - ${importingNfe.fornecedorNome}`,
+      categoryId: matchedCategory,
+      supplierId: supplierId,
+      scannedSupplierName: importingNfe.fornecedorNome,
+      competence,
+      dueDate: importDueDate,
+      amount: centsVal,
+      originalAmount: centsVal,
+      paymentMethod:
+        importPaymentMethod === "boleto"
+          ? "Boleto"
+          : importPaymentMethod === "pix"
+          ? "PIX"
+          : "Transferência",
+      documentNumber: String(importingNfe.numero),
+      nature: "Operacional",
+      status: "Pendente",
+      installments: 1,
+      notes: `NF-e nº ${importingNfe.numero} emitida por ${importingNfe.fornecedorNome}. Chave: ${importingNfe.chave}`,
+      externalId: importingNfe.chave || `nfe-${importingNfe.numero}`,
+      nfeKey: importingNfe.chave,
+      nfeId: importingNfe.id,
+    };
+
+    try {
+      await saveManagement(payableRecord, data);
+    } catch (e) {
+      console.error("Erro ao salvar conta a pagar no management:", e);
+    }
+
+    // 3. Cadastra também no store legado de Contas a Pagar
+    store.addAccount({
       unitId: importingNfe.unitId,
       companyCnpj: "",
-      supplierId: `sup-${Date.now()}`,
+      supplierId: supplierId,
       supplierName: importingNfe.fornecedorNome,
       supplierCnpjCpf: importingNfe.fornecedorCnpj,
       description: `NF-e ${importingNfe.numero} - ${importingNfe.fornecedorNome}`,
       category: importCategory,
       costCenter: importCostCenter,
-      competence,
+      competence: competence.replace("-", "/"),
       issueDate: importingNfe.dataEmissao,
       dueDate: importDueDate,
       amount: importingNfe.valorTotal,
@@ -256,20 +363,27 @@ export default function NfeRecebidaPage() {
       discount: 0,
       paymentMethod: importPaymentMethod,
       status: "pending_approval",
-      responsibleUser: "Gestor (NF-e Takeat)",
+      responsibleUser: userProfile?.displayName || "Gestor (NF-e Takeat)",
       invoiceNumber: importingNfe.numero,
       nfeKey: importingNfe.chave,
       nfeId: importingNfe.id,
       notes: `Importado da NF-e nº ${importingNfe.numero}, chave ${importingNfe.chave}`,
     });
 
-    const payableId = created[0]?.id || `acc-${Date.now()}`;
+    // 4. Marca como importada no store
     store.markNfeAsImported(importingNfe.id, payableId);
+
+    // 5. Notifica eventos para atualização reativa do Contas a Pagar e dados
+    window.dispatchEvent(
+      new CustomEvent("house190_local_records_queued", { detail: [payableRecord] })
+    );
+    window.dispatchEvent(new CustomEvent("house190_data_updated"));
 
     setImportingNfe(null);
     loadNfes();
+
     setSyncMessage({
-      text: `NF-e nº ${importingNfe.numero} lançada com sucesso no Contas a Pagar!`,
+      text: `NF-e nº ${importingNfe.numero} aceita! Fornecedor cadastrado e conta lançada no Contas a Pagar com sucesso!`,
       type: "success",
     });
     setTimeout(() => setSyncMessage(null), 5000);
@@ -709,13 +823,13 @@ export default function NfeRecebidaPage() {
                           onClick={() => {
                             setImportingNfe(nfe);
                           }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-medium transition-colors shadow-sm"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors shadow-sm active:scale-95"
                         >
-                          <span>Lançar</span>
-                          <ArrowRight size={11} />
+                          <CheckCircle2 size={13} />
+                          <span>Aceitar NF-e</span>
                         </button>
                       ) : (
-                        <span className="text-[10px] text-zinc-400 italic">Conciliada</span>
+                        <span className="text-[10px] text-zinc-400 italic font-medium">Conciliada</span>
                       )}
                     </td>
                   </tr>
@@ -838,21 +952,32 @@ export default function NfeRecebidaPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="px-6 py-5 border-b border-zinc-200 dark:border-zinc-800">
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                Lançar NF-e no Contas a Pagar
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <CheckCircle2 size={20} className="text-emerald-600" />
+                Aceitar NF-e e Lançar no Contas a Pagar
               </h3>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                Cria automaticamente uma despesa no financeiro vinculada à nota fiscal nº {importingNfe.numero}.
+              <p className="text-xs text-zinc-500 mt-1">
+                Ao aceitar, o fornecedor é cadastrado de imediato no sistema e a conta a pagar é gerada automaticamente.
               </p>
             </div>
 
             <div className="p-6 space-y-4">
               <div className="bg-rose-50 dark:bg-rose-950/30 p-3.5 rounded-xl border border-rose-100 dark:border-rose-900/50">
-                <div className="text-xs text-rose-700 dark:text-rose-300 font-semibold uppercase">Dados da Nota</div>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-rose-700 dark:text-rose-300 font-semibold uppercase">Fornecedor / Emitente</div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-medium">
+                    Cadastro Automático
+                  </span>
+                </div>
                 <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100 mt-1">
                   {importingNfe.fornecedorNome}
                 </div>
-                <div className="text-lg font-extrabold text-rose-600 dark:text-rose-400 mt-0.5">
+                {importingNfe.fornecedorCnpj && (
+                  <div className="text-xs text-zinc-500 font-mono mt-0.5">
+                    CNPJ: {importingNfe.fornecedorCnpj}
+                  </div>
+                )}
+                <div className="text-lg font-extrabold text-rose-600 dark:text-rose-400 mt-1">
                   R$ {importingNfe.valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                 </div>
               </div>
@@ -929,9 +1054,10 @@ export default function NfeRecebidaPage() {
               </button>
               <button
                 onClick={handleConfirmImport}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium shadow-sm"
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm flex items-center gap-2 active:scale-95 transition-all"
               >
-                Confirmar Lançamento
+                <CheckCircle2 size={16} />
+                Confirmar Aceite e Lançar
               </button>
             </div>
           </div>
