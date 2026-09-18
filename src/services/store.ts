@@ -956,14 +956,13 @@ class DataStore {
     if ((record.unitId as string) === "central") return;
 
     const current = this.getTakeatRevenues();
-    const existing = current.find((r) => r.unitId === record.unitId && r.date === record.date);
 
-    const finalRecord = { ...record };
-
+    // Deduplica pelo ID único da operação (inclui operationKey + data)
+    // para não sobrepor House com Bruttus na mesma filial
     const filtered = current.filter(
-      (r) => !(r.unitId === finalRecord.unitId && r.date === finalRecord.date)
+      (r) => r.id !== record.id
     );
-    this.set(STORAGE_KEYS.TAKEAT_REVENUES, [finalRecord, ...filtered]);
+    this.set(STORAGE_KEYS.TAKEAT_REVENUES, [record, ...filtered]);
   }
 
   async syncTakeatUnit(

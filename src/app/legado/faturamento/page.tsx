@@ -65,10 +65,12 @@ const UNIT_LABELS: Record<string, string> = {
 };
 
 const OPERATION_LABELS: Record<string, string> = {
-  teixeira_house: "House 190 Teixeira",
-  teixeira_bruttus: "Bruttus Burger TX",
-  eunapolis_house: "House 190 Eunápolis",
-  eunapolis_bruttus: "Bruttus Eunápolis",
+  teixeira: "Teixeira de Freitas (House + Bruttus)",
+  teixeira_house: "Teixeira de Freitas (House + Bruttus)",
+  teixeira_bruttus: "Teixeira de Freitas (House + Bruttus)",
+  eunapolis: "Eunápolis (House + Bruttus)",
+  eunapolis_house: "Eunápolis (House + Bruttus)",
+  eunapolis_bruttus: "Eunápolis (House + Bruttus)",
   foodpark: "House Foodpark",
   central: "Central de Produção",
 };
@@ -93,11 +95,11 @@ export default function FaturamentoPage() {
     type: "success" | "error";
   } | null>(null);
 
-  // Filtro de Marca (House vs Bruttus)
+  // Filtro de Marca (House vs Bruttus) — mantido para futuro quando API V1 suportar brand_id
   const [selectedBrand, setSelectedBrand] = useState<"all" | "house" | "bruttus">("all");
 
   // Unit / Operation credentials state
-  const [selectedSyncOp, setSelectedSyncOp] = useState<string>("teixeira_house");
+  const [selectedSyncOp, setSelectedSyncOp] = useState<string>("teixeira");
   const [selectedSyncUnit, setSelectedSyncUnit] = useState<Exclude<UnitId, "all">>(
     currentUnit === "all" ? "teixeira" : currentUnit
   );
@@ -1071,20 +1073,20 @@ export default function FaturamentoPage() {
                     <td className="py-3 px-4 font-medium text-zinc-700 dark:text-zinc-300">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-semibold text-zinc-900 dark:text-zinc-100">
-                          {r.operationName || OPERATION_LABELS[r.operationKey || ""] || UNIT_LABELS[r.unitId] || r.unitId}
+                          {UNIT_LABELS[r.unitId] || r.operationName || r.unitId}
                         </span>
-                        {r.brand === "bruttus" ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                            🍔 Bruttus
+                        {(r.unitId === "teixeira" || r.unitId === "eunapolis") ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-800 dark:bg-violet-950/60 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
+                            🏠 House + 🍔 Bruttus
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                            House
+                            House 190
                           </span>
                         )}
                       </div>
                       <div className="text-[11px] text-zinc-400">
-                        Unidade: {UNIT_LABELS[r.unitId] || r.unitId}
+                        Faturamento consolidado {(r.unitId === "teixeira" || r.unitId === "eunapolis") ? "(House + Bruttus)" : ""}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-zinc-700 dark:text-zinc-300">

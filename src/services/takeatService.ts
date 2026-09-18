@@ -231,10 +231,12 @@ export interface TakeatOperation {
 }
 
 export const TAKEAT_OPERATIONS: TakeatOperation[] = [
-  { key: "teixeira_house", name: "House 190 Teixeira", unitId: "teixeira", brand: "house", shortName: "House TX" },
-  { key: "teixeira_bruttus", name: "Bruttus Burger TX", unitId: "teixeira", brand: "bruttus", shortName: "Bruttus TX" },
-  { key: "eunapolis_house", name: "House 190 Eunápolis", unitId: "eunapolis", brand: "house", shortName: "House EUN" },
-  { key: "eunapolis_bruttus", name: "Bruttus Eunápolis", unitId: "eunapolis", brand: "bruttus", shortName: "Bruttus EUN" },
+  // Cada entrada = 1 login real no Takeat
+  // Teixeira: login Gleucehouse@gmail.com → House 190 Teixeira + Bruttus Burger TX (2ª marca)
+  { key: "teixeira", name: "Teixeira de Freitas (House + Bruttus)", unitId: "teixeira", brand: "house", shortName: "Teixeira" },
+  // Eunápolis: login Gleucehouse1@gmail.com → House 190 Eunápolis + Bruttus Eunápolis (2ª marca)
+  { key: "eunapolis", name: "Eunápolis (House + Bruttus)", unitId: "eunapolis", brand: "house", shortName: "Eunápolis" },
+  // Foodpark: login Gleucedias1@gmail.com → apenas House Foodpark
   { key: "foodpark", name: "House Foodpark", unitId: "foodpark", brand: "house", shortName: "Foodpark" },
 ];
 
@@ -797,6 +799,14 @@ export function processOfficialRevenue(
 
 /**
  * Consulta as Notas Fiscais Recebidas (NF-e de compras/entrada) na Takeat.
+ * 
+ * Usa a API V1: GET /v1/nfe-received
+ * Parâmetros obrigatórios: start_date, end_date (ISO 8601 com segundos)
+ * Intervalo máximo: 92 dias
+ * 
+ * Docs: A listagem retorna array completo sem paginação.
+ * Campos: identification.access_key, identification.number, issuer.name,
+ *         issuer.document, amounts.total, timestamps.issued_at, etc.
  */
 export async function fetchTakeatReceivedNfes(
   credentials: TakeatCredentials,
@@ -804,6 +814,7 @@ export async function fetchTakeatReceivedNfes(
 ): Promise<ReceivedNfe[]> {
   let token = sanitizeToken(credentials.token);
 
+  // Auto-login se não tiver token
   if (!token && credentials.email && credentials.password) {
     const authRes = await authenticateTakeat(credentials.email, credentials.password);
     token = authRes.token;
@@ -814,46 +825,117 @@ export async function fetchTakeatReceivedNfes(
     throw new Error(`Esta loja (${credentials.unitId}) ainda não possui uma conexão ativa com a Takeat.`);
   }
 
+  // Período: últimos 90 dias (máximo permitido é 92)
+  const now = new Date();
+  const end = new Date(now.getTime());
+  const start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  // Formato ISO com segundos conforme exige a API V1
+  const startDate = start.toISOString().replace(/\.\d{3}Z$/, "");
+  const endDate = end.toISOString().replace(/\.\d{3}Z$/, "");
+
+  const restaurantParam = credentials.restaurantId ? `&restaurant_id=${credentials.restaurantId}` : "";
+
+  // URLs em ordem de prioridade — API pública V1 primeiro, depois clusters do backend PDV
   const urlsToTry = [
-    // Nova API V1.0 oficial
-    `https://public-api.takeat.app/v1/nfe-received${credentials.restaurantId ? `?restaurant_id=${credentials.restaurantId}` : ""}`,
-    // Clusters secundários do backend PDV
-    `https://backend-pdv-2.takeat.app/restaurants/nfe-received${credentials.restaurantId ? `?restaurant_id=${credentials.restaurantId}` : ""}`,
-    `https://backend-pdv.takeat.app/restaurants/nfe-received${credentials.restaurantId ? `?restaurant_id=${credentials.restaurantId}` : ""}`,
+    `https://backend-pdv-2.takeat.app/v1/nfe-received?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&pendente=true${restaurantParam}`,
+    `https://backend-pdv-2.takeat.app/v1/nfe-received?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&pendente=false${restaurantParam}`,
+    `https://backend-pdv.takeat.app/v1/nfe-received?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&pendente=true${restaurantParam}`,
+    `https://backend-pdv.takeat.app/v1/nfe-received?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&pendente=false${restaurantParam}`,
+    // Endpoints legados como fallback
+    `https://backend-pdv-2.takeat.app/restaurants/nfe-received?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}${restaurantParam}`,
+    `https://backend-pdv.takeat.app/restaurants/nfe-received?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}${restaurantParam}`,
   ];
+
+  let lastError = "";
 
   for (const url of urlsToTry) {
     try {
-      const res = await fetch(url, {
+      let res = await fetch(url, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
       });
 
+      // Se 401 e temos credenciais, tenta renovar token
+      if (res.status === 401 && credentials.email && credentials.password) {
+        try {
+          const authRes = await authenticateTakeat(credentials.email, credentials.password);
+          token = authRes.token;
+          if (onTokenRefreshed) onTokenRefreshed(token);
+
+          res = await fetch(url, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          });
+        } catch {}
+      }
+
       if (res.ok) {
         const json = await res.json();
         const list = Array.isArray(json) ? json : json.data || json.items || [];
-        return list.map((item: any) => ({
-          id: String(item.id || item.nfe_received_id || item.chave || Math.random()),
-          nfeReceivedId: item.id || item.nfe_received_id,
-          unitId: credentials.unitId,
-          brand: credentials.brand,
-          numero: String(item.numero || item.number || item.numero_nfe || "S/N"),
-          serie: String(item.serie || item.series || "1"),
-          chave: String(item.chave || item.chave_nfe || item.access_key || ""),
-          fornecedorNome: item.emitente_nome || item.fornecedor_nome || item.supplier_name || item.company_name || "Fornecedor",
-          fornecedorCnpj: item.emitente_cnpj || item.fornecedor_cnpj || item.supplier_cnpj || "",
-          dataEmissao: (item.data_emissao || item.issue_date || new Date().toISOString()).substring(0, 10),
-          valorTotal: parseBRLNumber(item.valor_total || item.total_amount || item.valor || 0),
-          status: item.status === "cancelada" ? "cancelada" : item.status === "processando" ? "processando" : "autorizada",
-          source: "takeat" as const,
-          syncedAt: new Date().toISOString(),
-        }));
+        
+        if (!Array.isArray(list)) continue;
+
+        return list.map((item: any) => {
+          // Mapeia campos da API V1 (identification, issuer, amounts, timestamps)
+          const identification = item.identification || {};
+          const issuer = item.issuer || {};
+          const amounts = item.amounts || {};
+          const timestamps = item.timestamps || {};
+          const status = item.status || {};
+
+          return {
+            id: String(item.id || Math.random()),
+            nfeReceivedId: item.id,
+            unitId: credentials.unitId,
+            brand: credentials.brand,
+            // V1 usa identification.number; legado usa numero
+            numero: String(identification.number || item.numero || item.number || item.numero_nfe || "S/N"),
+            serie: String(identification.series || identification.serie || item.serie || "1"),
+            // V1 usa identification.access_key; legado usa chave
+            chave: String(identification.access_key || item.chave || item.chave_nfe || item.access_key || ""),
+            // V1 usa issuer.name / issuer.document; legado usa emitente_nome / emitente_cnpj
+            fornecedorNome: issuer.name || item.emitente_nome || item.fornecedor_nome || item.supplier_name || item.company_name || "Fornecedor",
+            fornecedorCnpj: issuer.document || item.emitente_cnpj || item.fornecedor_cnpj || item.supplier_cnpj || "",
+            // V1 usa timestamps.issued_at; legado usa data_emissao
+            dataEmissao: (timestamps.issued_at || item.data_emissao || item.issue_date || new Date().toISOString()).substring(0, 10),
+            // V1 usa amounts.total (string decimal); legado usa valor_total
+            valorTotal: parseBRLNumber(amounts.total || item.valor_total || item.total_amount || item.valor || 0),
+            status: (status.situation === "cancelada" || item.status === "cancelada")
+              ? "cancelada" as const
+              : (status.situation === "processando" || item.status === "processando")
+                ? "processando" as const
+                : "autorizada" as const,
+            source: "takeat" as const,
+            syncedAt: new Date().toISOString(),
+          };
+        });
       }
-    } catch {}
+
+      // Salva último erro para diagnóstico
+      if (res.status === 503) {
+        lastError = "Fiscal não configurado na Takeat (marca sem credencial fiscal).";
+      } else if (res.status === 404) {
+        lastError = "Marca ou restaurante não encontrado.";
+      } else {
+        try {
+          const errJson = await res.json();
+          lastError = errJson.message || errJson.key || `HTTP ${res.status}`;
+        } catch {
+          lastError = `HTTP ${res.status}`;
+        }
+      }
+    } catch (e: any) {
+      lastError = e.message || "Erro de conexão";
+    }
   }
 
+  // Se nenhuma URL retornou dados, retorna array vazio (não joga erro para não travar a UI)
+  console.warn(`[Takeat NF-e] Nenhuma nota encontrada para ${credentials.unitId}: ${lastError}`);
   return [];
 }
+
 
