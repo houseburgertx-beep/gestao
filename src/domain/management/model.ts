@@ -582,7 +582,7 @@ export const DEFINITIONS: Record<string, Definition> = {
     dated: "date",
     fields: [
       f("date", "Data", "date"),
-      opt("shift", "Turno", ["Único"]),
+      opt("shift", "Turno", ["Único", "Almoço", "Jantar", "Tarde", "Noite"]),
       f("operatorName", "Operador responsável"),
       f("systemCash", "Sistema: dinheiro", "money"),
       f("systemCredit", "Sistema: crédito", "money"),

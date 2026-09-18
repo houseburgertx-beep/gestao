@@ -398,7 +398,7 @@ export async function commitRecords(
   } catch (error) {
     const isQuotaOrContention =
       error instanceof Error &&
-      /quota|resource-exhausted|exceeded|unavailable|deadline/i.test(`${error.name} ${error.message}`);
+      /quota|resource-exhausted|exceeded|unavailable|deadline|aborted|failed-precondition|contention|transaction/i.test(`${error.name} ${error.message}`);
     if (isQuotaOrContention) {
       console.warn("[commitRecords] Quota ou contenção no Firestore. Executando fallback em batch leve...", error);
       try {
