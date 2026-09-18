@@ -26,6 +26,10 @@ import {
   ShieldCheck,
   Clock3,
   Pencil,
+  Wallet,
+  Utensils,
+  Plus,
+  CircleDollarSign,
 } from "lucide-react";
 import { Drawer } from "@/components/ui/Drawer";
 import { Employee, DocumentItem } from "@/types";
@@ -33,6 +37,7 @@ import { calculateTenure, getExperienceInfo, getTodayDateStr } from "@/lib/tenur
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { store } from "@/services/store";
 import { EditEmployeeModal } from "./EditEmployeeModal";
+import { ValeQuickModal } from "./ValeQuickModal";
 import {
   uploadFileToDrive,
   nameFileForDrive,
@@ -40,6 +45,7 @@ import {
   downloadFileFromDrive,
 } from "@/services/driveService";
 import { useManagement } from "@/contexts/ManagementContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { saveManagement } from "@/services/managementService";
 import type { RecordData } from "@/domain/management/model";
 
@@ -92,8 +98,98 @@ export function EmployeeDetailDrawer({
   unitName,
 }: EmployeeDetailDrawerProps) {
   const { data: mgmtData } = useManagement();
-  const [activeTab, setActiveTab] = useState<"profile" | "docs" | "termination">("profile");
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<"profile" | "docs" | "termination" | "vales">("profile");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isValeModalOpen, setIsValeModalOpen] = useState(false);
+
+  // Vales & Consumo State & Computations
+  const employeeVales = useMemo(() => {
+    if (!employee?.id) return [];
+    return ((mgmtData.employeeVales || []) as RecordData[])
+      .filter((v) => !v.archived && v.employeeId === employee.id)
+      .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  }, [mgmtData.employeeVales, employee?.id]);
+
+  const valesSummary = useMemo(() => {
+    let totalValesCents = 0;
+    let totalConsumoCents = 0;
+    let totalPendenteCents = 0;
+    let totalAbatidoCents = 0;
+
+    for (const v of employeeVales) {
+      const amt = typeof v.amount === "number" ? v.amount : 0;
+      if (v.type === "Vale Avulso") {
+        totalValesCents += amt;
+      } else {
+        totalConsumoCents += amt;
+      }
+      if (v.status === "Abatido") {
+        totalAbatidoCents += amt;
+      } else {
+        totalPendenteCents += amt;
+      }
+    }
+
+    return {
+      totalVales: totalValesCents / 100,
+      totalConsumo: totalConsumoCents / 100,
+      totalPendente: totalPendenteCents / 100,
+      totalAbatido: totalAbatidoCents / 100,
+      totalGeneral: (totalValesCents + totalConsumoCents) / 100,
+    };
+  }, [employeeVales]);
+
+  const handleToggleValeStatus = async (vale: RecordData) => {
+    const nextStatus = vale.status === "Abatido" ? "Pendente" : "Abatido";
+    const now = new Date().toISOString();
+    try {
+      const updated: RecordData = {
+        ...vale,
+        status: nextStatus,
+        updatedAt: now,
+        updatedBy: user?.uid || "system",
+      };
+      await saveManagement(updated, mgmtData);
+    } catch (err) {
+      console.error("Erro ao alterar status do vale:", err);
+      alert("Erro ao alterar status do vale.");
+    }
+  };
+
+  const handleDeleteVale = async (vale: RecordData) => {
+    if (!confirm(`Deseja realmente excluir este lançamento de ${formatCurrency(Number(vale.amount || 0) / 100)}?`)) {
+      return;
+    }
+    const now = new Date().toISOString();
+    try {
+      const archivedVale: RecordData = {
+        ...vale,
+        archived: true,
+        updatedAt: now,
+        updatedBy: user?.uid || "system",
+      };
+      await saveManagement(archivedVale, mgmtData);
+
+      const payableId = String(vale.payableId || `payable-${vale.id}`);
+      const payables = (mgmtData.payables || []) as RecordData[];
+      const linkedPayable = payables.find((p) => p.id === payableId || p.sourceId === vale.id);
+      if (linkedPayable) {
+        await saveManagement(
+          {
+            ...linkedPayable,
+            archived: true,
+            updatedAt: now,
+            updatedBy: user?.uid || "system",
+          },
+          mgmtData
+        );
+      }
+    } catch (err) {
+      console.error("Erro ao excluir vale:", err);
+      alert("Erro ao excluir o vale.");
+    }
+  };
 
   // Document upload state
   const [docCategory, setDocCategory] = useState<string>("contracheque");
@@ -399,6 +495,14 @@ export function EmployeeDetailDrawer({
           >
             <UserMinus size={15} /> Desligamento & Rescisão
           </button>
+          {canSeePayroll && (
+            <button
+              className={`rh-tab-btn ${activeTab === "vales" ? "active" : ""}`}
+              onClick={() => setActiveTab("vales")}
+            >
+              <Wallet size={15} /> Vales & Consumo ({employeeVales.length})
+            </button>
+          )}
         </div>
 
         {/* ==================================================================== */}
@@ -892,6 +996,172 @@ export function EmployeeDetailDrawer({
             )}
           </div>
         )}
+        {/* ==================================================================== */}
+        {/* ABA 4: VALES & CONSUMO DA LOJA */}
+        {/* ==================================================================== */}
+        {activeTab === "vales" && canSeePayroll && (
+          <div className="rh-tab-content" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Header com Resumo Financeiro */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+                gap: 10,
+              }}
+            >
+              <div style={{ backgroundColor: "#f8fafc", padding: "10px 12px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>TOTAL VALES</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#2563eb" }}>{formatCurrency(valesSummary.totalVales)}</div>
+              </div>
+              <div style={{ backgroundColor: "#f8fafc", padding: "10px 12px", borderRadius: 8, border: "1px solid #e2e8f0" }}>
+                <div style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>CONSUMO LOJA</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#d97706" }}>{formatCurrency(valesSummary.totalConsumo)}</div>
+              </div>
+              <div style={{ backgroundColor: "#fff7ed", padding: "10px 12px", borderRadius: 8, border: "1px solid #fed7aa" }}>
+                <div style={{ fontSize: 11, color: "#c2410c", fontWeight: 700 }}>PENDENTE</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#9a3412" }}>{formatCurrency(valesSummary.totalPendente)}</div>
+              </div>
+              <div style={{ backgroundColor: "#f0fdf4", padding: "10px 12px", borderRadius: 8, border: "1px solid #bbf7d0" }}>
+                <div style={{ fontSize: 11, color: "#166534", fontWeight: 700 }}>ABATIDO</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#15803d" }}>{formatCurrency(valesSummary.totalAbatido)}</div>
+              </div>
+            </div>
+
+            {/* Barra de Ação */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+                Histórico de Vales e Consumos ({employeeVales.length})
+              </div>
+              <button
+                type="button"
+                className="workspace-primary"
+                onClick={() => setIsValeModalOpen(true)}
+                style={{ fontSize: 12, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                <Plus size={14} /> + Lançar Vale / Consumo
+              </button>
+            </div>
+
+            {/* Lista / Tabela de Vales */}
+            {employeeVales.length > 0 ? (
+              <div style={{ overflowX: "auto", border: "1px solid #e2e8f0", borderRadius: 8 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                      <th style={{ textAlign: "left", padding: "8px 10px", color: "#475569" }}>DATA / MÊS</th>
+                      <th style={{ textAlign: "left", padding: "8px 10px", color: "#475569" }}>TIPO</th>
+                      <th style={{ textAlign: "left", padding: "8px 10px", color: "#475569" }}>DESCRIÇÃO</th>
+                      <th style={{ textAlign: "right", padding: "8px 10px", color: "#475569" }}>VALOR</th>
+                      <th style={{ textAlign: "center", padding: "8px 10px", color: "#475569" }}>STATUS</th>
+                      <th style={{ textAlign: "center", padding: "8px 10px", color: "#475569" }}>AÇÕES</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {employeeVales.map((vale) => {
+                      const isAbatido = vale.status === "Abatido";
+                      const isConsumo = vale.type === "Consumo da Loja";
+                      const amt = formatCurrency(Number(vale.amount || 0) / 100);
+                      const dFmt = vale.date ? formatDate(String(vale.date)) : "—";
+
+                      return (
+                        <tr key={vale.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                          <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
+                            <div style={{ fontWeight: 600, color: "#1e293b" }}>{dFmt}</div>
+                            <div style={{ fontSize: 10, color: "#64748b" }}>Comp: {String(vale.competence || "—")}</div>
+                          </td>
+                          <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                padding: "2px 6px",
+                                borderRadius: 4,
+                                fontSize: 10,
+                                fontWeight: 700,
+                                backgroundColor: isConsumo ? "#fef3c7" : "#eff6ff",
+                                color: isConsumo ? "#92400e" : "#1e40af",
+                              }}
+                            >
+                              {isConsumo ? <Utensils size={10} /> : <Wallet size={10} />}
+                              {isConsumo ? "Consumo Loja" : "Vale Avulso"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "8px 10px" }}>
+                            <div style={{ color: "#334155" }}>{vale.description || "—"}</div>
+                            {vale.paymentMethod && !isConsumo && (
+                              <div style={{ fontSize: 10, color: "#94a3b8" }}>{String(vale.paymentMethod)}</div>
+                            )}
+                          </td>
+                          <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700, color: isConsumo ? "#d97706" : "#2563eb" }}>
+                            {amt}
+                          </td>
+                          <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                            <span
+                              style={{
+                                padding: "2px 6px",
+                                borderRadius: 99,
+                                fontSize: 10,
+                                fontWeight: 700,
+                                backgroundColor: isAbatido ? "#dcfce7" : "#fef3c7",
+                                color: isAbatido ? "#15803d" : "#b45309",
+                              }}
+                            >
+                              {isAbatido ? "Abatido" : "Pendente"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleValeStatus(vale)}
+                                title={isAbatido ? "Reverter para Pendente" : "Marcar como Abatido"}
+                                style={{
+                                  border: "none",
+                                  backgroundColor: isAbatido ? "#fff7ed" : "#f0fdf4",
+                                  color: isAbatido ? "#c2410c" : "#166534",
+                                  padding: "3px 6px",
+                                  borderRadius: 4,
+                                  cursor: "pointer",
+                                  fontSize: 11,
+                                }}
+                              >
+                                {isAbatido ? <RotateCcw size={12} /> : <CheckCircle2 size={12} />}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteVale(vale)}
+                                title="Excluir lançamento"
+                                style={{
+                                  border: "none",
+                                  backgroundColor: "#fef2f2",
+                                  color: "#dc2626",
+                                  padding: "3px 6px",
+                                  borderRadius: 4,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "24px 10px", backgroundColor: "#f8fafc", borderRadius: 8, border: "1px dashed #cbd5e1" }}>
+                <Wallet size={24} style={{ color: "#94a3b8", marginBottom: 6 }} />
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>Nenhum vale ou consumo registrado</div>
+                <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                  Use o botão acima para lançar adiantamentos ou lanches deste colaborador.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Drawer>
 
@@ -903,6 +1173,12 @@ export function EmployeeDetailDrawer({
         onEmployeeUpdated(updated);
         setIsEditModalOpen(false);
       }}
+    />
+
+    <ValeQuickModal
+      isOpen={isValeModalOpen}
+      onClose={() => setIsValeModalOpen(false)}
+      defaultEmployee={employee}
     />
     </>
   );

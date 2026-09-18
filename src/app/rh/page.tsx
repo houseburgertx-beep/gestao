@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BriefcaseBusiness, CalendarDays, CircleDollarSign, FileUp, Pencil, Plus, Search, UserCheck, UserRound, UsersRound } from "lucide-react";
+import { AlertTriangle, BriefcaseBusiness, CalendarDays, CircleDollarSign, FileUp, Pencil, Plus, Search, UserCheck, UserRound, UsersRound, Wallet, Utensils } from "lucide-react";
 import { useUnit } from "@/contexts/UnitContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useManagement } from "@/contexts/ManagementContext";
+import { normalizeRole } from "@/components/layout/managementNavigation";
 import { Employee } from "@/types";
 import { subscribeEmployees } from "@/services/firestoreService";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -12,6 +13,8 @@ import { NewEmployeeModal } from "@/components/rh/NewEmployeeModal";
 import { EditEmployeeModal } from "@/components/rh/EditEmployeeModal";
 import { EmployeeDetailDrawer } from "@/components/rh/EmployeeDetailDrawer";
 import { BatchEmployeeModal } from "@/components/rh/BatchEmployeeModal";
+import { ValeQuickModal } from "@/components/rh/ValeQuickModal";
+import { PayrollClosingTab } from "@/components/rh/PayrollClosingTab";
 import { calculateTenure, getExperienceInfo } from "@/lib/tenureUtils";
 import { store } from "@/services/store";
 import type { DocumentItem } from "@/types";
@@ -36,6 +39,9 @@ export default function RhPage() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
   const [isBatchOpen, setIsBatchOpen] = useState(false);
+  const [isValeOpen, setIsValeOpen] = useState(false);
+  const [selectedValeEmployee, setSelectedValeEmployee] = useState<Employee | null>(null);
+  const [mainTab, setMainTab] = useState<"team" | "payroll">("team");
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
 
   useEffect(() => {
@@ -128,7 +134,8 @@ export default function RhPage() {
   const vacation = scoped.filter((employee) => employee.status === "vacation");
   const leave = scoped.filter((employee) => employee.status === "leave");
   const payroll = active.reduce((total, employee) => total + Number(employee.salary || 0), 0);
-  const canSeePayroll = userProfile?.role === "admin" || userProfile?.role === "accountant";
+  const normRole = normalizeRole(userProfile?.role);
+  const canSeePayroll = normRole === "admin" || normRole === "accountant";
   const today = new Date().toISOString().slice(0, 10);
   const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
 
@@ -157,7 +164,29 @@ export default function RhPage() {
           <h1>Equipe</h1>
           <p>Colaboradores ativos, tempo de casa, período de experiência e controle de documentos.</p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {canSeePayroll && (
+            <button
+              type="button"
+              className="workspace-secondary"
+              onClick={() => {
+                setSelectedValeEmployee(null);
+                setIsValeOpen(true);
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                color: "#2563eb",
+                borderColor: "#bfdbfe",
+                backgroundColor: "#eff6ff",
+                fontWeight: 600,
+              }}
+              title="Lançamento Ágil de Vale ou Consumo da Loja"
+            >
+              <Wallet size={15} /> + Vale / Consumo
+            </button>
+          )}
           <button
             className="workspace-secondary"
             onClick={() => setIsBatchOpen(true)}
@@ -171,6 +200,68 @@ export default function RhPage() {
         </div>
       </header>
 
+      {/* Abas Superiores: Quadro de Colaboradores vs. Fechamento de Folha & Vales */}
+      {canSeePayroll && (
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            borderBottom: "1px solid #e2e8f0",
+            marginBottom: 20,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setMainTab("team")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 18px",
+              border: "none",
+              borderBottom: mainTab === "team" ? "2px solid #2563eb" : "2px solid transparent",
+              backgroundColor: "transparent",
+              color: mainTab === "team" ? "#1d4ed8" : "#64748b",
+              fontWeight: mainTab === "team" ? 700 : 500,
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            <UsersRound size={16} /> Quadro de Colaboradores
+          </button>
+          <button
+            type="button"
+            onClick={() => setMainTab("payroll")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 18px",
+              border: "none",
+              borderBottom: mainTab === "payroll" ? "2px solid #2563eb" : "2px solid transparent",
+              backgroundColor: "transparent",
+              color: mainTab === "payroll" ? "#1d4ed8" : "#64748b",
+              fontWeight: mainTab === "payroll" ? 700 : 500,
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            <Wallet size={16} /> Fechamento de Folha & Vales
+          </button>
+        </div>
+      )}
+
+      {mainTab === "payroll" && canSeePayroll ? (
+        <PayrollClosingTab
+          employees={allEmployees}
+          onOpenValeModal={(emp) => {
+            setSelectedValeEmployee(emp || null);
+            setIsValeOpen(true);
+          }}
+          onSelectEmployee={(emp) => setSelected(emp)}
+        />
+      ) : (
+        <>
       <section className="people-hero">
         <div>
           <span>UNIDADE SELECIONADA</span>
@@ -379,6 +470,8 @@ export default function RhPage() {
           <span>Cadastre pessoas reais ou ajuste os filtros.</span>
         </div>
       )}
+      </>
+      )}
 
       {/* Drawer de Detalhes Completo com Abas: Dados, Documentos (Drive) e Desligamento */}
       <EmployeeDetailDrawer
@@ -417,6 +510,16 @@ export default function RhPage() {
           }
           setEditingEmployee(null);
         }}
+      />
+
+      <ValeQuickModal
+        isOpen={isValeOpen}
+        onClose={() => {
+          setIsValeOpen(false);
+          setSelectedValeEmployee(null);
+        }}
+        defaultEmployee={selectedValeEmployee}
+        employees={allEmployees}
       />
     </div>
   );
