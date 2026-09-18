@@ -13,7 +13,7 @@ export interface TakeatGeneralCardsResponse {
   [key: string]: any;
 }
 
-export type BrandId = "house" | "bruttus";
+export type BrandId = "house" | "bruttus" | "all";
 
 export interface TakeatCredentials {
   unitId: Exclude<UnitId, "all">;
