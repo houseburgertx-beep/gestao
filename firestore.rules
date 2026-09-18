@@ -125,23 +125,22 @@ service cloud.firestore {
         && (directorOrAccountant()
           || globalCollection(name)
           || name in ['gestao_bankAccounts', 'gestao_locks', 'gestao_unique']
-          || (userRole() == 'manager' && name in ['gestao_actions','gestao_goals','gestao_revenues','gestao_sales','gestao_bankAccounts','gestao_cashClosings','gestao_cashConferences'] && (data.unitId == '' || userProfile().get('unitId', '') == 'all' || data.unitId == userProfile().get('unitId', '')))
-          || (userRole() == 'operator' && name in ['gestao_cashClosings', 'gestao_cashConferences'] && (userProfile().get('unitId', '') == 'all' || data.unitId == userProfile().get('unitId', '')))
-          || (userRole() == 'operator' && name == 'gestao_payables' && (userProfile().get('unitId', '') == 'all' || data.unitId == userProfile().get('unitId', '')) && data.get('sourceId', '') != ''));
+          || (userRole() in ['manager', 'operator'] && name in ['gestao_cashClosings', 'gestao_cashConferences'])
+          || (userRole() == 'manager' && name in ['gestao_actions','gestao_goals','gestao_revenues','gestao_sales','gestao_bankAccounts'])
+          || (userRole() in ['manager', 'operator'] && name == 'gestao_payables' && data.get('sourceId', '') != ''));
     }
     function operatorPixRequest(name, data) {
-      return userRole() == 'operator' && name == 'gestao_payables'
-        && (userProfile().get('unitId', '') == 'all' || data.unitId == userProfile().get('unitId', ''))
+      return activeUser() && name == 'gestao_payables'
+        && (directorOrAccountant() || userRole() in ['manager', 'operator'])
         && data.get('sourceId', '') != ''
-        && data.get('paymentMethod', '') == 'PIX'
-        && data.get('status', '') == 'Pendente';
+        && data.get('paymentMethod', '') == 'PIX';
     }
     function writer(name, data) {
       return (name in ['gestao_policies', 'gestao_companies', 'gestao_brands', 'gestao_units'] ? adminUser()
         : directorOrAccountant()
           || (name in ['gestao_bankAccounts', 'gestao_bankTransfers'] && canManageBank())
           || (userRole() == 'manager' && name in ['gestao_actions', 'gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_cashConferences'])
-          || (userRole() == 'operator' && name == 'gestao_cashClosings')
+          || (userRole() in ['manager', 'operator'] && name == 'gestao_cashClosings')
           || operatorPixRequest(name, data));
     }
     function recordMonth(data) {
@@ -160,7 +159,7 @@ service cloud.firestore {
     }
     function validUnit(name, data) {
       return globalCollection(name)
-        || name in ['gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_transactions']
+        || name in ['gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_transactions', 'gestao_cashClosings']
         || data.unitId == ''
         || data.unitId == 'matriz'
         || data.unitId == 'all'
@@ -187,12 +186,15 @@ service cloud.firestore {
       allow update: if validManagement(name, id, request.resource.data)
         && canReadManagement(name, resource.data) && openPeriod(name, resource.data)
         && request.resource.data.tenantId == resource.data.tenantId
-        && (request.resource.data.unitId == resource.data.unitId || name in ['gestao_bankAccounts', 'gestao_suppliers'])
-        && (request.resource.data.get('createdBy', '') == resource.data.get('createdBy', '') || !('createdBy' in resource.data) || name in ['gestao_bankAccounts', 'gestao_suppliers'])
+        && (request.resource.data.unitId == resource.data.unitId || name in ['gestao_bankAccounts', 'gestao_suppliers', 'gestao_cashClosings'])
+        && (request.resource.data.get('createdBy', '') == resource.data.get('createdBy', '') || !('createdBy' in resource.data) || name in ['gestao_bankAccounts', 'gestao_suppliers', 'gestao_cashClosings'])
         && name != 'gestao_transactions'
         && (resource.data.get('settledAmount', 0) == 0 || request.resource.data.get('amount', 0) == resource.data.get('amount', 0))
         && request.resource.data.version == resource.data.get('version', 0) + 1;
-      allow delete: if false;
+      allow delete: if activeUser() && (directorOrAccountant() || userRole() in ['manager', 'operator'])
+        && name == 'gestao_cashClosings'
+        && resource.data.tenantId == tenantId()
+        && resource.data.get('status', '') != 'Conferido';
     }
     match /gestao_locks/{id} {
       allow get, list: if activeUser() && (!exists(/databases/$(database)/documents/gestao_locks/$(id)) || resource.data.tenantId == tenantId());
@@ -207,27 +209,19 @@ service cloud.firestore {
       allow create, update: if activeUser() && request.resource.data.tenantId == tenantId()
         && request.resource.data.updatedBy == request.auth.uid
         && (directorOrAccountant()
-          || userRole() in ['manager', 'operator']
-          || userProfile().get('unitId', '') == 'all'
-          || request.resource.data.unitId == userProfile().get('unitId', '')
-          || request.resource.data.unitId == '');
+          || userRole() in ['manager', 'operator']);
       allow delete: if activeUser()
         && (directorOrAccountant()
-          || userRole() in ['manager', 'operator']
-          || userProfile().get('unitId', '') == 'all'
-          || resource.data.unitId == userProfile().get('unitId', '')
-          || resource.data.unitId == '');
+          || userRole() in ['manager', 'operator']);
     }
     match /gestao_audit/{id} {
-      allow read: if canReadManagement('gestao_audit', resource.data);
+      allow read: if activeUser() && (directorOrAccountant()
+        || userRole() in ['manager', 'operator']);
       allow create: if activeUser() && request.resource.data.tenantId == tenantId()
         && request.resource.data.updatedBy == request.auth.uid
         && (directorOrAccountant()
           || userRole() in ['manager', 'operator']
-          || canManageBank()
-          || userProfile().get('unitId', '') == 'all'
-          || request.resource.data.unitId == userProfile().get('unitId', '')
-          || request.resource.data.unitId == '');
+          || canManageBank());
       allow update, delete: if false;
     }
   }

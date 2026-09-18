@@ -141,8 +141,9 @@ export async function saveManagement(
     ? { ...state, suppliers: [...state.suppliers, scannedSupplier] }
     : state;
   if (!archive) validate(prepared, validationState);
+  const archiveNow = new Date().toISOString();
   const outgoing = archive
-    ? [{ ...prepared, archived: true }]
+    ? [{ ...prepared, archived: true, updatedAt: archiveNow }]
     : buildRecords(prepared);
   if (scannedSupplier) outgoing.unshift(scannedSupplier);
   if (!archive) validate(outgoing[0], validationState);
@@ -153,7 +154,7 @@ export async function saveManagement(
     outgoing.push(
       ...state.payables
         .filter((p) => p.sourceId === record.id)
-        .map((p) => ({ ...p, archived: true })),
+        .map((p) => ({ ...p, archived: true, updatedBy: prepared.updatedBy, updatedAt: archiveNow })),
     );
   else outgoing.push(...obsolete.map((p) => ({ ...p, archived: true })));
   const allNew = !archive && outgoing.every((item) => !(state[item.kind] || []).some((saved) => saved.id === item.id));
