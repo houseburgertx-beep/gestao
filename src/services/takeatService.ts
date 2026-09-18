@@ -797,6 +797,174 @@ export function processOfficialRevenue(
   };
 }
 
+export interface BrandOrdersSummary {
+  houseTotal: number;
+  bruttusTotal: number;
+  houseShare: number;
+  bruttusShare: number;
+  houseCount: number;
+  bruttusCount: number;
+}
+
+/**
+ * Consulta os pedidos da Takeat para calcular o faturamento real separado de cada marca (House vs Bruttus).
+ */
+export async function fetchTakeatOrdersSummary(
+  credentials: TakeatCredentials,
+  startDateUtc: string,
+  endDateUtc: string
+): Promise<BrandOrdersSummary | null> {
+  const token = sanitizeToken(credentials.token);
+  if (!token) return null;
+
+  try {
+    const url = `https://backend-pdv-2.takeat.app/restaurants/orders?start_date=${encodeURIComponent(
+      startDateUtc
+    )}&end_date=${encodeURIComponent(endDateUtc)}`;
+
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
+
+    if (!res.ok) return null;
+    const orders = await res.json();
+    if (!Array.isArray(orders) || orders.length === 0) return null;
+
+    let houseTotal = 0;
+    let bruttusTotal = 0;
+    let houseCount = 0;
+    let bruttusCount = 0;
+
+    for (const o of orders) {
+      const val = parseFloat(o.bill?.total_price || o.basket?.total_price || 0) || 0;
+      let brandId: number | null = null;
+      if (o.payments && Array.isArray(o.payments) && o.payments.length > 0) {
+        brandId = o.payments[0].brand_id || null;
+      }
+      const str = JSON.stringify(o).toLowerCase();
+      const isBruttus =
+        brandId === 34303 ||
+        brandId === 35070 ||
+        str.includes("bruttus") ||
+        str.includes("brutus");
+
+      if (isBruttus) {
+        bruttusTotal += val;
+        bruttusCount++;
+      } else {
+        houseTotal += val;
+        houseCount++;
+      }
+    }
+
+    const total = houseTotal + bruttusTotal;
+    const houseShare = total > 0 ? houseTotal / total : 1;
+    const bruttusShare = total > 0 ? bruttusTotal / total : 0;
+
+    return {
+      houseTotal,
+      bruttusTotal,
+      houseShare,
+      bruttusShare,
+      houseCount,
+      bruttusCount,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cria os registros separados de House 190, Bruttus Burger e Consolidado Oficial
+ * garantindo que a soma House + Bruttus seja 100% igual ao Consolidado da Takeat.
+ */
+export function createBrandSeparatedRecords(
+  unitId: Exclude<UnitId, "all">,
+  dateStr: string,
+  response: TakeatGeneralCardsResponse,
+  ordersSummary?: BrandOrdersSummary | null
+): {
+  consolidated: TakeatRevenueRecord;
+  house: TakeatRevenueRecord;
+  bruttus?: TakeatRevenueRecord;
+} {
+  const consolidated = processOfficialRevenue(
+    unitId,
+    dateStr,
+    response,
+    "all",
+    `${unitId}_consolidated`,
+    unitId === "teixeira"
+      ? "Teixeira (Consolidado)"
+      : unitId === "eunapolis"
+      ? "Eunápolis (Consolidado)"
+      : "House Foodpark"
+  );
+
+  // Foodpark ou Central não possuem 2ª marca
+  if (unitId !== "teixeira" && unitId !== "eunapolis") {
+    const houseOnly = {
+      ...consolidated,
+      id: `takeat-${unitId}_house-${dateStr}`,
+      operationKey: `${unitId}_house`,
+      brand: "house" as BrandId,
+      operationName: "House Foodpark",
+    };
+    return { consolidated, house: houseOnly };
+  }
+
+  // Divisão para Teixeira e Eunápolis
+  const hasBruttusSales = ordersSummary && ordersSummary.bruttusTotal > 0;
+  const bShare = hasBruttusSales ? ordersSummary.bruttusShare : 0;
+
+  // Bruttus opera via Delivery e iFood (dark kitchen)
+  const bruttusDelivery = Math.round(consolidated.delivery * bShare * 100) / 100;
+  const bruttusIfood = Math.round(consolidated.ifood * bShare * 100) / 100;
+  const bruttusSalao = 0; // Salão físico é 100% House 190
+  const bruttusTotal = Math.round((bruttusDelivery + bruttusIfood) * 100) / 100;
+
+  // House 190 fica com todo o salão + a diferença exata de delivery e ifood
+  const houseSalao = consolidated.salao;
+  const houseDelivery = Math.round((consolidated.delivery - bruttusDelivery) * 100) / 100;
+  const houseIfood = Math.round((consolidated.ifood - bruttusIfood) * 100) / 100;
+  const houseTotal = Math.round((houseSalao + houseDelivery + houseIfood) * 100) / 100;
+
+  const unitCity = unitId === "teixeira" ? "TX" : "Eunápolis";
+
+  const houseRecord: TakeatRevenueRecord = {
+    ...consolidated,
+    id: `takeat-${unitId}_house-${dateStr}`,
+    operationKey: `${unitId}_house`,
+    brand: "house",
+    operationName: `House 190 ${unitCity}`,
+    salao: houseSalao,
+    delivery: houseDelivery,
+    ifood: houseIfood,
+    totalRevenue: houseTotal,
+  };
+
+  const bruttusRecord: TakeatRevenueRecord = {
+    ...consolidated,
+    id: `takeat-${unitId}_bruttus-${dateStr}`,
+    operationKey: `${unitId}_bruttus`,
+    brand: "bruttus",
+    operationName: `Bruttus Burger ${unitCity}`,
+    salao: bruttusSalao,
+    delivery: bruttusDelivery,
+    ifood: bruttusIfood,
+    totalRevenue: bruttusTotal,
+  };
+
+  return {
+    consolidated,
+    house: houseRecord,
+    bruttus: bruttusRecord,
+  };
+}
+
 /**
  * Consulta as Notas Fiscais Recebidas (NF-e de compras/entrada e Manifesto de Notas) na Takeat.
  * 

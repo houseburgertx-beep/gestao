@@ -29,6 +29,8 @@ import {
   getBahiaIsoMonthRange,
   validateUnitPermission,
   processOfficialRevenue,
+  createBrandSeparatedRecords,
+  fetchTakeatOrdersSummary,
   fetchTakeatGeneralCards,
   fetchTakeatReceivedNfes,
   sanitizeToken,
@@ -1059,10 +1061,31 @@ class DataStore {
       };
     }
 
-    // 4. Validação e processamento oficial estrito via payment_without_tax
+    // 4. Validação e processamento oficial com separação de marcas (House vs Bruttus vs Consolidado)
     let record: TakeatRevenueRecord;
     try {
-      record = processOfficialRevenue(unitId, dateStr, rawResponse, brand, opKey, unitName);
+      let ordersSummary = null;
+      try {
+        ordersSummary = await fetchTakeatOrdersSummary(creds, range.startDate, range.endDate);
+      } catch {}
+
+      const separated = createBrandSeparatedRecords(unitId, dateStr, rawResponse, ordersSummary);
+
+      // Salva registros separados na store
+      this.saveTakeatRevenue(separated.consolidated);
+      this.saveTakeatRevenue(separated.house);
+      if (separated.bruttus) {
+        this.saveTakeatRevenue(separated.bruttus);
+      }
+
+      // Registro legado para compatibilidade direta por unitId
+      record = {
+        ...separated.consolidated,
+        id: `takeat-${unitId}-${dateStr}`,
+        operationKey: unitId,
+        brand: "all",
+      };
+      this.saveTakeatRevenue(record);
     } catch (parseError: any) {
       return {
         success: false,
@@ -1074,8 +1097,14 @@ class DataStore {
       };
     }
 
-    // 5. Salva na base local / store
-    this.saveTakeatRevenue(record);
+    // 5. Salva também na base local se chamado com opKey customizada
+    if (opKey && opKey !== unitId && !opKey.includes("consolidated") && !opKey.includes("house") && !opKey.includes("bruttus")) {
+      this.saveTakeatRevenue({
+        ...record,
+        id: `takeat-${opKey}-${dateStr}`,
+        operationKey: opKey,
+      });
+    }
 
     // 6. Registro em auditoria
     this.addLog({
