@@ -151,7 +151,7 @@ service cloud.firestore {
     function openPeriod(name, data) {
       let month = recordMonth(data);
       return globalCollection(name)
-        || name in ['gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_closings', 'gestao_cashClosings', 'gestao_cashConferences', 'gestao_coverage', 'gestao_actions']
+        || name in ['gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_closings', 'gestao_cashClosings', 'gestao_cashConferences', 'gestao_coverage', 'gestao_actions', 'gestao_employeeVales']
         || month == ''
         || data.unitId == ''
         || !exists(/databases/$(database)/documents/gestao_locks/$(data.tenantId + '_' + data.unitId + '_' + month))
@@ -159,7 +159,7 @@ service cloud.firestore {
     }
     function validUnit(name, data) {
       return globalCollection(name)
-        || name in ['gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_transactions', 'gestao_cashClosings']
+        || name in ['gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_transactions', 'gestao_cashClosings', 'gestao_employeeVales']
         || data.unitId == ''
         || data.unitId == 'matriz'
         || data.unitId == 'all'

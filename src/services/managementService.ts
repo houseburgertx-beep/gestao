@@ -60,10 +60,12 @@ export function subscribeManagement(
   unitId: string,
   onData: (kind: string, rows: RecordData[]) => void,
   onError: (kind: string, error: Error) => void,
+  allowedKinds?: string[],
 ): Unsubscribe {
-  const subscriptions = Object.keys(DEFINITIONS).map((kind) => {
+  const targetKinds = allowedKinds || Object.keys(DEFINITIONS);
+  const subscriptions = targetKinds.map((kind) => {
     const clauses = [where("tenantId", "==", tenantId)];
-    if (unitId !== "all" && !DEFINITIONS[kind].global)
+    if (unitId !== "all" && !DEFINITIONS[kind]?.global)
       clauses.push(where("unitId", "==", unitId));
     return onSnapshot(
       query(collection(db, col(kind)), ...clauses),

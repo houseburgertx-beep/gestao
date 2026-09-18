@@ -97,9 +97,12 @@ export function ManagementProvider({
   const isFinanceOrAdmin = normRole === "admin" || normRole === "accountant";
   const allowedUnit = isFinanceOrAdmin ? "all" : (userProfile?.unitId || "all");
   useEffect(() => {
+    const targetKinds = Object.keys(DEFINITIONS).filter((k) =>
+      isFinanceOrAdmin ? true : !DEFINITIONS[k]?.restricted
+    );
     setData(emptyDatabase());
     setErrors({});
-    setPending(Object.keys(DEFINITIONS));
+    setPending(targetKinds);
     if (!user || !userProfile) return;
     return subscribeManagement(
       tenantId,
@@ -127,8 +130,9 @@ export function ManagementProvider({
         }));
         setPending((p) => p.filter((k) => k !== kind));
       },
+      targetKinds,
     );
-  }, [user?.uid, userProfile?.role, userProfile?.unitId, tenantId, allowedUnit, revision]);
+  }, [user?.uid, userProfile?.role, userProfile?.unitId, tenantId, allowedUnit, revision, isFinanceOrAdmin]);
   useEffect(() => {
     const handleLocalQueued = (e: Event) => {
       const records = (e as CustomEvent<RecordData[]>).detail || [];

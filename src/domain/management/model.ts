@@ -39,6 +39,7 @@ export interface Definition {
   fields: Field[];
   dated?: string;
   global?: boolean;
+  restricted?: boolean;
 }
 const f = (
   key: string,
@@ -699,6 +700,30 @@ export const DEFINITIONS: Record<string, Definition> = {
       f("debtCritical", "Endividamento crítico (%)", "percent"),
       f("returnTarget", "Rentabilidade alvo no período (%)", "percent"),
       f("notes", "Justificativa dos limites", "textarea"),
+    ],
+  },
+  employeeVales: {
+    label: "Vales e consumos",
+    singular: "vale / consumo",
+    dated: "date",
+    restricted: true,
+    fields: [
+      ref("employeeId", "Colaborador", "employees"),
+      f("employeeName", "Nome do Colaborador", "text", false),
+      opt("type", "Tipo", ["Vale Avulso", "Consumo da Loja"]),
+      f("date", "Data", "date"),
+      f("competence", "Competência (Mês)", "month"),
+      f("amount", "Valor (R$)", "money"),
+      opt("paymentMethod", "Forma de pagamento", [
+        "PIX",
+        "Dinheiro em espécie",
+        "Consumo / Produto",
+        "Outros",
+      ], false),
+      opt("status", "Status", ["Pendente", "Abatido"]),
+      f("description", "Descrição / Observação", "text", false),
+      f("payableId", "ID da Conta a Pagar", "text", false),
+      f("notes", "Observações internas", "textarea", false),
     ],
   },
 };
