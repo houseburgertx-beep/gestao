@@ -14,6 +14,7 @@ import { useUnit } from "@/contexts/UnitContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { currency, dateToday, RecordData, str } from "@/domain/management/model";
 import { commitRecords, saveManagement } from "@/services/managementService";
+import { db } from "@/lib/firebase";
 import {
   compressImageFile,
   downloadFileFromDrive,
@@ -349,7 +350,8 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
   const today = dateToday();
   const closings = data.cashClosings.filter(row => !row.archived).sort((a, b) => str(b, "date").localeCompare(str(a, "date")));
   const userUnit = userProfile?.unitId;
-  const isOperator = userProfile?.role === "operator" || userProfile?.role === "operador" || userProfile?.role === "caixa";
+  const roleStr = String(userProfile?.role || "");
+  const isOperator = roleStr === "operator" || roleStr === "operador" || roleStr === "caixa";
   const visible = mode === "closing"
     ? (isOperator && userUnit && userUnit !== "all" ? closings.filter(r => r.unitId === userUnit) : closings)
     : closings.filter(r => r.status !== "Rascunho");
