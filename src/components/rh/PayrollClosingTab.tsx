@@ -23,10 +23,16 @@ import {
   Receipt,
   Search,
   Eye,
+  Check,
+  Pencil,
+  X,
+  Send,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { saveManagement } from "@/services/managementService";
+import { store } from "@/services/store";
+import { saveEmployeeToFirestore } from "@/services/firestoreService";
 import type { RecordData } from "@/domain/management/model";
 import { Employee, UnitId } from "@/types";
 import { formatCurrency } from "@/lib/utils";
@@ -64,7 +70,7 @@ export function PayrollClosingTab({
   onOpenValeModal,
   onSelectEmployee,
 }: PayrollClosingTabProps) {
-  const { data } = useManagement();
+  const { data, tenantId } = useManagement();
   const { user } = useAuth();
 
   // Navigation Month YYYY-MM
@@ -79,6 +85,15 @@ export function PayrollClosingTab({
   const [savingAction, setSavingAction] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // Edição ágil de salário (FGTS/INSS/faltas)
+  const [editingSalaryEmpId, setEditingSalaryEmpId] = useState<string | null>(null);
+  const [tempSalaryStr, setTempSalaryStr] = useState("");
+  const [salaryOverrides, setSalaryOverrides] = useState<Record<string, number>>({});
+
+  // Geração de Contas a Pagar por colaborador
+  const [generatingPayables, setGeneratingPayables] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
   // Parse current year and month for display
   const [yearNum, monthNum] = useMemo(() => {
     const [y, m] = currentYearMonth.split("-").map(Number);
@@ -88,6 +103,41 @@ export function PayrollClosingTab({
   const monthLabel = useMemo(() => {
     return `${MONTH_NAMES[monthNum - 1]} de ${yearNum}`;
   }, [yearNum, monthNum]);
+
+  // Cálculo do 5º dia útil do mês seguinte para vencimento da folha
+  const fifthBusinessDay = useMemo(() => {
+    let targetYear = yearNum;
+    let targetMonth = monthNum + 1;
+    if (targetMonth > 12) {
+      targetMonth = 1;
+      targetYear += 1;
+    }
+    let count = 0;
+    let day = 1;
+    while (count < 5 && day <= 31) {
+      const d = new Date(targetYear, targetMonth - 1, day);
+      const dayOfWeek = d.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        count++;
+      }
+      if (count === 5) {
+        return `${targetYear}-${String(targetMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      }
+      day++;
+    }
+    return `${targetYear}-${String(targetMonth).padStart(2, "0")}-07`;
+  }, [yearNum, monthNum]);
+
+  // Contas a pagar de folha já geradas neste mês
+  const existingPayrollPayables = useMemo(() => {
+    return (data.payables || []).filter(
+      (p) =>
+        !p.archived &&
+        String(p.competence || "").slice(0, 7) === currentYearMonth &&
+        p.obligationType === "Folha / Pessoal" &&
+        String(p.sourceId || "").startsWith("payroll-")
+    );
+  }, [data.payables, currentYearMonth]);
 
   // Navigate months
   const handlePrevMonth = () => {
@@ -149,7 +199,8 @@ export function PayrollClosingTab({
   const metrics = useMemo(() => {
     let grossTotal = 0;
     for (const emp of scopedEmployees) {
-      grossTotal += Number(emp.salary || 0);
+      const sal = salaryOverrides[emp.id] ?? Number(emp.salary || 0);
+      grossTotal += sal;
     }
 
     let valesAvulsosTotalCents = 0;
@@ -177,7 +228,7 @@ export function PayrollClosingTab({
       consumoLojaTotal,
       netTotal,
     };
-  }, [scopedEmployees, valesRecords, selectedUnit]);
+  }, [scopedEmployees, valesRecords, selectedUnit, salaryOverrides]);
 
   // Calculate individual employee values
   const employeeRows = useMemo(() => {
@@ -197,7 +248,7 @@ export function PayrollClosingTab({
 
       const valesTotal = valesTotalCents / 100;
       const consumoTotal = consumoTotalCents / 100;
-      const baseSalary = Number(emp.salary || 0);
+      const baseSalary = salaryOverrides[emp.id] ?? Number(emp.salary || 0);
       const netSalary = Math.max(0, baseSalary - valesTotal - consumoTotal);
 
       const pendingCount = items.filter((i) => i.status !== "Abatido").length;
@@ -288,17 +339,136 @@ export function PayrollClosingTab({
     }
   };
 
+  // Salvar edição ágil de salário (FGTS/INSS/faltas/adicionais)
+  const handleSaveSalary = async (emp: Employee) => {
+    const parsed = parseFloat(tempSalaryStr.replace(/\./g, "").replace(",", ".")) || 0;
+    if (parsed < 0) return;
+
+    try {
+      // 1. Atualiza no store local
+      store.updateEmployee({ ...emp, salary: parsed });
+
+      // 2. Atualiza no Firestore employees
+      await saveEmployeeToFirestore({ ...emp, salary: parsed }).catch(console.warn);
+
+      // 3. Atualiza em gestao_employees se presente
+      const mgmtEmp = (data.employees || []).find(
+        (e) => e.id === emp.id || (e.cpf && emp.cpf && e.cpf === emp.cpf)
+      );
+      if (mgmtEmp) {
+        await saveManagement(
+          {
+            ...mgmtEmp,
+            salary: Math.round(parsed * 100),
+            updatedAt: new Date().toISOString(),
+            updatedBy: user?.uid || "system",
+          },
+          data
+        ).catch(console.warn);
+      }
+
+      setSalaryOverrides((prev) => ({ ...prev, [emp.id]: parsed }));
+      setEditingSalaryEmpId(null);
+    } catch (err) {
+      console.error("Erro ao salvar salário:", err);
+      alert("Erro ao salvar o salário do colaborador.");
+    }
+  };
+
+  // Geração de Contas a Pagar: cria 1 débito por colaborador com saldo líquido
+  const handleGeneratePayables = async () => {
+    const eligibleRows = employeeRows.filter((r) => r.netSalary > 0);
+    if (eligibleRows.length === 0) {
+      alert("Nenhum colaborador com saldo líquido a pagar nesta competência.");
+      return;
+    }
+
+    const totalNet = eligibleRows.reduce((acc, r) => acc + r.netSalary, 0);
+    const [fYear, fMonth, fDay] = fifthBusinessDay.split("-");
+    const dueDateDisplay = `${fDay}/${fMonth}/${fYear}`;
+
+    const confirmMsg =
+      `Deseja gerar os débitos da folha no Contas a Pagar para ${eligibleRows.length} colaboradores?\n\n` +
+      `• Competência: ${monthLabel}\n` +
+      `• Previsão de Pagamento (5º dia útil): ${dueDateDisplay}\n` +
+      `• Valor Total Líquido: ${formatCurrency(totalNet)}\n\n` +
+      `Cada colaborador virará um débito individual em Contas a Pagar.`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setGeneratingPayables(true);
+    setFeedbackMsg(null);
+
+    try {
+      const now = new Date().toISOString();
+      let count = 0;
+
+      for (const row of eligibleRows) {
+        const { emp, baseSalary, valesTotal, consumoTotal, netSalary } = row;
+        const payableId = `payroll-${currentYearMonth}-${emp.id}`;
+        const amountCents = Math.round(netSalary * 100);
+
+        const payableRecord: RecordData = {
+          id: payableId,
+          kind: "payables",
+          tenantId: tenantId || "house-burgers",
+          unitId: emp.unitId || "teixeira",
+          version: 0,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: user?.uid || "system",
+          updatedBy: user?.uid || "system",
+          obligationType: "Folha / Pessoal",
+          description: `Folha Líquida: ${emp.name} (${monthLabel})`,
+          competence: currentYearMonth,
+          dueDate: fifthBusinessDay,
+          originalAmount: amountCents,
+          amount: amountCents,
+          paymentMethod:
+            emp.bankData?.toLowerCase().includes("dinheiro")
+              ? "Dinheiro em espécie"
+              : "PIX",
+          nature: "Operacional",
+          status: "Pendente",
+          notes: `Fechamento de folha ${monthLabel}. Salário base: ${formatCurrency(
+            baseSalary
+          )}, Vales: -${formatCurrency(valesTotal)}, Consumo (20% OFF): -${formatCurrency(
+            consumoTotal
+          )}. Saldo líquido a pagar: ${formatCurrency(netSalary)}.`,
+          sourceId: payableId,
+        };
+
+        await saveManagement(payableRecord, data);
+        count++;
+      }
+
+      setFeedbackMsg({
+        type: "success",
+        text: `${count} débitos de folha gerados/atualizados no Contas a Pagar com vencimento em ${dueDateDisplay}!`,
+      });
+    } catch (err) {
+      console.error("Erro ao gerar débitos de folha:", err);
+      setFeedbackMsg({
+        type: "error",
+        text: err instanceof Error ? err.message : "Erro ao gerar contas a pagar.",
+      });
+    } finally {
+      setGeneratingPayables(false);
+    }
+  };
+
   // Format WhatsApp message & trigger copy/open
   const handleSendWhatsApp = (row: (typeof employeeRows)[0]) => {
     const { emp, baseSalary, valesList, consumoList, valesTotal, consumoTotal, netSalary } =
       row;
     const unitTitle = UNITS_MAP[emp.unitId] || emp.unitId || "House Burguer";
 
-    let message = `📋 *Demonstrativo de Fechamento — House Burguer* 🍔\n`;
-    message += `👤 *Colaborador:* ${emp.name}\n`;
+    let message = `🍔 *HOUSE BURGUER — FECHAMENTO DE FOLHA*\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `Olá, *${emp.name}*!\n`;
+    message += `Segue o demonstrativo da sua folha referente a *${monthLabel}*:\n\n`;
     message += `🏢 *Unidade:* ${unitTitle}\n`;
-    message += `📅 *Competência:* ${monthLabel}\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `💼 *Cargo:* ${emp.role || "Colaborador"}\n\n`;
     message += `💵 *Salário Base:* ${formatCurrency(baseSalary)}\n\n`;
 
     if (valesList.length > 0) {
@@ -309,36 +479,36 @@ export function PayrollClosingTab({
         const dFmt = dayStr && monthPart ? `${dayStr}/${monthPart}` : "";
         const desc = v.description ? ` (${v.description})` : "";
         const amt = formatCurrency(Number(v.amount || 0) / 100);
-        message += `• ${dFmt ? `${dFmt} - ` : ""}${amt}${desc}\n`;
+        message += `   • ${dFmt ? `${dFmt}: ` : ""}${amt}${desc}\n`;
       });
-      message += `*Subtotal Vales:* -${formatCurrency(valesTotal)}\n\n`;
+      message += `   *Subtotal Vales:* -${formatCurrency(valesTotal)}\n\n`;
     } else {
-      message += `🔻 *Vales Avulsos:* Nenhum\n\n`;
+      message += `🔻 *Vales Avulsos:* R$ 0,00\n\n`;
     }
 
     if (consumoList.length > 0) {
-      message += `🍔 *Consumo da Loja (Lanches / Produtos):*\n`;
+      message += `🍔 *Consumo da Loja (com 20% de desconto):*\n`;
       consumoList.forEach((c) => {
         const dayStr = String(c.date || "").slice(8, 10);
         const monthPart = String(c.date || "").slice(5, 7);
         const dFmt = dayStr && monthPart ? `${dayStr}/${monthPart}` : "";
-        const desc = c.description ? ` (${c.description})` : "Lanche/Consumo";
+        const desc = c.description ? ` (${c.description})` : "Consumo";
         const amt = formatCurrency(Number(c.amount || 0) / 100);
-        message += `• ${dFmt ? `${dFmt} - ` : ""}${amt} (${desc})\n`;
+        message += `   • ${dFmt ? `${dFmt}: ` : ""}${amt} (${desc})\n`;
       });
-      message += `*Subtotal Consumo:* -${formatCurrency(consumoTotal)}\n\n`;
+      message += `   *Subtotal Consumo:* -${formatCurrency(consumoTotal)}\n\n`;
     } else {
-      message += `🍔 *Consumo da Loja:* Nenhum\n\n`;
+      message += `🍔 *Consumo da Loja:* R$ 0,00\n\n`;
     }
 
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    message += `💰 *LÍQUIDO A RECEBER:* *${formatCurrency(netSalary)}*\n`;
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `💰 *TOTAL LÍQUIDO A RECEBER:* *${formatCurrency(netSalary)}*\n`;
     message += `🗓 *Previsão de Pagamento:* 5º dia útil\n`;
-    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    message += `_Qualquer dúvida ou divergência, procure a gerência ou o RH._`;
+    message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    message += `_Em caso de dúvidas ou divergências, procure a gerência ou o RH._`;
 
     // Copy to clipboard
-    if (navigator.clipboard) {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
       navigator.clipboard.writeText(message);
       setCopiedId(emp.id);
       setTimeout(() => setCopiedId(null), 3000);
@@ -469,10 +639,13 @@ export function PayrollClosingTab({
 
         {/* Lado Direito: Ações (Novo Vale, Liquidar Todos, Link Minimalista Contas a Pagar) */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          {/* Botão minimalista solicitado pelo usuário: Ir para o Contas a Pagar */}
-          <Link
-            href="/contas-a-pagar"
-            title="Ir para o módulo de Contas a Pagar"
+          {/* Botão solicitado pelo usuário: Criar débito da folha para o contas a pagar por colaborador */}
+          <button
+            type="button"
+            onClick={handleGeneratePayables}
+            disabled={generatingPayables}
+            className="workspace-secondary"
+            title="Criar débitos da folha no Contas a Pagar para cada colaborador deste mês"
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -481,15 +654,43 @@ export function PayrollClosingTab({
               fontWeight: 600,
               padding: "7px 12px",
               borderRadius: 8,
-              border: "1px solid #cbd5e1",
-              backgroundColor: "#f8fafc",
-              color: "#334155",
+              backgroundColor: existingPayrollPayables.length > 0 ? "#f0fdf4" : "#f8fafc",
+              borderColor: existingPayrollPayables.length > 0 ? "#86efac" : "#cbd5e1",
+              color: existingPayrollPayables.length > 0 ? "#15803d" : "#334155",
+              cursor: "pointer",
+            }}
+          >
+            <Send size={14} style={{ color: existingPayrollPayables.length > 0 ? "#16a34a" : "#2563eb" }} />
+            <span>
+              {generatingPayables
+                ? "Gerando débitos…"
+                : existingPayrollPayables.length > 0
+                ? `Atualizar no Contas a Pagar (${existingPayrollPayables.length})`
+                : "Lançar Folha no Contas a Pagar"}
+            </span>
+          </button>
+
+          {/* Atalho minimalista para abrir o Contas a Pagar */}
+          <Link
+            href="/contas-a-pagar"
+            title="Ir para o módulo de Contas a Pagar"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              fontSize: 12,
+              fontWeight: 500,
+              padding: "7px 10px",
+              borderRadius: 8,
+              border: "1px solid #e2e8f0",
+              backgroundColor: "#ffffff",
+              color: "#64748b",
               textDecoration: "none",
               transition: "all 0.15s ease",
             }}
           >
-            <ExternalLink size={14} style={{ color: "#64748b" }} />
-            <span>Contas a Pagar</span>
+            <ExternalLink size={13} style={{ color: "#64748b" }} />
+            <span>Ver Contas a Pagar</span>
           </Link>
 
           {/* Botão Liquidar Todos do Mês */}
@@ -534,6 +735,42 @@ export function PayrollClosingTab({
           </button>
         </div>
       </div>
+
+      {/* Banner de Feedback da Geração de Contas a Pagar */}
+      {feedbackMsg && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 16px",
+            borderRadius: 8,
+            backgroundColor: feedbackMsg.type === "success" ? "#f0fdf4" : "#fef2f2",
+            border: feedbackMsg.type === "success" ? "1px solid #86efac" : "1px solid #fecaca",
+            color: feedbackMsg.type === "success" ? "#166534" : "#991b1b",
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {feedbackMsg.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+            <span>{feedbackMsg.text}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFeedbackMsg(null)}
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: "inherit",
+              padding: 2,
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* 4 Indicadores Automáticos no Topo */}
       <div
@@ -872,7 +1109,7 @@ export function PayrollClosingTab({
                       </span>
                     </td>
 
-                    {/* Salário Base */}
+                    {/* Salário Base (com edição rápida de FGTS/faltas/ajustes) */}
                     <td
                       style={{
                         padding: "12px 12px",
@@ -881,7 +1118,120 @@ export function PayrollClosingTab({
                         color: "#334155",
                       }}
                     >
-                      {formatCurrency(baseSalary)}
+                      {editingSalaryEmpId === emp.id ? (
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "flex-end",
+                            gap: 4,
+                          }}
+                        >
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            className="mg-input"
+                            value={tempSalaryStr}
+                            onChange={(e) => setTempSalaryStr(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSaveSalary(emp);
+                              if (e.key === "Escape") setEditingSalaryEmpId(null);
+                            }}
+                            autoFocus
+                            placeholder="0,00"
+                            style={{
+                              width: 80,
+                              height: 28,
+                              fontSize: 12,
+                              padding: "2px 6px",
+                              textAlign: "right",
+                              fontWeight: 700,
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSaveSalary(emp)}
+                            title="Salvar novo salário"
+                            style={{
+                              background: "#16a34a",
+                              color: "#ffffff",
+                              border: "none",
+                              borderRadius: 4,
+                              width: 22,
+                              height: 22,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              padding: 0,
+                            }}
+                          >
+                            <Check size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingSalaryEmpId(null)}
+                            title="Cancelar"
+                            style={{
+                              background: "#e2e8f0",
+                              color: "#475569",
+                              border: "none",
+                              borderRadius: 4,
+                              width: 22,
+                              height: 22,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              padding: 0,
+                            }}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "flex-end",
+                            gap: 6,
+                          }}
+                        >
+                          <span>{formatCurrency(baseSalary)}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSalaryEmpId(emp.id);
+                              setTempSalaryStr(
+                                baseSalary ? baseSalary.toFixed(2).replace(".", ",") : "0,00"
+                              );
+                            }}
+                            title="Ajustar salário / descontos (FGTS, faltas, adicionais)"
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              padding: "2px 4px",
+                              borderRadius: 4,
+                              color: "#94a3b8",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              transition: "all 0.15s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = "#2563eb";
+                              e.currentTarget.style.backgroundColor = "#eff6ff";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = "#94a3b8";
+                              e.currentTarget.style.backgroundColor = "transparent";
+                            }}
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        </div>
+                      )}
                     </td>
 
                     {/* Vales Avulsos */}
