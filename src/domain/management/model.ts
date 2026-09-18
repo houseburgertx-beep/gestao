@@ -706,9 +706,10 @@ export const DEFINITIONS: Record<string, Definition> = {
     label: "Vales e consumos",
     singular: "vale / consumo",
     dated: "date",
+    global: true,
     restricted: true,
     fields: [
-      ref("employeeId", "Colaborador", "employees"),
+      f("employeeId", "Colaborador"),
       f("employeeName", "Nome do Colaborador", "text", false),
       opt("type", "Tipo", ["Vale Avulso", "Consumo da Loja"]),
       f("date", "Data", "date"),

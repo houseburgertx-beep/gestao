@@ -64,8 +64,9 @@ export function validate(record: RecordData, db: Database) {
       const target = (db[field.ref!] || []).find(
         (r) => r.id === value && !r.archived,
       );
-      if (!target) throw new Error(`${field.label}: cadastro não encontrado.`);
-      if (!DEFINITIONS[field.ref!].global && target.unitId !== record.unitId)
+      if (!target && field.ref !== "employees")
+        throw new Error(`${field.label}: cadastro não encontrado.`);
+      if (target && !DEFINITIONS[field.ref!].global && target.unitId !== record.unitId)
         throw new Error(`${field.label}: cadastro de outra unidade.`);
     }
   }
