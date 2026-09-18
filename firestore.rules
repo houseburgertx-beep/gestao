@@ -127,7 +127,7 @@ service cloud.firestore {
           || name in ['gestao_bankAccounts', 'gestao_locks', 'gestao_unique']
           || (userRole() in ['manager', 'operator'] && name in ['gestao_cashClosings', 'gestao_cashConferences'])
           || (userRole() == 'manager' && name in ['gestao_actions','gestao_goals','gestao_revenues','gestao_sales','gestao_bankAccounts'])
-          || (userRole() in ['manager', 'operator'] && name == 'gestao_payables' && data.get('sourceId', '') != ''));
+          || (userRole() in ['manager', 'operator'] && name == 'gestao_payables'));
     }
     function operatorPixRequest(name, data) {
       return activeUser() && name == 'gestao_payables'

@@ -869,7 +869,7 @@ function ClosingModal({
   ]);
 
   // Cent helpers
-  const c = (val: string) => Math.max(0, Math.round(Number(val || 0) * 100));
+  const c = (val: string | number | undefined | null) => Math.max(0, Math.round(Number(String(val ?? "0").replace(",", ".").trim()) * 100) || 0);
 
   const cSysCash = c(systemCash);
   const cSysCredit = c(systemCredit);
@@ -886,7 +886,7 @@ function ClosingModal({
   const cOutflows = outflows.reduce((sum, r) => sum + c(r.amount), 0);
   const cCashExpected = cOpening + cSysCash + cCashIn - cOutflows;
   const cCashFound = cSangria + cClosingFloat;
-  const cCashDiff = cCashExpected < 0 ? cCashFound - Math.abs(cCashExpected) : cCashFound - cCashExpected;
+  const cCashDiff = cCashFound - cCashExpected;
 
   let cCreditFound = 0;
   let cDebitFound = 0;
@@ -948,27 +948,34 @@ function ClosingModal({
         throw new Error("Envie no máximo 5 comprovantes.");
       }
 
-      const uploadedAttachments: CashAttachment[] = [...existingAttachments];
+      const uploadedAttachments: CashAttachment[] = [...existingAttachments.map(att => ({
+        ...att,
+        // Strip large dataUrls from existing attachments that are already in Drive
+        dataUrl: att.fileId && !att.fileId.startsWith("local-") ? undefined : (att.dataUrl && att.dataUrl.length > 60000 ? att.dataUrl.slice(0, 60000) : att.dataUrl),
+      }))];
       for (const item of newFiles) {
         try {
           const named = nameFileForDrive(item.file, `Fechamento ${date} - ${unit}`);
           const saved = await uploadFileToDrive(named, "payment_proofs");
+          // File is safe in Drive — do NOT store dataUrl in Firestore (saves ~300KB per photo)
           uploadedAttachments.push({
             fileId: saved.fileId,
             fileName: saved.fileName,
             mimeType: saved.mimeType,
             size: saved.size,
-            dataUrl: item.dataUrl && item.dataUrl.length < 350000 ? item.dataUrl : undefined,
+            dataUrl: undefined,
             uploadedAt: new Date().toISOString()
           });
         } catch (uploadErr) {
           console.warn("[Fechamento] Falha ao enviar comprovante para o Drive, mantendo fallback com preview:", uploadErr);
+          // Fallback: cap dataUrl at 60KB to stay well within Firestore 1MB limit (5 attachments * 60KB = 300KB max)
+          const safeDataUrl = item.dataUrl && item.dataUrl.length > 60000 ? item.dataUrl.slice(0, 60000) : (item.dataUrl || undefined);
           uploadedAttachments.push({
             fileId: `local-${Date.now()}-${item.file.name}`,
             fileName: item.file.name,
             mimeType: item.file.type || "image/jpeg",
             size: item.size,
-            dataUrl: item.dataUrl || undefined,
+            dataUrl: safeDataUrl,
             uploadedAt: new Date().toISOString()
           });
         }
@@ -1077,13 +1084,23 @@ function ClosingModal({
         notes: `Solicitação criada no fechamento de caixa. Chave PIX: ${request.key}`
       })) as RecordData[];
 
-      [row, ...payables].forEach(record => validate(record, data));
+      // Archive orphaned PIX payables (existed in Firestore but removed by operator when editing)
+      const existingPayables = (data.payables || []).filter(
+        (p: RecordData) => !p.archived && p.sourceId === closingId
+      );
+      const currentPayableIds = new Set(payables.map((p: RecordData) => p.id));
+      const orphanPayables: RecordData[] = existingPayables
+        .filter((p: RecordData) => !currentPayableIds.has(p.id))
+        .map((p: RecordData) => ({ ...p, archived: true, updatedAt: now, updatedBy: user.uid }));
+
+      const allRecords = [row, ...payables, ...orphanPayables];
+      allRecords.forEach(record => validate(record, data));
 
       // Retry up to 3 times for transient Firebase errors (quota, network)
       let lastErr: unknown;
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          await commitRecords([row, ...payables], data, row);
+          await commitRecords(allRecords, data, row);
           try {
             localStorage.removeItem(DRAFT_KEY);
           } catch {}
@@ -2187,9 +2204,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   // Recalculations
   const cashExpected = openingAmount + systemCash + cashIn - cashOutflows;
   const cashFound = sangriaAmount + closingFloat;
-  const cashDiff = cashExpected < 0
-    ? cashFound - Math.abs(cashExpected)
-    : cashFound - cashExpected;
+  const cashDiff = cashFound - cashExpected;
 
   const totalCreditFound = Object.values(bankVals).reduce((s, b) => s + b.credit, 0);
   const totalDebitFound = Object.values(bankVals).reduce((s, b) => s + b.debit, 0);
