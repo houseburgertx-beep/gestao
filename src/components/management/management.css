@@ -7744,6 +7744,29 @@
   transform: scale(1.05);
 }
 
+.people-card-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.people-card-delete-btn:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  border-color: #fca5a5;
+  transform: scale(1.05);
+}
+
 /* Drawer Hero Action Edit Button */
 .rh-btn-action-edit {
   display: inline-flex;

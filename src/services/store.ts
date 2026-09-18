@@ -56,6 +56,7 @@ import {
 } from "@/data/mockData";
 import {
   saveEmployeeToFirestore,
+  deleteEmployeeFromFirestore,
   saveSupplierToFirestore,
   saveAccountPayableToFirestore,
   saveGoalToFirestore,
@@ -694,6 +695,17 @@ class DataStore {
       window.dispatchEvent(new CustomEvent("house190_data_updated"));
     }
     return emp;
+  }
+
+  deleteEmployee(id: string): void {
+    const employees = this.getEmployees().filter((e) => e.id !== id);
+    this.set(STORAGE_KEYS.EMPLOYEES, employees);
+    deleteEmployeeFromFirestore(id).catch((err) =>
+      console.warn("Erro ao excluir colaborador no Firestore:", err)
+    );
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("house190_data_updated"));
+    }
   }
 
   getVacations(): EmployeeVacation[] {

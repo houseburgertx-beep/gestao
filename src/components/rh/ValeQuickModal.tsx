@@ -4,14 +4,12 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   Wallet,
   Utensils,
-  Calendar,
-  DollarSign,
-  User,
   X,
   CheckCircle2,
   AlertCircle,
-  FileSpreadsheet,
   ArrowRight,
+  User,
+  Percent,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,22 +32,6 @@ interface ValeQuickModalProps {
   employees?: ValeEmployeeOption[];
   onSuccess?: () => void;
 }
-
-const COMMON_CONSUMO_PRESETS = [
-  "Hambúrguer no plantão",
-  "Lanche e Bebida",
-  "Refrigerante / Bebida",
-  "Sobremesa",
-  "Combo Plantão",
-];
-
-const COMMON_VALE_PRESETS = [
-  "Adiantamento PIX",
-  "Vale emergencial",
-  "Adiantamento quinzenal",
-  "Despesas de transporte",
-  "Farmácia / Saúde",
-];
 
 export function ValeQuickModal({
   isOpen,
@@ -77,7 +59,7 @@ export function ValeQuickModal({
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Initialize or reset when opened
+  // Inicialização e reset ao abrir
   useEffect(() => {
     if (isOpen) {
       setError("");
@@ -100,7 +82,7 @@ export function ValeQuickModal({
     }
   }, [isOpen, defaultEmployee, employees]);
 
-  // Sync payment method default when type changes
+  // Forma de pagamento padrão por tipo
   useEffect(() => {
     if (type === "Consumo da Loja") {
       setPaymentMethod("Consumo / Produto");
@@ -111,14 +93,21 @@ export function ValeQuickModal({
 
   if (!isOpen) return null;
 
-  // Find active employee details
   const selectedEmployee = defaultEmployee || employees.find((e) => e.id === employeeId);
 
+  // Parse do valor digitado (valor bruto completo)
   const parsedAmount = Math.max(
     0,
     parseFloat(amountStr.replace(/\./g, "").replace(",", ".")) || 0
   );
-  const amountCents = Math.round(parsedAmount * 100);
+  const rawAmountCents = Math.round(parsedAmount * 100);
+
+  // Regra de 20% de desconto para Consumo da Loja
+  // O usuário informa o valor cheio dos produtos, e o sistema desconta 20% para a folha
+  const discountPercent = type === "Consumo da Loja" ? 20 : 0;
+  const discountAmount = type === "Consumo da Loja" ? parsedAmount * 0.2 : 0;
+  const finalAmount = type === "Consumo da Loja" ? parsedAmount * 0.8 : parsedAmount;
+  const finalAmountCents = Math.round(finalAmount * 100);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,7 +115,7 @@ export function ValeQuickModal({
       setError("Selecione um colaborador.");
       return;
     }
-    if (amountCents <= 0) {
+    if (rawAmountCents <= 0) {
       setError("Informe um valor válido maior que zero.");
       return;
     }
@@ -144,7 +133,7 @@ export function ValeQuickModal({
       const payableId = `payable-${valeId}`;
       const unitId = selectedEmployee.unitId || "teixeira";
 
-      // 1. Registro principal: employeeVales
+      // 1. Registro principal em employeeVales (valor líquido com desconto é o abatimento da folha)
       const valeRecord: RecordData = {
         id: valeId,
         kind: "employeeVales",
@@ -160,15 +149,18 @@ export function ValeQuickModal({
         type,
         date,
         competence: competence || date.slice(0, 7),
-        amount: amountCents,
+        amount: finalAmountCents, // Valor que realmente abate na folha
+        originalAmount: rawAmountCents, // Valor bruto informado
+        discountPercent,
+        discountAmount: Math.round(discountAmount * 100),
         paymentMethod: type === "Consumo da Loja" ? "Consumo / Produto" : paymentMethod,
         status: "Pendente",
-        description: description.trim(),
+        description: description.trim() || (type === "Consumo da Loja" ? "Consumo Loja (-20%)" : "Vale Avulso"),
         payableId,
         notes: notes.trim(),
       };
 
-      // 2. Criação automática no Contas a Pagar (payables)
+      // 2. Criação automática em Contas a Pagar (payables)
       const payableRecord: RecordData = {
         id: payableId,
         kind: "payables",
@@ -180,13 +172,13 @@ export function ValeQuickModal({
         createdBy: user?.uid || "system",
         updatedBy: user?.uid || "system",
         obligationType: "Folha / Pessoal",
-        description: `${type === "Consumo da Loja" ? "Consumo da Loja" : "Vale/Adiantamento"}: ${selectedEmployee.name}${
-          description.trim() ? ` - ${description.trim()}` : ""
-        }`,
+        description: `${
+          type === "Consumo da Loja" ? "Consumo Loja (-20%)" : "Vale/Adiantamento"
+        }: ${selectedEmployee.name}${description.trim() ? ` - ${description.trim()}` : ""}`,
         competence: competence || date.slice(0, 7),
         dueDate: date,
-        originalAmount: amountCents,
-        amount: amountCents,
+        originalAmount: rawAmountCents,
+        amount: finalAmountCents,
         paymentMethod:
           type === "Consumo da Loja"
             ? "Outros"
@@ -197,28 +189,32 @@ export function ValeQuickModal({
             : "Outros",
         nature: "Operacional",
         status: "Pendente",
-        notes: `Lançado via RH (Vales & Consumo) para o colaborador ${selectedEmployee.name}. ID Vale: ${valeId}`,
+        notes: `Lançado via RH (Vales & Consumo). Colaborador: ${selectedEmployee.name}. ${
+          type === "Consumo da Loja"
+            ? `Bruto: ${formatCurrency(parsedAmount)} com 20% desc = ${formatCurrency(finalAmount)}.`
+            : ""
+        }`,
         sourceId: valeId,
       };
 
-      // Salva no banco
+      // Salva no banco de dados
       await saveManagement(valeRecord, data);
       await saveManagement(payableRecord, data);
 
       setSuccessMsg(
-        `${type} de ${formatCurrency(parsedAmount)} registrado com sucesso e enviado ao Contas a Pagar!`
+        `${type} de ${formatCurrency(finalAmount)} registrado com sucesso!`
       );
 
       setTimeout(() => {
         if (onSuccess) onSuccess();
         onClose();
-      }, 1000);
+      }, 900);
     } catch (err) {
       console.error("Erro ao salvar vale:", err);
       setError(
         err instanceof Error
           ? err.message
-          : "Erro ao salvar o vale. Verifique a conexão e permissões."
+          : "Erro ao salvar. Verifique a conexão e permissões."
       );
     } finally {
       setLoading(false);
@@ -237,26 +233,39 @@ export function ValeQuickModal({
         className="mg-modal task-modal-modern"
         role="dialog"
         aria-modal="true"
-        style={{ maxWidth: 540, width: "95vw" }}
+        style={{ maxWidth: 480, width: "94vw", borderRadius: 14 }}
       >
-        {/* Header */}
-        <header className="task-modal-header">
-          <div className="task-modal-title-box">
+        {/* Header Minimalista */}
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "16px 20px",
+            borderBottom: "1px solid #e2e8f0",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div
-              className="task-modal-icon-badge"
               style={{
+                width: 34,
+                height: 34,
+                borderRadius: 8,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 backgroundColor: type === "Vale Avulso" ? "#eff6ff" : "#fef3c7",
                 color: type === "Vale Avulso" ? "#2563eb" : "#d97706",
               }}
             >
-              {type === "Vale Avulso" ? <Wallet size={20} /> : <Utensils size={20} />}
+              {type === "Vale Avulso" ? <Wallet size={18} /> : <Utensils size={18} />}
             </div>
             <div>
-              <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
-                Lançamento Ágil (Vale / Consumo)
+              <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: "#0f172a" }}>
+                {type === "Vale Avulso" ? "Lançar Vale Avulso" : "Lançar Consumo da Loja"}
               </h2>
-              <p style={{ margin: "2px 0 0", fontSize: 12, color: "#64748b" }}>
-                Abatimento direto na folha com lançamento automático em Contas a Pagar
+              <p style={{ margin: 0, fontSize: 11, color: "#64748b" }}>
+                Abatimento direto no fechamento da folha
               </p>
             </div>
           </div>
@@ -266,29 +275,30 @@ export function ValeQuickModal({
             onClick={onClose}
             disabled={loading}
             title="Fechar"
+            style={{ padding: 4 }}
           >
             <X size={18} />
           </button>
         </header>
 
-        {/* Content */}
-        <form onSubmit={handleSubmit} style={{ padding: "18px 24px" }}>
+        {/* Formulário Limpo e Direto */}
+        <form onSubmit={handleSubmit} style={{ padding: "18px 20px" }}>
           {error && (
             <div
               style={{
-                backgroundColor: "#fee2e2",
-                border: "1px solid #fca5a5",
-                color: "#b91c1c",
+                backgroundColor: "#fef2f2",
+                border: "1px solid #fecaca",
+                color: "#991b1b",
                 borderRadius: 8,
-                padding: "10px 14px",
-                fontSize: 13,
+                padding: "8px 12px",
+                fontSize: 12,
                 marginBottom: 14,
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
               }}
             >
-              <AlertCircle size={16} />
+              <AlertCircle size={15} />
               <span>{error}</span>
             </div>
           )}
@@ -296,123 +306,84 @@ export function ValeQuickModal({
           {successMsg && (
             <div
               style={{
-                backgroundColor: "#dcfce7",
-                border: "1px solid #86efac",
-                color: "#15803d",
+                backgroundColor: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                color: "#166534",
                 borderRadius: 8,
-                padding: "10px 14px",
-                fontSize: 13,
+                padding: "8px 12px",
+                fontSize: 12,
                 marginBottom: 14,
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
               }}
             >
-              <CheckCircle2 size={16} />
+              <CheckCircle2 size={15} />
               <span>{successMsg}</span>
             </div>
           )}
 
-          {/* Tipo de Lançamento (Toggle Cards) */}
-          <div style={{ marginBottom: 16 }}>
-            <label
+          {/* Alternador de Tipo Minimalista */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 8,
+              backgroundColor: "#f1f5f9",
+              padding: 4,
+              borderRadius: 10,
+              marginBottom: 16,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setType("Vale Avulso")}
               style={{
-                display: "block",
-                fontSize: 12,
-                fontWeight: 600,
-                color: "#475569",
-                marginBottom: 6,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                padding: "8px 12px",
+                borderRadius: 7,
+                border: "none",
+                backgroundColor: type === "Vale Avulso" ? "#ffffff" : "transparent",
+                color: type === "Vale Avulso" ? "#1d4ed8" : "#64748b",
+                fontWeight: type === "Vale Avulso" ? 700 : 500,
+                fontSize: 13,
+                cursor: "pointer",
+                boxShadow:
+                  type === "Vale Avulso" ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                transition: "all 0.15s ease",
               }}
             >
-              TIPO DE ABATIMENTO *
-            </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => setType("Vale Avulso")}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "12px 14px",
-                  borderRadius: 10,
-                  border:
-                    type === "Vale Avulso"
-                      ? "2px solid #2563eb"
-                      : "1px solid #e2e8f0",
-                  backgroundColor: type === "Vale Avulso" ? "#eff6ff" : "#ffffff",
-                  color: type === "Vale Avulso" ? "#1d4ed8" : "#334155",
-                  fontWeight: type === "Vale Avulso" ? 700 : 500,
-                  cursor: "pointer",
-                  textAlign: "left",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: "50%",
-                    backgroundColor: type === "Vale Avulso" ? "#dbeafe" : "#f1f5f9",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: type === "Vale Avulso" ? "#2563eb" : "#64748b",
-                  }}
-                >
-                  <Wallet size={16} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, lineHeight: 1.2 }}>Vale Avulso</div>
-                  <div style={{ fontSize: 11, color: "#64748b", fontWeight: 400 }}>
-                    PIX / Dinheiro
-                  </div>
-                </div>
-              </button>
+              <Wallet size={15} />
+              <span>Vale Avulso (PIX)</span>
+            </button>
 
-              <button
-                type="button"
-                onClick={() => setType("Consumo da Loja")}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "12px 14px",
-                  borderRadius: 10,
-                  border:
-                    type === "Consumo da Loja"
-                      ? "2px solid #d97706"
-                      : "1px solid #e2e8f0",
-                  backgroundColor: type === "Consumo da Loja" ? "#fffbeb" : "#ffffff",
-                  color: type === "Consumo da Loja" ? "#b45309" : "#334155",
-                  fontWeight: type === "Consumo da Loja" ? 700 : 500,
-                  cursor: "pointer",
-                  textAlign: "left",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: "50%",
-                    backgroundColor: type === "Consumo da Loja" ? "#fef3c7" : "#f1f5f9",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: type === "Consumo da Loja" ? "#d97706" : "#64748b",
-                  }}
-                >
-                  <Utensils size={16} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, lineHeight: 1.2 }}>Consumo Loja</div>
-                  <div style={{ fontSize: 11, color: "#64748b", fontWeight: 400 }}>
-                    Lanches / Bebidas
-                  </div>
-                </div>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setType("Consumo da Loja")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                padding: "8px 12px",
+                borderRadius: 7,
+                border: "none",
+                backgroundColor: type === "Consumo da Loja" ? "#ffffff" : "transparent",
+                color: type === "Consumo da Loja" ? "#b45309" : "#64748b",
+                fontWeight: type === "Consumo da Loja" ? 700 : 500,
+                fontSize: 13,
+                cursor: "pointer",
+                boxShadow:
+                  type === "Consumo da Loja" ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Utensils size={15} />
+              <span>Consumo da Loja</span>
+            </button>
           </div>
 
           {/* Colaborador */}
@@ -420,21 +391,23 @@ export function ValeQuickModal({
             <label
               style={{
                 display: "block",
-                fontSize: 12,
-                fontWeight: 600,
+                fontSize: 11,
+                fontWeight: 700,
                 color: "#475569",
-                marginBottom: 5,
+                marginBottom: 4,
+                textTransform: "uppercase",
+                letterSpacing: "0.03em",
               }}
             >
-              COLABORADOR *
+              Colaborador *
             </label>
             {defaultEmployee ? (
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 10,
-                  padding: "9px 12px",
+                  gap: 8,
+                  padding: "8px 12px",
                   backgroundColor: "#f8fafc",
                   border: "1px solid #e2e8f0",
                   borderRadius: 8,
@@ -442,17 +415,19 @@ export function ValeQuickModal({
               >
                 <div
                   style={{
-                    width: 28,
-                    height: 28,
+                    width: 24,
+                    height: 24,
                     borderRadius: "50%",
                     backgroundColor: "#e2e8f0",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     color: "#475569",
+                    fontSize: 11,
+                    fontWeight: 700,
                   }}
                 >
-                  <User size={15} />
+                  <User size={13} />
                 </div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
@@ -483,12 +458,106 @@ export function ValeQuickModal({
             )}
           </div>
 
-          {/* Valor & Data (Linha Dupla) */}
+          {/* Campo de Valor com Regra de 20% no Consumo */}
+          <div style={{ marginBottom: 14 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#475569",
+                marginBottom: 4,
+                textTransform: "uppercase",
+                letterSpacing: "0.03em",
+              }}
+            >
+              {type === "Consumo da Loja"
+                ? "Valor Total da Comanda / Produtos (R$) *"
+                : "Valor do Vale / Adiantamento (R$) *"}
+            </label>
+            <div style={{ position: "relative" }}>
+              <span
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: "#64748b",
+                }}
+              >
+                R$
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="0,00"
+                className="mg-input"
+                value={amountStr}
+                onChange={(e) => setAmountStr(e.target.value)}
+                required
+                autoFocus
+                style={{
+                  paddingLeft: 34,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: "#0f172a",
+                }}
+              />
+            </div>
+
+            {/* Demonstração limpa dos 20% de desconto quando for Consumo da Loja */}
+            {type === "Consumo da Loja" && parsedAmount > 0 && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: "8px 12px",
+                  backgroundColor: "#fffbeb",
+                  borderRadius: 8,
+                  border: "1px solid #fde68a",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div
+                    style={{
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      backgroundColor: "#fef3c7",
+                      color: "#b45309",
+                      fontWeight: 800,
+                      fontSize: 10,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 2,
+                    }}
+                  >
+                    <Percent size={10} /> 20% OFF
+                  </div>
+                  <span style={{ color: "#78350f" }}>
+                    Desc: -{formatCurrency(discountAmount)}
+                  </span>
+                </div>
+                <div>
+                  <span style={{ color: "#78350f", marginRight: 6 }}>A descontar:</span>
+                  <strong style={{ color: "#b45309", fontSize: 13 }}>
+                    {formatCurrency(finalAmount)}
+                  </strong>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Linha dupla: Data do Fato e Mês de Desconto */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1.2fr 1fr",
-              gap: 12,
+              gridTemplateColumns: "1fr 1fr",
+              gap: 10,
               marginBottom: 14,
             }}
           >
@@ -496,57 +565,15 @@ export function ValeQuickModal({
               <label
                 style={{
                   display: "block",
-                  fontSize: 12,
-                  fontWeight: 600,
+                  fontSize: 11,
+                  fontWeight: 700,
                   color: "#475569",
-                  marginBottom: 5,
+                  marginBottom: 4,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.03em",
                 }}
               >
-                VALOR DO ABATIMENTO (R$) *
-              </label>
-              <div style={{ position: "relative" }}>
-                <span
-                  style={{
-                    position: "absolute",
-                    left: 10,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: "#64748b",
-                  }}
-                >
-                  R$
-                </span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0,00"
-                  className="mg-input"
-                  value={amountStr}
-                  onChange={(e) => setAmountStr(e.target.value)}
-                  required
-                  style={{
-                    paddingLeft: 34,
-                    fontSize: 16,
-                    fontWeight: 700,
-                    color: "#0f172a",
-                  }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "#475569",
-                  marginBottom: 5,
-                }}
-              >
-                DATA DO FATO *
+                Data *
               </label>
               <input
                 type="date"
@@ -557,28 +584,20 @@ export function ValeQuickModal({
                 style={{ fontSize: 13 }}
               />
             </div>
-          </div>
 
-          {/* Competência (Mês de desconto) & Forma de Pagamento */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1.2fr",
-              gap: 12,
-              marginBottom: 14,
-            }}
-          >
             <div>
               <label
                 style={{
                   display: "block",
-                  fontSize: 12,
-                  fontWeight: 600,
+                  fontSize: 11,
+                  fontWeight: 700,
                   color: "#475569",
-                  marginBottom: 5,
+                  marginBottom: 4,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.03em",
                 }}
               >
-                MÊS DE DESCONTO *
+                Mês de Desconto *
               </label>
               <input
                 type="month"
@@ -589,131 +608,74 @@ export function ValeQuickModal({
                 style={{ fontSize: 13 }}
               />
             </div>
+          </div>
 
-            <div>
+          {/* Forma de Pagamento (apenas para Vale Avulso) */}
+          {type === "Vale Avulso" && (
+            <div style={{ marginBottom: 14 }}>
               <label
                 style={{
                   display: "block",
-                  fontSize: 12,
-                  fontWeight: 600,
+                  fontSize: 11,
+                  fontWeight: 700,
                   color: "#475569",
-                  marginBottom: 5,
+                  marginBottom: 4,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.03em",
                 }}
               >
-                FORMA DE PAGAMENTO
+                Forma de Pagamento
               </label>
-              {type === "Consumo da Loja" ? (
-                <input
-                  type="text"
-                  className="mg-input"
-                  value="Consumo / Produto Interno"
-                  disabled
-                  style={{ backgroundColor: "#f8fafc", color: "#64748b", fontSize: 13 }}
-                />
-              ) : (
-                <select
-                  className="mg-input"
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  style={{ fontSize: 13 }}
-                >
-                  <option value="PIX">PIX</option>
-                  <option value="Dinheiro em espécie">Dinheiro em espécie</option>
-                  <option value="Transferência bancária">Transferência bancária</option>
-                  <option value="Outros">Outros</option>
-                </select>
-              )}
+              <select
+                className="mg-input"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                style={{ fontSize: 13 }}
+              >
+                <option value="PIX">PIX</option>
+                <option value="Dinheiro em espécie">Dinheiro em espécie</option>
+                <option value="Transferência bancária">Transferência bancária</option>
+                <option value="Outros">Outros</option>
+              </select>
             </div>
-          </div>
+          )}
 
-          {/* Descrição / Observação */}
-          <div style={{ marginBottom: 14 }}>
-            <div
+          {/* Descrição / Observação Simples e Direta */}
+          <div style={{ marginBottom: 18 }}>
+            <label
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 5,
+                display: "block",
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#475569",
+                marginBottom: 4,
+                textTransform: "uppercase",
+                letterSpacing: "0.03em",
               }}
             >
-              <label
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "#475569",
-                }}
-              >
-                DESCRIÇÃO / OBSERVAÇÃO OPCIONAL
-              </label>
-            </div>
+              Descrição / Observação (Opcional)
+            </label>
             <input
               type="text"
               className="mg-input"
               placeholder={
                 type === "Consumo da Loja"
-                  ? 'Ex.: "Hambúrguer no plantão de sábado", "Refrigerante"'
-                  : 'Ex.: "Adiantamento PIX", "Vale de emergência"'
+                  ? "Ex.: Hambúrguer e refrigerante"
+                  : "Ex.: Adiantamento de emergência"
               }
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              style={{ fontSize: 13, marginBottom: 6 }}
+              style={{ fontSize: 13 }}
             />
-
-            {/* Presets rápidos */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-              {(type === "Consumo da Loja"
-                ? COMMON_CONSUMO_PRESETS
-                : COMMON_VALE_PRESETS
-              ).map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setDescription(preset)}
-                  style={{
-                    background: "#f1f5f9",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: 99,
-                    fontSize: 11,
-                    color: "#475569",
-                    padding: "2px 8px",
-                    cursor: "pointer",
-                  }}
-                >
-                  {preset}
-                </button>
-              ))}
-            </div>
           </div>
 
-          {/* Box de Informação: Contas a Pagar Integrado */}
-          <div
-            style={{
-              backgroundColor: "#f0fdf4",
-              border: "1px solid #bbf7d0",
-              borderRadius: 8,
-              padding: "10px 12px",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              fontSize: 12,
-              color: "#166534",
-              marginBottom: 18,
-            }}
-          >
-            <FileSpreadsheet size={18} style={{ flexShrink: 0, color: "#16a34a" }} />
-            <div>
-              <strong>Integração Financeira Automática:</strong> Este vale criará
-              automaticamente uma obrigação em <em>Contas a Pagar</em> na categoria{" "}
-              <strong>Folha / Pessoal</strong> para conciliação.
-            </div>
-          </div>
-
-          {/* Ações */}
+          {/* Rodapé e Ações */}
           <div
             style={{
               display: "flex",
               justifyContent: "flex-end",
-              gap: 10,
+              alignItems: "center",
+              gap: 8,
               borderTop: "1px solid #e2e8f0",
               paddingTop: 14,
             }}
@@ -723,7 +685,7 @@ export function ValeQuickModal({
               className="workspace-secondary"
               onClick={onClose}
               disabled={loading}
-              style={{ fontSize: 13 }}
+              style={{ fontSize: 13, padding: "8px 14px" }}
             >
               Cancelar
             </button>
@@ -734,6 +696,7 @@ export function ValeQuickModal({
               style={{
                 fontSize: 13,
                 fontWeight: 600,
+                padding: "8px 16px",
                 backgroundColor: type === "Vale Avulso" ? "#2563eb" : "#d97706",
               }}
             >
@@ -741,7 +704,7 @@ export function ValeQuickModal({
                 "Salvando…"
               ) : (
                 <>
-                  Confirmar {type} de {formatCurrency(parsedAmount || 0)}
+                  Confirmar {formatCurrency(finalAmount)}
                   <ArrowRight size={14} style={{ marginLeft: 4 }} />
                 </>
               )}

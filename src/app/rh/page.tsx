@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BriefcaseBusiness, CalendarDays, CircleDollarSign, FileUp, Pencil, Plus, Search, UserCheck, UserRound, UsersRound, Wallet, Utensils } from "lucide-react";
+import { AlertTriangle, BriefcaseBusiness, CalendarDays, CircleDollarSign, FileUp, Pencil, Plus, Search, UserCheck, UserRound, UsersRound, Wallet, Utensils, Trash2 } from "lucide-react";
 import { useUnit } from "@/contexts/UnitContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useManagement } from "@/contexts/ManagementContext";
 import { normalizeRole } from "@/components/layout/managementNavigation";
 import { Employee } from "@/types";
-import { subscribeEmployees } from "@/services/firestoreService";
+import { subscribeEmployees, deleteEmployeeFromFirestore } from "@/services/firestoreService";
+import { saveManagement } from "@/services/managementService";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { NewEmployeeModal } from "@/components/rh/NewEmployeeModal";
 import { EditEmployeeModal } from "@/components/rh/EditEmployeeModal";
@@ -63,6 +64,7 @@ export default function RhPage() {
     const existingCpfs = new Set(list.map((e) => (e.cpf || "").replace(/\D/g, "")).filter(Boolean));
 
     for (const row of mgmtData.employees || []) {
+      if (row.archived) continue;
       const rowId = row.id;
       const rowCpf = String(row.cpf || "").replace(/\D/g, "");
       if (existingIds.has(rowId) || (rowCpf && existingCpfs.has(rowCpf))) {
@@ -155,6 +157,48 @@ export default function RhPage() {
   const vacationAlerts = scoped.filter(
     (e) => e.vacationStart && e.vacationStart >= today && e.vacationStart <= in30
   );
+
+  const handleDeleteEmployee = async (employee: Employee) => {
+    if (
+      !confirm(
+        `Tem certeza que deseja excluir o colaborador "${employee.name}"?\n\nEsta ação removerá o cadastro duplicado do sistema.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      // 1. Remove do store local
+      store.deleteEmployee(employee.id);
+
+      // 2. Remove da coleção "employees" no Firestore
+      await deleteEmployeeFromFirestore(employee.id).catch(console.warn);
+
+      // 3. Se existir em gestao_employees, marca como arquivado
+      const mgmtRow = (mgmtData.employees || []).find(
+        (r) => r.id === employee.id || (r.cpf && employee.cpf && r.cpf === employee.cpf)
+      );
+      if (mgmtRow) {
+        await saveManagement(
+          {
+            ...mgmtRow,
+            archived: true,
+            updatedAt: new Date().toISOString(),
+            updatedBy: userProfile?.displayName || "system",
+          },
+          mgmtData,
+          true
+        ).catch(console.warn);
+      }
+
+      // 4. Atualiza estado local
+      setEmployees((prev) => prev.filter((e) => e.id !== employee.id));
+      if (selected?.id === employee.id) setSelected(null);
+    } catch (err) {
+      console.error("Erro ao excluir colaborador:", err);
+      alert("Erro ao excluir colaborador.");
+    }
+  };
 
   return (
     <div className="workspace-shell people-workspace">
@@ -421,18 +465,32 @@ export default function RhPage() {
                 <div className="people-card-main">
                   <div className="people-card-title-row">
                     <h3>{employee.name}</h3>
-                    <button
-                      type="button"
-                      className="people-card-edit-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingEmployee(employee);
-                      }}
-                      title="Editar informações do colaborador"
-                      aria-label="Editar"
-                    >
-                      <Pencil size={12} />
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                      <button
+                        type="button"
+                        className="people-card-edit-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingEmployee(employee);
+                        }}
+                        title="Editar informações do colaborador"
+                        aria-label="Editar"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        className="people-card-delete-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteEmployee(employee);
+                        }}
+                        title="Excluir cadastro (remover duplicado)"
+                        aria-label="Excluir"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   </div>
                   <p>{employee.role || "Cargo pendente"}</p>
                   <span>{employee.department || "Setor pendente"}</span>
