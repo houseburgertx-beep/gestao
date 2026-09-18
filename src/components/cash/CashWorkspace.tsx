@@ -492,7 +492,8 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
                     const formattedDate = str(row, "date").split("-").reverse().join("/");
                     if (!window.confirm(`Tem certeza que deseja excluir o fechamento de ${formattedDate} (${unitName})? Caso tenha lançado com a data errada, você poderá lançar novamente com a data certa.`)) return;
                     try {
-                      await saveManagement(row, data, true);
+                      const rowToDelete = { ...row, updatedBy: user?.uid || row.updatedBy };
+                      await saveManagement(rowToDelete, data, true);
                       setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
                     } catch (err) {
                       console.error("Erro ao excluir fechamento:", err);
