@@ -89,10 +89,16 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
         ? "Novo fornecedor"
       : cleanPath.startsWith("/documentos")
         ? "Novo documento"
+      : cleanPath.startsWith("/nfe-recebida")
+        ? "Sincronizar notas"
       : cleanPath.startsWith("/faturamento") || cleanPath.startsWith("/integracoes/takeat")
         ? "Atualizar vendas"
       : "Nova conta";
   const openNewRecord = () => {
+    if (cleanPath.startsWith("/nfe-recebida")) {
+      window.dispatchEvent(new CustomEvent("sync-takeat-nfe"));
+      return;
+    }
     if (cleanPath.startsWith("/tarefas")) {
       window.dispatchEvent(new CustomEvent("open-task-form"));
       return;

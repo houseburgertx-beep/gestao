@@ -39,6 +39,9 @@ import {
   getYesterdayBahiaDate,
   getCurrentBahiaMonth,
   getPreviousBahiaMonth,
+  TAKEAT_OPERATIONS,
+  TakeatOperation,
+  BrandId,
 } from "@/services/takeatService";
 import {
   BarChart,
@@ -57,6 +60,15 @@ const CONSOLE_TOKEN_HELPER =
 const UNIT_LABELS: Record<string, string> = {
   eunapolis: "House 190 Eunápolis",
   teixeira: "House 190 Teixeira de Freitas",
+  foodpark: "House Foodpark",
+  central: "Central de Produção",
+};
+
+const OPERATION_LABELS: Record<string, string> = {
+  teixeira_house: "House 190 Teixeira",
+  teixeira_bruttus: "Bruttus Burger TX",
+  eunapolis_house: "House 190 Eunápolis",
+  eunapolis_bruttus: "Bruttus Eunápolis",
   foodpark: "House Foodpark",
   central: "Central de Produção",
 };
@@ -81,9 +93,13 @@ export default function FaturamentoPage() {
     type: "success" | "error";
   } | null>(null);
 
-  // Unit credentials state
+  // Filtro de Marca (House vs Bruttus)
+  const [selectedBrand, setSelectedBrand] = useState<"all" | "house" | "bruttus">("all");
+
+  // Unit / Operation credentials state
+  const [selectedSyncOp, setSelectedSyncOp] = useState<string>("teixeira_house");
   const [selectedSyncUnit, setSelectedSyncUnit] = useState<Exclude<UnitId, "all">>(
-    currentUnit === "all" ? "eunapolis" : currentUnit
+    currentUnit === "all" ? "teixeira" : currentUnit
   );
   const [unitConnections, setUnitConnections] = useState<Record<string, boolean>>({});
 
@@ -99,10 +115,13 @@ export default function FaturamentoPage() {
 
   // Carregamento de dados limpos e sincronizados
   const refreshData = () => {
-    const reports=new Map(store.getTakeatRevenues().map(r=>[`${r.unitId}-${r.date}`,r]));
-    for(const r of managementData.takeatReports||[]) {
-      const key=`${r.unitId}-${r.date}`;
-      if(!reports.has(key)||String(r.syncedAt)>reports.get(key)!.syncedAt) reports.set(key,r as unknown as TakeatRevenueRecord);
+    const rawList = store.getTakeatRevenues();
+    const reports = new Map(rawList.map(r => [r.id || `${r.operationKey || r.unitId}-${r.date}`, r]));
+    for (const r of managementData.takeatReports || []) {
+      const key = (r as any).id || ((r as any).operationKey ? `${(r as any).operationKey}-${r.date}` : `${r.unitId}-${r.date}`);
+      if (!reports.has(key) || String(r.syncedAt) > reports.get(key)!.syncedAt) {
+        reports.set(key, r as unknown as TakeatRevenueRecord);
+      }
     }
     const allTakeat = Array.from(reports.values());
     setTakeatRevenues(
@@ -111,13 +130,19 @@ export default function FaturamentoPage() {
         : allTakeat.filter((t) => t.unitId === currentUnit)
     );
 
-    const units: Exclude<UnitId, "all">[] = ["eunapolis", "teixeira", "foodpark", "central"];
     const connMap: Record<string, boolean> = {};
-    for (const u of units) {
-      const c = store.getTakeatCredentials(u);
+    for (const op of TAKEAT_OPERATIONS) {
+      const c = store.getTakeatCredentials(op.key);
       const hasToken = Boolean(c && c.token && c.token.startsWith("eyJ"));
       const hasPass = Boolean(c && c.email && c.password);
-      connMap[u] = hasToken || hasPass;
+      connMap[op.key] = hasToken || hasPass;
+    }
+    const units: Exclude<UnitId, "all">[] = ["eunapolis", "teixeira", "foodpark", "central"];
+    for (const u of units) {
+      const c = store.getTakeatCredentials(u);
+      if (c && (c.token || (c.email && c.password))) {
+        connMap[u] = true;
+      }
     }
     setUnitConnections(connMap);
   };
@@ -140,51 +165,40 @@ export default function FaturamentoPage() {
   const activePeriodStr = viewMode === "daily" ? selectedDate : selectedMonth;
 
   const filteredRecords = useMemo(() => {
+    let records = takeatRevenues;
+    if (selectedBrand !== "all") {
+      records = records.filter((r) => (r.brand || "house") === selectedBrand);
+    }
+
     if (viewMode === "daily") {
-      return takeatRevenues.filter((r) => r.date === selectedDate);
+      return records.filter((r) => r.date === selectedDate);
     } else {
-      const monthRecords = takeatRevenues.filter((r) => r.date.startsWith(selectedMonth));
-      const byUnitMap = new Map<string, TakeatRevenueRecord>();
+      const monthRecords = records.filter((r) => r.date.startsWith(selectedMonth));
+      const byOpMap = new Map<string, TakeatRevenueRecord>();
 
-      const targetUnits: Array<Exclude<UnitId, "all">> =
-        currentUnit === "all"
-          ? ["eunapolis", "teixeira", "foodpark"]
-          : [currentUnit];
-
-      for (const u of targetUnits) {
-        const fullMonth = monthRecords.find((r) => r.unitId === u && r.date === selectedMonth);
-        if (fullMonth) {
-          byUnitMap.set(u, fullMonth);
+      for (const r of monthRecords) {
+        const op = r.operationKey || `${r.unitId}_${r.brand || "house"}`;
+        if (r.date === selectedMonth) {
+          byOpMap.set(op, r);
         } else {
-          const daysOfUnit = monthRecords.filter((r) => r.unitId === u && r.date !== selectedMonth);
-          if (daysOfUnit.length > 0) {
-            const sumSalao = daysOfUnit.reduce((a, c) => a + c.salao, 0);
-            const sumDelivery = daysOfUnit.reduce((a, c) => a + c.delivery, 0);
-            const sumIfood = daysOfUnit.reduce((a, c) => a + c.ifood, 0);
-            const sumTotal = daysOfUnit.reduce((a, c) => a + c.totalRevenue, 0);
-            byUnitMap.set(u, {
-              id: `takeat-${u}-${selectedMonth}-computed`,
-              unitId: u,
+          const prev = byOpMap.get(op);
+          if (prev) {
+            prev.salao += r.salao;
+            prev.delivery += r.delivery;
+            prev.ifood += r.ifood;
+            prev.totalRevenue += r.totalRevenue;
+          } else {
+            byOpMap.set(op, {
+              ...r,
+              id: `takeat-${op}-${selectedMonth}-computed`,
               date: selectedMonth,
-              startDateUtc: daysOfUnit[0].startDateUtc,
-              endDateUtc: daysOfUnit[daysOfUnit.length - 1].endDateUtc,
-              salao: sumSalao,
-              delivery: sumDelivery,
-              ifood: sumIfood,
-              totalRevenue: sumTotal,
-              rawBalcony: 0,
-              rawTable: 0,
-              rawDelivery: sumDelivery,
-              rawIfood: sumIfood,
-              source: "takeat",
-              syncedAt: daysOfUnit[0].syncedAt,
             });
           }
         }
       }
-      return Array.from(byUnitMap.values());
+      return Array.from(byOpMap.values());
     }
-  }, [takeatRevenues, viewMode, selectedDate, selectedMonth, currentUnit]);
+  }, [takeatRevenues, selectedBrand, viewMode, selectedDate, selectedMonth]);
 
   // KPIs Oficiais
   const totalSalao = filteredRecords.reduce((acc, cur) => acc + cur.salao, 0);
@@ -211,24 +225,24 @@ export default function FaturamentoPage() {
   const isCurrentConnected =
     currentUnit === "all" ? isAnyUnitConnected : Boolean(unitConnections[currentUnit]);
 
-  // Sincronização oficial com a Takeat
+  // Sincronização oficial com a Takeat (suporta House e Bruttus)
   const handleSyncTakeat = async () => {
     setSyncing(true);
     setSyncMessage(null);
 
     try {
-      const unitsToSync: Exclude<UnitId, "all">[] =
-        currentUnit === "all"
-          ? ["eunapolis", "teixeira", "foodpark"]
-          : [currentUnit];
-
       const targetPeriod = viewMode === "daily" ? selectedDate : selectedMonth;
-      const unconfigured = unitsToSync.filter((u) => !unitConnections[u]);
+      const opsToSync = TAKEAT_OPERATIONS.filter((op) => {
+        if (currentUnit !== "all" && op.unitId !== currentUnit) return false;
+        if (selectedBrand !== "all" && op.brand !== selectedBrand) return false;
+        return true;
+      });
 
-      if (unconfigured.length === unitsToSync.length) {
+      const unconfigured = opsToSync.filter((op) => !unitConnections[op.key] && !unitConnections[op.unitId]);
+      if (unconfigured.length === opsToSync.length) {
         setIsCredsModalOpen(true);
         setSyncMessage({
-          text: "Nenhuma conta da Takeat conectada ainda. Conecte sua conta para importar as vendas reais.",
+          text: "Nenhuma conta da Takeat conectada para as operações selecionadas. Configure as credenciais.",
           type: "error",
         });
         setSyncing(false);
@@ -238,13 +252,24 @@ export default function FaturamentoPage() {
       let successCount = 0;
       const errors: string[] = [];
 
-      for (const u of unitsToSync) {
-        if (!unitConnections[u]) continue;
-        const res = await store.syncTakeatUnit(u, targetPeriod, "diretoria", "all");
+      for (const op of opsToSync) {
+        const isConnected = unitConnections[op.key] || unitConnections[op.unitId];
+        if (!isConnected) continue;
+
+        const res = await store.syncTakeatUnit(
+          op.unitId,
+          targetPeriod,
+          "diretoria",
+          "all",
+          op.brand,
+          op.key,
+          op.name
+        );
+
         if (res.success) {
           successCount++;
-        } else {
-          errors.push(`${res.unitName}: ${res.error}`);
+        } else if (res.error) {
+          errors.push(`${op.name}: ${res.error}`);
         }
       }
 
@@ -261,7 +286,7 @@ export default function FaturamentoPage() {
             ? formatDate(selectedDate)
             : `mês de ${selectedMonth}`;
         setSyncMessage({
-          text: `Vendas oficiais sincronizadas com sucesso da Takeat para ${periodLabel}!`,
+          text: `Vendas sincronizadas com sucesso para ${periodLabel} (${successCount} loja(s))!`,
           type: "success",
         });
       }
@@ -282,10 +307,14 @@ export default function FaturamentoPage() {
   });
 
   // Abrir Modal de Credenciais
-  const handleOpenCredsModal = (unitId?: Exclude<UnitId, "all">) => {
-    const targetUnit = unitId || (currentUnit === "all" ? "eunapolis" : currentUnit);
-    setSelectedSyncUnit(targetUnit);
-    const existing = store.getTakeatCredentials(targetUnit);
+  const handleOpenCredsModal = (opKey?: string) => {
+    const targetOp = opKey || selectedSyncOp || "teixeira_house";
+    setSelectedSyncOp(targetOp);
+    const opObj = TAKEAT_OPERATIONS.find((o) => o.key === targetOp);
+    if (opObj) {
+      setSelectedSyncUnit(opObj.unitId);
+    }
+    const existing = store.getTakeatCredentials(targetOp);
     const cleanEmail =
       existing.email && !existing.email.includes("@house190.com.br")
         ? existing.email
@@ -407,12 +436,12 @@ export default function FaturamentoPage() {
 
   // Desconectar Conta
   const handleDisconnect = () => {
+    store.removeTakeatCredentials(selectedSyncOp);
     store.removeTakeatCredentials(selectedSyncUnit);
-    store.clearTakeatRevenues(selectedSyncUnit);
     setIsCredsModalOpen(false);
     refreshData();
     setSyncMessage({
-      text: `Conta da Takeat desconectada para ${UNIT_LABELS[selectedSyncUnit]}.`,
+      text: `Conta da Takeat desconectada para ${OPERATION_LABELS[selectedSyncOp] || selectedSyncOp}.`,
       type: "success",
     });
   };
@@ -603,6 +632,59 @@ export default function FaturamentoPage() {
             <Settings2 className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Configurações</span>
           </Button>
+        </div>
+      </div>
+
+      {/* Barra de Filtro de Marcas (House vs Bruttus) */}
+      <div className="flex items-center justify-between flex-wrap gap-3 bg-zinc-50 dark:bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mr-1.5">
+            Marca / Operação:
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedBrand("all")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              selectedBrand === "all"
+                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs font-semibold"
+                : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
+            }`}
+          >
+            Todas as Marcas (Consolidado)
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedBrand("house")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              selectedBrand === "house"
+                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs font-semibold"
+                : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700"
+            }`}
+          >
+            House 190 (TX, EUN & Foodpark)
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedBrand("bruttus")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              selectedBrand === "bruttus"
+                ? "bg-amber-600 text-white shadow-2xs font-semibold"
+                : "bg-white dark:bg-zinc-800 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60"
+            }`}
+          >
+            🍔 Bruttus Burger (Teixeira & Eunápolis)
+          </button>
+        </div>
+
+        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+          Mostrando:{" "}
+          <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+            {selectedBrand === "all"
+              ? "Todas as 5 operações"
+              : selectedBrand === "house"
+              ? "House 190 (3 filiais)"
+              : "Bruttus Burger (Teixeira & Eunápolis)"}
+          </span>
         </div>
       </div>
 
@@ -969,7 +1051,7 @@ export default function FaturamentoPage() {
               <thead className="bg-zinc-50/70 border-b border-zinc-200/60 dark:bg-zinc-800/40 dark:border-zinc-800 text-zinc-500">
                 <tr>
                   <th className="py-2.5 px-4 font-semibold">Período / Data</th>
-                  <th className="py-2.5 px-4 font-semibold">Filial House 190</th>
+                  <th className="py-2.5 px-4 font-semibold">Loja / Operação</th>
                   <th className="py-2.5 px-4 font-semibold text-right">Salão & Balcão</th>
                   <th className="py-2.5 px-4 font-semibold text-right">Delivery</th>
                   <th className="py-2.5 px-4 font-semibold text-right">iFood</th>
@@ -987,7 +1069,23 @@ export default function FaturamentoPage() {
                       {r.date.length === 7 ? r.date : formatDate(r.date)}
                     </td>
                     <td className="py-3 px-4 font-medium text-zinc-700 dark:text-zinc-300">
-                      {UNIT_LABELS[r.unitId] || r.unitId}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                          {r.operationName || OPERATION_LABELS[r.operationKey || ""] || UNIT_LABELS[r.unitId] || r.unitId}
+                        </span>
+                        {r.brand === "bruttus" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                            🍔 Bruttus
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                            House
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-zinc-400">
+                        Unidade: {UNIT_LABELS[r.unitId] || r.unitId}
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-right font-mono text-zinc-700 dark:text-zinc-300">
                       {formatCurrency(r.salao)}
@@ -1034,20 +1132,22 @@ export default function FaturamentoPage() {
       <Modal
         isOpen={isCredsModalOpen}
         onClose={() => setIsCredsModalOpen(false)}
-        title={`Conectar Integração Takeat — ${UNIT_LABELS[selectedSyncUnit]}`}
+        title={`Conectar Integração Takeat — ${OPERATION_LABELS[selectedSyncOp] || UNIT_LABELS[selectedSyncUnit]}`}
         subtitle="Conexão oficial com Takeat Multilojas e Painel Restaurante"
       >
         <form onSubmit={handleSaveCreds} className="space-y-4 text-xs">
           <div>
             <label className="block text-zinc-700 font-medium mb-1 dark:text-zinc-300">
-              Unidade a Configurar
+              Operação / Loja a Configurar
             </label>
             <select
-              value={selectedSyncUnit}
+              value={selectedSyncOp}
               onChange={(e) => {
-                const u = e.target.value as any;
-                setSelectedSyncUnit(u);
-                const ex = store.getTakeatCredentials(u);
+                const opKey = e.target.value;
+                setSelectedSyncOp(opKey);
+                const opObj = TAKEAT_OPERATIONS.find((o) => o.key === opKey);
+                if (opObj) setSelectedSyncUnit(opObj.unitId);
+                const ex = store.getTakeatCredentials(opKey);
                 setCredsEmail(ex.email || "");
                 setCredsPassword(ex.password || "");
                 setCredsManualToken(ex.token || "");
@@ -1055,10 +1155,11 @@ export default function FaturamentoPage() {
               }}
               className="w-full h-9 px-3 rounded border border-zinc-200 bg-white dark:bg-zinc-800 dark:border-zinc-700 focus:outline-none"
             >
-              <option value="eunapolis">House 190 Eunápolis</option>
-              <option value="teixeira">House 190 Teixeira de Freitas</option>
-              <option value="foodpark">House Foodpark</option>
-              <option value="central">Central de Produção</option>
+              {TAKEAT_OPERATIONS.map((op) => (
+                <option key={op.key} value={op.key}>
+                  {op.name} {unitConnections[op.key] ? "✓ (Conectada)" : "○ (Não conectada)"}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -1184,7 +1285,7 @@ export default function FaturamentoPage() {
           </div>
 
           <div className="pt-2 flex items-center justify-between gap-2">
-            {unitConnections[selectedSyncUnit] ? (
+            {unitConnections[selectedSyncOp] || unitConnections[selectedSyncUnit] ? (
               <Button
                 type="button"
                 variant="outline"

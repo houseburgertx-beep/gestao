@@ -35,3 +35,6 @@ next-env.d.ts
 firestore-debug.log
 firebase-debug.log
 ui-debug.log
+
+# Gemini / IDE
+.gemini/
