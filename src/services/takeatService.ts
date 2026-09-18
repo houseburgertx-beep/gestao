@@ -4,7 +4,11 @@ import {
   TakeatRevenueRecord,
   TakeatCredentials,
   TakeatSyncResult,
+  BrandId,
+  ReceivedNfe,
+  ReceivedNfeItem,
 } from "@/types/takeat";
+export type { BrandId };
 import { UnitId } from "@/types";
 
 const TAKEAT_CONFIG = {
@@ -205,6 +209,34 @@ export function matchStoreNameToUnit(name: string): Exclude<UnitId, "all"> | und
   }
   return undefined;
 }
+
+/**
+ * Identifica a marca da operação (House vs Bruttus).
+ */
+export function matchStoreNameToBrand(name: string): BrandId {
+  if (!name) return "house";
+  const n = name.toLowerCase();
+  if (n.includes("bruttus") || n.includes("brutus")) {
+    return "bruttus";
+  }
+  return "house";
+}
+
+export interface TakeatOperation {
+  key: string;
+  name: string;
+  unitId: Exclude<UnitId, "all">;
+  brand: BrandId;
+  shortName: string;
+}
+
+export const TAKEAT_OPERATIONS: TakeatOperation[] = [
+  { key: "teixeira_house", name: "House 190 Teixeira", unitId: "teixeira", brand: "house", shortName: "House TX" },
+  { key: "teixeira_bruttus", name: "Bruttus Burger TX", unitId: "teixeira", brand: "bruttus", shortName: "Bruttus TX" },
+  { key: "eunapolis_house", name: "House 190 Eunápolis", unitId: "eunapolis", brand: "house", shortName: "House EUN" },
+  { key: "eunapolis_bruttus", name: "Bruttus Eunápolis", unitId: "eunapolis", brand: "bruttus", shortName: "Bruttus EUN" },
+  { key: "foodpark", name: "House Foodpark", unitId: "foodpark", brand: "house", shortName: "Foodpark" },
+];
 
 /**
  * Validação de permissões por perfil e unidade.
@@ -715,7 +747,10 @@ export function extractChannelsFromTakeatResponse(
 export function processOfficialRevenue(
   unitId: Exclude<UnitId, "all">,
   dateStr: string,
-  response: TakeatGeneralCardsResponse
+  response: TakeatGeneralCardsResponse,
+  brand?: BrandId,
+  operationKey?: string,
+  operationName?: string
 ): TakeatRevenueRecord {
   const pwt =
     response?.payment_without_tax ||
@@ -735,9 +770,15 @@ export function processOfficialRevenue(
     ? getBahiaIsoMonthRange(dateStr)
     : getBahiaIsoDayRange(dateStr);
 
+  const opKey = operationKey || (brand ? `${unitId}_${brand}` : `${unitId}_house`);
+  const recordId = `takeat-${opKey}-${dateStr}`;
+
   return {
-    id: `takeat-${unitId}-${dateStr}`,
+    id: recordId,
     unitId,
+    brand: brand || "house",
+    operationKey: opKey,
+    operationName: operationName || (brand === "bruttus" ? `Bruttus ${unitId === "teixeira" ? "TX" : "Eunápolis"}` : `House 190 ${unitId === "teixeira" ? "Teixeira" : unitId === "eunapolis" ? "Eunápolis" : "Foodpark"}`),
     date: dateStr,
     startDateUtc: startDate,
     endDateUtc: endDate,
@@ -753,3 +794,66 @@ export function processOfficialRevenue(
     syncedAt: new Date().toISOString(),
   };
 }
+
+/**
+ * Consulta as Notas Fiscais Recebidas (NF-e de compras/entrada) na Takeat.
+ */
+export async function fetchTakeatReceivedNfes(
+  credentials: TakeatCredentials,
+  onTokenRefreshed?: (newToken: string) => void
+): Promise<ReceivedNfe[]> {
+  let token = sanitizeToken(credentials.token);
+
+  if (!token && credentials.email && credentials.password) {
+    const authRes = await authenticateTakeat(credentials.email, credentials.password);
+    token = authRes.token;
+    if (onTokenRefreshed) onTokenRefreshed(token);
+  }
+
+  if (!token) {
+    throw new Error(`Esta loja (${credentials.unitId}) ainda não possui uma conexão ativa com a Takeat.`);
+  }
+
+  const urlsToTry = [
+    // Nova API V1.0 oficial
+    `https://public-api.takeat.app/v1/nfe-received${credentials.restaurantId ? `?restaurant_id=${credentials.restaurantId}` : ""}`,
+    // Clusters secundários do backend PDV
+    `https://backend-pdv-2.takeat.app/restaurants/nfe-received${credentials.restaurantId ? `?restaurant_id=${credentials.restaurantId}` : ""}`,
+    `https://backend-pdv.takeat.app/restaurants/nfe-received${credentials.restaurantId ? `?restaurant_id=${credentials.restaurantId}` : ""}`,
+  ];
+
+  for (const url of urlsToTry) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const list = Array.isArray(json) ? json : json.data || json.items || [];
+        return list.map((item: any) => ({
+          id: String(item.id || item.nfe_received_id || item.chave || Math.random()),
+          nfeReceivedId: item.id || item.nfe_received_id,
+          unitId: credentials.unitId,
+          brand: credentials.brand,
+          numero: String(item.numero || item.number || item.numero_nfe || "S/N"),
+          serie: String(item.serie || item.series || "1"),
+          chave: String(item.chave || item.chave_nfe || item.access_key || ""),
+          fornecedorNome: item.emitente_nome || item.fornecedor_nome || item.supplier_name || item.company_name || "Fornecedor",
+          fornecedorCnpj: item.emitente_cnpj || item.fornecedor_cnpj || item.supplier_cnpj || "",
+          dataEmissao: (item.data_emissao || item.issue_date || new Date().toISOString()).substring(0, 10),
+          valorTotal: parseBRLNumber(item.valor_total || item.total_amount || item.valor || 0),
+          status: item.status === "cancelada" ? "cancelada" : item.status === "processando" ? "processando" : "autorizada",
+          source: "takeat" as const,
+          syncedAt: new Date().toISOString(),
+        }));
+      }
+    } catch {}
+  }
+
+  return [];
+}
+

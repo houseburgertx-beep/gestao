@@ -20,6 +20,8 @@ import {
   TakeatCredentials,
   TakeatSyncResult,
   TakeatGeneralCardsResponse,
+  ReceivedNfe,
+  BrandId,
 } from "@/types/takeat";
 import {
   parseBRLNumber,
@@ -28,8 +30,15 @@ import {
   validateUnitPermission,
   processOfficialRevenue,
   fetchTakeatGeneralCards,
+  fetchTakeatReceivedNfes,
   sanitizeToken,
+  TAKEAT_OPERATIONS,
+  getYesterdayBahiaDate,
 } from "./takeatService";
+import {
+  getDefaultTakeatCredentials,
+  DEFAULT_TAKEAT_CONFIGS,
+} from "@/config/takeatCredentials";
 import {
   INITIAL_ACCOUNTS_PAYABLE,
   INITIAL_SUPPLIERS,
@@ -72,11 +81,12 @@ const STORAGE_KEYS = {
   NOTIFS: "house190_notifs",
   TAKEAT_REVENUES: "house190_takeat_revenues",
   TAKEAT_CREDS: "house190_takeat_creds",
+  RECEIVED_NFES: "house190_received_nfes",
 };
 
 export const INITIAL_TAKEAT_REVENUES: TakeatRevenueRecord[] = [];
-
 export const INITIAL_TAKEAT_CREDENTIALS: Record<string, TakeatCredentials> = {};
+export const INITIAL_RECEIVED_NFES: ReceivedNfe[] = [];
 
 
 class DataStore {
@@ -819,32 +829,56 @@ class DataStore {
 ;
   }
 
-  getTakeatCredentials(unitId: string): TakeatCredentials {
+  getTakeatCredentials(keyOrUnitId: string): TakeatCredentials {
     const all = this.get<Record<string, TakeatCredentials>>(
       STORAGE_KEYS.TAKEAT_CREDS,
       {}
     );
-    const cred = all[unitId];
-    if (!cred) {
+    const stored = all[keyOrUnitId] || all[keyOrUnitId.split("_")[0]];
+    const defaultCreds = getDefaultTakeatCredentials(keyOrUnitId);
+
+    // 1. Se houver credencial salva no localStorage com email válido
+    if (stored && (stored.token || (stored.email && stored.password))) {
+      const token = sanitizeToken(stored.token);
+      if (token && token.startsWith("tk_")) {
+        return { ...stored, token: undefined };
+      }
+      return { ...stored, credentialKey: stored.credentialKey || keyOrUnitId, token: token || undefined };
+    }
+
+    // 2. Fallback para as credenciais padrão do repositório/ambiente (GitHub / .env)
+    if (defaultCreds && (defaultCreds.email || defaultCreds.password)) {
+      const token = stored?.token ? sanitizeToken(stored.token) : undefined;
       return {
-        unitId: unitId as any,
-        email: "",
+        ...defaultCreds,
+        token: token && !token.startsWith("tk_") ? token : undefined,
       };
     }
-    const token = sanitizeToken(cred.token);
-    // Remove qualquer token de teste anterior (ex: tk_...)
-    if (token && token.startsWith("tk_")) {
-      return { ...cred, token: undefined };
-    }
-    return { ...cred, token: token || undefined };
+
+    // 3. Objeto base padrão vazio
+    const uId = (keyOrUnitId.includes("_") ? keyOrUnitId.split("_")[0] : keyOrUnitId) as any;
+    const brand = keyOrUnitId.includes("bruttus") ? "bruttus" : "house";
+    return {
+      unitId: uId,
+      brand,
+      credentialKey: keyOrUnitId,
+      email: "",
+    };
   }
 
-  removeTakeatCredentials(unitId: string) {
+  getAllTakeatCredentials(): Record<string, TakeatCredentials> {
+    return this.get<Record<string, TakeatCredentials>>(
+      STORAGE_KEYS.TAKEAT_CREDS,
+      {}
+    );
+  }
+
+  removeTakeatCredentials(keyOrUnitId: string) {
     const all = this.get<Record<string, TakeatCredentials>>(
       STORAGE_KEYS.TAKEAT_CREDS,
       {}
     );
-    delete all[unitId];
+    delete all[keyOrUnitId];
     this.set(STORAGE_KEYS.TAKEAT_CREDS, all);
   }
 
@@ -854,11 +888,58 @@ class DataStore {
       {}
     );
     const cleanToken = sanitizeToken(creds.token);
-    all[creds.unitId] = {
+    const key = creds.credentialKey || (creds.brand && creds.brand !== "house" ? `${creds.unitId}_${creds.brand}` : creds.unitId);
+    all[key] = {
       ...creds,
+      credentialKey: key,
       token: cleanToken || undefined,
     };
     this.set(STORAGE_KEYS.TAKEAT_CREDS, all);
+  }
+
+  getReceivedNfes(unitId?: string): ReceivedNfe[] {
+    const all = this.get<ReceivedNfe[]>(STORAGE_KEYS.RECEIVED_NFES, []);
+    if (!unitId || unitId === "all") return all;
+    return all.filter((n) => n.unitId === unitId);
+  }
+
+  saveReceivedNfe(nfe: ReceivedNfe) {
+    const all = this.getReceivedNfes();
+    const idx = all.findIndex((n) => n.id === nfe.id || (nfe.chave && n.chave === nfe.chave));
+    if (idx >= 0) {
+      all[idx] = { ...all[idx], ...nfe };
+    } else {
+      all.unshift(nfe);
+    }
+    this.set(STORAGE_KEYS.RECEIVED_NFES, all);
+  }
+
+  saveReceivedNfes(nfes: ReceivedNfe[]) {
+    const all = this.getReceivedNfes();
+    const map = new Map<string, ReceivedNfe>();
+    for (const n of all) {
+      const k = n.chave || n.id;
+      map.set(k, n);
+    }
+    for (const n of nfes) {
+      const k = n.chave || n.id;
+      if (map.has(k)) {
+        map.set(k, { ...map.get(k)!, ...n });
+      } else {
+        map.set(k, n);
+      }
+    }
+    this.set(STORAGE_KEYS.RECEIVED_NFES, Array.from(map.values()));
+  }
+
+  markNfeAsImported(nfeId: string, payableId: string) {
+    const all = this.getReceivedNfes();
+    const n = all.find((x) => x.id === nfeId || x.chave === nfeId);
+    if (n) {
+      n.importedToPayable = true;
+      n.payableId = payableId;
+      this.set(STORAGE_KEYS.RECEIVED_NFES, all);
+    }
   }
 
   clearTakeatRevenues(unitId?: string) {
@@ -889,7 +970,10 @@ class DataStore {
     unitId: Exclude<UnitId, "all">,
     dateStr: string,
     userRole: string = "admin",
-    userUnitId: string = "all"
+    userUnitId: string = "all",
+    brand?: BrandId,
+    credentialKey?: string,
+    customOpName?: string
   ): Promise<TakeatSyncResult> {
     const unitNames: Record<string, string> = {
       eunapolis: "House 190 Eunápolis",
@@ -897,7 +981,8 @@ class DataStore {
       foodpark: "House Foodpark",
       central: "Central de Produção",
     };
-    const unitName = unitNames[unitId] || unitId;
+    const opKey = credentialKey || (brand && brand !== "house" ? `${unitId}_${brand}` : unitId);
+    const unitName = customOpName || (brand === "bruttus" ? `Bruttus ${unitId === "teixeira" ? "TX" : "Eunápolis"}` : unitNames[unitId] || unitId);
 
     // 0. Central de Produção não realiza vendas nem possui integração com Takeat PDV
     if ((unitId as string) === "central") {
@@ -939,8 +1024,8 @@ class DataStore {
       };
     }
 
-    // 3. Credenciais da unidade
-    const creds = this.getTakeatCredentials(unitId);
+    // 3. Credenciais da unidade / operação
+    const creds = this.getTakeatCredentials(opKey);
     if (!creds || (!creds.token && !creds.password)) {
       return {
         success: false,
@@ -965,7 +1050,6 @@ class DataStore {
         }
       );
     } catch (apiError: any) {
-      // NUNCA gera dados fictícios. Retorna o erro real ocorrido na API da Takeat.
       return {
         success: false,
         unitId,
@@ -979,7 +1063,7 @@ class DataStore {
     // 4. Validação e processamento oficial estrito via payment_without_tax
     let record: TakeatRevenueRecord;
     try {
-      record = processOfficialRevenue(unitId, dateStr, rawResponse);
+      record = processOfficialRevenue(unitId, dateStr, rawResponse, brand, opKey, unitName);
     } catch (parseError: any) {
       return {
         success: false,
@@ -1010,6 +1094,94 @@ class DataStore {
       unitName,
       date: dateStr,
       data: record,
+    };
+  }
+
+  async syncTakeatNfes(
+    unitId: Exclude<UnitId, "all">,
+    credentialKey?: string
+  ): Promise<{ success: boolean; count: number; error?: string; nfes?: ReceivedNfe[] }> {
+    const opKey = credentialKey || unitId;
+    const creds = this.getTakeatCredentials(opKey);
+    if (!creds || (!creds.token && !creds.password)) {
+      return {
+        success: false,
+        count: 0,
+        error: `Conta do Takeat para ${unitId} não configurada. Conecte com e-mail e senha.`,
+      };
+    }
+
+    try {
+      const nfes = await fetchTakeatReceivedNfes(creds, (newToken) => {
+        this.saveTakeatCredentials({ ...creds, token: newToken });
+      });
+
+      if (nfes.length > 0) {
+        this.saveReceivedNfes(nfes);
+      }
+
+      return {
+        success: true,
+        count: nfes.length,
+        nfes,
+      };
+    } catch (e: any) {
+      return {
+        success: false,
+        count: 0,
+        error: e.message || "Falha ao consultar NF-e na Takeat.",
+      };
+    }
+  }
+
+  /**
+   * Sincroniza todas as 5 operações configuradas (House e Bruttus em todas as unidades)
+   */
+  async syncAllTakeatOperations(
+    dateStr?: string,
+    userRole: string = "admin",
+    userUnitId: string = "all"
+  ): Promise<TakeatSyncResult[]> {
+    const targetDate = dateStr || getYesterdayBahiaDate();
+    const results: TakeatSyncResult[] = [];
+    for (const op of TAKEAT_OPERATIONS) {
+      const res = await this.syncTakeatUnit(
+        op.unitId,
+        targetDate,
+        userRole,
+        userUnitId,
+        op.brand,
+        op.key,
+        op.name
+      );
+      results.push(res);
+    }
+    return results;
+  }
+
+  /**
+   * Sincroniza as NF-e de entrada emitidas contra os CNPJs de todas as unidades
+   */
+  async syncAllTakeatNfes(): Promise<{
+    success: boolean;
+    totalCount: number;
+    results: Array<{ unitId: string; count: number; error?: string }>;
+  }> {
+    const units: Exclude<UnitId, "all" | "central">[] = ["teixeira", "eunapolis", "foodpark"];
+    const results: Array<{ unitId: string; count: number; error?: string }> = [];
+    let totalCount = 0;
+
+    for (const u of units) {
+      const opKey = `${u}_house`;
+      const res = await this.syncTakeatNfes(u, opKey);
+      totalCount += res.count;
+      results.push({ unitId: u, count: res.count, error: res.error });
+    }
+
+    return {
+      success: results.some((r) => !r.error),
+      totalCount,
+      results,
     };
   }
 }

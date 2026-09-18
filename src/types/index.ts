@@ -43,6 +43,8 @@ export interface AccountPayable {
   responsibleUser: string;
   notes?: string;
   invoiceNumber?: string;
+  nfeKey?: string;
+  nfeId?: string;
   barcode?: string;
   attachments?: { name: string; url: string; type: string }[];
   installmentNumber?: number;
