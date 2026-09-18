@@ -798,16 +798,14 @@ export function processOfficialRevenue(
 }
 
 /**
- * Consulta as Notas Fiscais Recebidas (NF-e de compras/entrada e Manifesto) na Takeat.
+ * Consulta as Notas Fiscais Recebidas (NF-e de compras/entrada e Manifesto de Notas) na Takeat.
  * 
- * Usa a API V1: GET /v1/nfe-received
- * Parâmetros obrigatórios: start_date, end_date (ISO 8601 com segundos)
- * Intervalo máximo: 92 dias
- * 
- * Docs Takeat / Focus NFe:
- * - pendente=true: retorna notas do Manifesto (manifestação null, 'ciencia' ou 'desconhecimento').
- * - pendente=false: retorna notas confirmadas ('confirmacao').
- * Fazemos busca agregando AMBOS os estados para capturar 100% das notas emitidas contra o CNPJ da loja!
+ * Endpoint oficial utilizado pelo dashboard da Takeat (dashboard.takeat.app/fiscal/manifest):
+ * GET https://backend-pdv-2.takeat.app/restaurants/nfe-received
+ * Parâmetros:
+ * - start_date=YYYY-MM-DD e end_date=YYYY-MM-DD
+ * - pendente=true: busca as notas do MANIFESTO DO DESTINATÁRIO (emitidas contra o CNPJ na SEFAZ com ciência/pendência)
+ * - pendente=false: busca as notas com entrada confirmada
  */
 export async function fetchTakeatReceivedNfes(
   credentials: TakeatCredentials,
@@ -826,26 +824,24 @@ export async function fetchTakeatReceivedNfes(
     throw new Error(`Esta loja (${credentials.unitId}) ainda não possui uma conexão ativa com a Takeat.`);
   }
 
-  // Período: últimos 90 dias (máximo permitido é 92)
+  // Período de busca: últimos 90 dias
   const now = new Date();
   const end = new Date(now.getTime());
   const start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  // Formato ISO com segundos conforme exige a API V1 (ex: 2026-09-01T03:00:00)
-  const startDate = start.toISOString().replace(/\.\d{3}Z$/, "");
-  const endDate = end.toISOString().replace(/\.\d{3}Z$/, "");
+  const startDate = start.toISOString().substring(0, 10);
+  const endDate = end.toISOString().substring(0, 10);
 
   const restaurantParam = credentials.restaurantId ? `&restaurant_id=${credentials.restaurantId}` : "";
 
-  // Buscamos tanto notas do manifesto (pendente=true: ciencia/desconhecimento/sem manifesto)
-  // quanto notas confirmadas (pendente=false)
+  // Consultamos tanto pendente=true (Manifesto de Notas - 14+ notas por loja) quanto pendente=false (Entrada)
   const queryConfigs = [
     { pendente: true, tipoPadrao: "manifesto" },
     { pendente: false, tipoPadrao: "entrada" },
   ];
 
   const baseEndpoints = [
-    "https://backend-pdv-2.takeat.app/v1/nfe-received",
-    "https://backend-pdv.takeat.app/v1/nfe-received",
+    "https://backend-pdv-2.takeat.app/restaurants/nfe-received",
+    "https://backend-pdv.takeat.app/restaurants/nfe-received",
   ];
 
   const gatheredMap = new Map<string, ReceivedNfe>();
@@ -853,7 +849,7 @@ export async function fetchTakeatReceivedNfes(
 
   for (const cfg of queryConfigs) {
     for (const base of baseEndpoints) {
-      const url = `${base}?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&pendente=${cfg.pendente}${restaurantParam}`;
+      const url = `${base}?start_date=${startDate}&end_date=${endDate}&pendente=${cfg.pendente}${restaurantParam}`;
       try {
         let res = await fetch(url, {
           headers: {
@@ -879,23 +875,14 @@ export async function fetchTakeatReceivedNfes(
         }
 
         if (res.ok) {
-          const json = await res.json();
-          const list = Array.isArray(json) ? json : json.data || json.items || [];
+          const list = await res.json();
           
           if (Array.isArray(list)) {
             for (const item of list) {
-              const identification = item.identification || {};
-              const issuer = item.issuer || {};
-              const amounts = item.amounts || {};
-              const timestamps = item.timestamps || {};
-              const status = item.status || {};
-              const manifestation = item.manifestation || {};
-              const recipient = item.recipient || item.invoice?.recipient || {};
+              const chave = String(item.chave_nfe || item.identification?.access_key || item.chave || item.access_key || "");
+              const id = String(item.id || chave || Math.random());
 
-              const chave = String(identification.access_key || item.chave || item.chave_nfe || item.access_key || "");
-              const id = String(item.id || item.nfe_received_id || chave || Math.random());
-
-              const rawManifestType = manifestation.type || item.manifesto_tipo || item.manifestacao_tipo;
+              const rawManifestType = item.manifestacao_destinatario || item.manifestation?.type || item.manifesto_tipo;
               let manifestType: "ciencia" | "confirmacao" | "desconhecimento" | "nao_realizada" | string = "nao_realizada";
               if (rawManifestType) {
                 const cleanType = String(rawManifestType).toLowerCase();
@@ -912,27 +899,31 @@ export async function fetchTakeatReceivedNfes(
                 manifestType = "confirmacao";
               }
 
+              const brandObj = item.brand || {};
+              const destCnpj = brandObj.cnpj || item.destinatario_cnpj || item.recipient?.cnpj || "";
+              const destNome = brandObj.fantasy_name || brandObj.name || "";
+
               const nfeRecord: ReceivedNfe = {
                 id,
                 nfeReceivedId: item.id,
                 unitId: credentials.unitId,
                 brand: credentials.brand,
-                numero: String(identification.number || item.numero || item.number || item.numero_nfe || "S/N"),
-                serie: String(identification.series || identification.serie || item.serie || "1"),
+                numero: String(item.numero || item.identification?.number || item.number || item.numero_nfe || "S/N"),
+                serie: String(item.serie || item.identification?.series || "1"),
                 chave,
-                fornecedorNome: issuer.name || item.emitente_nome || item.fornecedor_nome || item.supplier_name || item.company_name || "Fornecedor",
-                fornecedorCnpj: issuer.document || item.emitente_cnpj || item.fornecedor_cnpj || item.supplier_cnpj || "",
-                destinatarioCnpj: recipient.cnpj || recipient.cnpj_destinatario || item.destinatario_cnpj || "",
-                destinatarioNome: recipient.nome_destinatario || item.destinatario_nome || "",
-                dataEmissao: (timestamps.issued_at || item.data_emissao || item.issue_date || new Date().toISOString()).substring(0, 10),
-                valorTotal: parseBRLNumber(amounts.total || item.valor_total || item.total_amount || item.valor || 0),
-                status: (status.situation === "cancelada" || item.status === "cancelada")
+                fornecedorNome: item.nome_emitente || item.issuer?.name || item.fornecedor_nome || item.supplier_name || "Fornecedor",
+                fornecedorCnpj: item.documento_emitente || item.issuer?.document || item.fornecedor_cnpj || "",
+                destinatarioCnpj: destCnpj,
+                destinatarioNome: destNome,
+                dataEmissao: (item.data_emissao || item.timestamps?.issued_at || item.issue_date || new Date().toISOString()).substring(0, 10),
+                valorTotal: parseBRLNumber(item.valor_total || item.amounts?.total || item.total_amount || 0),
+                status: (item.situacao === "cancelada" || item.canceled_at || item.status?.situation === "cancelada")
                   ? "cancelada"
-                  : (status.situation === "processando" || item.status === "processando")
+                  : (item.situacao === "processando" || item.status?.situation === "processando")
                     ? "processando"
                     : "autorizada",
                 manifestationType: manifestType,
-                manifestedAt: manifestation.manifested_at || item.manifestado_em || null,
+                manifestedAt: item.manifestacao_at || item.manifestation?.manifested_at || null,
                 tipoDocumento: manifestType === "confirmacao" ? "entrada" : "manifesto",
                 source: "takeat",
                 syncedAt: new Date().toISOString(),
@@ -941,7 +932,6 @@ export async function fetchTakeatReceivedNfes(
               const deduplicationKey = chave || id;
               gatheredMap.set(deduplicationKey, nfeRecord);
             }
-            // Conseguiu ler deste endpoint base com sucesso, passa para a próxima queryConfig
             break;
           }
         } else {
@@ -958,7 +948,6 @@ export async function fetchTakeatReceivedNfes(
     return result;
   }
 
-  // Se nenhuma URL retornou dados, registra no console para diagnóstico
   console.warn(`[Takeat NF-e] Nenhuma nota encontrada para ${credentials.unitId}: ${lastError}`);
   return [];
 }
