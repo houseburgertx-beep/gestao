@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BriefcaseBusiness, CalendarDays, CircleDollarSign, Pencil, Plus, Search, UserCheck, UserRound, UsersRound } from "lucide-react";
+import { AlertTriangle, BriefcaseBusiness, CalendarDays, CircleDollarSign, FileUp, Pencil, Plus, Search, UserCheck, UserRound, UsersRound } from "lucide-react";
 import { useUnit } from "@/contexts/UnitContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useManagement } from "@/contexts/ManagementContext";
@@ -11,6 +11,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { NewEmployeeModal } from "@/components/rh/NewEmployeeModal";
 import { EditEmployeeModal } from "@/components/rh/EditEmployeeModal";
 import { EmployeeDetailDrawer } from "@/components/rh/EmployeeDetailDrawer";
+import { BatchEmployeeModal } from "@/components/rh/BatchEmployeeModal";
 import { calculateTenure, getExperienceInfo } from "@/lib/tenureUtils";
 import { store } from "@/services/store";
 import type { DocumentItem } from "@/types";
@@ -34,6 +35,7 @@ export default function RhPage() {
   const [selected, setSelected] = useState<Employee | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isNewOpen, setIsNewOpen] = useState(false);
+  const [isBatchOpen, setIsBatchOpen] = useState(false);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
 
   useEffect(() => {
@@ -155,9 +157,18 @@ export default function RhPage() {
           <h1>Equipe</h1>
           <p>Colaboradores ativos, tempo de casa, período de experiência e controle de documentos.</p>
         </div>
-        <button className="workspace-primary" onClick={() => setIsNewOpen(true)}>
-          <Plus size={17} /> Novo colaborador
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            className="workspace-secondary"
+            onClick={() => setIsBatchOpen(true)}
+            title="Importar múltiplas fichas de uma vez a partir de PDF"
+          >
+            <FileUp size={15} /> Importar em lote
+          </button>
+          <button className="workspace-primary" onClick={() => setIsNewOpen(true)}>
+            <Plus size={17} /> Novo colaborador
+          </button>
+        </div>
       </header>
 
       <section className="people-hero">
@@ -385,6 +396,15 @@ export default function RhPage() {
       />
 
       <NewEmployeeModal isOpen={isNewOpen} onClose={() => setIsNewOpen(false)} />
+
+      <BatchEmployeeModal
+        isOpen={isBatchOpen}
+        onClose={() => setIsBatchOpen(false)}
+        onSuccess={(count) => {
+          setIsBatchOpen(false);
+          // Employees will auto-refresh via subscribeEmployees listener
+        }}
+      />
 
       <EditEmployeeModal
         isOpen={!!editingEmployee}
