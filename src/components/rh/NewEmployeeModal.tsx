@@ -170,7 +170,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
         const mgmtRecord: RecordData = {
           id: employeeData.id,
           kind: "employees",
-          tenantId: tenantId || "house-burgers",
+          tenantId: tenantId || "house190",
           unitId: unitId || "",
           version: 0,
           createdAt: now,

@@ -169,7 +169,7 @@ export function EditEmployeeModal({
         const mgmtRecord: RecordData = {
           id: updatedEmployee.id,
           kind: "employees",
-          tenantId: tenantId || "house-burgers",
+          tenantId: tenantId || "house190",
           unitId: unitId || "",
           version: 0,
           createdAt: employee.admissionDate || now,

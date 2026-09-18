@@ -396,11 +396,21 @@ export function PayrollClosingTab({
 
     if (!confirm(confirmMsg)) return;
 
+    if (!user?.uid) {
+      setFeedbackMsg({
+        type: "error",
+        text: "Você precisa estar autenticado para realizar esta operação.",
+      });
+      return;
+    }
+
     setGeneratingPayables(true);
     setFeedbackMsg(null);
 
     try {
       const now = new Date().toISOString();
+      const currentUid = user.uid;
+      const currentTenantId = tenantId || "house190";
       let count = 0;
 
       for (const row of eligibleRows) {
@@ -411,13 +421,13 @@ export function PayrollClosingTab({
         const payableRecord: RecordData = {
           id: payableId,
           kind: "payables",
-          tenantId: tenantId || "house-burgers",
+          tenantId: currentTenantId,
           unitId: emp.unitId || "teixeira",
           version: 0,
           createdAt: now,
           updatedAt: now,
-          createdBy: user?.uid || "system",
-          updatedBy: user?.uid || "system",
+          createdBy: currentUid,
+          updatedBy: currentUid,
           obligationType: "Folha / Pessoal",
           description: `Folha Líquida: ${emp.name} (${monthLabel})`,
           competence: currentYearMonth,
