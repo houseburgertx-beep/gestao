@@ -219,7 +219,8 @@ service cloud.firestore {
           || resource.data.unitId == '');
     }
     match /gestao_audit/{id} {
-      allow read: if canReadManagement('gestao_audit', resource.data);
+      allow read: if activeUser() && (directorOrAccountant()
+        || userRole() in ['manager', 'operator']);
       allow create: if activeUser() && request.resource.data.tenantId == tenantId()
         && request.resource.data.updatedBy == request.auth.uid
         && (directorOrAccountant()
