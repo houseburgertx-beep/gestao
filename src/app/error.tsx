@@ -19,7 +19,7 @@ export default function ErrorBoundaryPage({
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      window.location.href = "/gestao/";
+      window.location.href = "/";
     } catch {
       window.location.reload();
     }
@@ -58,7 +58,7 @@ export default function ErrorBoundaryPage({
           </button>
 
           <a
-            href="/gestao/"
+            href="/"
             className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-xs font-medium transition-colors"
           >
             <Home className="w-3.5 h-3.5" />

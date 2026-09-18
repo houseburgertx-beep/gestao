@@ -1,0 +1,6 @@
+{
+  "name": "HOUSE 190 — Painel de Gestão Integrada",
+  "description": "Central de comando empresarial e gestão integrada da House 190",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

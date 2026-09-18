@@ -1232,7 +1232,7 @@ export default function MetasPage() {
                   Faturamento de Terça-feira (08/09) não registrado:
                 </span>
                 <span className="text-amber-700 dark:text-amber-300">
-                  Os valores do dia anterior ainda não foram importados ou inseridos (fica na aba "Semana Atual").
+                  Os valores do dia anterior ainda não foram importados ou inseridos (fica na aba &quot;Semana Atual&quot;).
                 </span>
               </div>
             </div>

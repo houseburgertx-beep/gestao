@@ -1,7 +1,7 @@
 export async function readDocumentText(file: File): Promise<string> {
   if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
     const pdfjs = await import("pdfjs-dist");
-    pdfjs.GlobalWorkerOptions.workerSrc = "/gestao/pdf.worker.min.mjs";
+    pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
     const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
     try {
       const pages: string[] = [];
