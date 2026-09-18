@@ -204,7 +204,6 @@ export async function commitRecords(
     inventory: ["productId", "date"],
     positions: ["date"],
     closings: ["competence"],
-    cashClosings: ["date", "shift"],
     cashConferences: ["closingId"],
     goals: ["start", "end", "channel"],
     loanInstallments: ["loanId", "number"],
@@ -234,10 +233,23 @@ export async function commitRecords(
       if (
         uniqueSnapshot?.exists() &&
         uniqueSnapshot.data().recordId !== origin.id
-      )
-        throw new Error(
-          "Já existe um registro salvo para esta origem ou período. Atualize a base.",
+      ) {
+        const occupying = (state[origin.kind] || []).find(
+          (x) => x.id === uniqueSnapshot.data().recordId,
         );
+        let occArchived = Boolean(occupying?.archived);
+        if (!occupying) {
+          const occDoc = await tx.get(
+            doc(db, col(origin.kind), uniqueSnapshot.data().recordId),
+          );
+          occArchived = occDoc.exists() && Boolean(occDoc.data().archived);
+        }
+        if (!occArchived) {
+          throw new Error(
+            "Já existe um registro salvo para esta origem ou período. Atualize a base.",
+          );
+        }
+      }
       const refs = records.map((r) => doc(db, col(r.kind), r.id));
       const existing = await Promise.all(refs.map((ref) => tx.get(ref)));
       const lockIds = Array.from(
@@ -315,13 +327,20 @@ export async function commitRecords(
           throw new Error("Estorno não corresponde à liquidação original.");
       }
       const now = new Date().toISOString();
-      if (uniqueRef && !uniqueSnapshot?.exists())
-        tx.set(uniqueRef, sanitizeFirestoreData({
-          tenantId: origin.tenantId,
-          unitId: origin.unitId,
-          recordId: origin.id,
-          updatedBy: origin.updatedBy,
-        }));
+      if (uniqueRef) {
+        if (origin.archived) {
+          if (uniqueSnapshot?.exists()) {
+            tx.delete(uniqueRef);
+          }
+        } else if (!uniqueSnapshot?.exists() || uniqueSnapshot.data().recordId !== origin.id) {
+          tx.set(uniqueRef, sanitizeFirestoreData({
+            tenantId: origin.tenantId,
+            unitId: origin.unitId,
+            recordId: origin.id,
+            updatedBy: origin.updatedBy,
+          }));
+        }
+      }
       records.forEach((r, i) => {
         const data = sanitizeFirestoreData({
           ...r,

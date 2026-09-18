@@ -111,6 +111,7 @@ service cloud.firestore {
       return r in ['admin', 'administrador', 'proprietario', 'dono', 'diretoria', 'diretor', 'gestao'] ? 'admin'
         : r in ['accountant', 'contador', 'contadora', 'financeiro'] ? 'accountant'
         : r in ['manager', 'gerente', 'gestor'] ? 'manager'
+        : r in ['operator', 'operador', 'caixa'] ? 'operator'
         : r;
     }
     function directorOrAccountant() {
@@ -122,13 +123,15 @@ service cloud.firestore {
     function canReadManagement(name, data) {
       return activeUser() && data.tenantId == tenantId()
         && (directorOrAccountant()
-          || (name in ['gestao_units', 'gestao_bankAccounts'])
-          || (userRole() == 'manager' && name in ['gestao_actions','gestao_goals','gestao_revenues','gestao_sales','gestao_bankAccounts'] && (data.unitId == '' || data.unitId == userProfile().unitId))
-          || (userRole() == 'operator' && name == 'gestao_cashClosings' && data.unitId == userProfile().unitId));
+          || globalCollection(name)
+          || name in ['gestao_bankAccounts', 'gestao_locks', 'gestao_unique']
+          || (userRole() == 'manager' && name in ['gestao_actions','gestao_goals','gestao_revenues','gestao_sales','gestao_bankAccounts','gestao_cashClosings','gestao_cashConferences'] && (data.unitId == '' || userProfile().get('unitId', '') == 'all' || data.unitId == userProfile().get('unitId', '')))
+          || (userRole() == 'operator' && name in ['gestao_cashClosings', 'gestao_cashConferences'] && (userProfile().get('unitId', '') == 'all' || data.unitId == userProfile().get('unitId', '')))
+          || (userRole() == 'operator' && name == 'gestao_payables' && (userProfile().get('unitId', '') == 'all' || data.unitId == userProfile().get('unitId', '')) && data.get('sourceId', '') != ''));
     }
     function operatorPixRequest(name, data) {
-      return userProfile().role == 'operator' && name == 'gestao_payables'
-        && data.unitId == userProfile().unitId
+      return userRole() == 'operator' && name == 'gestao_payables'
+        && (userProfile().get('unitId', '') == 'all' || data.unitId == userProfile().get('unitId', ''))
         && data.get('sourceId', '') != ''
         && data.get('paymentMethod', '') == 'PIX'
         && data.get('status', '') == 'Pendente';
@@ -137,8 +140,8 @@ service cloud.firestore {
       return (name in ['gestao_policies', 'gestao_companies', 'gestao_brands', 'gestao_units'] ? adminUser()
         : directorOrAccountant()
           || (name in ['gestao_bankAccounts', 'gestao_bankTransfers'] && canManageBank())
-          || (userRole() == 'manager' && name in ['gestao_actions', 'gestao_bankAccounts', 'gestao_bankTransfers'])
-          || (userProfile().role == 'operator' && name == 'gestao_cashClosings')
+          || (userRole() == 'manager' && name in ['gestao_actions', 'gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_cashConferences'])
+          || (userRole() == 'operator' && name == 'gestao_cashClosings')
           || operatorPixRequest(name, data));
     }
     function recordMonth(data) {
@@ -161,6 +164,7 @@ service cloud.firestore {
         || data.unitId == ''
         || data.unitId == 'matriz'
         || data.unitId == 'all'
+        || data.unitId in ['teixeira', 'eunapolis', 'foodpark', 'central']
         || (exists(/databases/$(database)/documents/gestao_units/$(data.unitId))
             && get(/databases/$(database)/documents/gestao_units/$(data.unitId)).data.tenantId == data.tenantId);
     }
@@ -191,8 +195,7 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /gestao_locks/{id} {
-      allow get: if activeUser() && (!exists(/databases/$(database)/documents/gestao_locks/$(id)) || canReadManagement('gestao_locks', resource.data));
-      allow list: if canReadManagement('gestao_locks', resource.data);
+      allow get, list: if activeUser() && (!exists(/databases/$(database)/documents/gestao_locks/$(id)) || resource.data.tenantId == tenantId());
       allow create, update: if activeUser() && directorOrAccountant()
         && request.resource.data.tenantId == tenantId()
         && request.resource.data.updatedBy == request.auth.uid
@@ -200,17 +203,31 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /gestao_unique/{id} {
-      allow get: if activeUser() && (!exists(/databases/$(database)/documents/gestao_unique/$(id)) || canReadManagement('gestao_unique', resource.data));
-      allow create: if activeUser() && request.resource.data.tenantId == tenantId()
+      allow get, list: if activeUser() && (!exists(/databases/$(database)/documents/gestao_unique/$(id)) || resource.data.tenantId == tenantId());
+      allow create, update: if activeUser() && request.resource.data.tenantId == tenantId()
         && request.resource.data.updatedBy == request.auth.uid
-        && (directorOrAccountant() || request.resource.data.unitId == userProfile().unitId);
-      allow update, delete, list: if false;
+        && (directorOrAccountant()
+          || userRole() in ['manager', 'operator']
+          || userProfile().get('unitId', '') == 'all'
+          || request.resource.data.unitId == userProfile().get('unitId', '')
+          || request.resource.data.unitId == '');
+      allow delete: if activeUser()
+        && (directorOrAccountant()
+          || userRole() in ['manager', 'operator']
+          || userProfile().get('unitId', '') == 'all'
+          || resource.data.unitId == userProfile().get('unitId', '')
+          || resource.data.unitId == '');
     }
     match /gestao_audit/{id} {
       allow read: if canReadManagement('gestao_audit', resource.data);
       allow create: if activeUser() && request.resource.data.tenantId == tenantId()
         && request.resource.data.updatedBy == request.auth.uid
-        && (directorOrAccountant() || userRole() == 'manager' || canManageBank() || request.resource.data.unitId == userProfile().unitId || request.resource.data.unitId == '');
+        && (directorOrAccountant()
+          || userRole() in ['manager', 'operator']
+          || canManageBank()
+          || userProfile().get('unitId', '') == 'all'
+          || request.resource.data.unitId == userProfile().get('unitId', '')
+          || request.resource.data.unitId == '');
       allow update, delete: if false;
     }
   }

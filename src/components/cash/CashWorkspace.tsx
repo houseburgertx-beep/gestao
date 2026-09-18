@@ -348,8 +348,10 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
 
   const today = dateToday();
   const closings = data.cashClosings.filter(row => !row.archived).sort((a, b) => str(b, "date").localeCompare(str(a, "date")));
+  const userUnit = userProfile?.unitId;
+  const isOperator = userProfile?.role === "operator" || userProfile?.role === "operador" || userProfile?.role === "caixa";
   const visible = mode === "closing"
-    ? (userProfile?.role === "operator" ? closings.filter(r => r.unitId === userProfile.unitId) : closings)
+    ? (isOperator && userUnit && userUnit !== "all" ? closings.filter(r => r.unitId === userUnit) : closings)
     : closings.filter(r => r.status !== "Rascunho");
 
   const todayRows = visible.filter(r => str(r, "date") === today);
@@ -470,14 +472,35 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
               </button>
             )}
             {mode==="closing"&&!rowConferred&&(
-              <button
-                type="button"
-                className="cash-reopen-btn"
-                title="Reabrir este fechamento para corrigir ou ajustar valores antes da conferência do financeiro"
-                onClick={()=>{ setEditingClosing(row); setClosingOpen(true); }}
-              >
-                <RotateCcw size={12}/> Reabrir
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="cash-reopen-btn"
+                  title="Reabrir este fechamento para corrigir ou ajustar valores antes da conferência do financeiro"
+                  onClick={()=>{ setEditingClosing(row); setClosingOpen(true); }}
+                >
+                  <RotateCcw size={12}/> Reabrir
+                </button>
+                <button
+                  type="button"
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition border border-rose-200 dark:border-rose-900 flex items-center gap-1"
+                  title="Excluir este fechamento de caixa caso tenha sido lançado com data errada ou duplicado"
+                  onClick={async () => {
+                    const unitName = data.units.find(u => u.id === row.unitId)?.name || row.unitId;
+                    const formattedDate = str(row, "date").split("-").reverse().join("/");
+                    if (!window.confirm(`Tem certeza que deseja excluir o fechamento de ${formattedDate} (${unitName})? Caso tenha lançado com a data errada, você poderá lançar novamente com a data certa.`)) return;
+                    try {
+                      await saveManagement(row, data, true);
+                      setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
+                    } catch (err) {
+                      console.error("Erro ao excluir fechamento:", err);
+                      alert("Não foi possível excluir o fechamento: " + (err instanceof Error ? err.message : String(err)));
+                    }
+                  }}
+                >
+                  <Trash2 size={12}/> Excluir
+                </button>
+              </div>
             )}
           </article>;
         }):<div className="people-empty"><FileCheck2 size={30}/><strong>Nenhum fechamento encontrado</strong><span>{mode==="closing"?"Use “Novo fechamento” para iniciar.":"Nenhum caixa encontrado para este filtro."}</span></div>}
@@ -559,33 +582,43 @@ function ClosingModal({
   const { currentUnit } = useUnit();
   const { user, userProfile } = useAuth();
 
-  const draft = useMemo(() => (!initialClosing ? loadDraftData() : null), [initialClosing]);
+  const [loadedClosing, setLoadedClosing] = useState<RecordData | null>(null);
+  const activeTargetClosing = initialClosing || loadedClosing;
+
+  const draft = useMemo(() => (!activeTargetClosing ? loadDraftData() : null), [activeTargetClosing]);
   const [hasDraft, setHasDraft] = useState(() => Boolean(draft));
   const [draftSavedMsg, setDraftSavedMsg] = useState("");
 
   const [activeStep, setActiveStep] = useState<1 | 2 | 3 | 4>(1);
   const [unit, setUnit] = useState<string>(() => {
-    if (initialClosing?.unitId) return initialClosing.unitId;
+    if (activeTargetClosing?.unitId) return activeTargetClosing.unitId;
     if (draft?.unit) return draft.unit;
     if (allowedUnit !== "all") return allowedUnit;
     if (currentUnit !== "all") return currentUnit;
     return data.units[0]?.id || "";
   });
   const [date, setDate] = useState(() => {
-    if (initialClosing) return str(initialClosing, "date") || dateToday();
+    if (activeTargetClosing) return str(activeTargetClosing, "date") || dateToday();
     if (draft?.date) return draft.date;
     return dateToday();
   });
   const [operatorName, setOperatorName] = useState(() => {
-    if (initialClosing) return str(initialClosing, "operatorName") || "";
+    if (activeTargetClosing) return str(activeTargetClosing, "operatorName") || "";
     if (draft?.operatorName) return draft.operatorName;
     return userProfile?.displayName || "";
   });
   const [shift, setShift] = useState(() => {
-    if (initialClosing) return str(initialClosing, "shift") || "Único";
+    if (activeTargetClosing) return str(activeTargetClosing, "shift") || "Único";
     if (draft?.shift) return draft.shift;
     return "Único";
   });
+
+  const existingForShift = useMemo(() => {
+    if (activeTargetClosing) return null;
+    return data.cashClosings.find(
+      c => !c.archived && c.unitId === unit && str(c, "date") === date && (str(c, "shift") || "Único") === shift
+    );
+  }, [activeTargetClosing, data.cashClosings, unit, date, shift]);
 
   // Step 1: Vendas PDV (strings in R$)
   const [systemCash, setSystemCash] = useState(() => initialClosing ? toMoneyInput(initialClosing.systemCash) : draft?.systemCash || "");
@@ -663,6 +696,50 @@ function ClosingModal({
   );
   const [newFiles, setNewFiles] = useState<{ file: File; previewUrl: string; dataUrl: string; size: number }[]>([]);
   const [compressingFiles, setCompressingFiles] = useState(false);
+
+  const handleLoadExisting = (c: RecordData) => {
+    setLoadedClosing(c);
+    setUnit(c.unitId || "");
+    setDate(str(c, "date") || dateToday());
+    setShift(str(c, "shift") || "Único");
+    setOperatorName(str(c, "operatorName") || "");
+    setSystemCash(toMoneyInput(c.systemCash));
+    setSystemCredit(toMoneyInput(c.systemCredit));
+    setSystemDebit(toMoneyInput(c.systemDebit));
+    setSystemPix(toMoneyInput(c.systemPix));
+    setSystemServiceFee(toMoneyInput(c.systemServiceFee));
+    setSystemIfoodOnline(toMoneyInput(c.systemIfoodOnline));
+    setSystemIfoodVoucher(toMoneyInput(c.systemIfoodVoucher));
+    setSystemTerm(toMoneyInput(c.systemTerm));
+    setSystemClub(toMoneyInput(c.systemClub));
+    setSystemAccrual(toMoneyInput(c.systemAccrual));
+    setOpeningAmount(toMoneyInput(c.openingAmount));
+    setCashIn(toMoneyInput(c.cashIn));
+    setSangriaAmount(toMoneyInput(c.sangriaAmount));
+    setSangriaStatus(str(c, "sangriaStatus") || "Na loja");
+    setSangriaRecipient(str(c, "sangriaRecipient") || "");
+    setClosingFloat(toMoneyInput(c.closingFloat));
+    setOutflows(parseOutflows(c.cashOutflowsJson));
+    const saved = parseBankAmounts(c);
+    const res: Record<string, { used: boolean; credit: string; debit: string; pix: string }> = {};
+    Object.entries(saved).forEach(([bId, v]) => {
+      res[bId] = {
+        used: true,
+        credit: v.credit ? String(v.credit / 100) : "",
+        debit: v.debit ? String(v.debit / 100) : "",
+        pix: v.pix ? String(v.pix / 100) : ""
+      };
+    });
+    setMachines(res);
+    setPixRequests(parsePixRequests(c.pixRequestsJson));
+    setMotoboySystem(toMoneyInput(c.motoboySystem));
+    setMotoboyPaid(toMoneyInput(c.motoboyPaid));
+    setIfoodAudit(toMoneyInput(c.ifoodAudit));
+    setFiscalMachines(toMoneyInput(c.fiscalMachines));
+    setInvoiceIssued(toMoneyInput(c.invoiceIssued));
+    setNotes(str(c, "notes") || "");
+    setExistingAttachments(parseAttachments(c));
+  };
 
   const handleAddFiles = async (fileList: FileList | File[]) => {
     const remaining = 5 - (existingAttachments.length + newFiles.length);
@@ -888,23 +965,36 @@ function ClosingModal({
       }
 
       const now = new Date().toISOString();
-      const closingId = initialClosing?.id || `closing-${date}-${unit}-unico`;
+      const targetClosing = activeTargetClosing;
+      const closingId = targetClosing?.id || `closing-${date}-${unit}-${Date.now()}`;
       const defaultCategory =
         data.categories.find(cat => !cat.archived && str(cat, "nature").toLowerCase() === "operacional")?.id ||
         data.categories.find(cat => !cat.archived && str(cat, "dreLine") === "Operacionais")?.id ||
         data.categories.find(cat => !cat.archived)?.id ||
         "";
 
+      // If date or shift changed from an existing closing, clean up the old unique slot
+      if (targetClosing && str(targetClosing, "date") && (str(targetClosing, "date") !== date || (str(targetClosing, "shift") || "Único") !== shift)) {
+        try {
+          const oldShift = str(targetClosing, "shift") || "Único";
+          const oldUniqueRaw = JSON.stringify([tenantId, targetClosing.unitId, "cashClosings", str(targetClosing, "date"), oldShift]);
+          const oldDigest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(oldUniqueRaw));
+          const oldUniqueId = Array.from(new Uint8Array(oldDigest)).map(v => v.toString(16).padStart(2, "0")).join("");
+          const { deleteDoc, doc } = await import("firebase/firestore");
+          await deleteDoc(doc(db, "gestao_unique", oldUniqueId)).catch(() => {});
+        } catch {}
+      }
+
       const row: RecordData = {
-        ...(initialClosing || {}),
+        ...(targetClosing || {}),
         id: closingId,
         kind: "cashClosings",
         tenantId,
         unitId: unit,
-        version: initialClosing ? Number(initialClosing.version || 0) : 0,
-        createdAt: initialClosing?.createdAt || now,
+        version: targetClosing ? Number(targetClosing.version || 0) : 0,
+        createdAt: targetClosing?.createdAt || now,
         updatedAt: now,
-        createdBy: initialClosing?.createdBy || user.uid,
+        createdBy: targetClosing?.createdBy || user.uid,
         updatedBy: user.uid,
         date,
         shift,
@@ -1034,12 +1124,26 @@ function ClosingModal({
         </header>
 
         {/* Reopen or Draft Notice Banner */}
-        {initialClosing ? (
+        {activeTargetClosing ? (
           <div className="mx-6 mt-3 flex items-center justify-between p-2.5 px-3.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs text-indigo-900 dark:text-indigo-200">
             <div className="flex items-center gap-2">
               <RotateCcw size={14} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
-              <span>Você está reabrindo o fechamento de <b>{str(initialClosing, "date").split("-").reverse().join("/")} ({str(initialClosing, "operatorName")})</b>. Ajuste os valores e clique em salvar no final.</span>
+              <span>Você está editando o fechamento de <b>{str(activeTargetClosing, "date").split("-").reverse().join("/")} ({str(activeTargetClosing, "operatorName")})</b>. Ajuste os valores e clique em salvar no final.</span>
             </div>
+          </div>
+        ) : existingForShift ? (
+          <div className="mx-6 mt-3 flex items-center justify-between p-2.5 px-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-xl text-xs text-amber-900 dark:text-amber-200">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <span>Já existe um fechamento gravado para <b>{date.split("-").reverse().join("/")} (Turno {shift})</b>.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleLoadExisting(existingForShift)}
+              className="text-xs font-bold text-amber-700 dark:text-amber-300 hover:underline transition ml-3 flex items-center gap-1 flex-shrink-0"
+            >
+              <RotateCcw size={12}/> Carregar dados deste fechamento
+            </button>
           </div>
         ) : hasDraft ? (
           <div className="mx-6 mt-3 flex items-center justify-between p-2.5 px-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-900 dark:text-amber-200">
