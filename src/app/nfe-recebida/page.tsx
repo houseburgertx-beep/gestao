@@ -25,6 +25,8 @@ import {
   Package,
   Eye,
   ShieldCheck,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 export default function NfeRecebidaPage() {
@@ -88,6 +90,58 @@ export default function NfeRecebidaPage() {
     }
   }, [currentUnit]);
 
+  // Filtro de Período (Padrão: Esse mês)
+  const [datePreset, setDatePreset] = useState<
+    "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "this_year" | "custom"
+  >("this_month");
+  
+  // Datas calculadas
+  const getPresetRange = (preset: string) => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const toYmd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    if (preset === "today") {
+      const todayStr = toYmd(now);
+      return { start: todayStr, end: todayStr, label: "Hoje" };
+    }
+    if (preset === "yesterday") {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      const yStr = toYmd(y);
+      return { start: yStr, end: yStr, label: "Ontem" };
+    }
+    if (preset === "this_week") {
+      const d = new Date(now);
+      const day = d.getDay();
+      const diff = d.getDate() - day; // Domingo
+      const sunday = new Date(d.setDate(diff));
+      return { start: toYmd(sunday), end: toYmd(now), label: "Essa semana" };
+    }
+    if (preset === "last_week") {
+      const d = new Date(now);
+      const day = d.getDay();
+      const lastSunday = new Date(d.setDate(d.getDate() - day - 7));
+      const lastSaturday = new Date(new Date(lastSunday).setDate(lastSunday.getDate() + 6));
+      return { start: toYmd(lastSunday), end: toYmd(lastSaturday), label: "Semana anterior" };
+    }
+    if (preset === "last_month") {
+      const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { start: toYmd(firstDay), end: toYmd(lastDay), label: "Mês anterior" };
+    }
+    if (preset === "this_year") {
+      const firstDay = new Date(now.getFullYear(), 0, 1);
+      return { start: toYmd(firstDay), end: toYmd(now), label: "Esse ano" };
+    }
+    // Padrão: this_month
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { start: toYmd(firstDay), end: toYmd(now), label: "Esse mês" };
+  };
+
+  const [dateRange, setDateRange] = useState(() => getPresetRange("this_month"));
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+
   // Filtros aplicados
   const filteredNfes = useMemo(() => {
     return nfes.filter((n) => {
@@ -100,6 +154,11 @@ export default function NfeRecebidaPage() {
         if (docTypeFilter === "entrada" && isManifest) return false;
       }
       if (manifestFilter !== "all" && n.manifestationType !== manifestFilter) return false;
+      
+      // Filtro de Data de Emissão
+      if (dateRange.start && n.dataEmissao < dateRange.start) return false;
+      if (dateRange.end && n.dataEmissao > dateRange.end) return false;
+
       if (searchTerm) {
         const q = searchTerm.toLowerCase();
         const matchFornecedor = n.fornecedorNome?.toLowerCase().includes(q);
@@ -111,7 +170,7 @@ export default function NfeRecebidaPage() {
       }
       return true;
     });
-  }, [nfes, selectedUnit, statusFilter, docTypeFilter, manifestFilter, searchTerm]);
+  }, [nfes, selectedUnit, statusFilter, docTypeFilter, manifestFilter, dateRange, searchTerm]);
 
   // Totais
   const stats = useMemo(() => {
@@ -142,7 +201,7 @@ export default function NfeRecebidaPage() {
     const errors: string[] = [];
 
     for (const u of unitsToSync) {
-      const res = await store.syncTakeatNfes(u);
+      const res = await store.syncTakeatNfes(u, undefined, dateRange.start, dateRange.end);
       if (res.success) {
         totalSynced += res.count;
       } else if (res.error) {
@@ -354,64 +413,165 @@ export default function NfeRecebidaPage() {
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-col md:flex-row items-center gap-3 bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-        {/* Seletor de Loja */}
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <Building2 size={16} className="text-zinc-400" />
-          <select
-            value={selectedUnit}
-            onChange={(e) => setSelectedUnit(e.target.value as UnitId)}
-            className="px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
-          >
-            <option value="all">Todas as Lojas (Consolidado)</option>
-            <option value="teixeira">Teixeira de Freitas</option>
-            <option value="eunapolis">Eunápolis</option>
-            <option value="foodpark">House Foodpark</option>
-          </select>
-        </div>
+      {/* Filtros e Seletor de Período */}
+      <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Seletor de Loja */}
+          <div className="flex items-center gap-2">
+            <Building2 size={15} className="text-zinc-400" />
+            <select
+              value={selectedUnit}
+              onChange={(e) => setSelectedUnit(e.target.value as UnitId)}
+              className="px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-xs font-medium text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
+            >
+              <option value="all">Todas as Lojas</option>
+              <option value="teixeira">Teixeira de Freitas</option>
+              <option value="eunapolis">Eunápolis</option>
+              <option value="foodpark">House Foodpark</option>
+            </select>
+          </div>
 
-        {/* Filtro de Tipo: Entrada vs Manifesto */}
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <Filter size={16} className="text-zinc-400" />
-          <select
-            value={docTypeFilter}
-            onChange={(e) => setDocTypeFilter(e.target.value as any)}
-            className="px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-rose-500 font-medium"
-          >
-            <option value="all">Todos os Tipos</option>
-            <option value="manifesto">📑 Do Manifesto (Emitidas no CNPJ)</option>
-            <option value="entrada">📥 Entrada Confirmada</option>
-          </select>
-        </div>
+          {/* Seletor Minimalista de Período (Estilo Dropdown Popover) */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 text-xs font-medium text-zinc-800 dark:text-zinc-200 transition-colors"
+            >
+              <Calendar size={14} className="text-rose-500" />
+              <span>{dateRange.label}:</span>
+              <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
+                {dateRange.start ? `${dateRange.start.split("-").reverse().join("/")} a ${dateRange.end.split("-").reverse().join("/")}` : "Todo o período"}
+              </span>
+              <span className="text-[10px] text-zinc-400">▼</span>
+            </button>
 
-        {/* Filtro de Status de Lançamento */}
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
-          >
-            <option value="all">Status Financeiro (Todos)</option>
-            <option value="pending">Pendentes de Lançamento</option>
-            <option value="imported">Já Importadas</option>
-          </select>
+            {isDatePickerOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => setIsDatePickerOpen(false)}
+                />
+                <div className="absolute left-0 top-full mt-1.5 z-40 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xl p-3 w-80 text-xs animate-in fade-in zoom-in-95 duration-100">
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 pb-2 mb-2 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                    <span>Selecionar Período</span>
+                    <span className="text-[11px] font-normal text-zinc-400">Takeat / SEFAZ</span>
+                  </div>
+
+                  {/* Atalhos Rápidos no estilo solicitado */}
+                  <div className="grid grid-cols-2 gap-1 mb-3">
+                    {[
+                      { id: "today", label: "Hoje" },
+                      { id: "yesterday", label: "Ontem" },
+                      { id: "this_week", label: "Essa semana" },
+                      { id: "last_week", label: "Semana anterior" },
+                      { id: "this_month", label: "Esse mês" },
+                      { id: "last_month", label: "Mês anterior" },
+                      { id: "this_year", label: "Esse ano" },
+                    ].map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => {
+                          setDatePreset(preset.id as any);
+                          setDateRange(getPresetRange(preset.id));
+                          setIsDatePickerOpen(false);
+                        }}
+                        className={`text-left px-2.5 py-1.5 rounded-lg transition-colors font-medium text-xs ${
+                          datePreset === preset.id
+                            ? "bg-rose-500 text-white font-semibold"
+                            : "hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Intervalo Personalizado */}
+                  <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 space-y-2">
+                    <span className="text-[11px] font-medium text-zinc-400 block">Personalizado</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-zinc-500 block mb-0.5">Início</label>
+                        <input
+                          type="date"
+                          value={dateRange.start}
+                          onChange={(e) => {
+                            setDatePreset("custom");
+                            setDateRange((prev) => ({ ...prev, start: e.target.value, label: "Personalizado" }));
+                          }}
+                          className="w-full px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-[11px] text-zinc-800 dark:text-zinc-200"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-zinc-500 block mb-0.5">Fim</label>
+                        <input
+                          type="date"
+                          value={dateRange.end}
+                          onChange={(e) => {
+                            setDatePreset("custom");
+                            setDateRange((prev) => ({ ...prev, end: e.target.value, label: "Personalizado" }));
+                          }}
+                          className="w-full px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-[11px] text-zinc-800 dark:text-zinc-200"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsDatePickerOpen(false)}
+                      className="w-full mt-2 py-1.5 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-semibold text-xs transition-colors"
+                    >
+                      Aplicar Período
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Filtro de Tipo: Entrada vs Manifesto */}
+          <div className="flex items-center gap-1.5">
+            <Filter size={15} className="text-zinc-400" />
+            <select
+              value={docTypeFilter}
+              onChange={(e) => setDocTypeFilter(e.target.value as any)}
+              className="px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-xs font-medium text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
+            >
+              <option value="all">Todos os Tipos</option>
+              <option value="manifesto">📑 Do Manifesto (CNPJ)</option>
+              <option value="entrada">📥 Entrada Confirmada</option>
+            </select>
+          </div>
+
+          {/* Filtro de Status de Lançamento */}
+          <div className="flex items-center gap-1.5">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              className="px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-xs font-medium text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
+            >
+              <option value="all">Status Financeiro (Todos)</option>
+              <option value="pending">Pendentes</option>
+              <option value="imported">Lançadas</option>
+            </select>
+          </div>
         </div>
 
         {/* Campo de Busca */}
-        <div className="relative flex-1 w-full">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+        <div className="relative w-full xl:w-72">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por fornecedor, CNPJ (emitente/destinatário), NF-e ou chave..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
+            placeholder="Buscar fornecedor, CNPJ, NF-e..."
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-xs text-zinc-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-rose-500"
           />
         </div>
       </div>
 
-      {/* Tabela de Notas Fiscais */}
+      {/* Tabela de Notas Fiscais - Compacta e Responsiva sem Estouro Lateral */}
       <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
         {filteredNfes.length === 0 ? (
           <div className="p-12 text-center">
@@ -419,10 +579,10 @@ export default function NfeRecebidaPage() {
               <FileText size={32} />
             </div>
             <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-              Nenhuma nota fiscal encontrada
+              Nenhuma nota fiscal encontrada no período selecionado
             </h3>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-md mx-auto mt-1">
-              Conecte sua conta Takeat para buscar notas fiscais emitidas contra o CNPJ da sua loja, ou cadastre uma simulação para testar o fluxo.
+              Altere o filtro de datas ou clique em sincronizar para buscar notas fiscais emitidas contra o CNPJ da sua loja.
             </p>
             <div className="mt-5 flex items-center justify-center gap-3">
               <button
@@ -440,19 +600,18 @@ export default function NfeRecebidaPage() {
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
-                  <th className="py-3.5 px-4">Loja / Destinatário</th>
-                  <th className="py-3.5 px-4">Emissão</th>
-                  <th className="py-3.5 px-4">NF-e</th>
-                  <th className="py-3.5 px-4">Fornecedor (Emitente)</th>
-                  <th className="py-3.5 px-4">Valor Total</th>
-                  <th className="py-3.5 px-4">Tipo / Manifesto</th>
-                  <th className="py-3.5 px-4">Status Fiscal</th>
-                  <th className="py-3.5 px-4">No Financeiro</th>
-                  <th className="py-3.5 px-4 text-right">Ações</th>
+                  <th className="py-3 px-3">Loja</th>
+                  <th className="py-3 px-3">Emissão</th>
+                  <th className="py-3 px-3">NF-e</th>
+                  <th className="py-3 px-3">Fornecedor (Emitente)</th>
+                  <th className="py-3 px-3">Valor</th>
+                  <th className="py-3 px-3">Tipo / Manifesto</th>
+                  <th className="py-3 px-3">Financeiro</th>
+                  <th className="py-3 px-3 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -461,88 +620,88 @@ export default function NfeRecebidaPage() {
                     key={nfe.id}
                     className="hover:bg-zinc-50/70 dark:hover:bg-zinc-800/40 transition-colors"
                   >
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
-                        {unitLabels[nfe.unitId] || nfe.unitId}
+                    {/* Coluna Loja */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                        {unitLabels[nfe.unitId]?.replace(" de Freitas", "").replace("House ", "") || nfe.unitId}
                       </span>
-                      {nfe.destinatarioCnpj && (
-                        <div className="text-[11px] font-mono text-zinc-400 mt-0.5">
-                          CNPJ: {nfe.destinatarioCnpj}
-                        </div>
-                      )}
                     </td>
 
-                    <td className="py-3.5 px-4 whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                    {/* Coluna Emissão */}
+                    <td className="py-2.5 px-3 whitespace-nowrap text-zinc-600 dark:text-zinc-300 font-mono text-[11px]">
                       {nfe.dataEmissao}
                     </td>
 
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    {/* Coluna NF-e */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       <div className="font-semibold text-zinc-900 dark:text-zinc-100">
                         Nº {nfe.numero}
                       </div>
-                      <div className="text-xs text-zinc-400">Série {nfe.serie || "1"}</div>
+                      <div className="text-[10px] text-zinc-400">Série {nfe.serie || "1"}</div>
                     </td>
 
-                    <td className="py-3.5 px-4">
-                      <div className="font-medium text-zinc-900 dark:text-zinc-100 line-clamp-1">
+                    {/* Coluna Fornecedor */}
+                    <td className="py-2.5 px-3 max-w-[200px]">
+                      <div
+                        className="font-medium text-zinc-900 dark:text-zinc-100 truncate"
+                        title={nfe.fornecedorNome}
+                      >
                         {nfe.fornecedorNome}
                       </div>
-                      <div className="text-xs text-zinc-400 font-mono">{nfe.fornecedorCnpj || "Sem CNPJ"}</div>
+                      <div className="text-[10px] text-zinc-400 font-mono truncate">
+                        {nfe.fornecedorCnpj || "Sem CNPJ"}
+                      </div>
                     </td>
 
-                    <td className="py-3.5 px-4 whitespace-nowrap font-bold text-zinc-900 dark:text-zinc-100">
+                    {/* Coluna Valor */}
+                    <td className="py-2.5 px-3 whitespace-nowrap font-bold text-zinc-900 dark:text-zinc-100">
                       R$ {nfe.valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </td>
 
                     {/* Coluna Tipo / Manifesto */}
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       {nfe.manifestationType === "confirmacao" || nfe.tipoDocumento === "entrada" ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                          📥 Entrada (Confirmada)
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                          📥 Entrada
                         </span>
                       ) : nfe.manifestationType === "ciencia" ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                           📑 Manifesto (Ciência)
                         </span>
                       ) : nfe.manifestationType === "desconhecimento" ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
                           ⚠️ Desconhecida
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                          📑 Manifesto (Pendente)
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                          📑 Manifesto
                         </span>
                       )}
                     </td>
 
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                        <ShieldCheck size={12} />
-                        Autorizada
-                      </span>
-                    </td>
-
-                    <td className="py-3.5 px-4 whitespace-nowrap">
+                    {/* Coluna No Financeiro */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       {nfe.importedToPayable ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
-                          <CheckCircle2 size={13} />
-                          Lançada em Contas a Pagar
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200">
+                          <CheckCircle2 size={11} />
+                          Lançada
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
-                          <Clock size={13} />
-                          Pendente de Lançamento
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200">
+                          <Clock size={11} />
+                          Pendente
                         </span>
                       )}
                     </td>
 
-                    <td className="py-3.5 px-4 whitespace-nowrap text-right space-x-2">
+                    {/* Coluna Ações */}
+                    <td className="py-2.5 px-3 whitespace-nowrap text-right space-x-1.5">
                       <button
                         onClick={() => setSelectedNfeDetails(nfe)}
                         title="Ver detalhes da NF-e"
-                        className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        className="p-1 rounded-md text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                       >
-                        <Eye size={16} />
+                        <Eye size={15} />
                       </button>
 
                       {!nfe.importedToPayable ? (
@@ -550,13 +709,13 @@ export default function NfeRecebidaPage() {
                           onClick={() => {
                             setImportingNfe(nfe);
                           }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium transition-colors shadow-sm"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-medium transition-colors shadow-sm"
                         >
-                          <span>Lançar no Contas a Pagar</span>
-                          <ArrowRight size={13} />
+                          <span>Lançar</span>
+                          <ArrowRight size={11} />
                         </button>
                       ) : (
-                        <span className="text-xs text-zinc-400 italic">Conciliada</span>
+                        <span className="text-[10px] text-zinc-400 italic">Conciliada</span>
                       )}
                     </td>
                   </tr>

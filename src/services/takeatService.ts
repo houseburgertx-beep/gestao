@@ -809,7 +809,9 @@ export function processOfficialRevenue(
  */
 export async function fetchTakeatReceivedNfes(
   credentials: TakeatCredentials,
-  onTokenRefreshed?: (newToken: string) => void
+  onTokenRefreshed?: (newToken: string) => void,
+  customStartDate?: string,
+  customEndDate?: string
 ): Promise<ReceivedNfe[]> {
   let token = sanitizeToken(credentials.token);
 
@@ -824,12 +826,12 @@ export async function fetchTakeatReceivedNfes(
     throw new Error(`Esta loja (${credentials.unitId}) ainda não possui uma conexão ativa com a Takeat.`);
   }
 
-  // Período de busca: últimos 90 dias
+  // Período de busca: período customizado ou últimos 90 dias
   const now = new Date();
   const end = new Date(now.getTime());
   const start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  const startDate = start.toISOString().substring(0, 10);
-  const endDate = end.toISOString().substring(0, 10);
+  const startDate = customStartDate || start.toISOString().substring(0, 10);
+  const endDate = customEndDate || end.toISOString().substring(0, 10);
 
   const restaurantParam = credentials.restaurantId ? `&restaurant_id=${credentials.restaurantId}` : "";
 
