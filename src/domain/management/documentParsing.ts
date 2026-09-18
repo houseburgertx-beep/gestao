@@ -63,10 +63,15 @@ export function parseEmployeeDocument(text: string): ParsedEmployeeDocument {
   const admissionDate = normalizeDate(admissionRaw);
 
   // Birth Date
+  let birthRaw = "";
+  const dateBeforeCpf = text.match(/(\d{2}\/\d{2}\/\d{4})\s*\n\s*\d{3}\.\d{3}\.\d{3}-\d{2}/);
   const birthMatch = text.match(/(?:Data de nascimento|Nascimento\b)\s*[:\s]*\n?\s*(\d{2}\/\d{2}\/\d{4})/i) ||
                      text.match(/(\d{2}\/\d{2}\/\d{4})[\s\S]{0,80}?(?:Data de nascimento|Nascimento\b)/i);
-  let birthRaw = birthMatch ? birthMatch[1] : "";
-  if (!birthRaw) {
+  if (dateBeforeCpf) {
+    birthRaw = dateBeforeCpf[1];
+  } else if (birthMatch) {
+    birthRaw = birthMatch[1];
+  } else {
     const allDates = text.match(/\b\d{2}\/\d{2}\/\d{4}\b/g) || [];
     const candidates = allDates.filter((d) => d !== admissionRaw);
     if (candidates.length > 0) {
@@ -82,10 +87,7 @@ export function parseEmployeeDocument(text: string): ParsedEmployeeDocument {
 
   // Name
   let name = "";
-  const nameUnderEmp = text.match(/(?:Nome\s+(?:do\s+Empregado|Completo)|Nome|Empregado)\s*[:\n]\s*([A-ZÁ-Úa-zà-ú ]{5,60})/i);
-  const nameAboveObs = text.match(/([A-ZÁ-Ú ]{5,60})\s*\n\s*OBSERVAÇÕES/);
-  const nameNearRes = text.match(/Benefici[áa]rios\s*\n\s*([A-ZÁ-Ú ]{5,60})\s*\n\s*(?:Rua|Av|Endereço)/i);
-  const blacklistName = /agência|banco|cargo|empresa|unidade|rescisão|sindical|residência|residencia|beneficiário|beneficiario|filiação|filiacao|endereço|endereco/i;
+  const blacklistName = /agência|agencia|banco|cargo|empresa|empregador|empregado|unidade|rescisão|rescisao|sindical|residência|residencia|beneficiário|beneficiario|filiação|filiacao|endereço|endereco|house|burguer|burger|hamburgueria|ltda|função|funcao|categoria|esocial/i;
 
   const isCleanName = (s: string) => {
     if (!s) return false;
@@ -95,32 +97,42 @@ export function parseEmployeeDocument(text: string): ParsedEmployeeDocument {
     return parts.length >= 2 && parts.every((p) => /^[A-ZÁ-Úa-zà-ú.]+$/.test(p));
   };
 
-  if (nameUnderEmp && isCleanName(nameUnderEmp[1])) {
-    name = nameUnderEmp[1].trim();
-  } else if (nameAboveObs && isCleanName(nameAboveObs[1])) {
-    name = nameAboveObs[1].trim();
+  const nameAgencyObs = text.match(/End\.?\s*da\s*agência\s*\n\s*([A-ZÁ-Ú ]{5,60})\s*\n\s*OBSERVAÇÕES/i);
+  const nameAboveObs = text.match(/([A-ZÁ-Ú ]{5,60})\s*\n\s*OBSERVAÇÕES/);
+  const nameNearRes = text.match(/Benefici[áa]rios\s*\n\s*([A-ZÁ-Ú ]{5,60})\s*\n\s*(?:Rua|Av|Praça|PC|Pç|Alameda|Travessa|Rodovia|Endereço)/i);
+  const nameUnderEmp = text.match(/(?:Nome\s+(?:do\s+Empregado|Completo)|\bNome\b)\s*[:\n]\s*([A-ZÁ-Úa-zà-ú ]{5,60})/i);
+
+  if (nameAgencyObs && isCleanName(nameAgencyObs[1])) {
+    name = nameAgencyObs[1].trim();
   } else if (nameNearRes && isCleanName(nameNearRes[1])) {
     name = nameNearRes[1].trim();
+  } else if (nameAboveObs && isCleanName(nameAboveObs[1])) {
+    name = nameAboveObs[1].trim();
+  } else if (nameUnderEmp && isCleanName(nameUnderEmp[1])) {
+    name = nameUnderEmp[1].trim();
   }
 
   // Address
-  const ruaIdx = lines.findIndex((l) => /^Rua\b/i.test(l) || /^(?:Av|Avenida|Al|Alameda|Travessa|Praça|Pç|Rodovia)\b/i.test(l));
   let address = "";
-  if (ruaIdx !== -1) {
-    address = lines[ruaIdx];
-    if (ruaIdx + 1 < lines.length && (lines[ruaIdx + 1].includes("CEP") || lines[ruaIdx + 1].includes("BA") || lines[ruaIdx + 1].includes("FREITAS") || lines[ruaIdx + 1].includes("CENTRO"))) {
-      address += ", " + lines[ruaIdx + 1];
-    }
+  const addressMatch = text.match(/Benefici[áa]rios\s*\n\s*[^\n]+\n\s*([^\n]+(?:\n[^\n]+)?CEP[^\n]*)/i) ||
+                       text.match(/(?:Residência|Endereço)\s*[\n:]\s*([^\n]+(?:\n[^\n]+)?CEP[^\n]*)/i);
+  if (addressMatch) {
+    address = addressMatch[1].replace(/\n/g, " ").replace(/\s+/g, " ").trim();
   } else {
-    const addressMatch = text.match(/(?:Residência|Endereço)\s*[\n:]\s*([^\n]+(?:\n[^\n]+)?CEP[^\n]*)/i);
-    if (addressMatch) address = addressMatch[1].replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+    const ruaIdx = lines.findIndex((l) => /^Rua\b/i.test(l) || /^(?:Av|Avenida|Al|Alameda|Travessa|Praça|Pç|Rodovia)\b/i.test(l));
+    if (ruaIdx !== -1) {
+      address = lines[ruaIdx];
+      if (ruaIdx + 1 < lines.length && (lines[ruaIdx + 1].includes("CEP") || lines[ruaIdx + 1].includes("BA") || lines[ruaIdx + 1].includes("FREITAS") || lines[ruaIdx + 1].includes("CENTRO"))) {
+        address += ", " + lines[ruaIdx + 1];
+      }
+    }
   }
   address = address.replace(/^,\s*/, "").replace(/\s*,\s*,\s*/g, ", ").trim();
 
   // Role / Cargo
   let role = "";
-  const cargoHeaderMatch = text.match(/^Cargo\s*$\n^(.+?)(?:\s{2,}Função|\s+C\.?B\.?O|$)/m);
-  if (cargoHeaderMatch) {
+  const cargoHeaderMatch = text.match(/Cargo\s*\n\s*([^\n]+?)\s*\n\s*(?:Função|C\.?B\.?O)/i);
+  if (cargoHeaderMatch && !/e\/ou função/i.test(cargoHeaderMatch[1])) {
     role = cargoHeaderMatch[1].trim();
   } else {
     const roleMatch = text.match(/Cargo\s*[:\n]\s*([A-ZÁ-Úa-zá-ú0-9 /.-]+?)(?:\s{2,}Função|\s+C\.?B\.?O|\n|$)/i);
@@ -275,43 +287,50 @@ export function parseEmployeeDocument(text: string): ParsedEmployeeDocument {
 }
 /**
  * Splits a multi-page employee registration PDF (like "Ficha de Empregado 5035")
- * into individual employee records. Each page delimited by "REGISTRO DE EMPREGADO".
+ * into individual employee records. Accepts either an array of page strings or a combined text.
  */
-export function parseMultiPageEmployeeDocument(text: string): ParsedEmployeeDocument[] {
-  // Split by the page header marker present on every page of the batch PDF
-  const segments = text
-    .split(/(?=REGISTRO DE EMPREGADO)/i)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 50);
+export function parseMultiPageEmployeeDocument(input: string | string[]): ParsedEmployeeDocument[] {
+  let pages: string[] = [];
 
-  if (segments.length <= 1) {
-    // Single page or no marker found — try splitting by CPF occurrences as fallback
-    const cpfRegex = /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g;
-    const cpfMatches: RegExpExecArray[] = [];
-    let m: RegExpExecArray | null;
-    while ((m = cpfRegex.exec(text)) !== null) cpfMatches.push(m);
-    if (cpfMatches.length <= 1) {
-      // Really just one employee
-      const parsed = parseEmployeeDocument(text);
-      return parsed.name || parsed.cpf ? [parsed] : [];
+  if (Array.isArray(input)) {
+    pages = input.map((s) => s.trim()).filter((s) => s.length > 50);
+  } else {
+    if (input.includes("--- PAGE_BREAK ---")) {
+      pages = input
+        .split("--- PAGE_BREAK ---")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 50);
+    } else {
+      const cpfRegex = /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g;
+      const cpfMatches: RegExpExecArray[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = cpfRegex.exec(input)) !== null) cpfMatches.push(m);
+
+      if (cpfMatches.length <= 1) {
+        pages = [input];
+      } else {
+        const positions = cpfMatches.map((match) => match.index);
+        for (let i = 0; i < positions.length; i++) {
+          const start = i === 0 ? 0 : Math.max(0, positions[i] - 400);
+          const end =
+            i + 1 < positions.length
+              ? Math.max(positions[i] + 200, positions[i + 1] - 400)
+              : input.length;
+          pages.push(input.slice(start, end));
+        }
+      }
     }
-    // Multiple CPFs found — split around each CPF occurrence
-    const results: ParsedEmployeeDocument[] = [];
-    const positions = cpfMatches.map((m) => m.index!);
-    for (let i = 0; i < positions.length; i++) {
-      const start = Math.max(0, positions[i] - 500);
-      const end = i + 1 < positions.length ? positions[i + 1] + 500 : text.length;
-      const chunk = text.slice(start, end);
-      const parsed = parseEmployeeDocument(chunk);
-      if (parsed.name || parsed.cpf) results.push(parsed);
-    }
-    return results;
   }
 
   const results: ParsedEmployeeDocument[] = [];
-  for (const segment of segments) {
-    const parsed = parseEmployeeDocument(segment);
+  const seenCpfs = new Set<string>();
+
+  for (const pageText of pages) {
+    const parsed = parseEmployeeDocument(pageText);
+    const normCpf = parsed.cpf.replace(/\D/g, "");
+    if (normCpf && seenCpfs.has(normCpf)) continue;
     if (parsed.name || parsed.cpf) {
+      if (normCpf) seenCpfs.add(normCpf);
       results.push(parsed);
     }
   }
