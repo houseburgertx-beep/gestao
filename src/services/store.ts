@@ -1098,7 +1098,9 @@ class DataStore {
 
   async syncTakeatNfes(
     unitId: Exclude<UnitId, "all">,
-    credentialKey?: string
+    credentialKey?: string,
+    startDate?: string,
+    endDate?: string
   ): Promise<{ success: boolean; count: number; error?: string; nfes?: ReceivedNfe[] }> {
     const opKey = credentialKey || unitId;
     const creds = this.getTakeatCredentials(opKey);
@@ -1111,9 +1113,14 @@ class DataStore {
     }
 
     try {
-      const nfes = await fetchTakeatReceivedNfes(creds, (newToken) => {
-        this.saveTakeatCredentials({ ...creds, token: newToken });
-      });
+      const nfes = await fetchTakeatReceivedNfes(
+        creds,
+        (newToken) => {
+          this.saveTakeatCredentials({ ...creds, token: newToken });
+        },
+        startDate,
+        endDate
+      );
 
       if (nfes.length > 0) {
         this.saveReceivedNfes(nfes);
