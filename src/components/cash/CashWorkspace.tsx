@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, Bike,
+  AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, Banknote, Bike,
   Bookmark, Calculator, Camera, Check, CheckCircle2, ChevronDown, ChevronUp,
   ClipboardCheck, Coins, CreditCard, Download, Edit3, Eye, FileCheck2,
   FileText, Image as ImageIcon, Landmark, Loader2, Paperclip, Percent, Plus,
-  Receipt, RotateCcw, RotateCw, Search, Share2, Sliders, Smartphone, Sparkles, Store, Trash2,
+  Receipt, RotateCcw, RotateCw, Search, Share2, ShieldCheck, Sliders, Smartphone, Sparkles, Store, Trash2,
   Upload, Users, Wallet, X, Zap, ZoomIn, ZoomOut
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
@@ -958,6 +958,7 @@ function ClosingModal({
 
   const cMotoboyDiff = c(motoboyPaid) - c(motoboySystem);
   const cInvoiceDiff = c(ifoodAudit) + c(fiscalMachines) - c(invoiceIssued);
+  const cPixRequestsTotal = pixRequests.reduce((sum, item) => sum + c(item.amount), 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1266,9 +1267,20 @@ function ClosingModal({
               onChange={e => setDate(e.target.value)}
               required
             />
+            {date !== dateToday() && (
+              <button
+                type="button"
+                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 py-0.5 px-2 rounded-md bg-indigo-50 dark:bg-indigo-950/60 transition"
+                onClick={() => setDate(dateToday())}
+                title="Definir data para hoje"
+              >
+                Hoje
+              </button>
+            )}
           </div>
 
           <div className="closing-meta-item">
+            <Users size={14} className="text-zinc-400" />
             <span>Operador:</span>
             <input
               type="text"
@@ -1300,12 +1312,39 @@ function ClosingModal({
           </div>
         </div>
 
-        {/* Step Navigation Tabs */}
+        {/* Top Progress Bar */}
+        <div className="closing-step-progress-bar">
+          <div
+            className="closing-step-progress-fill"
+            style={{ width: `${(activeStep / 4) * 100}%` }}
+          />
+        </div>
+
+        {/* Step Navigation Tabs with Dynamic Status Badges */}
         <div className="closing-steps-nav">
           {stepsList.map(s => {
             const Icon = s.icon;
             const isActive = activeStep === s.id;
             const isPast = activeStep > s.id;
+
+            let tabBadge = null;
+            if (s.id === 1 && (cSysTotal > 0 || cTotalConfirmed > 0)) {
+              tabBadge = (
+                <span className={`closing-tab-badge ${cTotalDiff === 0 ? "!bg-emerald-100 !text-emerald-800" : "!bg-rose-100 !text-rose-800"}`}>
+                  {cTotalDiff === 0 ? "✓ Batido" : "Dif"}
+                </span>
+              );
+            } else if (s.id === 2 && (c(motoboyPaid) > 0 || c(motoboySystem) > 0 || c(invoiceIssued) > 0)) {
+              tabBadge = <span className="closing-tab-badge">Auditoria</span>;
+            } else if (s.id === 3 && pixRequests.length > 0) {
+              tabBadge = <span className="closing-tab-badge !bg-purple-100 !text-purple-800">{pixRequests.length}</span>;
+            } else if (s.id === 4) {
+              const countAtt = existingAttachments.length + newFiles.length;
+              if (countAtt > 0) {
+                tabBadge = <span className="closing-tab-badge !bg-purple-100 !text-purple-800">{countAtt}/5</span>;
+              }
+            }
+
             return (
               <button
                 key={s.id}
@@ -1316,6 +1355,7 @@ function ClosingModal({
                 <span className="step-number">{isPast ? <Check size={11} /> : s.id}</span>
                 <Icon size={15} />
                 <span>{s.title}</span>
+                {tabBadge}
               </button>
             );
           })}
@@ -1803,6 +1843,73 @@ function ClosingModal({
                   </div>
                 </div>
               </div>
+
+              {/* Confronto Instantâneo dos 4 Pilares (PDV vs Balcão) */}
+              <div className="closing-pillars-grid">
+                {/* 1. Dinheiro */}
+                <div className="closing-pillar-box">
+                  <div className="closing-pillar-head">
+                    <span className="flex items-center gap-1.5"><Coins size={14} className="text-emerald-600" /> Dinheiro Gaveta</span>
+                    <Difference value={cCashDiff} />
+                  </div>
+                  <div className="closing-pillar-row">
+                    <span>Esperado:</span>
+                    <strong>{brl(cCashExpected)}</strong>
+                  </div>
+                  <div className="closing-pillar-row">
+                    <span>Contado:</span>
+                    <strong>{brl(cCashFound)}</strong>
+                  </div>
+                </div>
+
+                {/* 2. Crédito */}
+                <div className="closing-pillar-box">
+                  <div className="closing-pillar-head">
+                    <span className="flex items-center gap-1.5"><CreditCard size={14} className="text-blue-600" /> Cartão Crédito</span>
+                    <Difference value={cCreditDiff} />
+                  </div>
+                  <div className="closing-pillar-row">
+                    <span>PDV Sistema:</span>
+                    <strong>{brl(cSysCredit)}</strong>
+                  </div>
+                  <div className="closing-pillar-row">
+                    <span>Maquininhas:</span>
+                    <strong>{brl(cCreditFound)}</strong>
+                  </div>
+                </div>
+
+                {/* 3. Débito */}
+                <div className="closing-pillar-box">
+                  <div className="closing-pillar-head">
+                    <span className="flex items-center gap-1.5"><CreditCard size={14} className="text-indigo-600" /> Cartão Débito</span>
+                    <Difference value={cDebitDiff} />
+                  </div>
+                  <div className="closing-pillar-row">
+                    <span>PDV Sistema:</span>
+                    <strong>{brl(cSysDebit)}</strong>
+                  </div>
+                  <div className="closing-pillar-row">
+                    <span>Maquininhas:</span>
+                    <strong>{brl(cDebitFound)}</strong>
+                  </div>
+                </div>
+
+                {/* 4. PIX */}
+                <div className="closing-pillar-box">
+                  <div className="closing-pillar-head">
+                    <span className="flex items-center gap-1.5"><Smartphone size={14} className="text-purple-600" /> PIX Turno</span>
+                    <Difference value={cPixDiff} />
+                  </div>
+                  <div className="closing-pillar-row">
+                    <span>PDV Sistema:</span>
+                    <strong>{brl(cSysPix)}</strong>
+                  </div>
+                  <div className="closing-pillar-row">
+                    <span>Maquininhas:</span>
+                    <strong>{brl(cPixFound)}</strong>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -2132,6 +2239,123 @@ function ClosingModal({
                   />
                 </div>
               </div>
+
+              {/* Painel Executivo Pré-Envio (Auditoria Geral) */}
+              <div className="closing-executive-summary">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={18} className="text-indigo-600 dark:text-indigo-400" />
+                    <h4 className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                      Conferência Executiva Pré-Envio (Auditoria Geral)
+                    </h4>
+                  </div>
+                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${cTotalDiff === 0 ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : cTotalDiff > 0 ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" : "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"}`}>
+                    {cTotalDiff === 0 ? "✓ Caixa 100% Batido" : cTotalDiff > 0 ? `Sobra: +${brl(cTotalDiff)}` : `Diferença: ${brl(cTotalDiff)}`}
+                  </span>
+                </div>
+
+                <div className="closing-executive-grid">
+                  {/* Item 1: 4 Pilares */}
+                  <div className="closing-executive-item">
+                    <div className={`icon-circle ${cTotalDiff === 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"}`}>
+                      <Coins size={15} />
+                    </div>
+                    <div className="min-w-0 flex-1 text-[11px]">
+                      <div className="flex items-center justify-between text-zinc-500 font-medium">
+                        <span>4 Pilares (PDV x Real)</span>
+                        <Difference value={cTotalDiff} />
+                      </div>
+                      <p className="font-bold text-zinc-800 dark:text-zinc-200 text-xs mt-0.5">
+                        {brl(cTotalConfirmed)} <span className="text-[10px] text-zinc-400 font-normal">/ PDV {brl(cSysTotal)}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Item 2: Gaveta & Sangrias */}
+                  <div className="closing-executive-item">
+                    <div className="icon-circle bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                      <Banknote size={15} />
+                    </div>
+                    <div className="min-w-0 flex-1 text-[11px]">
+                      <div className="flex items-center justify-between text-zinc-500 font-medium">
+                        <span>Dinheiro Físico</span>
+                        <span className="text-zinc-600 dark:text-zinc-400 font-semibold">{cSangria > 0 ? `-${brl(cSangria)} sangria` : "Sem sangria"}</span>
+                      </div>
+                      <p className="font-bold text-zinc-800 dark:text-zinc-200 text-xs mt-0.5">
+                        Gaveta Final: {brl(cClosingFloat)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Item 3: Motoboys */}
+                  <div className="closing-executive-item">
+                    <div className={`icon-circle ${cMotoboyDiff === 0 ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"}`}>
+                      <Bike size={15} />
+                    </div>
+                    <div className="min-w-0 flex-1 text-[11px]">
+                      <div className="flex items-center justify-between text-zinc-500 font-medium">
+                        <span>Auditoria Motoboy</span>
+                        <Difference value={cMotoboyDiff} />
+                      </div>
+                      <p className="font-bold text-zinc-800 dark:text-zinc-200 text-xs mt-0.5">
+                        Pago: {brl(c(motoboyPaid))} <span className="text-[10px] text-zinc-400 font-normal">/ Sis {brl(c(motoboySystem))}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Item 4: Fiscal & NFC-e */}
+                  <div className="closing-executive-item">
+                    <div className={`icon-circle ${cInvoiceDiff === 0 && (c(ifoodAudit) > 0 || c(fiscalMachines) > 0) ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300"}`}>
+                      <FileCheck2 size={15} />
+                    </div>
+                    <div className="min-w-0 flex-1 text-[11px]">
+                      <div className="flex items-center justify-between text-zinc-500 font-medium">
+                        <span>Auditoria Fiscal</span>
+                        <Difference value={cInvoiceDiff} />
+                      </div>
+                      <p className="font-bold text-zinc-800 dark:text-zinc-200 text-xs mt-0.5">
+                        NFC-e: {brl(c(invoiceIssued))} <span className="text-[10px] text-zinc-400 font-normal">/ Base {brl(c(ifoodAudit) + c(fiscalMachines))}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Item 5: Solicitações de PIX */}
+                  <div className="closing-executive-item">
+                    <div className={`icon-circle ${pixRequests.length > 0 ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`}>
+                      <Zap size={15} />
+                    </div>
+                    <div className="min-w-0 flex-1 text-[11px]">
+                      <div className="flex items-center justify-between text-zinc-500 font-medium">
+                        <span>Solicitações PIX</span>
+                        <span className="text-purple-700 dark:text-purple-400 font-bold">{pixRequests.length} reg.</span>
+                      </div>
+                      <p className="font-bold text-zinc-800 dark:text-zinc-200 text-xs mt-0.5">
+                        {cPixRequestsTotal > 0 ? brl(cPixRequestsTotal) : "Nenhuma pendência"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Item 6: Anexos de Comprovantes */}
+                  <div className="closing-executive-item">
+                    <div className={`icon-circle ${existingAttachments.length + newFiles.length > 0 ? "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300" : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"}`}>
+                      <Camera size={15} />
+                    </div>
+                    <div className="min-w-0 flex-1 text-[11px]">
+                      <div className="flex items-center justify-between text-zinc-500 font-medium">
+                        <span>Comprovantes</span>
+                        <span className="font-bold text-zinc-700 dark:text-zinc-300">{existingAttachments.length + newFiles.length} foto(s)</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-500 mt-0.5">
+                        {existingAttachments.length + newFiles.length > 0 ? "Pronto para arquivo" : "Nenhuma foto anexada"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-zinc-500 dark:text-zinc-400 bg-white/70 dark:bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-2">
+                  <span>Revise todos os itens acima antes de enviar. Ao finalizar, o relatório será salvo e submetido para a conferência financeira.</span>
+                </div>
+              </div>
             </div>
           )}
 
@@ -2205,17 +2429,31 @@ function ClosingModal({
               </button>
             )}
             {activeStep < 4 ? (
-              <>
-                <button type="button" className="mg-button secondary" onClick={() => setActiveStep((activeStep + 1) as any)}>
-                  Próximo ({stepsList.find(s => s.id === activeStep + 1)?.title.split(". ")[1]}) <ArrowRight size={15} />
-                </button>
-                <button type="button" className="mg-button" disabled={busy || !unit} onClick={handleSubmit}>
-                  {busy ? "Enviando..." : initialClosing ? "Salvar e Reenviar" : "Finalizar Fechamento"}
-                </button>
-              </>
+              <button
+                type="button"
+                className="mg-button"
+                onClick={() => setActiveStep((activeStep + 1) as any)}
+              >
+                <span>Avançar: {stepsList.find(s => s.id === activeStep + 1)?.title.replace(/^\d+\.\s*/, "")}</span>
+                <ArrowRight size={15} />
+              </button>
             ) : (
-              <button type="button" className="mg-button" disabled={busy || !unit} onClick={handleSubmit}>
-                {busy ? "Enviando ao financeiro..." : initialClosing ? "Salvar e Reenviar Fechamento" : "Finalizar e Enviar Fechamento"}
+              <button
+                type="button"
+                className="mg-button"
+                disabled={busy || !unit}
+                onClick={handleSubmit}
+              >
+                {busy ? (
+                  "Enviando ao financeiro..."
+                ) : initialClosing ? (
+                  "Salvar e Reenviar Fechamento"
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} />
+                    <span>Finalizar e Enviar ao Financeiro</span>
+                  </>
+                )}
               </button>
             )}
           </div>
