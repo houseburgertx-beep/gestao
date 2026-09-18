@@ -8,50 +8,40 @@ export interface TakeatStoreConfig {
   brand: BrandId;
   email: string;
   password?: string;
+  /** Marcas incluídas neste login (para identificação na UI) */
+  includes?: string[];
 }
 
 /**
  * Configuração Central de Credenciais do Takeat
  * 
- * Este arquivo é versionado no repositório para que todos os usuários/gestores
- * tenham acesso aos dados atualizados automaticamente sem precisar logar em cada máquina.
+ * IMPORTANTE: Cada entrada = 1 login real no Takeat.
  * 
- * - Teixeira de Freitas: House 190 Teixeira & Bruttus Burger TX (segunda marca no mesmo login)
- * - Eunápolis: House 190 Eunápolis & Bruttus Eunápolis (segunda marca no mesmo login)
- * - Foodpark: House Foodpark
+ * - Teixeira de Freitas: Gleucehouse@gmail.com → House 190 Teixeira + Bruttus Burger TX (2ª marca)
+ * - Eunápolis: Gleucehouse1@gmail.com → House 190 Eunápolis + Bruttus Eunápolis (2ª marca)
+ * - Foodpark: Gleucedias1@gmail.com → apenas House Foodpark
+ * 
+ * A Bruttus é uma segunda marca dentro do mesmo login da House.
+ * O faturamento retornado pela API general-cards já inclui ambas as marcas combinadas.
  */
 export const DEFAULT_TAKEAT_CONFIGS: Record<string, TakeatStoreConfig> = {
-  teixeira_house: {
-    key: "teixeira_house",
-    name: "House 190 Teixeira",
+  teixeira: {
+    key: "teixeira",
+    name: "Teixeira de Freitas (House + Bruttus)",
     unitId: "teixeira",
     brand: "house",
-    email: process.env.NEXT_PUBLIC_TAKEAT_TEIXEIRA_HOUSE_EMAIL || "Gleucehouse@gmail.com",
-    password: process.env.NEXT_PUBLIC_TAKEAT_TEIXEIRA_HOUSE_PASSWORD || "99596114",
+    email: process.env.NEXT_PUBLIC_TAKEAT_TEIXEIRA_EMAIL || "Gleucehouse@gmail.com",
+    password: process.env.NEXT_PUBLIC_TAKEAT_TEIXEIRA_PASSWORD || "99596114",
+    includes: ["House 190 Teixeira", "Bruttus Burger TX"],
   },
-  teixeira_bruttus: {
-    key: "teixeira_bruttus",
-    name: "Bruttus Burger TX",
-    unitId: "teixeira",
-    brand: "bruttus",
-    email: process.env.NEXT_PUBLIC_TAKEAT_TEIXEIRA_BRUTTUS_EMAIL || "Gleucehouse@gmail.com",
-    password: process.env.NEXT_PUBLIC_TAKEAT_TEIXEIRA_BRUTTUS_PASSWORD || "99596114",
-  },
-  eunapolis_house: {
-    key: "eunapolis_house",
-    name: "House 190 Eunápolis",
+  eunapolis: {
+    key: "eunapolis",
+    name: "Eunápolis (House + Bruttus)",
     unitId: "eunapolis",
     brand: "house",
-    email: process.env.NEXT_PUBLIC_TAKEAT_EUNAPOLIS_HOUSE_EMAIL || "Gleucehouse1@gmail.com",
-    password: process.env.NEXT_PUBLIC_TAKEAT_EUNAPOLIS_HOUSE_PASSWORD || "99596114",
-  },
-  eunapolis_bruttus: {
-    key: "eunapolis_bruttus",
-    name: "Bruttus Eunápolis",
-    unitId: "eunapolis",
-    brand: "bruttus",
-    email: process.env.NEXT_PUBLIC_TAKEAT_EUNAPOLIS_BRUTTUS_EMAIL || "Gleucehouse1@gmail.com",
-    password: process.env.NEXT_PUBLIC_TAKEAT_EUNAPOLIS_BRUTTUS_PASSWORD || "99596114",
+    email: process.env.NEXT_PUBLIC_TAKEAT_EUNAPOLIS_EMAIL || "Gleucehouse1@gmail.com",
+    password: process.env.NEXT_PUBLIC_TAKEAT_EUNAPOLIS_PASSWORD || "99596114",
+    includes: ["House 190 Eunápolis", "Bruttus Eunápolis"],
   },
   foodpark: {
     key: "foodpark",
@@ -64,10 +54,19 @@ export const DEFAULT_TAKEAT_CONFIGS: Record<string, TakeatStoreConfig> = {
 };
 
 /**
- * Retorna as credenciais padrão de uma operação, se existirem
+ * Retorna as credenciais padrão de uma operação.
+ * Aceita tanto chaves novas (teixeira) quanto legadas (teixeira_house, teixeira_bruttus).
  */
 export function getDefaultTakeatCredentials(keyOrUnitId: string): TakeatCredentials | null {
-  const config = DEFAULT_TAKEAT_CONFIGS[keyOrUnitId];
+  // Tenta a chave direta
+  let config = DEFAULT_TAKEAT_CONFIGS[keyOrUnitId];
+
+  // Fallback: teixeira_house ou teixeira_bruttus → teixeira
+  if (!config && keyOrUnitId.includes("_")) {
+    const baseUnit = keyOrUnitId.split("_")[0];
+    config = DEFAULT_TAKEAT_CONFIGS[baseUnit];
+  }
+
   if (!config) return null;
 
   return {
@@ -83,6 +82,6 @@ export function getDefaultTakeatCredentials(keyOrUnitId: string): TakeatCredenti
  * Verifica se uma operação possui credenciais configuradas (por arquivo ou env)
  */
 export function hasConfiguredCredentials(keyOrUnitId: string): boolean {
-  const config = DEFAULT_TAKEAT_CONFIGS[keyOrUnitId];
-  return Boolean(config && config.email && config.password);
+  const creds = getDefaultTakeatCredentials(keyOrUnitId);
+  return Boolean(creds && creds.email && creds.password);
 }
