@@ -16,7 +16,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { readDocumentText } from "@/services/documentTextReader";
+import { readDocumentPages } from "@/services/documentTextReader";
 import {
   parseMultiPageEmployeeDocument,
   ParsedEmployeeDocument,
@@ -133,8 +133,8 @@ export function BatchEmployeeModal({ isOpen, onClose, onSuccess }: BatchEmployee
       const file = files[fi];
       setParseProgress(`Processando arquivo ${fi + 1}/${files.length}: ${file.name}`);
       try {
-        const text = await readDocumentText(file);
-        const parsed = parseMultiPageEmployeeDocument(text);
+        const pages = await readDocumentPages(file);
+        const parsed = parseMultiPageEmployeeDocument(pages);
         for (const p of parsed) {
           const normCpf = p.cpf.replace(/\D/g, "");
           let base: Omit<BatchRow, "status"> = {
@@ -153,7 +153,7 @@ export function BatchEmployeeModal({ isOpen, onClose, onSuccess }: BatchEmployee
           }
           if (normCpf) seenCpfsInBatch.add(normCpf);
 
-          allRows.push({ ...base, status });
+          allRows.push({ ...base, status, selected: status === "ok" });
         }
       } catch (err) {
         console.warn(`[BatchImport] Erro ao processar ${file.name}:`, err);
