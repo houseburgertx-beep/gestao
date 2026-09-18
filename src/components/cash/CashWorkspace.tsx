@@ -496,8 +496,15 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
                       await saveManagement(rowToDelete, data, true);
                       setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
                     } catch (err) {
-                      console.error("Erro ao excluir fechamento:", err);
-                      alert("Não foi possível excluir o fechamento: " + (err instanceof Error ? err.message : String(err)));
+                      console.warn("Falha no soft-delete do fechamento, tentando exclusão direta:", err);
+                      try {
+                        const { deleteDoc, doc } = await import("firebase/firestore");
+                        await deleteDoc(doc(db, "gestao_cashClosings", row.id));
+                        setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
+                      } catch (delErr) {
+                        console.error("Erro ao excluir fechamento:", delErr);
+                        alert("Não foi possível excluir o fechamento: " + (delErr instanceof Error ? delErr.message : String(delErr)));
+                      }
                     }
                   }}
                 >
