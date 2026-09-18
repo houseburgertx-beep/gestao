@@ -151,7 +151,7 @@ export function XlsxPayablesImport() {
       {status === "done" && (
         <p style={{ color: "#00c87a", fontWeight: 600 }}>
           ✅ Importação concluída! {imported} novos registros adicionados, {skipped} já existentes ignorados.
-          Acesse "Contas a pagar" no menu lateral para ver os lançamentos.
+          Acesse &quot;Contas a pagar&quot; no menu lateral para ver os lançamentos.
         </p>
       )}
 

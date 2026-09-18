@@ -68,7 +68,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
         try {
           new window.Notification(newNotification.title, {
             body: newNotification.message,
-            icon: "/gestao/icon.svg",
+            icon: "/icon.svg",
           });
         } catch {}
       }

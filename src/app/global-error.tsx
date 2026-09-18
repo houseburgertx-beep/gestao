@@ -48,7 +48,7 @@ export default function GlobalError({
             </button>
 
             <a
-              href="/gestao/"
+              href="/"
               className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-zinc-100 text-zinc-700 text-xs font-medium"
             >
               <Home className="w-3.5 h-3.5" />
