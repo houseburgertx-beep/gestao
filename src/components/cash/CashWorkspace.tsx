@@ -7,7 +7,7 @@ import {
   ClipboardCheck, Coins, CreditCard, Download, Edit3, Eye, FileCheck2,
   FileText, Image as ImageIcon, Landmark, Loader2, Paperclip, Percent, Plus,
   Receipt, RotateCcw, RotateCw, Search, Share2, ShieldCheck, Sliders, Smartphone, Sparkles, Store, Trash2,
-  Upload, Users, Wallet, X, Zap, ZoomIn, ZoomOut
+  Upload, Users, Wallet, X, Zap, ZoomIn, ZoomOut, Copy, KeyRound
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useUnit } from "@/contexts/UnitContext";
@@ -343,6 +343,7 @@ function generateWhatsAppClosingText(row: RecordData, unitName: string) {
 export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
   const { data } = useManagement(); const { user, userProfile } = useAuth();
   const [closingOpen, setClosingOpen] = useState(false); const [editingClosing, setEditingClosing] = useState<RecordData|null>(null); const [reviewing, setReviewing] = useState<RecordData|null>(null); const [message, setMessage] = useState("");
+  const [viewingClosing, setViewingClosing] = useState<RecordData|null>(null);
   const [confTab, setConfTab] = useState<"queue"|"audit"|"rates">("queue");
   const [queueFilter, setQueueFilter] = useState<string>("all");
 
@@ -501,6 +502,15 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
+                className={`cash-eye-detail-btn ${rowConferred ? "conferred" : ""}`}
+                title={rowConferred ? "Visualizar todas as informações do fechamento conferido" : "Visualizar detalhes completos do fechamento"}
+                onClick={() => setViewingClosing(row)}
+              >
+                <Eye size={12} />
+                <span>{rowConferred ? "Ver Fechamento" : "Ver Detalhes"}</span>
+              </button>
+              <button
+                type="button"
                 className="cash-whatsapp-btn"
                 title="Compartilhar demonstrativo do fechamento no WhatsApp"
                 onClick={() => {
@@ -580,6 +590,12 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
       />
     )}
     {reviewing&&<ConferenceModal closing={reviewing} onClose={()=>setReviewing(null)} onSaved={()=>{setReviewing(null);setMessage("Conferência aprovada e saldos bancários atualizados com desconto de taxas.");}}/>}
+    {viewingClosing && (
+      <ClosingDetailsModal
+        closing={viewingClosing}
+        onClose={() => setViewingClosing(null)}
+      />
+    )}
   </div>;
 }
 
@@ -2540,6 +2556,22 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [copiedPixId, setCopiedPixId] = useState<string | null>(null);
+
+  const outflowsList = useMemo(() => parseOutflows(closing.cashOutflowsJson), [closing.cashOutflowsJson]);
+  const pixRequestsList = useMemo(() => parsePixRequests(closing.pixRequestsJson), [closing.pixRequestsJson]);
+  const pixRequestsTotal = useMemo(
+    () => pixRequestsList.reduce((sum, item) => sum + Math.round(Number(item.amount || 0) * 100), 0),
+    [pixRequestsList]
+  );
+
+  const motoboySystem = closingValue(closing, "motoboySystem");
+  const motoboyPaid = closingValue(closing, "motoboyPaid");
+  const motoboyDiff = closingValue(closing, "motoboyDifference");
+  const ifoodAudit = closingValue(closing, "ifoodAudit");
+  const fiscalMachines = closingValue(closing, "fiscalMachines");
+  const invoiceIssued = closingValue(closing, "invoiceIssued");
+  const invoiceDiff = closingValue(closing, "invoiceDifference");
 
   // Recalculations
   const cashExpected = openingAmount + systemCash + cashIn - cashOutflows;
@@ -2899,6 +2931,46 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
               <strong className="block text-blue-900">Modo de Edição Financeira Ativo</strong>
               <span className="text-blue-700 text-xs">Você pode corrigir qualquer valor digitado pelo operador (vendas do sistema, gaveta ou máquinas). O sistema recalcula tudo em tempo real.</span>
             </div>
+          </div>
+        </div>
+
+        {/* Painel Executivo do Cenário Completo */}
+        <div className="conf-scenario-grid">
+          <div className="conf-scenario-card">
+            <span className="label">Vendas Sistema (PDV)</span>
+            <strong className="val">{currency(systemTotal)}</strong>
+            <small>Faturamento Bruto</small>
+          </div>
+          <div className="conf-scenario-card">
+            <span className="label">Dinheiro Físico / Gaveta</span>
+            <strong className="val">{brl(cashFound)}</strong>
+            <div className="flex items-center justify-between mt-1">
+              <small>Sangria: {brl(sangriaAmount)}</small>
+              <Difference value={cashDiff} />
+            </div>
+          </div>
+          <div className="conf-scenario-card">
+            <span className="label">Cartões & PIX Máquinas</span>
+            <strong className="val">{brl(totalCreditFound + totalDebitFound + totalPixFound)}</strong>
+            <div className="flex items-center justify-between mt-1">
+              <small>PDV: {brl(systemCredit + systemDebit + systemPix)}</small>
+              <Difference value={creditDiff + debitDiff + pixDiff} />
+            </div>
+          </div>
+          <div className="conf-scenario-card">
+            <span className="label">Saídas da Gaveta</span>
+            <strong className="val text-rose-600">{brl(cashOutflows)}</strong>
+            <small>{outflowsList.length} lançamento(s)</small>
+          </div>
+          <div className="conf-scenario-card">
+            <span className="label">Solicitações de PIX</span>
+            <strong className="val text-purple-600">{brl(pixRequestsTotal)}</strong>
+            <small>{pixRequestsList.length} solicitação(ões)</small>
+          </div>
+          <div className={`conf-scenario-card highlight ${totalDiff === 0 ? "ok" : "bad"}`}>
+            <span className="label">Divergência Total</span>
+            <strong className="val">{currency(totalDiff)}</strong>
+            <small>{totalDiff === 0 ? "✓ 100% Batido" : totalDiff > 0 ? "Sobra de Caixa" : "Falta de Caixa"}</small>
           </div>
         </div>
 
@@ -3358,8 +3430,82 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
 
         {/* Machines / Banks Section */}
         <section className="conference-machines-section">
-          <h3>Detalhamento por Máquina / Banco e Desconto de Taxas</h3>
-          <p className="cash-hint-left">Ajuste os valores por máquina se o comprovante físico diferir do digitado. As taxas configuradas são deduzidas automaticamente do saldo a creditar.</p>
+          <h3>Revisão Consolidada de Máquinas / Cartões e Desconto de Taxas</h3>
+          <p className="cash-hint-left">Todas as máquinas e contas bancárias com conferência de Crédito, Débito, PIX e taxas deduzidas automaticamente do saldo a creditar.</p>
+
+          <div className="conf-consolidated-table-wrap mb-4 overflow-x-auto">
+            <table className="mg-table conf-table-compact">
+              <thead>
+                <tr>
+                  <th>Máquina / Banco</th>
+                  <th style={{ textAlign: "right" }}>Crédito</th>
+                  <th style={{ textAlign: "right" }}>Débito</th>
+                  <th style={{ textAlign: "right" }}>PIX</th>
+                  <th style={{ textAlign: "right" }}>Total Bruto</th>
+                  <th style={{ textAlign: "right" }}>Taxas Est.</th>
+                  <th style={{ textAlign: "right" }}>Líquido Creditar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bankCalculations.map(c => (
+                  <tr key={c.bank.id} className={activeBankId === c.bank.id ? "bg-indigo-50/50 dark:bg-indigo-950/20" : ""}>
+                    <td>
+                      <div className="flex items-center gap-1.5">
+                        <Landmark size={13} className="text-zinc-500 shrink-0" />
+                        <strong>{str(c.bank, "name")}</strong>
+                      </div>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <span>{brl(c.vals.credit)}</span>
+                      {c.creditPct > 0 && <small className="text-zinc-400 block text-[10px]">({c.creditPct}%)</small>}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <span>{brl(c.vals.debit)}</span>
+                      {c.debitPct > 0 && <small className="text-zinc-400 block text-[10px]">({c.debitPct}%)</small>}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <span>{brl(c.vals.pix)}</span>
+                      {c.pixPct > 0 && <small className="text-zinc-400 block text-[10px]">({c.pixPct}%)</small>}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <strong>{brl(c.grossAmount)}</strong>
+                    </td>
+                    <td style={{ textAlign: "right" }} className="text-rose-600">
+                      {c.totalFees > 0 ? `-${brl(c.totalFees)}` : "—"}
+                    </td>
+                    <td style={{ textAlign: "right" }} className="font-bold text-emerald-600">
+                      {brl(c.netAmount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="font-bold bg-zinc-50 dark:bg-zinc-800/60 border-t-2 border-zinc-300 dark:border-zinc-700">
+                  <td>TOTAL MÁQUINAS</td>
+                  <td style={{ textAlign: "right" }}>{brl(totalCreditFound)}</td>
+                  <td style={{ textAlign: "right" }}>{brl(totalDebitFound)}</td>
+                  <td style={{ textAlign: "right" }}>{brl(totalPixFound)}</td>
+                  <td style={{ textAlign: "right" }}>{brl(totalCreditFound + totalDebitFound + totalPixFound)}</td>
+                  <td style={{ textAlign: "right" }} className="text-rose-600">
+                    -{brl(bankCalculations.reduce((s, c) => s + c.totalFees, 0))}
+                  </td>
+                  <td style={{ textAlign: "right" }} className="text-emerald-700 dark:text-emerald-400">
+                    {brl(bankCalculations.reduce((s, c) => s + c.netAmount, 0))}
+                  </td>
+                </tr>
+                <tr className="text-xs bg-zinc-100/70 dark:bg-zinc-800/40 text-zinc-600 dark:text-zinc-400">
+                  <td>SISTEMA (PDV)</td>
+                  <td style={{ textAlign: "right" }}>{brl(systemCredit)}</td>
+                  <td style={{ textAlign: "right" }}>{brl(systemDebit)}</td>
+                  <td style={{ textAlign: "right" }}>{brl(systemPix)}</td>
+                  <td style={{ textAlign: "right" }}>{brl(systemCredit + systemDebit + systemPix)}</td>
+                  <td colSpan={2} style={{ textAlign: "right" }}>
+                    Confronto Cartões: <Difference value={creditDiff + debitDiff + pixDiff} />
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
 
           <div className="conference-bank-cards">
             {bankCalculations.map(c => (
@@ -3443,6 +3589,136 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
           </div>
         </section>
 
+        {/* Painel de Saídas da Gaveta */}
+        <section className="conf-card-section">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+            <div>
+              <h3 className="conf-section-title flex items-center gap-2">
+                <Coins size={16} className="text-rose-600" />
+                Saídas em Dinheiro da Gaveta ({outflowsList.length})
+              </h3>
+              <p className="text-xs text-zinc-500">Valores retirados em espécie pelo operador durante o turno que abateram do dinheiro da gaveta.</p>
+            </div>
+            {cashOutflows > 0 && (
+              <span className="text-xs font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-900">
+                Total saídas: -{brl(cashOutflows)}
+              </span>
+            )}
+          </div>
+          {outflowsList.length === 0 ? (
+            <p className="text-xs text-zinc-500 italic p-3 bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-zinc-200 dark:border-zinc-800">
+              Nenhuma saída em dinheiro da gaveta registrada pelo operador neste fechamento.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {outflowsList.map((item, idx) => (
+                <div key={item.id || idx} className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-800 text-[10px] font-bold flex items-center justify-center text-zinc-600 dark:text-zinc-300">
+                      {idx + 1}
+                    </span>
+                    <span className="font-semibold text-zinc-800 dark:text-zinc-200">{item.name || "Saída sem descrição"}</span>
+                  </div>
+                  <strong className="text-rose-600 text-sm font-bold">-{brl(Number(item.amount || 0) * 100)}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Painel de Solicitações de PIX */}
+        <section className="conf-card-section">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+            <div>
+              <h3 className="conf-section-title flex items-center gap-2">
+                <Zap size={16} className="text-purple-600" />
+                Solicitações de PIX do Turno ({pixRequestsList.length})
+              </h3>
+              <p className="text-xs text-zinc-500">Pagamentos solicitados pela loja criados como débito no Contas a Pagar com a respectiva chave PIX.</p>
+            </div>
+            {pixRequestsTotal > 0 && (
+              <span className="text-xs font-bold text-purple-700 bg-purple-50 dark:bg-purple-950/40 px-2.5 py-1 rounded-lg border border-purple-200 dark:border-purple-900">
+                Total PIX solicitado: {brl(pixRequestsTotal)}
+              </span>
+            )}
+          </div>
+          {pixRequestsList.length === 0 ? (
+            <p className="text-xs text-zinc-500 italic p-3 bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-zinc-200 dark:border-zinc-800">
+              Nenhuma solicitação de PIX registrada para este turno.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {pixRequestsList.map((item, idx) => (
+                <div key={item.id || idx} className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900 text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <strong className="text-sm text-purple-900 dark:text-purple-200 block">{item.name || "Favorecido"}</strong>
+                      <span className="text-[10px] font-bold text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/60 px-1.5 py-0.5 rounded">
+                        ⚡ Contas a Pagar
+                      </span>
+                    </div>
+                    <strong className="text-base font-black text-purple-700 dark:text-purple-300">{brl(Number(item.amount || 0) * 100)}</strong>
+                  </div>
+                  {item.description && (
+                    <p className="text-zinc-600 dark:text-zinc-400 text-xs italic bg-white/70 dark:bg-zinc-900/70 p-1.5 rounded-lg border border-purple-100 dark:border-purple-900">
+                      Motivo: {item.description}
+                    </p>
+                  )}
+                  {item.key && (
+                    <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg border border-purple-200 dark:border-purple-800">
+                      <div className="flex items-center gap-1.5 truncate mr-2">
+                        <KeyRound size={12} className="text-purple-600 shrink-0" />
+                        <code className="text-purple-900 dark:text-purple-200 font-mono text-xs select-all truncate">{item.key}</code>
+                      </div>
+                      <button
+                        type="button"
+                        className="px-2.5 py-1 rounded-md text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1 transition shrink-0"
+                        onClick={() => {
+                          navigator.clipboard.writeText(item.key);
+                          setCopiedPixId(item.id || String(idx));
+                          setTimeout(() => setCopiedPixId(null), 2000);
+                        }}
+                      >
+                        <Copy size={11} />
+                        <span>{copiedPixId === (item.id || String(idx)) ? "Copiado!" : "Copiar"}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Painel de Auditoria Operacional */}
+        {(motoboySystem > 0 || motoboyPaid > 0 || ifoodAudit > 0 || fiscalMachines > 0 || invoiceIssued > 0) && (
+          <section className="conf-card-section">
+            <h3 className="conf-section-title flex items-center gap-2 mb-2">
+              <Bike size={16} className="text-amber-600" />
+              Auditoria de Motoboys e Emissão Fiscal
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs space-y-1.5">
+                <span className="font-bold text-zinc-800 dark:text-zinc-200 block text-xs">🏍️ Conferência de Motoboys</span>
+                <div className="flex justify-between"><span>Taxas Geradas no PDV:</span> <b>{brl(motoboySystem)}</b></div>
+                <div className="flex justify-between"><span>Pago aos Motoboys na Loja:</span> <b>{brl(motoboyPaid)}</b></div>
+                <div className="flex justify-between pt-1.5 border-t border-zinc-200 dark:border-zinc-800">
+                  <span>Diferença Motoboy:</span> <Difference value={motoboyDiff} />
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs space-y-1.5">
+                <span className="font-bold text-zinc-800 dark:text-zinc-200 block text-xs">🧾 Conferência Fiscal / NFC-e</span>
+                <div className="flex justify-between"><span>Vendas iFood (Relatório):</span> <b>{brl(ifoodAudit)}</b></div>
+                <div className="flex justify-between"><span>Máquinas Fiscais (Cartão/PIX):</span> <b>{brl(fiscalMachines)}</b></div>
+                <div className="flex justify-between"><span>NFC-e / Cupom Emitido:</span> <b>{brl(invoiceIssued)}</b></div>
+                <div className="flex justify-between pt-1.5 border-t border-zinc-200 dark:border-zinc-800">
+                  <span>Diferença Fiscal:</span> <Difference value={invoiceDiff} />
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Attachments Section if any */}
         {review && (
           <div className="confirmation-box">
@@ -3472,6 +3748,459 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
             }}
           >
             {busy ? "Atualizando bancos…" : review ? (isAlreadyConferred ? "Atualizar e salvar conferência" : "Confirmar e atualizar bancos") : (isAlreadyConferred ? "Rever alterações" : "Revisar e aprovar")}
+          </button>
+        </footer>
+      </div>
+
+      {previewAttachment && (
+        <AttachmentLightbox
+          attachment={previewAttachment}
+          onClose={() => setPreviewAttachment(null)}
+        />
+      )}
+    </Modal>
+  );
+}
+
+function ClosingDetailsModal({
+  closing,
+  onClose,
+}: {
+  closing: RecordData;
+  onClose: () => void;
+}) {
+  const { data } = useManagement();
+  const [previewAttachment, setPreviewAttachment] = useState<CashAttachment | null>(null);
+  const [copiedPixId, setCopiedPixId] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const unit = data.units.find(u => u.id === closing.unitId);
+  const conference = data.cashConferences.find(
+    c => c.closingId === closing.id || c.id === closing.conferenceId
+  );
+  const isConferred = Boolean(conference || closing.status === "Conferido");
+
+  const outflows = useMemo(() => parseOutflows(closing.cashOutflowsJson), [closing.cashOutflowsJson]);
+  const pixRequests = useMemo(() => parsePixRequests(closing.pixRequestsJson), [closing.pixRequestsJson]);
+  const attachments = useMemo(() => parseAttachments(closing), [closing]);
+
+  // Pillar calculations
+  const systemCash = closingValue(closing, "systemCash");
+  const systemCredit = closingValue(closing, "systemCredit");
+  const systemDebit = closingValue(closing, "systemDebit");
+  const systemPix = closingValue(closing, "systemPix");
+  const systemServiceFee = closingValue(closing, "systemServiceFee");
+  const otherSales = closingValue(closing, "systemIfoodOnline") + closingValue(closing, "systemIfoodVoucher") + closingValue(closing, "systemTerm") + closingValue(closing, "systemClub") + closingValue(closing, "systemAccrual");
+  const systemTotal = systemCash + systemCredit + systemDebit + systemPix + systemServiceFee + otherSales;
+
+  const openingAmount = closingValue(closing, "openingAmount");
+  const cashIn = closingValue(closing, "cashIn");
+  const cashOutflows = closingValue(closing, "cashOutflows");
+  const sangriaAmount = closingValue(closing, "sangriaAmount");
+  const closingFloat = closingValue(closing, "closingFloat");
+  const cashExpected = closingValue(closing, "cashExpected") || (openingAmount + systemCash + cashIn - cashOutflows);
+  const cashFound = closingValue(closing, "cashFound") || (sangriaAmount + closingFloat);
+  const cashDiff = closingValue(closing, "cashDifference") || (cashFound - cashExpected);
+
+  const creditFound = closingValue(closing, "creditFound");
+  const creditDiff = closingValue(closing, "creditDifference");
+  const debitFound = closingValue(closing, "debitFound");
+  const debitDiff = closingValue(closing, "debitDifference");
+  const pixFound = closingValue(closing, "pixFound");
+  const pixDiff = closingValue(closing, "pixDifference");
+  const totalDiff = closingValue(closing, "difference");
+
+  const motoboySystem = closingValue(closing, "motoboySystem");
+  const motoboyPaid = closingValue(closing, "motoboyPaid");
+  const motoboyDiff = closingValue(closing, "motoboyDifference");
+  const ifoodAudit = closingValue(closing, "ifoodAudit");
+  const fiscalMachines = closingValue(closing, "fiscalMachines");
+  const invoiceIssued = closingValue(closing, "invoiceIssued");
+  const invoiceDiff = closingValue(closing, "invoiceDifference");
+
+  const pixRequestsTotal = useMemo(
+    () => pixRequests.reduce((sum, item) => sum + Math.round(Number(item.amount || 0) * 100), 0),
+    [pixRequests]
+  );
+
+  const downloadAttachment = async (att: CashAttachment) => {
+    try {
+      setDownloading(att.fileId);
+      if (att.dataUrl) {
+        const link = document.createElement("a");
+        link.href = att.dataUrl;
+        link.download = att.fileName || "comprovante.jpg";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        return;
+      }
+      if (att.fileId && !att.fileId.startsWith("local-")) {
+        await downloadFileFromDrive(att.fileId, att.fileName);
+      } else {
+        alert("Comprovante sem arquivo disponível para download.");
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao baixar arquivo do Drive.");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  return (
+    <Modal title="Detalhamento do Fechamento de Caixa" onClose={onClose} wide>
+      <div className="closing-details-view space-y-4">
+        {/* Header Summary */}
+        <div className="conf-summary-header">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="conf-tag">FECHAMENTO CONFERIDO</span>
+                {isConferred && (
+                  <span className="conf-conferred-badge">
+                    <CheckCircle2 size={12} /> Conferência Concluída
+                  </span>
+                )}
+                <span className="text-xs font-semibold text-zinc-500">
+                  {unit?.name || "Unidade"}
+                </span>
+              </div>
+              <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                {str(closing, "date").split("-").reverse().join("/")} · Turno {str(closing, "shift")}
+              </h2>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Operador: <strong>{str(closing, "operatorName") || "—"}</strong>
+                {closing.conferredBy && (
+                  <> · Conferido por: <strong>{String(closing.conferredBy)}</strong></>
+                )}
+                {closing.conferredAt && (
+                  <> em <strong>{new Date(String(closing.conferredAt)).toLocaleDateString("pt-BR")} às {new Date(String(closing.conferredAt)).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</strong></>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="cash-whatsapp-btn"
+                title="Compartilhar no WhatsApp"
+                onClick={() => {
+                  const text = generateWhatsAppClosingText(closing, String(unit?.name || "Unidade"));
+                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+                }}
+              >
+                <Share2 size={13} /> Compartilhar WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 6 Executive Scenario Cards */}
+        <div className="conf-scenario-grid">
+          <div className="conf-scenario-card">
+            <span className="label">Vendas Sistema (PDV)</span>
+            <strong className="val">{currency(systemTotal)}</strong>
+            <small>Faturamento Bruto</small>
+          </div>
+          <div className="conf-scenario-card">
+            <span className="label">Dinheiro Gaveta</span>
+            <strong className="val">{brl(cashFound)}</strong>
+            <div className="flex items-center justify-between mt-1">
+              <small>Sangria: {brl(sangriaAmount)}</small>
+              <Difference value={cashDiff} />
+            </div>
+          </div>
+          <div className="conf-scenario-card">
+            <span className="label">Cartões & PIX</span>
+            <strong className="val">{brl(creditFound + debitFound + pixFound)}</strong>
+            <div className="flex items-center justify-between mt-1">
+              <small>PDV: {brl(systemCredit + systemDebit + systemPix)}</small>
+              <Difference value={creditDiff + debitDiff + pixDiff} />
+            </div>
+          </div>
+          <div className="conf-scenario-card">
+            <span className="label">Saídas da Gaveta</span>
+            <strong className="val text-rose-600">{brl(cashOutflows)}</strong>
+            <small>{outflows.length} saída(s) registrada(s)</small>
+          </div>
+          <div className="conf-scenario-card">
+            <span className="label">Solicitações de PIX</span>
+            <strong className="val text-purple-600">{brl(pixRequestsTotal)}</strong>
+            <small>{pixRequests.length} pedido(s) de PIX</small>
+          </div>
+          <div className={`conf-scenario-card highlight ${totalDiff === 0 ? "ok" : "bad"}`}>
+            <span className="label">Divergência Total</span>
+            <strong className="val">{currency(totalDiff)}</strong>
+            <small>{totalDiff === 0 ? "✓ 100% Batido" : totalDiff > 0 ? "Sobra de Caixa" : "Falta de Caixa"}</small>
+          </div>
+        </div>
+
+        {/* 4 Pillars Grid */}
+        <div className="conf-pillars-container">
+          <h3 className="conf-section-title mb-2">Confronto dos 4 Pilares (Sistema vs Contado)</h3>
+          <div className="closing-pillars-grid">
+            {/* Dinheiro */}
+            <div className="closing-pillar-box">
+              <div className="closing-pillar-head">
+                <div className="flex items-center gap-2">
+                  <Banknote size={15} className="text-emerald-600" />
+                  <strong>1. Dinheiro Físico</strong>
+                </div>
+                <Difference value={cashDiff} />
+              </div>
+              <div className="closing-pillar-row">
+                <span>Esperado (Gaveta)</span>
+                <b>{brl(cashExpected)}</b>
+              </div>
+              <div className="closing-pillar-row">
+                <span>Contado (Físico)</span>
+                <b>{brl(cashFound)}</b>
+              </div>
+              <div className="conf-drawer-breakdown mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800 text-[11px] text-zinc-500 space-y-1">
+                <div className="flex justify-between"><span>Troco Inicial:</span> <span>{brl(openingAmount)}</span></div>
+                <div className="flex justify-between"><span>Dinheiro PDV:</span> <span>{brl(systemCash)}</span></div>
+                {cashIn > 0 && <div className="flex justify-between text-emerald-600"><span>Suprimentos:</span> <span>+{brl(cashIn)}</span></div>}
+                {cashOutflows > 0 && <div className="flex justify-between text-rose-600"><span>Saídas Gaveta:</span> <span>-{brl(cashOutflows)}</span></div>}
+                <div className="flex justify-between font-semibold text-purple-700"><span>Sangria:</span> <span>{brl(sangriaAmount)}</span></div>
+                <div className="flex justify-between"><span>Troco Final:</span> <span>{brl(closingFloat)}</span></div>
+              </div>
+            </div>
+
+            {/* Crédito */}
+            <div className="closing-pillar-box">
+              <div className="closing-pillar-head">
+                <div className="flex items-center gap-2">
+                  <CreditCard size={15} className="text-blue-600" />
+                  <strong>2. Cartão Crédito</strong>
+                </div>
+                <Difference value={creditDiff} />
+              </div>
+              <div className="closing-pillar-row">
+                <span>Sistema (PDV)</span>
+                <b>{brl(systemCredit)}</b>
+              </div>
+              <div className="closing-pillar-row">
+                <span>Máquinas</span>
+                <b>{brl(creditFound)}</b>
+              </div>
+            </div>
+
+            {/* Débito */}
+            <div className="closing-pillar-box">
+              <div className="closing-pillar-head">
+                <div className="flex items-center gap-2">
+                  <CreditCard size={15} className="text-amber-600" />
+                  <strong>3. Cartão Débito</strong>
+                </div>
+                <Difference value={debitDiff} />
+              </div>
+              <div className="closing-pillar-row">
+                <span>Sistema (PDV)</span>
+                <b>{brl(systemDebit)}</b>
+              </div>
+              <div className="closing-pillar-row">
+                <span>Máquinas</span>
+                <b>{brl(debitFound)}</b>
+              </div>
+            </div>
+
+            {/* PIX */}
+            <div className="closing-pillar-box">
+              <div className="closing-pillar-head">
+                <div className="flex items-center gap-2">
+                  <Zap size={15} className="text-purple-600" />
+                  <strong>4. PIX Turno</strong>
+                </div>
+                <Difference value={pixDiff} />
+              </div>
+              <div className="closing-pillar-row">
+                <span>Sistema (PDV)</span>
+                <b>{brl(systemPix)}</b>
+              </div>
+              <div className="closing-pillar-row">
+                <span>Máquinas / Conta</span>
+                <b>{brl(pixFound)}</b>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Saídas da Gaveta */}
+        <div className="conf-card-section">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="conf-section-title flex items-center gap-2">
+              <Coins size={16} className="text-rose-600" />
+              Saídas em Dinheiro da Gaveta ({outflows.length})
+            </h3>
+            {cashOutflows > 0 && (
+              <span className="text-xs font-bold text-rose-700 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-900">
+                Total: -{brl(cashOutflows)}
+              </span>
+            )}
+          </div>
+          {outflows.length === 0 ? (
+            <p className="text-xs text-zinc-500 italic p-2 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg">
+              Nenhuma saída em dinheiro da gaveta registrada pelo operador.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {outflows.map((item, idx) => (
+                <div key={item.id || idx} className="flex items-center justify-between p-2 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 text-xs">
+                  <span className="font-medium text-zinc-800 dark:text-zinc-200">{item.name || "Saída sem descrição"}</span>
+                  <strong className="text-rose-600">-{brl(Number(item.amount || 0) * 100)}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Solicitações de PIX */}
+        <div className="conf-card-section">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="conf-section-title flex items-center gap-2">
+              <Zap size={16} className="text-purple-600" />
+              Solicitações de PIX do Turno ({pixRequests.length})
+            </h3>
+            {pixRequestsTotal > 0 && (
+              <span className="text-xs font-bold text-purple-700 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-900">
+                Total: {brl(pixRequestsTotal)}
+              </span>
+            )}
+          </div>
+          {pixRequests.length === 0 ? (
+            <p className="text-xs text-zinc-500 italic p-2 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg">
+              Nenhuma solicitação de PIX registrada neste fechamento.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {pixRequests.map((item, idx) => (
+                <div key={item.id || idx} className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <strong className="text-sm text-purple-900 dark:text-purple-200">{item.name || "Favorecido"}</strong>
+                    <strong className="text-sm font-bold text-purple-700 dark:text-purple-400">{brl(Number(item.amount || 0) * 100)}</strong>
+                  </div>
+                  {item.description && (
+                    <p className="text-zinc-600 dark:text-zinc-400 text-[11px]">{item.description}</p>
+                  )}
+                  {item.key && (
+                    <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-1.5 rounded-lg border border-purple-100 dark:border-purple-800">
+                      <code className="text-purple-800 dark:text-purple-300 font-mono text-[11px] select-all truncate max-w-[180px]">{item.key}</code>
+                      <button
+                        type="button"
+                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1 transition"
+                        onClick={() => {
+                          navigator.clipboard.writeText(item.key);
+                          setCopiedPixId(item.id || String(idx));
+                          setTimeout(() => setCopiedPixId(null), 2000);
+                        }}
+                      >
+                        <Copy size={10} />
+                        <span>{copiedPixId === (item.id || String(idx)) ? "Copiado!" : "Copiar"}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Auditoria Operacional (Motoboys e Fiscal) */}
+        {(motoboySystem > 0 || motoboyPaid > 0 || ifoodAudit > 0 || fiscalMachines > 0 || invoiceIssued > 0) && (
+          <div className="conf-card-section">
+            <h3 className="conf-section-title flex items-center gap-2 mb-2">
+              <Bike size={16} className="text-amber-600" />
+              Auditoria de Motoboys e Emissão Fiscal
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs space-y-1">
+                <span className="font-bold text-zinc-700 dark:text-zinc-300 block mb-1">🏍️ Motoboys</span>
+                <div className="flex justify-between"><span>Sistema (Taxa Gerada):</span> <b>{brl(motoboySystem)}</b></div>
+                <div className="flex justify-between"><span>Pago na Loja:</span> <b>{brl(motoboyPaid)}</b></div>
+                <div className="flex justify-between pt-1 border-t border-zinc-200 dark:border-zinc-800">
+                  <span>Diferença:</span> <Difference value={motoboyDiff} />
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs space-y-1">
+                <span className="font-bold text-zinc-700 dark:text-zinc-300 block mb-1">🧾 Notas Fiscais / NFC-e</span>
+                <div className="flex justify-between"><span>iFood (Auditoria):</span> <b>{brl(ifoodAudit)}</b></div>
+                <div className="flex justify-between"><span>Máquinas Fiscais:</span> <b>{brl(fiscalMachines)}</b></div>
+                <div className="flex justify-between"><span>NFC-e Emitida:</span> <b>{brl(invoiceIssued)}</b></div>
+                <div className="flex justify-between pt-1 border-t border-zinc-200 dark:border-zinc-800">
+                  <span>Diferença:</span> <Difference value={invoiceDiff} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Comprovantes */}
+        <div className="conf-card-section">
+          <h3 className="conf-section-title flex items-center gap-2 mb-2">
+            <Paperclip size={16} className="text-purple-600" />
+            Comprovantes Anexados ({attachments.length})
+          </h3>
+          {attachments.length === 0 ? (
+            <p className="text-xs text-zinc-500 italic p-2 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg">
+              Nenhum comprovante anexado a este fechamento.
+            </p>
+          ) : (
+            <div className="conf-att-grid">
+              {attachments.map(att => {
+                const isPdf = att.mimeType === "application/pdf" || att.fileName.toLowerCase().endsWith(".pdf");
+                return (
+                  <div key={att.fileId} className="conf-att-item">
+                    <div className="conf-att-preview" onClick={() => setPreviewAttachment(att)} title="Clique para visualizar">
+                      {att.dataUrl ? (
+                        <img src={att.dataUrl} alt={att.fileName} className="conf-att-thumb" />
+                      ) : isPdf ? (
+                        <div className="conf-att-icon-box pdf"><FileText size={24} /><span>PDF</span></div>
+                      ) : (
+                        <div className="conf-att-icon-box img"><ImageIcon size={24} /><span>FOTO</span></div>
+                      )}
+                      <div className="conf-att-overlay"><Eye size={14} /> <span>Ver</span></div>
+                    </div>
+                    <div className="conf-att-meta">
+                      <span className="conf-att-name" title={att.fileName}>{att.fileName}</span>
+                      <small className="conf-att-size">{formatFileSize(att.size)}</small>
+                    </div>
+                    <div className="conf-att-actions">
+                      <button type="button" className="conf-att-action-btn view" onClick={() => setPreviewAttachment(att)}>
+                        <Eye size={11} /> Ver
+                      </button>
+                      <button type="button" className="conf-att-action-btn download" disabled={downloading === att.fileId} onClick={() => downloadAttachment(att)}>
+                        <Download size={11} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Parecer da Conferência e Observações */}
+        {(closing.notes || closing.conferenceNotes || conference?.notes) && (
+          <div className="conf-card-section p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs space-y-2">
+            {closing.notes && (
+              <div>
+                <span className="font-bold text-zinc-600 dark:text-zinc-400 block">Observação do Operador:</span>
+                <p className="text-zinc-800 dark:text-zinc-200 mt-0.5 whitespace-pre-wrap">{str(closing, "notes")}</p>
+              </div>
+            )}
+            {(closing.conferenceNotes || conference?.notes) && (
+              <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                <span className="font-bold text-emerald-700 dark:text-emerald-400 block">Parecer da Conferência Financeira:</span>
+                <p className="text-zinc-800 dark:text-zinc-200 mt-0.5 whitespace-pre-wrap">
+                  {str(closing, "conferenceNotes") || (conference ? str(conference, "notes") : "")}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <footer className="pt-2 flex justify-end">
+          <button type="button" className="mg-button" onClick={onClose}>
+            Fechar Detalhes
           </button>
         </footer>
       </div>

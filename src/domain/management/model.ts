@@ -321,6 +321,7 @@ export const DEFINITIONS: Record<string, Definition> = {
         "Cartão",
       ], false),
       f("documentNumber", "Código / número do boleto", "text", false),
+      f("pixKey", "Chave PIX", "text", false),
       opt("nature", "Natureza", [
         "Operacional",
         "Investimento",
