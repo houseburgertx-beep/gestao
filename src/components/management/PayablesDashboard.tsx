@@ -9,9 +9,14 @@ import {
   FileSpreadsheet,
   Landmark,
   ArrowDown,
+  ArrowUpRight,
+  Eye,
+  EyeOff,
   ReceiptText,
   Repeat,
   Download,
+  TrendingDown,
+  Wallet,
   Zap,
   X,
   ChevronDown,
@@ -55,11 +60,74 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
   const [backupMessage, setBackupMessage] = useState("");
   const [backingUp, setBackingUp] = useState(false);
   const [instantOpen, setInstantOpen] = useState(false);
+  const [showOutflows, setShowOutflows] = useState(false);
   type RecorteKey = "overdue" | "today" | "next7" | "fixed" | "taxes" | "paid";
   const [selectedRecorte, setSelectedRecorte] = useState<RecorteKey | null>(null);
   const [payingRecord, setPayingRecord] = useState<RecordData | null>(null);
   const [attentionOpen, setAttentionOpen] = useState(false);
   const dedicatedRef = useRef<HTMLDivElement>(null);
+
+  // ── Bank balance (real-time) ────────────────────────────────────────────
+  const bankTotal = useMemo(() => {
+    const accounts = data.bankAccounts.filter(a => !a.archived);
+    const transfers = data.bankTransfers || [];
+    return accounts.reduce((sum, account) => {
+      if (typeof account.balance !== "number") return sum;
+      const since = str(account, "balanceDate");
+      const balanceUpdatedAt = str(account, "balanceUpdatedAt") || str(account, "updatedAt");
+      let value = Number(account.balance);
+      data.transactions
+        .filter(row => {
+          if (row.archived || row.bankAccountId !== account.id) return false;
+          const txDate = str(row, "date");
+          if (!since || txDate > since) return true;
+          if (txDate === since) {
+            const txCreated = str(row, "createdAt");
+            if (txCreated && balanceUpdatedAt) return txCreated >= balanceUpdatedAt;
+            return Boolean(row.obligationId);
+          }
+          return false;
+        })
+        .forEach(row => {
+          value += Number(row.amount || 0) * (row.direction === "Entrada" ? 1 : -1);
+        });
+      transfers
+        .filter(row => {
+          if (row.archived) return false;
+          const txDate = str(row, "date");
+          if (!since || txDate > since) return true;
+          if (txDate === since) {
+            const txCreated = str(row, "createdAt");
+            if (txCreated && balanceUpdatedAt) return txCreated >= balanceUpdatedAt;
+            return true;
+          }
+          return false;
+        })
+        .forEach(row => {
+          if (row.fromBankId === account.id) value -= Number(row.amount || 0);
+          if (row.toBankId === account.id) value += Number(row.amount || 0);
+        });
+      return sum + value;
+    }, 0);
+  }, [data.bankAccounts, data.transactions, data.bankTransfers]);
+
+  // ── Today's outflows (baixas do dia) ────────────────────────────────────
+  const todayStr = filters.today;
+  const todayOutflows = useMemo(
+    () =>
+      data.transactions.filter(
+        row =>
+          !row.archived &&
+          row.direction === "Saída" &&
+          str(row, "date") === todayStr &&
+          !row.reversalOf,
+      ),
+    [data.transactions, todayStr],
+  );
+  const todayOutflowsTotal = useMemo(
+    () => todayOutflows.reduce((s, r) => s + Number(r.amount || 0), 0),
+    [todayOutflows],
+  );
 
   const toggleRecorte = (key: RecorteKey) => {
     setSelectedRecorte((current) => {
@@ -305,6 +373,76 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
           </div>
         </div>
       </section>
+
+      {/* ── Painel de Saldo dos Bancos em Tempo Real ───────────────────────── */}
+      <div className="payables-bank-bar">
+        {/* Saldo Total dos Bancos */}
+        <div className="payables-bank-pill saldo">
+          <div className="payables-bank-pill-icon">
+            <Wallet size={14} />
+          </div>
+          <div className="payables-bank-pill-body">
+            <span className="payables-bank-pill-label">Saldo total dos bancos</span>
+            <strong className="payables-bank-pill-value">
+              {currency(bankTotal)}
+            </strong>
+          </div>
+          <span className="payables-bank-live-dot" title="Atualizado em tempo real" />
+        </div>
+
+        {/* Divider */}
+        <div className="payables-bank-divider" />
+
+        {/* Baixas do dia */}
+        <div className="payables-bank-pill saidas">
+          <div className="payables-bank-pill-icon saidas-icon">
+            <TrendingDown size={14} />
+          </div>
+          <div className="payables-bank-pill-body">
+            <span className="payables-bank-pill-label">Baixas hoje</span>
+            <strong className="payables-bank-pill-value saidas-val">
+              {todayOutflows.length > 0 ? `-${currency(todayOutflowsTotal)}` : "Nenhuma saída"}
+            </strong>
+          </div>
+          <button
+            type="button"
+            className="payables-bank-eye-btn"
+            onClick={() => setShowOutflows(v => !v)}
+            title={showOutflows ? "Ocultar detalhes" : "Ver saídas do dia"}
+          >
+            {showOutflows ? <EyeOff size={13} /> : <Eye size={13} />}
+          </button>
+        </div>
+
+        {/* Detalhe das saídas — expansível pelo olhinho */}
+        {showOutflows && (
+          <div className="payables-outflows-drawer">
+            {todayOutflows.length === 0 ? (
+              <span className="payables-outflows-empty">Nenhuma saída registrada hoje.</span>
+            ) : (
+              todayOutflows.slice(0, 8).map((row) => {
+                const account = data.bankAccounts.find(a => a.id === row.bankAccountId);
+                return (
+                  <div key={row.id} className="payables-outflow-row">
+                    <span className="payables-outflow-desc">
+                      {str(row, "description") || str(row, "category") || "Saída"}
+                    </span>
+                    {account && (
+                      <span className="payables-outflow-bank">{str(account, "name")}</span>
+                    )}
+                    <strong className="payables-outflow-val">-{currency(Number(row.amount || 0))}</strong>
+                  </div>
+                );
+              })
+            )}
+            {todayOutflows.length > 8 && (
+              <span className="payables-outflows-more">
+                +{todayOutflows.length - 8} saída(s) adicionais
+              </span>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="payables-summary-grid">
         <SummaryCard
