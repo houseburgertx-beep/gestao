@@ -7,7 +7,7 @@ import {
   ClipboardCheck, Coins, CreditCard, Download, Edit3, Eye, FileCheck2,
   FileText, Image as ImageIcon, Landmark, Loader2, Paperclip, Percent, Plus,
   Receipt, RotateCcw, RotateCw, Search, Share2, ShieldCheck, Sliders, Smartphone, Sparkles, Store, Trash2,
-  Upload, Users, Wallet, X, Zap, ZoomIn, ZoomOut, Copy, KeyRound
+  Upload, User, Users, Wallet, X, Zap, ZoomIn, ZoomOut, Copy, KeyRound
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useUnit } from "@/contexts/UnitContext";
@@ -344,6 +344,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
   const { data } = useManagement(); const { user, userProfile } = useAuth();
   const [closingOpen, setClosingOpen] = useState(false); const [editingClosing, setEditingClosing] = useState<RecordData|null>(null); const [reviewing, setReviewing] = useState<RecordData|null>(null); const [message, setMessage] = useState("");
   const [viewingClosing, setViewingClosing] = useState<RecordData|null>(null);
+  const [closingTab, setClosingTab] = useState<"closings" | "audit">("closings");
   const [confTab, setConfTab] = useState<"queue"|"audit"|"rates">("queue");
   const [queueFilter, setQueueFilter] = useState<string>("all");
 
@@ -405,6 +406,20 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
     return true;
   });
 
+  const hasAuditData = (row: RecordData) => {
+    return (
+      closingValue(row, "motoboySystem") > 0 ||
+      closingValue(row, "motoboyPaid") > 0 ||
+      closingValue(row, "ifoodAudit") > 0 ||
+      closingValue(row, "fiscalMachines") > 0 ||
+      closingValue(row, "invoiceIssued") > 0 ||
+      closingValue(row, "motoboyDifference") !== 0 ||
+      closingValue(row, "invoiceDifference") !== 0
+    );
+  };
+  const auditClosings = closings.filter(hasAuditData);
+  const visibleAuditClosings = visible.filter(hasAuditData);
+
   return <div className="workspace-shell cash-workspace">
     <header className="workspace-header"><div><span className="workspace-eyebrow">FECHAMENTO DE CAIXA HOUSE 190</span><h1>{mode==="closing"?"Fechamento de caixa":"Conferência financeira"}</h1><p>{mode==="closing"?"Entrada total e conciliação objetiva de Dinheiro, Crédito, Débito e PIX.":"Compare os valores apurados, revise divergências, audite motoboys e aprove os saldos líquidos dos bancos."}</p></div>{mode==="closing"&&<button className="workspace-primary" onClick={()=>{ setEditingClosing(null); setClosingOpen(true); }}><Plus size={16}/> Novo fechamento</button>}</header>
     <section className="workspace-metrics">
@@ -415,25 +430,36 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
     </section>
     {message&&<p className="workspace-message">{message}</p>}
 
-    {mode==="conference"&&(
+    {mode === "closing" ? (
       <div className="cash-subtabs">
-        <button className={`cash-subtab ${confTab==="queue"?"active":""}`} onClick={()=>setConfTab("queue")}>
-          <ClipboardCheck size={16}/> Caixas para conferência <b>{pending.length}</b>
+        <button className={`cash-subtab ${closingTab === "closings" ? "active" : ""}`} onClick={() => setClosingTab("closings")}>
+          <ClipboardCheck size={16} /> Fechamentos de Caixa <b>{visible.length}</b>
         </button>
-        <button className={`cash-subtab ${confTab==="audit"?"active":""}`} onClick={()=>setConfTab("audit")}>
-          <FileText size={16}/> Auditoria de Motoboys & Notas <b>{closings.length}</b>
+        <button className={`cash-subtab ${closingTab === "audit" ? "active" : ""}`} onClick={() => setClosingTab("audit")}>
+          <FileText size={16} /> Auditoria de Motoboys & Notas <b>{visibleAuditClosings.length}</b>
         </button>
-        <button className={`cash-subtab ${confTab==="rates"?"active":""}`} onClick={()=>setConfTab("rates")}>
-          <Percent size={16}/> Taxas das Máquinas & Bancos
+      </div>
+    ) : (
+      <div className="cash-subtabs">
+        <button className={`cash-subtab ${confTab === "queue" ? "active" : ""}`} onClick={() => setConfTab("queue")}>
+          <ClipboardCheck size={16} /> Caixas para conferência <b>{pending.length}</b>
+        </button>
+        <button className={`cash-subtab ${confTab === "audit" ? "active" : ""}`} onClick={() => setConfTab("audit")}>
+          <FileText size={16} /> Auditoria de Motoboys & Notas <b>{auditClosings.length || closings.length}</b>
+        </button>
+        <button className={`cash-subtab ${confTab === "rates" ? "active" : ""}`} onClick={() => setConfTab("rates")}>
+          <Percent size={16} /> Taxas das Máquinas & Bancos
         </button>
       </div>
     )}
 
-    {mode==="conference"&&confTab==="audit"?(
-      <AuditHistoryTab closings={closings} />
-    ):mode==="conference"&&confTab==="rates"?(
+    {mode === "closing" && closingTab === "audit" ? (
+      <AuditHistoryTab closings={visible} isOperatorMode onViewClosing={setViewingClosing} />
+    ) : mode === "conference" && confTab === "audit" ? (
+      <AuditHistoryTab closings={closings} onViewClosing={setViewingClosing} />
+    ) : mode === "conference" && confTab === "rates" ? (
       <BankRatesTab />
-    ):(
+    ) : (
       <section className="cash-list">
         <header>
           <div>
@@ -4419,58 +4445,349 @@ function ClosingDetailsModal({
   );
 }
 
-// History tab for motoboy audits and fiscal invoices
-function AuditHistoryTab({closings}:{closings:RecordData[]}){
-  const {data}=useManagement();
-  const [search,setSearch]=useState("");
-  const [filterUnit,setFilterUnit]=useState("");
-  const [downloading,setDownloading]=useState<string|null>(null);
+// History tab for motoboy audits and fiscal invoices (Fotos 1 e 2)
+function AuditHistoryTab({
+  closings,
+  onViewClosing,
+  isOperatorMode = false,
+}: {
+  closings: RecordData[];
+  onViewClosing?: (closing: RecordData) => void;
+  isOperatorMode?: boolean;
+}) {
+  const { data } = useManagement();
+  const [subFilter, setSubFilter] = useState<"motoboy" | "fiscal" | "all" | "divergent">("motoboy");
+  const [search, setSearch] = useState("");
+  const [filterUnit, setFilterUnit] = useState("");
   const [previewAttachment, setPreviewAttachment] = useState<CashAttachment | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const filtered=closings.filter(c=>{
-    if(filterUnit&&c.unitId!==filterUnit)return false;
-    if(search){
-      const text=`${str(c,"operatorName")} ${str(c,"notes")} ${str(c,"date")}`.toLowerCase();
-      if(!text.includes(search.toLowerCase()))return false;
-    }
-    return true;
-  });
-
-  const downloadAttachment=async(fileId:string,fileName:string)=>{
-    try{
-      setDownloading(fileId);
-      await downloadFileFromDrive(fileId,fileName);
-    }catch(e){
-      alert(e instanceof Error?e.message:"Erro ao baixar arquivo do Drive.");
-    }finally{
-      setDownloading(null);
-    }
+  const handleRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 500);
   };
 
+  // Filter closings by unit and search query
+  const filtered = useMemo(() => {
+    return closings.filter(c => {
+      if (filterUnit && c.unitId !== filterUnit) return false;
+      if (search) {
+        const text = `${str(c, "operatorName")} ${str(c, "notes")} ${str(c, "date")}`.toLowerCase();
+        if (!text.includes(search.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [closings, filterUnit, search]);
+
+  // Motoboy closings
+  const motoboyItems = useMemo(() => {
+    return filtered.filter(r => {
+      const sys = closingValue(r, "motoboySystem");
+      const paid = closingValue(r, "motoboyPaid");
+      const diff = closingValue(r, "motoboyDifference");
+      return sys > 0 || paid > 0 || diff !== 0;
+    });
+  }, [filtered]);
+
+  // Fiscal closings
+  const fiscalItems = useMemo(() => {
+    return filtered.filter(r => {
+      const ifood = closingValue(r, "ifoodAudit");
+      const machines = closingValue(r, "fiscalMachines");
+      const issued = closingValue(r, "invoiceIssued");
+      const diff = closingValue(r, "invoiceDifference");
+      return ifood > 0 || machines > 0 || issued > 0 || diff !== 0;
+    });
+  }, [filtered]);
+
+  // Divergent closings
+  const divergentItems = useMemo(() => {
+    return filtered.filter(r => {
+      const mDiff = closingValue(r, "motoboyDifference");
+      const iDiff = closingValue(r, "invoiceDifference");
+      return mDiff !== 0 || iDiff !== 0;
+    });
+  }, [filtered]);
+
+  // All audit items
+  const allAuditItems = useMemo(() => {
+    return filtered.filter(r => {
+      const sys = closingValue(r, "motoboySystem");
+      const paid = closingValue(r, "motoboyPaid");
+      const mDiff = closingValue(r, "motoboyDifference");
+      const ifood = closingValue(r, "ifoodAudit");
+      const machines = closingValue(r, "fiscalMachines");
+      const issued = closingValue(r, "invoiceIssued");
+      const iDiff = closingValue(r, "invoiceDifference");
+      return sys > 0 || paid > 0 || mDiff !== 0 || ifood > 0 || machines > 0 || issued > 0 || iDiff !== 0;
+    });
+  }, [filtered]);
+
+  // KPIs
   const totalMotoboyPaid = filtered.reduce((s, r) => s + closingValue(r, "motoboyPaid"), 0);
   const totalMotoboyDiff = filtered.reduce((s, r) => s + closingValue(r, "motoboyDifference"), 0);
   const totalInvoiceIssued = filtered.reduce((s, r) => s + closingValue(r, "invoiceIssued"), 0);
   const totalInvoiceDiff = filtered.reduce((s, r) => s + closingValue(r, "invoiceDifference"), 0);
 
-  return (
-    <section className="cash-audit-history-section">
-      <header className="cash-audit-header">
-        <div>
-          <h2>Histórico de Conferências de Motoboys & Notas Fiscais</h2>
-          <p>Auditorias detalhadas registradas em cada fechamento de caixa por unidade.</p>
-        </div>
-        <div className="cash-audit-filters">
-          <select value={filterUnit} onChange={e=>setFilterUnit(e.target.value)}>
-            <option value="">Todas as unidades</option>
-            {data.units.filter(u=>!u.archived).map(u=><option key={u.id} value={u.id}>{str(u,"name")}</option>)}
-          </select>
-          <div className="cash-audit-search">
-            <Search size={14}/>
-            <input placeholder="Buscar por operador ou data..." value={search} onChange={e=>setSearch(e.target.value)}/>
+  // Author & timestamp formatter (matching Foto 1 and Foto 2)
+  const formatAuthorLaunch = (row: RecordData, unitFallback: string = "Unidade") => {
+    const author = str(row, "operatorName") || unitFallback || "Operador";
+    const ts = row.createdAt || row.updatedAt;
+    let timeStr = "";
+    if (ts) {
+      try {
+        const d = new Date(String(ts));
+        if (!isNaN(d.getTime())) {
+          const dayMonth = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const hoursMinutes = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+          timeStr = `${dayMonth}, ${hoursMinutes}`;
+        }
+      } catch {}
+    }
+    if (!timeStr && row.date) {
+      const parts = String(row.date).split("-");
+      if (parts.length === 3) timeStr = `${parts[2]}/${parts[1]}`;
+    }
+    return `LANÇADO POR ${author.toUpperCase()}${timeStr ? ` · ${timeStr}` : ""}`;
+  };
+
+  // Subtitle matching Foto 1 & Foto 2
+  const getSubtitle = () => {
+    if (subFilter === "motoboy") return "Histórico preservado para conferência.";
+    if (subFilter === "fiscal") return "iFood, máquinas fiscais e nota emitida por dia.";
+    if (subFilter === "divergent") return "Divergências identificadas para conferência e acerto operacional.";
+    return "Histórico completo de motoboys e notas fiscais preservado para conferência.";
+  };
+
+  const renderMotoboyCard = (row: RecordData) => {
+    const unit = data.units.find(u => u.id === row.unitId);
+    const unitName = String(unit?.name || str(row, "operatorName") || "Unidade");
+    const dateFormatted = str(row, "date").split("-").reverse().join("/");
+    const motoboySystem = closingValue(row, "motoboySystem");
+    const motoboyPaid = closingValue(row, "motoboyPaid");
+    const motoboyDiff = closingValue(row, "motoboyDifference") || (motoboyPaid - motoboySystem);
+    const attachments = parseAttachments(row);
+
+    return (
+      <article key={`motoboy-${row.id}`} className="cash-audit-card">
+        <div className="cash-audit-card-main">
+          <div className="cash-audit-card-info">
+            <div className="cash-audit-card-title-row">
+              <Bike size={20} className="text-zinc-600 dark:text-zinc-400 shrink-0" />
+              <strong>Motoboys do dia</strong>
+            </div>
+            <span className="cash-audit-card-sub">
+              {unitName} · {dateFormatted}{str(row, "shift") ? ` (${str(row, "shift")})` : ""}
+            </span>
+          </div>
+
+          <div className="cash-audit-card-metrics">
+            <div className="cash-audit-metric-col">
+              <span className="label">Sistema</span>
+              <strong className="val">{brl(motoboySystem)}</strong>
+            </div>
+            <div className="cash-audit-metric-col">
+              <span className="label">Pago</span>
+              <strong className="val">{brl(motoboyPaid)}</strong>
+            </div>
+            <div className="cash-audit-metric-col">
+              <span className="label">Divergência</span>
+              <strong className={`val ${motoboyDiff === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                {brl(Math.abs(motoboyDiff))}
+              </strong>
+              <span className={`sub ${motoboyDiff === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                {motoboyDiff === 0 ? "Conferido" : motoboyDiff > 0 ? "Pago a mais" : "Pago a menos"}
+              </span>
+            </div>
           </div>
         </div>
+
+        <footer className="cash-audit-card-footer">
+          <div className="cash-audit-author">
+            <User size={13} className="text-zinc-500 shrink-0" />
+            <span>{formatAuthorLaunch(row, unitName)}</span>
+          </div>
+          <div className="cash-audit-card-actions">
+            {attachments.length > 0 && (
+              <button
+                type="button"
+                className="cash-audit-att-btn"
+                onClick={() => setPreviewAttachment(attachments[0])}
+                title="Visualizar comprovante"
+              >
+                <Paperclip size={12} /> {attachments.length} anexo(s)
+              </button>
+            )}
+            {onViewClosing && (
+              <button
+                type="button"
+                className="cash-audit-view-btn"
+                onClick={() => onViewClosing(row)}
+                title="Ver detalhes do fechamento"
+              >
+                <Eye size={13} /> Ver Fechamento
+              </button>
+            )}
+          </div>
+        </footer>
+      </article>
+    );
+  };
+
+  const renderFiscalCard = (row: RecordData) => {
+    const unit = data.units.find(u => u.id === row.unitId);
+    const unitName = String(unit?.name || "House 190");
+    const dateFormatted = str(row, "date").split("-").reverse().join("/");
+    const ifoodAudit = closingValue(row, "ifoodAudit");
+    const fiscalMachines = closingValue(row, "fiscalMachines");
+    const invoiceIssued = closingValue(row, "invoiceIssued");
+    const invoiceDiff = closingValue(row, "invoiceDifference") || (invoiceIssued - (ifoodAudit + fiscalMachines));
+    const attachments = parseAttachments(row);
+
+    return (
+      <article key={`fiscal-${row.id}`} className="cash-audit-card">
+        <div className="cash-audit-card-main">
+          <div className="cash-audit-card-info">
+            <div className="cash-audit-card-title-row">
+              <FileText size={20} className="text-zinc-600 dark:text-zinc-400 shrink-0" />
+              <strong>{unitName}</strong>
+            </div>
+            <span className="cash-audit-card-sub">
+              {dateFormatted}{str(row, "shift") ? ` · Turno ${str(row, "shift")}` : ""}
+            </span>
+          </div>
+
+          <div className="cash-audit-card-metrics">
+            <div className="cash-audit-metric-col">
+              <span className="label">iFood + Máquinas</span>
+              <strong className="val">{brl(ifoodAudit + fiscalMachines)}</strong>
+              <span className="sub">{brl(ifoodAudit)} + {brl(fiscalMachines)}</span>
+            </div>
+            <div className="cash-audit-metric-col">
+              <span className="label">NF emitida</span>
+              <strong className="val">{brl(invoiceIssued)}</strong>
+            </div>
+            <div className="cash-audit-metric-col">
+              <span className="label">Divergência</span>
+              <strong className={`val ${invoiceDiff === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                {brl(Math.abs(invoiceDiff))}
+              </strong>
+              <span className={`sub ${invoiceDiff === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                {invoiceDiff === 0 ? "Nota confere" : invoiceDiff > 0 ? "Sobra fiscal" : "Divergência fiscal"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <footer className="cash-audit-card-footer">
+          <div className="cash-audit-author">
+            <User size={13} className="text-zinc-500 shrink-0" />
+            <span>{formatAuthorLaunch(row, unitName)}</span>
+          </div>
+          <div className="cash-audit-card-actions">
+            {attachments.length > 0 && (
+              <button
+                type="button"
+                className="cash-audit-att-btn"
+                onClick={() => setPreviewAttachment(attachments[0])}
+                title="Visualizar comprovante"
+              >
+                <Paperclip size={12} /> {attachments.length} anexo(s)
+              </button>
+            )}
+            {onViewClosing && (
+              <button
+                type="button"
+                className="cash-audit-view-btn"
+                onClick={() => onViewClosing(row)}
+                title="Ver detalhes do fechamento"
+              >
+                <Eye size={13} /> Ver Fechamento
+              </button>
+            )}
+          </div>
+        </footer>
+      </article>
+    );
+  };
+
+  const isEmpty =
+    (subFilter === "motoboy" && motoboyItems.length === 0) ||
+    (subFilter === "fiscal" && fiscalItems.length === 0) ||
+    (subFilter === "divergent" && divergentItems.length === 0) ||
+    (subFilter === "all" && allAuditItems.length === 0);
+
+  return (
+    <section className="cash-audit-history-section">
+      {/* Header matching Fotos 1 e 2 */}
+      <header className="cash-audit-header">
+        <div>
+          <h2>Últimas auditorias</h2>
+          <p>{getSubtitle()}</p>
+        </div>
+        <button
+          type="button"
+          className="cash-audit-refresh-btn"
+          onClick={handleRefresh}
+          title="Atualizar dados de auditoria"
+        >
+          <RotateCw size={13} className={refreshing ? "animate-spin" : ""} />
+          Atualizar
+        </button>
       </header>
 
+      {/* Subfilters bar */}
+      <div className="cash-audit-subfilters">
+        <button
+          type="button"
+          className={`cash-audit-filter-pill ${subFilter === "motoboy" ? "active" : ""}`}
+          onClick={() => setSubFilter("motoboy")}
+        >
+          <Bike size={14} /> Motoboys do dia <b>{motoboyItems.length}</b>
+        </button>
+        <button
+          type="button"
+          className={`cash-audit-filter-pill ${subFilter === "fiscal" ? "active" : ""}`}
+          onClick={() => setSubFilter("fiscal")}
+        >
+          <FileText size={14} /> Notas Fiscais <b>{fiscalItems.length}</b>
+        </button>
+        <button
+          type="button"
+          className={`cash-audit-filter-pill ${subFilter === "divergent" ? "active" : ""}`}
+          onClick={() => setSubFilter("divergent")}
+        >
+          <AlertTriangle size={14} className="text-amber-500" /> Com Divergência <b>{divergentItems.length}</b>
+        </button>
+        <button
+          type="button"
+          className={`cash-audit-filter-pill ${subFilter === "all" ? "active" : ""}`}
+          onClick={() => setSubFilter("all")}
+        >
+          Todos <b>{allAuditItems.length}</b>
+        </button>
+
+        <div className="cash-audit-filters">
+          {!isOperatorMode && data.units.length > 1 && (
+            <select value={filterUnit} onChange={e => setFilterUnit(e.target.value)}>
+              <option value="">Todas as unidades</option>
+              {data.units.filter(u => !u.archived).map(u => (
+                <option key={u.id} value={u.id}>{str(u, "name")}</option>
+              ))}
+            </select>
+          )}
+          <div className="cash-audit-search">
+            <Search size={14} className="text-zinc-400" />
+            <input
+              placeholder="Buscar por operador ou data..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
       <div className="cash-audit-kpis">
         <div className="cash-audit-kpi-pill">
           <span>Motoboy Total Pago</span>
@@ -4490,81 +4807,46 @@ function AuditHistoryTab({closings}:{closings:RecordData[]}){
         </div>
       </div>
 
-      <div className="cash-audit-table-wrap">
-        <table className="cash-audit-table">
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Unidade / Operador</th>
-              <th>Motoboy Sistema</th>
-              <th>Motoboy Pago</th>
-              <th>Dif. Motoboy</th>
-              <th>iFood Vendas</th>
-              <th>Máq. Fiscais</th>
-              <th>Nota Emitida</th>
-              <th>Dif. Notas</th>
-              <th>Comprovantes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(row=>{
-              const unit=data.units.find(u=>u.id===row.unitId);
-              const motoboyDiff=closingValue(row,"motoboyDifference");
-              const invoiceDiff=closingValue(row,"invoiceDifference");
-              const attachments=parseAttachments(row);
-
+      {/* Cards List */}
+      <div className="cash-audit-cards-list">
+        {subFilter === "motoboy" && motoboyItems.map(renderMotoboyCard)}
+        {subFilter === "fiscal" && fiscalItems.map(renderFiscalCard)}
+        {subFilter === "divergent" && (
+          <>
+            {divergentItems.map(row => {
+              const mDiff = closingValue(row, "motoboyDifference");
+              const iDiff = closingValue(row, "invoiceDifference");
               return (
-                <tr key={row.id}>
-                  <td>
-                    <strong>{str(row,"date").split("-").reverse().join("/")}</strong>
-                    <small>{str(row,"shift")}</small>
-                  </td>
-                  <td>
-                    <strong>{unit?.name||"Unidade"}</strong>
-                    <small>{str(row,"operatorName")}</small>
-                  </td>
-                  <td>{brl(closingValue(row,"motoboySystem"))}</td>
-                  <td>{brl(closingValue(row,"motoboyPaid"))}</td>
-                  <td>
-                    <Difference value={motoboyDiff}/>
-                  </td>
-                  <td>{brl(closingValue(row,"ifoodAudit"))}</td>
-                  <td>{brl(closingValue(row,"fiscalMachines"))}</td>
-                  <td>{brl(closingValue(row,"invoiceIssued"))}</td>
-                  <td>
-                    <Difference value={invoiceDiff}/>
-                  </td>
-                  <td>
-                    {attachments.length>0?(
-                      <div className="audit-attachments-list">
-                        {attachments.map(att=>(
-                          <button
-                            key={att.fileId}
-                            type="button"
-                            className="audit-att-btn"
-                            onClick={()=>setPreviewAttachment(att)}
-                            title={`Visualizar ${att.fileName}`}
-                          >
-                            <Eye size={12}/> {(att.fileName || "Comprovante").slice(0,18)}...
-                          </button>
-                        ))}
-                      </div>
-                    ):(
-                      <span className="no-attachments">Nenhum</span>
-                    )}
-                  </td>
-                </tr>
+                <div key={`div-${row.id}`} className="space-y-3">
+                  {mDiff !== 0 && renderMotoboyCard(row)}
+                  {iDiff !== 0 && renderFiscalCard(row)}
+                </div>
               );
             })}
-            {!filtered.length&&(
-              <tr>
-                <td colSpan={10} className="empty-table-msg">
-                  Nenhum fechamento com auditoria encontrado para os filtros selecionados.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+          </>
+        )}
+        {subFilter === "all" && (
+          <>
+            {allAuditItems.map(row => {
+              const hasM = closingValue(row, "motoboySystem") > 0 || closingValue(row, "motoboyPaid") > 0 || closingValue(row, "motoboyDifference") !== 0;
+              const hasF = closingValue(row, "ifoodAudit") > 0 || closingValue(row, "fiscalMachines") > 0 || closingValue(row, "invoiceIssued") > 0 || closingValue(row, "invoiceDifference") !== 0;
+              return (
+                <div key={`all-${row.id}`} className="space-y-3">
+                  {hasM && renderMotoboyCard(row)}
+                  {hasF && renderFiscalCard(row)}
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {isEmpty && (
+          <div className="cash-audit-empty">
+            <FileText size={36} className="text-zinc-400 mb-2" />
+            <strong className="text-zinc-700 dark:text-zinc-300">Nenhuma auditoria encontrada</strong>
+            <p className="text-xs text-zinc-500 mt-1">Nenhum lançamento registrado para os filtros selecionados.</p>
+          </div>
+        )}
       </div>
 
       {previewAttachment && (
