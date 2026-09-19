@@ -22,6 +22,8 @@ import {
   Repeat,
   ReceiptText,
   Search,
+  Copy,
+  KeyRound,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -154,6 +156,7 @@ export function RecordTable({
   const [message, setMessage] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [copiedPixKey, setCopiedPixKey] = useState<string | null>(null);
   const def = {...DEFINITIONS[kind],label:kind === "revenues" ? "Lançamentos manuais de faturamento" : DEFINITIONS[kind].label};
   const canWrite =
     userProfile?.role === "admin" ||
@@ -643,6 +646,28 @@ export function RecordTable({
                                   {methodStr === "PIX" ? "⚡ PIX" : methodStr === "Boleto" ? "📄 Boleto" : methodStr === "Débito automático" ? "🏦 Débito auto" : methodStr}
                                 </span>
                               )}
+                              {(() => {
+                                const pixKey = str(r, "pixKey") || (str(r, "notes").match(/Chave PIX:\s*([^\s\n\r]+)/i)?.[1] || "");
+                                if (!pixKey) return null;
+                                return (
+                                  <button
+                                    type="button"
+                                    className="payables-badge-pix-key"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigator.clipboard.writeText(pixKey);
+                                      setCopiedPixKey(pixKey);
+                                      setTimeout(() => setCopiedPixKey(null), 2000);
+                                    }}
+                                    title={`Chave PIX: ${pixKey} (Clique para copiar)`}
+                                  >
+                                    <KeyRound size={11} />
+                                    <span>PIX: <strong>{pixKey}</strong></span>
+                                    <Copy size={10} className="payables-copy-icon" />
+                                    {copiedPixKey === pixKey && <span className="payables-copied-feedback">Copiado!</span>}
+                                  </button>
+                                );
+                              })()}
                             </div>
                           </div>
                         </td>
@@ -1683,6 +1708,7 @@ export function SettlementForm({
   const { user } = useAuth();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [copiedPix, setCopiedPix] = useState(false);
   const [id] = useState(() => safeUUID());
   const today = dateToday();
 
@@ -1807,6 +1833,30 @@ export function SettlementForm({
               <strong>{currency(outCents)}</strong>
             </div>
           </div>
+          {(() => {
+            const pixKey = str(record, "pixKey") || (str(record, "notes").match(/Chave PIX:\s*([^\s\n\r]+)/i)?.[1] || "");
+            if (!pixKey) return null;
+            return (
+              <div className="settlement-pix-card">
+                <span className="settlement-pix-tag">⚡ DADOS PARA PAGAMENTO PIX</span>
+                <div className="settlement-pix-content">
+                  <span className="settlement-pix-label">Chave PIX:</span>
+                  <code className="settlement-pix-code">{pixKey}</code>
+                  <button
+                    type="button"
+                    className="settlement-pix-copy-btn"
+                    onClick={() => {
+                      navigator.clipboard.writeText(pixKey);
+                      setCopiedPix(true);
+                      setTimeout(() => setCopiedPix(false), 2000);
+                    }}
+                  >
+                    <Copy size={12} /> {copiedPix ? "Chave Copiada!" : "Copiar Chave"}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {record.kind === "payables" && outCents > 0 && (

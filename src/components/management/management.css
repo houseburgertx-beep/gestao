@@ -4475,6 +4475,130 @@
   border: 1px solid #cbd5e1;
 }
 
+/* Badge de Chave PIX com cópia em 1 clique */
+.payables-badge-pix-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.payables-badge-pix-key:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+  transform: translateY(-1px);
+}
+.payables-badge-pix-key .payables-copy-icon {
+  opacity: 0.65;
+  transition: opacity 0.15s;
+}
+.payables-badge-pix-key:hover .payables-copy-icon {
+  opacity: 1;
+}
+.payables-badge-pix-key .payables-copied-feedback {
+  background: #15803d;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 2px;
+  animation: payables-badge-pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes payables-badge-pop {
+  0% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.dark .payables-badge-pix-key {
+  background: #052e16;
+  color: #86efac;
+  border-color: #14532d;
+}
+.dark .payables-badge-pix-key:hover {
+  background: #14532d;
+  border-color: #22c55e;
+}
+
+/* Card de Chave PIX dentro do modal de baixa (SettlementForm) */
+.settlement-pix-card {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dark .settlement-pix-card {
+  background: #052e16;
+  border-color: #14532d;
+}
+.settlement-pix-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #16a34a;
+}
+.settlement-pix-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.settlement-pix-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #166534;
+}
+.dark .settlement-pix-label {
+  color: #86efac;
+}
+.settlement-pix-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #15803d;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px dashed #86efac;
+  letter-spacing: 0.2px;
+}
+.dark .settlement-pix-code {
+  background: rgba(0, 0, 0, 0.35);
+  color: #86efac;
+  border-color: #22c55e;
+}
+.settlement-pix-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #16a34a;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25);
+}
+.settlement-pix-copy-btn:hover {
+  background: #15803d;
+  transform: translateY(-1px);
+}
+
 /* Modal de Despesa Fixa */
 .fixed-expense-modal {
   max-width: 760px;
@@ -8516,6 +8640,215 @@
   border-color: #a5b4fc;
   color: #3730a3;
   transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   CONFERÊNCIA FINANCEIRA ENRIQUECIDA & OLHINHO DE FECHAMENTO CONFERIDO
+   ========================================================================== */
+
+/* Botão Olhinho Minimalista no Card do Fechamento */
+.cash-eye-detail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.cash-eye-detail-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+}
+.cash-eye-detail-btn.conferred {
+  background: #f0fdf4;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+.cash-eye-detail-btn.conferred:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+.dark .cash-eye-detail-btn {
+  background: #1e2436;
+  color: #cbd5e1;
+  border-color: #334155;
+}
+.dark .cash-eye-detail-btn:hover {
+  background: #272d40;
+  color: #f8fafc;
+}
+.dark .cash-eye-detail-btn.conferred {
+  background: #052e16;
+  color: #86efac;
+  border-color: #14532d;
+}
+.dark .cash-eye-detail-btn.conferred:hover {
+  background: #14532d;
+  border-color: #22c55e;
+}
+
+/* Grid Executivo de Topo da Conferência / Detalhamento */
+.conf-scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 1100px) {
+  .conf-scenario-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .conf-scenario-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.conf-scenario-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.dark .conf-scenario-card {
+  background: #181b24;
+  border-color: #272b37;
+}
+.conf-scenario-card .label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  margin-bottom: 3px;
+}
+.dark .conf-scenario-card .label {
+  color: #94a3b8;
+}
+.conf-scenario-card .val {
+  font-size: 16px;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.3px;
+}
+.dark .conf-scenario-card .val {
+  color: #f8fafc;
+}
+.conf-scenario-card small {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+.conf-scenario-card.highlight.ok {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+.conf-scenario-card.highlight.ok .val {
+  color: #16a34a;
+}
+.dark .conf-scenario-card.highlight.ok {
+  background: #052e16;
+  border-color: #14532d;
+  color: #86efac;
+}
+.conf-scenario-card.highlight.bad {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+.conf-scenario-card.highlight.bad .val {
+  color: #dc2626;
+}
+.dark .conf-scenario-card.highlight.bad {
+  background: #3b1e1e;
+  border-color: #7f1d1d;
+  color: #f87171;
+}
+
+/* Seções de Cards e Paineis na Conferência */
+.conf-card-section {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.dark .conf-card-section {
+  background: #181b24;
+  border-color: #272b37;
+}
+.conf-section-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0;
+}
+.dark .conf-section-title {
+  color: #f1f5f9;
+}
+
+.conf-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  background: #e0e7ff;
+  color: #4338ca;
+}
+.dark .conf-tag {
+  background: #2d3148;
+  color: #818cf8;
+}
+
+.conf-summary-header {
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+.dark .conf-summary-header {
+  background: #181b24;
+  border-color: #272b37;
+}
+
+/* Tabela Compacta Consolidada de Máquinas / Cartões */
+.conf-table-compact {
+  font-size: 12px;
+  width: 100%;
+}
+.conf-table-compact th {
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  background: #f8fafc;
+  color: #475569;
+}
+.dark .conf-table-compact th {
+  background: #1e2436;
+  color: #94a3b8;
+}
+.conf-table-compact td {
+  padding: 7px 10px;
+}
+.conf-table-compact tfoot td {
+  padding: 9px 10px;
 }
 
 

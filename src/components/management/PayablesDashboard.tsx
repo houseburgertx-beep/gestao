@@ -22,6 +22,8 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  Copy,
+  KeyRound,
 } from "lucide-react";
 import {
   Bar,
@@ -65,6 +67,7 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
   const [selectedRecorte, setSelectedRecorte] = useState<RecorteKey | null>(null);
   const [payingRecord, setPayingRecord] = useState<RecordData | null>(null);
   const [attentionOpen, setAttentionOpen] = useState(false);
+  const [copiedPixKey, setCopiedPixKey] = useState<string | null>(null);
   const dedicatedRef = useRef<HTMLDivElement>(null);
 
   // ── Bank balance (real-time) ────────────────────────────────────────────
@@ -612,6 +615,28 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
                                   {methodStr === "PIX" ? "⚡ PIX" : methodStr === "Boleto" ? "📄 Boleto" : methodStr === "Débito automático" ? "🏦 Débito auto" : methodStr}
                                 </span>
                               )}
+                              {(() => {
+                                const pixKey = str(row, "pixKey") || (str(row, "notes").match(/Chave PIX:\s*([^\s\n\r]+)/i)?.[1] || "");
+                                if (!pixKey) return null;
+                                return (
+                                  <button
+                                    type="button"
+                                    className="payables-badge-pix-key"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigator.clipboard.writeText(pixKey);
+                                      setCopiedPixKey(pixKey);
+                                      setTimeout(() => setCopiedPixKey(null), 2000);
+                                    }}
+                                    title={`Chave PIX: ${pixKey} (Clique para copiar)`}
+                                  >
+                                    <KeyRound size={11} />
+                                    <span>PIX: <strong>{pixKey}</strong></span>
+                                    <Copy size={10} className="payables-copy-icon" />
+                                    {copiedPixKey === pixKey && <span className="payables-copied-feedback">Copiado!</span>}
+                                  </button>
+                                );
+                              })()}
                             </div>
                           </div>
                         </td>
