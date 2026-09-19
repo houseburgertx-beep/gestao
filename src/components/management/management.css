@@ -1179,6 +1179,233 @@
 }
 .payables-backup-button:disabled { opacity: .6; }
 
+/* ── Painel de Saldo Bancário em Tempo Real ──────────────────────────── */
+.payables-bank-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  background: #ffffff;
+  border: 1px solid #e8ecf4;
+  border-radius: 14px;
+  padding: 10px 16px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+.dark .payables-bank-bar {
+  background: #1a1f2e;
+  border-color: #272d40;
+}
+
+.payables-bank-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 160px;
+  padding: 4px 8px;
+}
+
+.payables-bank-pill-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #4f46e5;
+  flex-shrink: 0;
+}
+.payables-bank-pill-icon.saidas-icon {
+  background: #fef2f2;
+  color: #dc2626;
+}
+.dark .payables-bank-pill-icon {
+  background: #2d3148;
+  color: #818cf8;
+}
+.dark .payables-bank-pill-icon.saidas-icon {
+  background: #3b1e1e;
+  color: #f87171;
+}
+
+.payables-bank-pill-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.payables-bank-pill-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+.payables-bank-pill-value {
+  font-size: 15px;
+  font-weight: 800;
+  color: #1e293b;
+  white-space: nowrap;
+  letter-spacing: -0.3px;
+}
+.payables-bank-pill-value.saidas-val {
+  color: #dc2626;
+}
+.dark .payables-bank-pill-value {
+  color: #f1f5f9;
+}
+.dark .payables-bank-pill-value.saidas-val {
+  color: #f87171;
+}
+
+/* Live dot pulsing animation */
+.payables-bank-live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+  animation: payables-live-pulse 2.2s infinite;
+  flex-shrink: 0;
+}
+@keyframes payables-live-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }
+  70%  { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+.payables-bank-divider {
+  width: 1px;
+  height: 36px;
+  background: #e8ecf4;
+  flex-shrink: 0;
+  margin: 0 8px;
+}
+.dark .payables-bank-divider {
+  background: #272d40;
+}
+
+/* Eye button */
+.payables-bank-eye-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.payables-bank-eye-btn:hover {
+  background: #f1f5f9;
+  color: #334155;
+  border-color: #cbd5e1;
+}
+.dark .payables-bank-eye-btn {
+  border-color: #334155;
+  color: #94a3b8;
+}
+.dark .payables-bank-eye-btn:hover {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+
+/* Outflows drawer */
+.payables-outflows-drawer {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #e8ecf4;
+}
+.dark .payables-outflows-drawer {
+  border-color: #272d40;
+}
+
+.payables-outflow-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 8px;
+  transition: background 0.12s;
+}
+.payables-outflow-row:hover {
+  background: #f8fafc;
+}
+.dark .payables-outflow-row:hover {
+  background: #1e2436;
+}
+.payables-outflow-desc {
+  font-size: 11px;
+  color: #475569;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dark .payables-outflow-desc {
+  color: #94a3b8;
+}
+.payables-outflow-bank {
+  font-size: 10px;
+  color: #94a3b8;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dark .payables-outflow-bank {
+  background: #1e2436;
+  color: #64748b;
+}
+.payables-outflow-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: #dc2626;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.payables-outflows-empty {
+  font-size: 11px;
+  color: #94a3b8;
+  padding: 4px 6px;
+}
+.payables-outflows-more {
+  font-size: 10px;
+  color: #94a3b8;
+  padding: 4px 6px;
+  font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 680px) {
+  .payables-bank-bar {
+    gap: 6px;
+  }
+  .payables-bank-pill {
+    flex: 1 1 140px;
+  }
+  .payables-bank-divider {
+    width: 100%;
+    height: 1px;
+    margin: 4px 0;
+  }
+}
+
 /* Cards de Métricas e Resumo de Despesas - Bordas Suaves e Refinadas */
 .payables-summary-grid {
   display: grid;
