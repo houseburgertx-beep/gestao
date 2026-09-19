@@ -2939,38 +2939,59 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
           <div className="conf-scenario-card">
             <span className="label">Vendas Sistema (PDV)</span>
             <strong className="val">{currency(systemTotal)}</strong>
-            <small>Faturamento Bruto</small>
+            <div className="conf-scenario-badge-box">
+              <span className="conf-pill-neutral">Faturamento Bruto</span>
+            </div>
+            <small className="conf-scenario-sub">Registrado no PDV</small>
           </div>
+
           <div className="conf-scenario-card">
-            <span className="label">Dinheiro Físico / Gaveta</span>
+            <span className="label">Dinheiro Gaveta</span>
             <strong className="val">{brl(cashFound)}</strong>
-            <div className="flex items-center justify-between mt-1">
-              <small>Sangria: {brl(sangriaAmount)}</small>
+            <div className="conf-scenario-badge-box">
               <Difference value={cashDiff} />
             </div>
+            <small className="conf-scenario-sub">
+              {sangriaAmount > 0 ? `Sangria: ${brl(sangriaAmount)}` : `Troco: ${brl(closingFloat)}`}
+            </small>
           </div>
+
           <div className="conf-scenario-card">
-            <span className="label">Cartões & PIX Máquinas</span>
+            <span className="label">Cartões & PIX</span>
             <strong className="val">{brl(totalCreditFound + totalDebitFound + totalPixFound)}</strong>
-            <div className="flex items-center justify-between mt-1">
-              <small>PDV: {brl(systemCredit + systemDebit + systemPix)}</small>
+            <div className="conf-scenario-badge-box">
               <Difference value={creditDiff + debitDiff + pixDiff} />
             </div>
+            <small className="conf-scenario-sub">PDV: {brl(systemCredit + systemDebit + systemPix)}</small>
           </div>
+
           <div className="conf-scenario-card">
             <span className="label">Saídas da Gaveta</span>
             <strong className="val text-rose-600">{brl(cashOutflows)}</strong>
-            <small>{outflowsList.length} lançamento(s)</small>
+            <div className="conf-scenario-badge-box">
+              <span className="conf-pill-rose">{outflowsList.length} saída(s)</span>
+            </div>
+            <small className="conf-scenario-sub">Abatido da gaveta</small>
           </div>
+
           <div className="conf-scenario-card">
             <span className="label">Solicitações de PIX</span>
             <strong className="val text-purple-600">{brl(pixRequestsTotal)}</strong>
-            <small>{pixRequestsList.length} solicitação(ões)</small>
+            <div className="conf-scenario-badge-box">
+              <span className="conf-pill-purple">{pixRequestsList.length} pedido(s)</span>
+            </div>
+            <small className="conf-scenario-sub">Contas a Pagar</small>
           </div>
+
           <div className={`conf-scenario-card highlight ${totalDiff === 0 ? "ok" : "bad"}`}>
             <span className="label">Divergência Total</span>
             <strong className="val">{currency(totalDiff)}</strong>
-            <small>{totalDiff === 0 ? "✓ 100% Batido" : totalDiff > 0 ? "Sobra de Caixa" : "Falta de Caixa"}</small>
+            <div className="conf-scenario-badge-box">
+              <span className={`conf-pill-diff ${totalDiff === 0 ? "ok" : totalDiff > 0 ? "surplus" : "shortage"}`}>
+                {totalDiff === 0 ? "✓ Caixa Batido" : totalDiff > 0 ? "Sobra de Caixa" : "Falta de Caixa"}
+              </span>
+            </div>
+            <small className="conf-scenario-sub">{totalDiff === 0 ? "Sem divergência" : `Diferença de ${brl(Math.abs(totalDiff))}`}</small>
           </div>
         </div>
 
@@ -3480,29 +3501,45 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
                 ))}
               </tbody>
               <tfoot>
-                <tr className="font-bold bg-zinc-50 dark:bg-zinc-800/60 border-t-2 border-zinc-300 dark:border-zinc-700">
-                  <td>TOTAL MÁQUINAS</td>
-                  <td style={{ textAlign: "right" }}>{brl(totalCreditFound)}</td>
-                  <td style={{ textAlign: "right" }}>{brl(totalDebitFound)}</td>
-                  <td style={{ textAlign: "right" }}>{brl(totalPixFound)}</td>
-                  <td style={{ textAlign: "right" }}>{brl(totalCreditFound + totalDebitFound + totalPixFound)}</td>
-                  <td style={{ textAlign: "right" }} className="text-rose-600">
-                    -{brl(bankCalculations.reduce((s, c) => s + c.totalFees, 0))}
-                  </td>
-                  <td style={{ textAlign: "right" }} className="text-emerald-700 dark:text-emerald-400">
-                    {brl(bankCalculations.reduce((s, c) => s + c.netAmount, 0))}
-                  </td>
-                </tr>
-                <tr className="text-xs bg-zinc-100/70 dark:bg-zinc-800/40 text-zinc-600 dark:text-zinc-400">
-                  <td>SISTEMA (PDV)</td>
-                  <td style={{ textAlign: "right" }}>{brl(systemCredit)}</td>
-                  <td style={{ textAlign: "right" }}>{brl(systemDebit)}</td>
-                  <td style={{ textAlign: "right" }}>{brl(systemPix)}</td>
-                  <td style={{ textAlign: "right" }}>{brl(systemCredit + systemDebit + systemPix)}</td>
-                  <td colSpan={2} style={{ textAlign: "right" }}>
-                    Confronto Cartões: <Difference value={creditDiff + debitDiff + pixDiff} />
-                  </td>
-                </tr>
+                {(() => {
+                  const totalFees = bankCalculations.reduce((s, c) => s + c.totalFees, 0);
+                  const totalNet = bankCalculations.reduce((s, c) => s + c.netAmount, 0);
+                  return (
+                    <>
+                      <tr className="conf-tfoot-row font-bold bg-zinc-50 dark:bg-zinc-800/60 border-t-2 border-zinc-300 dark:border-zinc-700">
+                        <td>TOTAL MÁQUINAS</td>
+                        <td style={{ textAlign: "right" }}>{brl(totalCreditFound)}</td>
+                        <td style={{ textAlign: "right" }}>{brl(totalDebitFound)}</td>
+                        <td style={{ textAlign: "right" }}>{brl(totalPixFound)}</td>
+                        <td style={{ textAlign: "right" }}>{brl(totalCreditFound + totalDebitFound + totalPixFound)}</td>
+                        <td style={{ textAlign: "right" }} className={totalFees > 0 ? "text-rose-600" : "text-zinc-400 font-normal"}>
+                          {totalFees > 0 ? `-${brl(totalFees)}` : "—"}
+                        </td>
+                        <td style={{ textAlign: "right" }} className="text-emerald-700 dark:text-emerald-400">
+                          {brl(totalNet)}
+                        </td>
+                      </tr>
+                      <tr className="conf-tfoot-row text-xs font-semibold bg-zinc-100/70 dark:bg-zinc-800/40 text-zinc-700 dark:text-zinc-300">
+                        <td>SISTEMA (PDV)</td>
+                        <td style={{ textAlign: "right" }}>{brl(systemCredit)}</td>
+                        <td style={{ textAlign: "right" }}>{brl(systemDebit)}</td>
+                        <td style={{ textAlign: "right" }}>{brl(systemPix)}</td>
+                        <td style={{ textAlign: "right" }}>{brl(systemCredit + systemDebit + systemPix)}</td>
+                        <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
+                        <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
+                      </tr>
+                      <tr className="conf-tfoot-diff-row text-xs font-semibold bg-zinc-50 dark:bg-zinc-800/70 border-t border-zinc-200 dark:border-zinc-700">
+                        <td>DIFERENÇA (MÁQ - PDV)</td>
+                        <td style={{ textAlign: "right" }}><Difference value={creditDiff} /></td>
+                        <td style={{ textAlign: "right" }}><Difference value={debitDiff} /></td>
+                        <td style={{ textAlign: "right" }}><Difference value={pixDiff} /></td>
+                        <td style={{ textAlign: "right" }}><Difference value={creditDiff + debitDiff + pixDiff} /></td>
+                        <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
+                        <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
+                      </tr>
+                    </>
+                  );
+                })()}
               </tfoot>
             </table>
           </div>
@@ -3823,6 +3860,50 @@ function ClosingDetailsModal({
     [pixRequests]
   );
 
+  // Bank machine calculations for ClosingDetailsModal
+  const savedBankAmounts = useMemo(() => {
+    if (conference?.reviewedBankAmountsJson) {
+      try {
+        const parsed = JSON.parse(String(conference.reviewedBankAmountsJson));
+        if (parsed && typeof parsed === "object" && Object.keys(parsed).length > 0) return parsed;
+      } catch {}
+    }
+    return parseBankAmounts(closing);
+  }, [conference, closing]);
+
+  const bankCalculations = useMemo(() => {
+    const bankEntries = Object.entries(savedBankAmounts);
+    if (!bankEntries.length) return [];
+    return bankEntries.map(([bankId, vals]: [string, any]) => {
+      const bank = data.bankAccounts.find(b => b.id === bankId) || ({ id: bankId, name: "Máquina / Cartão" } as any);
+      const credit = Number(vals?.credit || 0);
+      const debit = Number(vals?.debit || 0);
+      const pix = Number(vals?.pix || 0);
+      const creditPct = Number(bank.creditFeePct || 0);
+      const debitPct = Number(bank.debitFeePct || 0);
+      const pixPct = Number(bank.pixFeePct || 0);
+      const grossAmount = credit + debit + pix;
+      const creditFee = Math.round(credit * (creditPct / 100));
+      const debitFee = Math.round(debit * (debitPct / 100));
+      const pixFee = Math.round(pix * (pixPct / 100));
+      const totalFees = creditFee + debitFee + pixFee;
+      const netAmount = grossAmount - totalFees;
+      return {
+        bank,
+        vals: { credit, debit, pix },
+        creditPct,
+        debitPct,
+        pixPct,
+        grossAmount,
+        creditFee,
+        debitFee,
+        pixFee,
+        totalFees,
+        netAmount,
+      };
+    });
+  }, [savedBankAmounts, data.bankAccounts]);
+
   const downloadAttachment = async (att: CashAttachment) => {
     try {
       setDownloading(att.fileId);
@@ -3899,38 +3980,59 @@ function ClosingDetailsModal({
           <div className="conf-scenario-card">
             <span className="label">Vendas Sistema (PDV)</span>
             <strong className="val">{currency(systemTotal)}</strong>
-            <small>Faturamento Bruto</small>
+            <div className="conf-scenario-badge-box">
+              <span className="conf-pill-neutral">Faturamento Bruto</span>
+            </div>
+            <small className="conf-scenario-sub">Registrado no PDV</small>
           </div>
+
           <div className="conf-scenario-card">
             <span className="label">Dinheiro Gaveta</span>
             <strong className="val">{brl(cashFound)}</strong>
-            <div className="flex items-center justify-between mt-1">
-              <small>Sangria: {brl(sangriaAmount)}</small>
+            <div className="conf-scenario-badge-box">
               <Difference value={cashDiff} />
             </div>
+            <small className="conf-scenario-sub">
+              {sangriaAmount > 0 ? `Sangria: ${brl(sangriaAmount)}` : `Troco: ${brl(closingFloat)}`}
+            </small>
           </div>
+
           <div className="conf-scenario-card">
             <span className="label">Cartões & PIX</span>
             <strong className="val">{brl(creditFound + debitFound + pixFound)}</strong>
-            <div className="flex items-center justify-between mt-1">
-              <small>PDV: {brl(systemCredit + systemDebit + systemPix)}</small>
+            <div className="conf-scenario-badge-box">
               <Difference value={creditDiff + debitDiff + pixDiff} />
             </div>
+            <small className="conf-scenario-sub">PDV: {brl(systemCredit + systemDebit + systemPix)}</small>
           </div>
+
           <div className="conf-scenario-card">
             <span className="label">Saídas da Gaveta</span>
             <strong className="val text-rose-600">{brl(cashOutflows)}</strong>
-            <small>{outflows.length} saída(s) registrada(s)</small>
+            <div className="conf-scenario-badge-box">
+              <span className="conf-pill-rose">{outflows.length} saída(s)</span>
+            </div>
+            <small className="conf-scenario-sub">Abatido da gaveta</small>
           </div>
+
           <div className="conf-scenario-card">
             <span className="label">Solicitações de PIX</span>
             <strong className="val text-purple-600">{brl(pixRequestsTotal)}</strong>
-            <small>{pixRequests.length} pedido(s) de PIX</small>
+            <div className="conf-scenario-badge-box">
+              <span className="conf-pill-purple">{pixRequests.length} pedido(s)</span>
+            </div>
+            <small className="conf-scenario-sub">Contas a Pagar</small>
           </div>
+
           <div className={`conf-scenario-card highlight ${totalDiff === 0 ? "ok" : "bad"}`}>
             <span className="label">Divergência Total</span>
             <strong className="val">{currency(totalDiff)}</strong>
-            <small>{totalDiff === 0 ? "✓ 100% Batido" : totalDiff > 0 ? "Sobra de Caixa" : "Falta de Caixa"}</small>
+            <div className="conf-scenario-badge-box">
+              <span className={`conf-pill-diff ${totalDiff === 0 ? "ok" : totalDiff > 0 ? "surplus" : "shortage"}`}>
+                {totalDiff === 0 ? "✓ Caixa Batido" : totalDiff > 0 ? "Sobra de Caixa" : "Falta de Caixa"}
+              </span>
+            </div>
+            <small className="conf-scenario-sub">{totalDiff === 0 ? "Sem divergência" : `Diferença de ${brl(Math.abs(totalDiff))}`}</small>
           </div>
         </div>
 
@@ -4023,6 +4125,108 @@ function ClosingDetailsModal({
             </div>
           </div>
         </div>
+
+        {/* Máquinas / Cartões Consolidado */}
+        {bankCalculations.length > 0 && (
+          <div className="conf-card-section">
+            <h3 className="conf-section-title flex items-center gap-2 mb-2">
+              <Landmark size={16} className="text-indigo-600" />
+              Revisão Consolidada de Máquinas / Cartões e Taxas
+            </h3>
+            <div className="conf-consolidated-table-wrap overflow-x-auto">
+              <table className="mg-table conf-table-compact">
+                <thead>
+                  <tr>
+                    <th>Máquina / Banco</th>
+                    <th style={{ textAlign: "right" }}>Crédito</th>
+                    <th style={{ textAlign: "right" }}>Débito</th>
+                    <th style={{ textAlign: "right" }}>PIX</th>
+                    <th style={{ textAlign: "right" }}>Total Bruto</th>
+                    <th style={{ textAlign: "right" }}>Taxas Est.</th>
+                    <th style={{ textAlign: "right" }}>Líquido Creditar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bankCalculations.map(c => (
+                    <tr key={c.bank.id}>
+                      <td>
+                        <div className="flex items-center gap-1.5">
+                          <Landmark size={13} className="text-zinc-500 shrink-0" />
+                          <strong>{str(c.bank, "name")}</strong>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <span>{brl(c.vals.credit)}</span>
+                        {c.creditPct > 0 && <small className="text-zinc-400 block text-[10px]">({c.creditPct}%)</small>}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <span>{brl(c.vals.debit)}</span>
+                        {c.debitPct > 0 && <small className="text-zinc-400 block text-[10px]">({c.debitPct}%)</small>}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <span>{brl(c.vals.pix)}</span>
+                        {c.pixPct > 0 && <small className="text-zinc-400 block text-[10px]">({c.pixPct}%)</small>}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <strong>{brl(c.grossAmount)}</strong>
+                      </td>
+                      <td style={{ textAlign: "right" }} className={c.totalFees > 0 ? "text-rose-600" : "text-zinc-400"}>
+                        {c.totalFees > 0 ? `-${brl(c.totalFees)}` : "—"}
+                      </td>
+                      <td style={{ textAlign: "right" }} className="font-bold text-emerald-600">
+                        {brl(c.netAmount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  {(() => {
+                    const totalCredit = bankCalculations.reduce((s, c) => s + c.vals.credit, 0);
+                    const totalDebit = bankCalculations.reduce((s, c) => s + c.vals.debit, 0);
+                    const totalPix = bankCalculations.reduce((s, c) => s + c.vals.pix, 0);
+                    const totalFees = bankCalculations.reduce((s, c) => s + c.totalFees, 0);
+                    const totalNet = bankCalculations.reduce((s, c) => s + c.netAmount, 0);
+                    return (
+                      <>
+                        <tr className="conf-tfoot-row font-bold bg-zinc-50 dark:bg-zinc-800/60 border-t-2 border-zinc-300 dark:border-zinc-700">
+                          <td>TOTAL MÁQUINAS</td>
+                          <td style={{ textAlign: "right" }}>{brl(totalCredit)}</td>
+                          <td style={{ textAlign: "right" }}>{brl(totalDebit)}</td>
+                          <td style={{ textAlign: "right" }}>{brl(totalPix)}</td>
+                          <td style={{ textAlign: "right" }}>{brl(totalCredit + totalDebit + totalPix)}</td>
+                          <td style={{ textAlign: "right" }} className={totalFees > 0 ? "text-rose-600" : "text-zinc-400 font-normal"}>
+                            {totalFees > 0 ? `-${brl(totalFees)}` : "—"}
+                          </td>
+                          <td style={{ textAlign: "right" }} className="text-emerald-700 dark:text-emerald-400">
+                            {brl(totalNet)}
+                          </td>
+                        </tr>
+                        <tr className="conf-tfoot-row text-xs font-semibold bg-zinc-100/70 dark:bg-zinc-800/40 text-zinc-700 dark:text-zinc-300">
+                          <td>SISTEMA (PDV)</td>
+                          <td style={{ textAlign: "right" }}>{brl(systemCredit)}</td>
+                          <td style={{ textAlign: "right" }}>{brl(systemDebit)}</td>
+                          <td style={{ textAlign: "right" }}>{brl(systemPix)}</td>
+                          <td style={{ textAlign: "right" }}>{brl(systemCredit + systemDebit + systemPix)}</td>
+                          <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
+                          <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
+                        </tr>
+                        <tr className="conf-tfoot-diff-row text-xs font-semibold bg-zinc-50 dark:bg-zinc-800/70 border-t border-zinc-200 dark:border-zinc-700">
+                          <td>DIFERENÇA (MÁQ - PDV)</td>
+                          <td style={{ textAlign: "right" }}><Difference value={creditDiff} /></td>
+                          <td style={{ textAlign: "right" }}><Difference value={debitDiff} /></td>
+                          <td style={{ textAlign: "right" }}><Difference value={pixDiff} /></td>
+                          <td style={{ textAlign: "right" }}><Difference value={creditDiff + debitDiff + pixDiff} /></td>
+                          <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
+                          <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
+                        </tr>
+                      </>
+                    );
+                  })()}
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Saídas da Gaveta */}
         <div className="conf-card-section">
