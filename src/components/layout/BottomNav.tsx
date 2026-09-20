@@ -19,7 +19,7 @@ export function BottomNav({ onOpenMobileMenu }: { onOpenMobileMenu: () => void }
       ? ["/", "/bancos", "/faturamento", "/fechamento-caixa"]
       : role === "manager"
         ? ["/faturamento", "/tarefas"]
-        : ["/fechamento-caixa"];
+        : ["/fechamento-caixa", "/auditoria-caixa"];
 
   const items = allNav
     .filter((item) => quickHrefs.includes(item.href))

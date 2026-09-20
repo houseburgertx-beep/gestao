@@ -1033,10 +1033,11 @@ test("RH - Cálculo dinâmico de tempo de casa (calculateTenure)", () => {
 });
 
 test("RH - Alertas e acompanhamento de contrato de experiência de 90 dias (getExperienceInfo)", () => {
-  const { getExperienceInfo } = require("../src/lib/tenureUtils.ts");
+  const { getExperienceInfo, getTodayDateStr } = require("../src/lib/tenureUtils.ts");
+  const todayRef = new Date(getTodayDateStr() + "T12:00:00Z");
 
   // Formato brasileiro DD/MM/YYYY funcionando perfeitamente
-  const adm85d = new Date(Date.now() - 85 * 86400000);
+  const adm85d = new Date(todayRef.getTime() - 85 * 86400000);
   const pad = (n) => String(n).padStart(2, "0");
   const admBr = `${pad(adm85d.getUTCDate())}/${pad(adm85d.getUTCMonth() + 1)}/${adm85d.getUTCFullYear()}`;
   const expBr = getExperienceInfo(admBr);
@@ -1045,7 +1046,7 @@ test("RH - Alertas e acompanhamento de contrato de experiência de 90 dias (getE
   assert.ok(expBr.daysRemaining <= 10 && expBr.daysRemaining >= 0);
 
   // Admitido há 85 dias (restam 5 dias para os 90 dias -> crítico <= 10d)
-  const adm85dStr = new Date(Date.now() - 85 * 86400000).toISOString().slice(0, 10);
+  const adm85dStr = new Date(todayRef.getTime() - 85 * 86400000).toISOString().slice(0, 10);
   const expCritical = getExperienceInfo(adm85dStr);
   assert.equal(expCritical.inExperience, true);
   assert.equal(expCritical.urgency, "critical");
@@ -1053,7 +1054,7 @@ test("RH - Alertas e acompanhamento de contrato de experiência de 90 dias (getE
   assert.match(expCritical.badgeText, /Experiência acaba em|dias restantes/i);
 
   // Admitido há 90 dias (vencendo exatamente hoje -> crítico, último dia)
-  const adm90d = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const adm90d = new Date(todayRef.getTime() - 90 * 86400000).toISOString().slice(0, 10);
   const expDay0 = getExperienceInfo(adm90d);
   assert.equal(expDay0.inExperience, true);
   assert.equal(expDay0.urgency, "critical");
@@ -1061,20 +1062,20 @@ test("RH - Alertas e acompanhamento de contrato de experiência de 90 dias (getE
   assert.equal(expDay0.badgeText, "Último dia da experiência hoje!");
 
   // Admitido há 70 dias (restam 20 dias -> aviso <= 30d)
-  const adm70d = new Date(Date.now() - 70 * 86400000).toISOString().slice(0, 10);
+  const adm70d = new Date(todayRef.getTime() - 70 * 86400000).toISOString().slice(0, 10);
   const expWarning = getExperienceInfo(adm70d);
   assert.equal(expWarning.inExperience, true);
   assert.equal(expWarning.urgency, "warning");
   assert.ok(expWarning.daysRemaining <= 30 && expWarning.daysRemaining > 10);
 
   // Admitido há 15 dias (restam 75 dias -> normal)
-  const adm15d = new Date(Date.now() - 15 * 86400000).toISOString().slice(0, 10);
+  const adm15d = new Date(todayRef.getTime() - 15 * 86400000).toISOString().slice(0, 10);
   const expNormal = getExperienceInfo(adm15d);
   assert.equal(expNormal.inExperience, true);
   assert.equal(expNormal.urgency, "normal");
 
   // Admitido há 120 dias (já passou dos 90 dias -> concluído)
-  const adm120d = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
+  const adm120d = new Date(todayRef.getTime() - 120 * 86400000).toISOString().slice(0, 10);
   const expCompleted = getExperienceInfo(adm120d);
   assert.equal(expCompleted.inExperience, false);
   assert.equal(expCompleted.urgency, "completed");
