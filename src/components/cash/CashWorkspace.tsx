@@ -1168,38 +1168,49 @@ function ClosingModal({
         notes: notes.trim()
       };
 
-      const payables = requestedPix.map(request => ({
-        id: `pix-${closingId}-${request.id}`,
-        kind: "payables" as const,
-        tenantId,
-        unitId: unit,
-        version: 0,
-        createdAt: now,
-        updatedAt: now,
-        createdBy: user.uid,
-        updatedBy: user.uid,
-        obligationType: "Outros",
-        ...(defaultCategory ? { categoryId: defaultCategory } : {}),
-        description: `PIX — ${request.description} (${request.name})`,
-        competence: date.slice(0, 7),
-        dueDate: date,
-        amount: Math.round(Number(request.amount) * 100),
-        paymentMethod: "PIX",
-        status: "Pendente",
-        nature: "Operacional",
-        sourceId: closingId,
-        pixKey: request.key,
-        notes: `Solicitação criada no fechamento de caixa. Chave PIX: ${request.key}`
-      })) as RecordData[];
-
       // Archive orphaned PIX payables (existed in Firestore but removed by operator when editing)
       const existingPayables = (data.payables || []).filter(
         (p: RecordData) => !p.archived && p.sourceId === closingId
       );
+
+      const payables = requestedPix.map(request => {
+        const id = `pix-${closingId}-${request.id}`;
+        const existingP = existingPayables.find((p: RecordData) => p.id === id);
+        return {
+          id,
+          kind: "payables" as const,
+          tenantId,
+          unitId: unit,
+          version: existingP ? Number(existingP.version || 0) : 0,
+          createdAt: existingP?.createdAt || now,
+          updatedAt: now,
+          createdBy: existingP?.createdBy || targetClosing?.createdBy || user.uid,
+          updatedBy: user.uid,
+          obligationType: "Outros",
+          ...(defaultCategory ? { categoryId: defaultCategory } : {}),
+          description: `PIX — ${request.description} (${request.name})`,
+          competence: date.slice(0, 7),
+          dueDate: date,
+          amount: Math.round(Number(request.amount) * 100),
+          paymentMethod: "PIX",
+          status: existingP?.status || "Pendente",
+          nature: "Operacional",
+          sourceId: closingId,
+          pixKey: request.key,
+          notes: `Solicitação criada no fechamento de caixa. Chave PIX: ${request.key}`
+        };
+      }) as RecordData[];
+
       const currentPayableIds = new Set(payables.map((p: RecordData) => p.id));
       const orphanPayables: RecordData[] = existingPayables
         .filter((p: RecordData) => !currentPayableIds.has(p.id))
-        .map((p: RecordData) => ({ ...p, archived: true, updatedAt: now, updatedBy: user.uid }));
+        .map((p: RecordData) => ({
+          ...p,
+          archived: true,
+          updatedAt: now,
+          updatedBy: user.uid,
+          version: Number(p.version || 0)
+        }));
 
       const allRecords = [row, ...payables, ...orphanPayables];
       allRecords.forEach(record => validate(record, data));

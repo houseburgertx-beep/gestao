@@ -97,9 +97,26 @@ export function ManagementProvider({
   const isFinanceOrAdmin = normRole === "admin" || normRole === "accountant";
   const allowedUnit = isFinanceOrAdmin ? "all" : (userProfile?.unitId || "all");
   useEffect(() => {
-    const targetKinds = Object.keys(DEFINITIONS).filter((k) =>
-      isFinanceOrAdmin ? true : !DEFINITIONS[k]?.restricted
-    );
+    const targetKinds = Object.keys(DEFINITIONS).filter((k) => {
+      if (isFinanceOrAdmin) return true;
+      if (DEFINITIONS[k]?.restricted) return false;
+      if (normRole === "operator") {
+        return [
+          "companies", "brands", "units", "categories", "suppliers",
+          "bankAccounts", "cashClosings", "cashConferences", "payables",
+          "products", "policies"
+        ].includes(k);
+      }
+      if (normRole === "manager") {
+        return [
+          "companies", "brands", "units", "categories", "suppliers",
+          "bankAccounts", "bankTransfers", "cashClosings", "cashConferences",
+          "payables", "products", "policies",
+          "actions", "goals", "revenues", "sales"
+        ].includes(k);
+      }
+      return false;
+    });
     setData(emptyDatabase());
     setErrors({});
     setPending(targetKinds);
