@@ -1184,7 +1184,7 @@ function ClosingModal({
           version: existingP ? Number(existingP.version || 0) : 0,
           createdAt: existingP?.createdAt || now,
           updatedAt: now,
-          createdBy: existingP?.createdBy || targetClosing?.createdBy || user.uid,
+          createdBy: existingP?.createdBy || user.uid,
           updatedBy: user.uid,
           obligationType: "Outros",
           ...(defaultCategory ? { categoryId: defaultCategory } : {}),
