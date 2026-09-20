@@ -15,12 +15,28 @@ service cloud.firestore {
         && userProfile().active != false;
     }
 
+    function userRole() {
+      let r = userProfile().get('role', 'operator');
+      return r in ['admin', 'administrador', 'proprietario', 'dono', 'diretoria', 'diretor', 'gestao', 'Admin', 'Administrador'] ? 'admin'
+        : r in ['accountant', 'contador', 'contadora', 'financeiro', 'Financeiro', 'Contador', 'Contadora'] ? 'accountant'
+        : r in ['manager', 'gerente', 'gestor', 'Gerente', 'Gestor'] ? 'manager'
+        : 'operator';
+    }
+
     function adminUser() {
-      return activeUser() && userProfile().role == "admin";
+      return activeUser() && userRole() == 'admin';
+    }
+
+    function directorOrAccountant() {
+      return activeUser() && userRole() in ['admin', 'accountant'];
     }
 
     function canManageUsers() {
-      return activeUser() && userProfile().role in ['admin', 'accountant'];
+      return activeUser() && directorOrAccountant();
+    }
+
+    function canManageBank() {
+      return activeUser() && (directorOrAccountant() || userRole() == 'manager');
     }
 
     match /users/{userId} {
@@ -34,20 +50,20 @@ service cloud.firestore {
     }
 
     match /employees/{documentId} {
-      allow read, write: if activeUser() && userProfile().role in ['admin', 'accountant'];
+      allow read, write: if activeUser() && directorOrAccountant();
     }
 
     match /suppliers/{documentId} {
-      allow read, write: if activeUser() && userProfile().role in ['admin', 'accountant'];
+      allow read, write: if activeUser() && directorOrAccountant();
     }
 
     match /accounts_payable/{documentId} {
-      allow read, write: if activeUser() && userProfile().role in ['admin', 'accountant'];
+      allow read, write: if activeUser() && directorOrAccountant();
     }
 
     match /unit_goals/{documentId} {
-      allow read: if activeUser() && userProfile().role in ['admin', 'accountant', 'manager'];
-      allow write: if activeUser() && userProfile().role in ['admin', 'accountant'];
+      allow read: if activeUser() && (directorOrAccountant() || userRole() == 'manager');
+      allow write: if activeUser() && directorOrAccountant();
     }
 
     match /notifications/{documentId} {
@@ -55,22 +71,22 @@ service cloud.firestore {
     }
 
     match /daily_revenues/{documentId} {
-      allow read: if activeUser() && userProfile().role in ['admin', 'accountant', 'manager'];
-      allow write: if activeUser() && userProfile().role in ['admin', 'accountant'];
+      allow read: if activeUser() && (directorOrAccountant() || userRole() == 'manager');
+      allow write: if activeUser() && directorOrAccountant();
     }
 
     match /documents/{documentId} {
-      allow read, write: if activeUser() && userProfile().role in ['admin', 'accountant'];
+      allow read, write: if activeUser() && directorOrAccountant();
     }
 
     // Source reports are shared across screens without publishing credentials.
     match /takeat_reports/{id} {
       function ownReport(data) {
-        return activeUser() && data.tenantId == tenantId()
-          && (directorOrAccountant() || data.unitId == userProfile().unitId);
+        return activeUser() && data.get('tenantId', tenantId()) == tenantId()
+          && (directorOrAccountant() || data.unitId == userProfile().get('unitId', ''));
       }
       function validReport(data) {
-        return ownReport(data) && userProfile().role in ['admin', 'accountant', 'manager']
+        return ownReport(data) && (directorOrAccountant() || userRole() == 'manager')
           && data.id == id && id == data.tenantId + '_' + data.unitId + '_' + data.date
           && data.updatedBy == request.auth.uid && data.source == 'takeat'
           && data.unitId in ['teixeira', 'eunapolis', 'foodpark']
@@ -106,22 +122,8 @@ service cloud.firestore {
       return name in ['gestao_companies', 'gestao_brands', 'gestao_units',
         'gestao_categories', 'gestao_suppliers', 'gestao_products', 'gestao_policies', 'gestao_employeeVales'];
     }
-    function userRole() {
-      let r = userProfile().get('role', 'operator');
-      return r in ['admin', 'administrador', 'proprietario', 'dono', 'diretoria', 'diretor', 'gestao'] ? 'admin'
-        : r in ['accountant', 'contador', 'contadora', 'financeiro'] ? 'accountant'
-        : r in ['manager', 'gerente', 'gestor'] ? 'manager'
-        : r in ['operator', 'operador', 'caixa'] ? 'operator'
-        : r;
-    }
-    function directorOrAccountant() {
-      return userRole() in ['admin', 'accountant'];
-    }
-    function canManageBank() {
-      return activeUser() && (directorOrAccountant() || userRole() == 'manager');
-    }
     function canReadManagement(name, data) {
-      return activeUser() && data.tenantId == tenantId()
+      return activeUser() && data.get('tenantId', tenantId()) == tenantId()
         && (directorOrAccountant()
           || globalCollection(name)
           || name in ['gestao_bankAccounts', 'gestao_locks', 'gestao_unique']
@@ -152,22 +154,26 @@ service cloud.firestore {
     }
     function openPeriod(name, data) {
       let month = recordMonth(data);
+      let tid = data.get('tenantId', tenantId());
+      let uid = data.get('unitId', '');
       return globalCollection(name)
         || name in ['gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_closings', 'gestao_cashClosings', 'gestao_cashConferences', 'gestao_coverage', 'gestao_actions', 'gestao_employeeVales']
         || month == ''
-        || data.unitId == ''
-        || !exists(/databases/$(database)/documents/gestao_locks/$(data.tenantId + '_' + data.unitId + '_' + month))
-        || get(/databases/$(database)/documents/gestao_locks/$(data.tenantId + '_' + data.unitId + '_' + month)).data.closed != true;
+        || uid == ''
+        || !exists(/databases/$(database)/documents/gestao_locks/$(tid + '_' + uid + '_' + month))
+        || get(/databases/$(database)/documents/gestao_locks/$(tid + '_' + uid + '_' + month)).data.closed != true;
     }
     function validUnit(name, data) {
+      let tid = data.get('tenantId', tenantId());
+      let uid = data.get('unitId', '');
       return globalCollection(name)
-        || name in ['gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_transactions', 'gestao_cashClosings', 'gestao_employeeVales']
-        || data.unitId == ''
-        || data.unitId == 'matriz'
-        || data.unitId == 'all'
-        || data.unitId in ['teixeira', 'eunapolis', 'foodpark', 'central']
-        || (exists(/databases/$(database)/documents/gestao_units/$(data.unitId))
-            && get(/databases/$(database)/documents/gestao_units/$(data.unitId)).data.tenantId == data.tenantId);
+        || name in ['gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_transactions', 'gestao_cashClosings', 'gestao_employeeVales', 'gestao_payables']
+        || uid == ''
+        || uid == 'matriz'
+        || uid == 'all'
+        || uid in ['teixeira', 'eunapolis', 'foodpark', 'central']
+        || (exists(/databases/$(database)/documents/gestao_units/$(uid))
+            && get(/databases/$(database)/documents/gestao_units/$(uid)).data.tenantId == tid);
     }
     function validMoney(data) {
       return !('amount' in data) || data.amount == null || (data.amount is int && data.amount >= 0);
@@ -187,28 +193,28 @@ service cloud.firestore {
         && request.resource.data.version == 1;
       allow update: if validManagement(name, id, request.resource.data)
         && canReadManagement(name, resource.data) && openPeriod(name, resource.data)
-        && request.resource.data.tenantId == resource.data.tenantId
-        && (request.resource.data.unitId == resource.data.unitId || name in ['gestao_bankAccounts', 'gestao_suppliers', 'gestao_cashClosings', 'gestao_employeeVales'])
-        && (request.resource.data.get('createdBy', '') == resource.data.get('createdBy', '') || !('createdBy' in resource.data) || name in ['gestao_bankAccounts', 'gestao_suppliers', 'gestao_cashClosings', 'gestao_employeeVales'])
+        && request.resource.data.get('tenantId', tenantId()) == resource.data.get('tenantId', tenantId())
+        && (request.resource.data.get('unitId', '') == resource.data.get('unitId', '') || name in ['gestao_bankAccounts', 'gestao_suppliers', 'gestao_cashClosings', 'gestao_employeeVales', 'gestao_payables'])
+        && (request.resource.data.get('createdBy', '') == resource.data.get('createdBy', '') || !('createdBy' in resource.data) || name in ['gestao_bankAccounts', 'gestao_suppliers', 'gestao_cashClosings', 'gestao_employeeVales', 'gestao_payables'])
         && name != 'gestao_transactions'
         && (resource.data.get('settledAmount', 0) == 0 || request.resource.data.get('amount', 0) == resource.data.get('amount', 0))
         && request.resource.data.version == resource.data.get('version', 0) + 1;
       allow delete: if activeUser() && (directorOrAccountant() || userRole() in ['manager', 'operator'])
         && name == 'gestao_cashClosings'
-        && resource.data.tenantId == tenantId()
+        && resource.data.get('tenantId', tenantId()) == tenantId()
         && resource.data.get('status', '') != 'Conferido';
     }
     match /gestao_locks/{id} {
-      allow get, list: if activeUser() && (!exists(/databases/$(database)/documents/gestao_locks/$(id)) || resource.data.tenantId == tenantId());
+      allow get, list: if activeUser() && (!exists(/databases/$(database)/documents/gestao_locks/$(id)) || resource.data.get('tenantId', tenantId()) == tenantId());
       allow create, update: if activeUser() && directorOrAccountant()
-        && request.resource.data.tenantId == tenantId()
+        && request.resource.data.get('tenantId', tenantId()) == tenantId()
         && request.resource.data.updatedBy == request.auth.uid
         && request.resource.data.closed is bool;
       allow delete: if false;
     }
     match /gestao_unique/{id} {
-      allow get, list: if activeUser() && (!exists(/databases/$(database)/documents/gestao_unique/$(id)) || resource.data.tenantId == tenantId());
-      allow create, update: if activeUser() && request.resource.data.tenantId == tenantId()
+      allow get, list: if activeUser() && (!exists(/databases/$(database)/documents/gestao_unique/$(id)) || resource.data.get('tenantId', tenantId()) == tenantId());
+      allow create, update: if activeUser() && request.resource.data.get('tenantId', tenantId()) == tenantId()
         && request.resource.data.updatedBy == request.auth.uid
         && (directorOrAccountant()
           || userRole() in ['manager', 'operator']);
@@ -219,7 +225,7 @@ service cloud.firestore {
     match /gestao_audit/{id} {
       allow read: if activeUser() && (directorOrAccountant()
         || userRole() in ['manager', 'operator']);
-      allow create: if activeUser() && request.resource.data.tenantId == tenantId()
+      allow create: if activeUser() && request.resource.data.get('tenantId', tenantId()) == tenantId()
         && request.resource.data.updatedBy == request.auth.uid
         && (directorOrAccountant()
           || userRole() in ['manager', 'operator']
