@@ -7,7 +7,7 @@ export const MANAGEMENT_NAV = [
   { title: "Tarefas", href: "/tarefas", icon: Columns3, roles: ["admin","accountant","manager"] },
   { title: "Vendas", href: "/faturamento", icon: TrendingUp, roles: ["admin","accountant","manager"] },
   { title: "Fechamento de caixa", href: "/fechamento-caixa", icon: ClipboardCheck, roles: ["admin","accountant","operator"] },
-  { title: "Auditoria de motoboys & notas", href: "/auditoria-caixa", icon: Bike, roles: ["admin","accountant","operator"] },
+  { title: "Auditoria de motoboys & notas", href: "/auditoria-caixa", icon: Bike, roles: ["operator"] },
   { title: "Conferência de caixa", href: "/conferencia-caixa", icon: BadgeCheck, roles: ["admin","accountant"] },
   { title: "Equipe", href: "/rh", icon: Users, roles: ["admin","accountant"] },
   { title: "Documentos", href: "/documentos", icon: FolderLock, roles: ["admin","accountant"] },
