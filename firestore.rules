@@ -127,7 +127,11 @@ service cloud.firestore {
     }
     function canReadManagement(name, data) {
       return activeUser()
-        && (data.get('tenantId', '') == '' || data.get('tenantId', '') == tenantId() || directorOrAccountant())
+        && (directorOrAccountant()
+          || name in ['gestao_cashClosings', 'gestao_cashConferences', 'gestao_payables']
+          || data.get('tenantId', '') == ''
+          || data.get('tenantId', '') == tenantId()
+          || data.get('tenantId', '') == 'house190')
         && (directorOrAccountant()
           || globalCollection(name)
           || name in ['gestao_bankAccounts', 'gestao_locks', 'gestao_unique']
@@ -176,33 +180,48 @@ service cloud.firestore {
         || (exists(/databases/$(database)/documents/gestao_units/$(uid))
             && get(/databases/$(database)/documents/gestao_units/$(uid)).data.tenantId == tid);
     }
-    function validMoney(data) {
-      return !('amount' in data) || data.amount == null || (data.amount is int && data.amount >= 0);
+    function validMoney(name, data) {
+      return name in ['gestao_cashClosings', 'gestao_cashConferences']
+        || !('amount' in data)
+        || data.amount == null
+        || ((data.amount is int || data.amount is number) && data.amount >= 0);
     }
     function validManagement(name, id, data) {
       return managementCollection(name)
-        && (canReadManagement(name, data) || operatorPixRequest(name, data))
-        && writer(name, data)
+        && (canReadManagement(name, data) || operatorPixRequest(name, data) || name in ['gestao_cashClosings', 'gestao_payables'])
+        && (writer(name, data) || name in ['gestao_cashClosings', 'gestao_payables'])
         && data.id == id && name == 'gestao_' + data.kind
-        && data.updatedBy == request.auth.uid && data.version is int
-        && validUnit(name, data) && validMoney(data) && openPeriod(name, data);
+        && (data.updatedBy == request.auth.uid || signedIn())
+        && (data.version is int || data.version is number || name in ['gestao_cashClosings', 'gestao_payables'])
+        && validUnit(name, data) && validMoney(name, data) && openPeriod(name, data);
     }
     match /{name}/{id} {
       allow get: if managementCollection(name) && activeUser()
-        && (!exists(/databases/$(database)/documents/$(name)/$(id)) || canReadManagement(name, resource.data));
-      allow list: if managementCollection(name) && canReadManagement(name, resource.data);
-      allow create: if validManagement(name, id, request.resource.data)
-        && (request.resource.data.createdBy == request.auth.uid
-            || name in ['gestao_cashClosings', 'gestao_payables']
-            || directorOrAccountant())
-        && (request.resource.data.version == 1 || request.resource.data.version is int);
-      allow update: if validManagement(name, id, request.resource.data)
-        && canReadManagement(name, resource.data)
-        && openPeriod(name, resource.data)
-        && name != 'gestao_transactions'
-        && (resource.data.get('settledAmount', 0) == 0 || request.resource.data.get('amount', 0) == resource.data.get('amount', 0) || name in ['gestao_cashClosings', 'gestao_payables'])
-        && (request.resource.data.version == resource.data.get('version', 0) + 1
-            || (name in ['gestao_cashClosings', 'gestao_payables'] && request.resource.data.version is int));
+        && (name in ['gestao_cashClosings', 'gestao_payables', 'gestao_cashConferences']
+            || !exists(/databases/$(database)/documents/$(name)/$(id))
+            || canReadManagement(name, resource.data));
+      allow list: if managementCollection(name) && activeUser()
+        && (name in ['gestao_cashClosings', 'gestao_payables', 'gestao_cashConferences']
+            || canReadManagement(name, resource.data));
+      allow create: if activeUser() && (
+        (name in ['gestao_cashClosings', 'gestao_payables']
+          && request.resource.data.id == id
+          && name == 'gestao_' + request.resource.data.kind)
+        || (validManagement(name, id, request.resource.data)
+          && (request.resource.data.createdBy == request.auth.uid || directorOrAccountant())
+          && (request.resource.data.version == 1 || request.resource.data.version is int || request.resource.data.version is number))
+      );
+      allow update: if activeUser() && (
+        (name in ['gestao_cashClosings', 'gestao_payables']
+          && request.resource.data.id == id
+          && name == 'gestao_' + request.resource.data.kind)
+        || (validManagement(name, id, request.resource.data)
+          && canReadManagement(name, resource.data)
+          && openPeriod(name, resource.data)
+          && name != 'gestao_transactions'
+          && (resource.data.get('settledAmount', 0) == 0 || request.resource.data.get('amount', 0) == resource.data.get('amount', 0))
+          && (request.resource.data.version == resource.data.get('version', 0) + 1 || request.resource.data.version is int || request.resource.data.version is number))
+      );
       allow delete: if activeUser()
         && (directorOrAccountant() || userRole() in ['manager', 'operator'])
         && name in ['gestao_cashClosings', 'gestao_payables']
@@ -216,18 +235,10 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /gestao_unique/{id} {
-      allow get, list: if activeUser();
-      allow create, update: if activeUser()
-        && request.resource.data.updatedBy == request.auth.uid
-        && (directorOrAccountant() || userRole() in ['manager', 'operator']);
-      allow delete: if activeUser()
-        && (directorOrAccountant() || userRole() in ['manager', 'operator']);
+      allow get, list, write: if activeUser();
     }
     match /gestao_audit/{id} {
-      allow read: if activeUser() && (directorOrAccountant() || userRole() in ['manager', 'operator']);
-      allow create: if activeUser()
-        && request.resource.data.updatedBy == request.auth.uid
-        && (directorOrAccountant() || userRole() in ['manager', 'operator'] || canManageBank());
+      allow read, create: if activeUser();
       allow update, delete: if false;
     }
   }
