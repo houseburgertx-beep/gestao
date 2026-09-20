@@ -6,17 +6,21 @@ service cloud.firestore {
     }
 
     function userProfile() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : {};
     }
 
     function activeUser() {
       return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && userProfile().active != false;
+        && (!exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            || userProfile().get('active', true) != false);
     }
 
     function userRole() {
-      let r = userProfile().get('role', 'operator');
+      let r = exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? userProfile().get('role', 'operator')
+        : 'operator';
       return r in ['admin', 'administrador', 'proprietario', 'dono', 'diretoria', 'diretor', 'gestao', 'Admin', 'Administrador'] ? 'admin'
         : r in ['accountant', 'contador', 'contadora', 'financeiro', 'Financeiro', 'Contador', 'Contadora'] ? 'accountant'
         : r in ['manager', 'gerente', 'gestor', 'Gerente', 'Gestor'] ? 'manager'
@@ -82,8 +86,7 @@ service cloud.firestore {
     // Source reports are shared across screens without publishing credentials.
     match /takeat_reports/{id} {
       function ownReport(data) {
-        return activeUser() && data.get('tenantId', tenantId()) == tenantId()
-          && (directorOrAccountant() || data.unitId == userProfile().get('unitId', ''));
+        return activeUser() && (directorOrAccountant() || data.unitId == userProfile().get('unitId', ''));
       }
       function validReport(data) {
         return ownReport(data) && (directorOrAccountant() || userRole() == 'manager')
@@ -123,28 +126,26 @@ service cloud.firestore {
         'gestao_categories', 'gestao_suppliers', 'gestao_products', 'gestao_policies', 'gestao_employeeVales'];
     }
     function canReadManagement(name, data) {
-      return activeUser() && data.get('tenantId', tenantId()) == tenantId()
+      return activeUser()
+        && (data.get('tenantId', '') == '' || data.get('tenantId', '') == tenantId() || directorOrAccountant())
         && (directorOrAccountant()
           || globalCollection(name)
           || name in ['gestao_bankAccounts', 'gestao_locks', 'gestao_unique']
-          || (userRole() in ['manager', 'operator'] && name in ['gestao_cashClosings', 'gestao_cashConferences'])
-          || (userRole() == 'manager' && name in ['gestao_actions','gestao_goals','gestao_revenues','gestao_sales','gestao_bankAccounts'])
-          || (userRole() in ['manager', 'operator'] && name == 'gestao_payables'));
+          || (userRole() in ['manager', 'operator'] && name in ['gestao_cashClosings', 'gestao_cashConferences', 'gestao_payables'])
+          || (userRole() == 'manager' && name in ['gestao_actions','gestao_goals','gestao_revenues','gestao_sales','gestao_bankAccounts']));
     }
     function operatorPixRequest(name, data) {
       return activeUser() && name == 'gestao_payables'
-        && (directorOrAccountant() || userRole() in ['manager', 'operator'])
         && data.get('sourceId', '') != ''
-        && data.get('paymentMethod', '') == 'PIX';
+        && (directorOrAccountant() || userRole() in ['manager', 'operator']);
     }
     function writer(name, data) {
       return (name in ['gestao_policies', 'gestao_companies', 'gestao_brands', 'gestao_units'] ? adminUser()
         : directorOrAccountant()
           || (name in ['gestao_bankAccounts', 'gestao_bankTransfers'] && canManageBank())
           || (userRole() == 'manager' && name in ['gestao_actions', 'gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_cashConferences'])
-          || (userRole() in ['manager', 'operator'] && name == 'gestao_cashClosings')
+          || (userRole() in ['manager', 'operator'] && name in ['gestao_cashClosings', 'gestao_payables'])
           || (name == 'gestao_employeeVales' && (directorOrAccountant() || userRole() in ['manager', 'operator']))
-          || (name == 'gestao_payables' && (directorOrAccountant() || userRole() in ['manager', 'operator']) && data.get('sourceId', '') != '')
           || operatorPixRequest(name, data));
     }
     function recordMonth(data) {
@@ -157,7 +158,7 @@ service cloud.firestore {
       let tid = data.get('tenantId', tenantId());
       let uid = data.get('unitId', '');
       return globalCollection(name)
-        || name in ['gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_closings', 'gestao_cashClosings', 'gestao_cashConferences', 'gestao_coverage', 'gestao_actions', 'gestao_employeeVales']
+        || name in ['gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_closings', 'gestao_cashClosings', 'gestao_cashConferences', 'gestao_coverage', 'gestao_actions', 'gestao_employeeVales', 'gestao_payables']
         || month == ''
         || uid == ''
         || !exists(/databases/$(database)/documents/gestao_locks/$(tid + '_' + uid + '_' + month))
@@ -179,7 +180,9 @@ service cloud.firestore {
       return !('amount' in data) || data.amount == null || (data.amount is int && data.amount >= 0);
     }
     function validManagement(name, id, data) {
-      return managementCollection(name) && (canReadManagement(name, data) || operatorPixRequest(name, data)) && writer(name, data)
+      return managementCollection(name)
+        && (canReadManagement(name, data) || operatorPixRequest(name, data))
+        && writer(name, data)
         && data.id == id && name == 'gestao_' + data.kind
         && data.updatedBy == request.auth.uid && data.version is int
         && validUnit(name, data) && validMoney(data) && openPeriod(name, data);
@@ -189,47 +192,42 @@ service cloud.firestore {
         && (!exists(/databases/$(database)/documents/$(name)/$(id)) || canReadManagement(name, resource.data));
       allow list: if managementCollection(name) && canReadManagement(name, resource.data);
       allow create: if validManagement(name, id, request.resource.data)
-        && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.version == 1;
+        && (request.resource.data.createdBy == request.auth.uid
+            || name in ['gestao_cashClosings', 'gestao_payables']
+            || directorOrAccountant())
+        && (request.resource.data.version == 1 || request.resource.data.version is int);
       allow update: if validManagement(name, id, request.resource.data)
-        && canReadManagement(name, resource.data) && openPeriod(name, resource.data)
-        && request.resource.data.get('tenantId', tenantId()) == resource.data.get('tenantId', tenantId())
-        && (request.resource.data.get('unitId', '') == resource.data.get('unitId', '') || name in ['gestao_bankAccounts', 'gestao_suppliers', 'gestao_cashClosings', 'gestao_employeeVales', 'gestao_payables'])
-        && (request.resource.data.get('createdBy', '') == resource.data.get('createdBy', '') || !('createdBy' in resource.data) || name in ['gestao_bankAccounts', 'gestao_suppliers', 'gestao_cashClosings', 'gestao_employeeVales', 'gestao_payables'])
+        && canReadManagement(name, resource.data)
+        && openPeriod(name, resource.data)
         && name != 'gestao_transactions'
-        && (resource.data.get('settledAmount', 0) == 0 || request.resource.data.get('amount', 0) == resource.data.get('amount', 0))
-        && request.resource.data.version == resource.data.get('version', 0) + 1;
-      allow delete: if activeUser() && (directorOrAccountant() || userRole() in ['manager', 'operator'])
-        && name == 'gestao_cashClosings'
-        && resource.data.get('tenantId', tenantId()) == tenantId()
+        && (resource.data.get('settledAmount', 0) == 0 || request.resource.data.get('amount', 0) == resource.data.get('amount', 0) || name in ['gestao_cashClosings', 'gestao_payables'])
+        && (request.resource.data.version == resource.data.get('version', 0) + 1
+            || (name in ['gestao_cashClosings', 'gestao_payables'] && request.resource.data.version is int));
+      allow delete: if activeUser()
+        && (directorOrAccountant() || userRole() in ['manager', 'operator'])
+        && name in ['gestao_cashClosings', 'gestao_payables']
         && resource.data.get('status', '') != 'Conferido';
     }
     match /gestao_locks/{id} {
-      allow get, list: if activeUser() && (!exists(/databases/$(database)/documents/gestao_locks/$(id)) || resource.data.get('tenantId', tenantId()) == tenantId());
+      allow get, list: if activeUser();
       allow create, update: if activeUser() && directorOrAccountant()
-        && request.resource.data.get('tenantId', tenantId()) == tenantId()
         && request.resource.data.updatedBy == request.auth.uid
         && request.resource.data.closed is bool;
       allow delete: if false;
     }
     match /gestao_unique/{id} {
-      allow get, list: if activeUser() && (!exists(/databases/$(database)/documents/gestao_unique/$(id)) || resource.data.get('tenantId', tenantId()) == tenantId());
-      allow create, update: if activeUser() && request.resource.data.get('tenantId', tenantId()) == tenantId()
+      allow get, list: if activeUser();
+      allow create, update: if activeUser()
         && request.resource.data.updatedBy == request.auth.uid
-        && (directorOrAccountant()
-          || userRole() in ['manager', 'operator']);
+        && (directorOrAccountant() || userRole() in ['manager', 'operator']);
       allow delete: if activeUser()
-        && (directorOrAccountant()
-          || userRole() in ['manager', 'operator']);
+        && (directorOrAccountant() || userRole() in ['manager', 'operator']);
     }
     match /gestao_audit/{id} {
-      allow read: if activeUser() && (directorOrAccountant()
-        || userRole() in ['manager', 'operator']);
-      allow create: if activeUser() && request.resource.data.get('tenantId', tenantId()) == tenantId()
+      allow read: if activeUser() && (directorOrAccountant() || userRole() in ['manager', 'operator']);
+      allow create: if activeUser()
         && request.resource.data.updatedBy == request.auth.uid
-        && (directorOrAccountant()
-          || userRole() in ['manager', 'operator']
-          || canManageBank());
+        && (directorOrAccountant() || userRole() in ['manager', 'operator'] || canManageBank());
       allow update, delete: if false;
     }
   }
