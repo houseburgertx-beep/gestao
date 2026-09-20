@@ -1,4 +1,4 @@
-import { TrendingUp, Users, ReceiptText, Truck, Columns3, FolderLock, Landmark, ClipboardCheck, BadgeCheck, FileText } from "lucide-react";
+import { TrendingUp, Users, ReceiptText, Truck, Columns3, FolderLock, Landmark, ClipboardCheck, BadgeCheck, FileText, Bike } from "lucide-react";
 export const MANAGEMENT_NAV = [
   { title: "Contas a pagar", href: "/", icon: ReceiptText, roles: ["admin","accountant"] },
   { title: "NF Recebidas", href: "/nfe-recebida", icon: FileText, roles: ["admin","accountant"] },
@@ -7,6 +7,7 @@ export const MANAGEMENT_NAV = [
   { title: "Tarefas", href: "/tarefas", icon: Columns3, roles: ["admin","accountant","manager"] },
   { title: "Vendas", href: "/faturamento", icon: TrendingUp, roles: ["admin","accountant","manager"] },
   { title: "Fechamento de caixa", href: "/fechamento-caixa", icon: ClipboardCheck, roles: ["admin","accountant","operator"] },
+  { title: "Auditoria de motoboys & notas", href: "/auditoria-caixa", icon: Bike, roles: ["admin","accountant","operator"] },
   { title: "Conferência de caixa", href: "/conferencia-caixa", icon: BadgeCheck, roles: ["admin","accountant"] },
   { title: "Equipe", href: "/rh", icon: Users, roles: ["admin","accountant"] },
   { title: "Documentos", href: "/documentos", icon: FolderLock, roles: ["admin","accountant"] },
@@ -48,7 +49,7 @@ export function roleCanAccess(role: string | undefined, pathname?: string | null
     return path.startsWith("/tarefas") || path.startsWith("/faturamento") || path.startsWith("/integracoes/takeat") || path.startsWith("/nfe-recebida");
   }
   if (norm === "operator") {
-    return path.startsWith("/fechamento-caixa");
+    return path.startsWith("/fechamento-caixa") || path.startsWith("/auditoria-caixa");
   }
   return false;
 }

@@ -83,6 +83,8 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       ? "Novo colaborador"
       : cleanPath.startsWith("/fechamento-caixa")
         ? "Novo fechamento"
+      : cleanPath.startsWith("/auditoria-caixa")
+        ? "Atualizar auditoria"
       : cleanPath.startsWith("/conferencia-caixa")
         ? "Nova conferência"
       : cleanPath.startsWith("/fornecedores")
@@ -108,6 +110,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       return;
     }
     if (cleanPath.startsWith("/fechamento-caixa")) { window.dispatchEvent(new CustomEvent("open-cashClosings-form")); return; }
+    if (cleanPath.startsWith("/auditoria-caixa")) { window.dispatchEvent(new CustomEvent("refresh-cash-audit")); return; }
     if (cleanPath.startsWith("/conferencia-caixa")) { window.dispatchEvent(new CustomEvent("open-cashConferences-form")); return; }
     if (cleanPath.startsWith("/fornecedores")) {
       window.dispatchEvent(new CustomEvent("open-supplier-form"));

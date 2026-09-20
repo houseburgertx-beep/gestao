@@ -340,11 +340,10 @@ function generateWhatsAppClosingText(row: RecordData, unitName: string) {
   return text;
 }
 
-export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
+export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audit" }) {
   const { data } = useManagement(); const { user, userProfile } = useAuth();
   const [closingOpen, setClosingOpen] = useState(false); const [editingClosing, setEditingClosing] = useState<RecordData|null>(null); const [reviewing, setReviewing] = useState<RecordData|null>(null); const [message, setMessage] = useState("");
   const [viewingClosing, setViewingClosing] = useState<RecordData|null>(null);
-  const [closingTab, setClosingTab] = useState<"closings" | "audit">("closings");
   const [confTab, setConfTab] = useState<"queue"|"audit"|"rates">("queue");
   const [queueFilter, setQueueFilter] = useState<string>("all");
 
@@ -389,7 +388,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
   const userUnit = userProfile?.unitId;
   const roleStr = String(userProfile?.role || "");
   const isOperator = roleStr === "operator" || roleStr === "operador" || roleStr === "caixa";
-  const visible = mode === "closing"
+  const visible = mode === "closing" || mode === "audit"
     ? (isOperator && userUnit && userUnit !== "all" ? closings.filter(r => r.unitId === userUnit) : closings)
     : closings.filter(r => r.status !== "Rascunho");
 
@@ -418,28 +417,43 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
     );
   };
   const auditClosings = closings.filter(hasAuditData);
-  const visibleAuditClosings = visible.filter(hasAuditData);
 
   return <div className="workspace-shell cash-workspace">
-    <header className="workspace-header"><div><span className="workspace-eyebrow">FECHAMENTO DE CAIXA HOUSE 190</span><h1>{mode==="closing"?"Fechamento de caixa":"Conferência financeira"}</h1><p>{mode==="closing"?"Entrada total e conciliação objetiva de Dinheiro, Crédito, Débito e PIX.":"Compare os valores apurados, revise divergências, audite motoboys e aprove os saldos líquidos dos bancos."}</p></div>{mode==="closing"&&<button className="workspace-primary" onClick={()=>{ setEditingClosing(null); setClosingOpen(true); }}><Plus size={16}/> Novo fechamento</button>}</header>
-    <section className="workspace-metrics">
-      <Metric icon={Wallet} tone="purple" label="Registros de hoje" value={String(todayRows.length)}/>
-      <Metric icon={Calculator} tone={difference===0?"green":"red"} label="Diferença do dia" value={brl(difference)}/>
-      <Metric icon={AlertTriangle} tone={pending.length>0?"red":"green"} label="Aguardando financeiro" value={String(pending.length)}/>
-      <Metric icon={CheckCircle2} tone="green" label="Conferidos" value={String(reviewed.length)}/>
-    </section>
-    {message&&<p className="workspace-message">{message}</p>}
-
-    {mode === "closing" ? (
-      <div className="cash-subtabs">
-        <button className={`cash-subtab ${closingTab === "closings" ? "active" : ""}`} onClick={() => setClosingTab("closings")}>
-          <ClipboardCheck size={16} /> Fechamentos de Caixa <b>{visible.length}</b>
-        </button>
-        <button className={`cash-subtab ${closingTab === "audit" ? "active" : ""}`} onClick={() => setClosingTab("audit")}>
-          <FileText size={16} /> Auditoria de Motoboys & Notas <b>{visibleAuditClosings.length}</b>
-        </button>
-      </div>
+    {mode === "audit" ? (
+      <header className="workspace-header">
+        <div>
+          <span className="workspace-eyebrow">AUDITORIA OPERACIONAL HOUSE 190</span>
+          <h1>Auditoria de motoboys & notas</h1>
+          <p>Confronto diário de entregadores e notas fiscais com histórico preservado para conferência rápida.</p>
+        </div>
+      </header>
     ) : (
+      <header className="workspace-header">
+        <div>
+          <span className="workspace-eyebrow">{mode === "closing" ? "FECHAMENTO DE CAIXA HOUSE 190" : "CONFERÊNCIA FINANCEIRA HOUSE 190"}</span>
+          <h1>{mode === "closing" ? "Fechamento de caixa" : "Conferência financeira"}</h1>
+          <p>{mode === "closing" ? "Entrada total e conciliação objetiva de Dinheiro, Crédito, Débito e PIX." : "Compare os valores apurados, revise divergências, audite motoboys e aprove os saldos líquidos dos bancos."}</p>
+        </div>
+        {mode === "closing" && (
+          <button className="workspace-primary" onClick={() => { setEditingClosing(null); setClosingOpen(true); }}>
+            <Plus size={16} /> Novo fechamento
+          </button>
+        )}
+      </header>
+    )}
+
+    {mode !== "audit" && (
+      <section className="workspace-metrics">
+        <Metric icon={Wallet} tone="purple" label="Registros de hoje" value={String(todayRows.length)}/>
+        <Metric icon={Calculator} tone={difference === 0 ? "green" : "red"} label="Diferença do dia" value={brl(difference)}/>
+        <Metric icon={AlertTriangle} tone={pending.length > 0 ? "red" : "green"} label="Aguardando financeiro" value={String(pending.length)}/>
+        <Metric icon={CheckCircle2} tone="green" label="Conferidos" value={String(reviewed.length)}/>
+      </section>
+    )}
+
+    {message && <p className="workspace-message">{message}</p>}
+
+    {mode === "conference" && (
       <div className="cash-subtabs">
         <button className={`cash-subtab ${confTab === "queue" ? "active" : ""}`} onClick={() => setConfTab("queue")}>
           <ClipboardCheck size={16} /> Caixas para conferência <b>{pending.length}</b>
@@ -453,8 +467,8 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" }) {
       </div>
     )}
 
-    {mode === "closing" && closingTab === "audit" ? (
-      <AuditHistoryTab closings={visible} isOperatorMode onViewClosing={setViewingClosing} />
+    {mode === "audit" ? (
+      <AuditHistoryTab closings={visible} isOperatorMode={isOperator} onViewClosing={setViewingClosing} />
     ) : mode === "conference" && confTab === "audit" ? (
       <AuditHistoryTab closings={closings} onViewClosing={setViewingClosing} />
     ) : mode === "conference" && confTab === "rates" ? (
@@ -4467,6 +4481,12 @@ function AuditHistoryTab({
     setTimeout(() => setRefreshing(false), 500);
   };
 
+  useEffect(() => {
+    const onRefresh = () => handleRefresh();
+    window.addEventListener("refresh-cash-audit", onRefresh);
+    return () => window.removeEventListener("refresh-cash-audit", onRefresh);
+  }, []);
+
   // Filter closings by unit and search query
   const filtered = useMemo(() => {
     return closings.filter(c => {
@@ -4787,24 +4807,77 @@ function AuditHistoryTab({
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="cash-audit-kpis">
-        <div className="cash-audit-kpi-pill">
-          <span>Motoboy Total Pago</span>
-          <strong>{brl(totalMotoboyPaid)}</strong>
-        </div>
-        <div className={`cash-audit-kpi-pill ${totalMotoboyDiff === 0 ? "ok" : "bad"}`}>
-          <span>Diferença Motoboys</span>
-          <strong>{brl(totalMotoboyDiff)}</strong>
-        </div>
-        <div className="cash-audit-kpi-pill">
-          <span>Notas Emitidas</span>
-          <strong>{brl(totalInvoiceIssued)}</strong>
-        </div>
-        <div className={`cash-audit-kpi-pill ${totalInvoiceDiff === 0 ? "ok" : "bad"}`}>
-          <span>Diferença Notas</span>
-          <strong>{brl(totalInvoiceDiff)}</strong>
-        </div>
+      {/* Contextual Minimalist Stats Strip */}
+      <div className="cash-audit-stats-strip">
+        {subFilter === "motoboy" && (
+          <>
+            <div className="cash-audit-stat-chip">
+              <span className="label">Total Pago:</span>
+              <strong>{brl(totalMotoboyPaid)}</strong>
+            </div>
+            <div className={`cash-audit-stat-chip ${totalMotoboyDiff === 0 ? "ok" : "bad"}`}>
+              <span className="label">Divergência:</span>
+              <strong>{brl(Math.abs(totalMotoboyDiff))}</strong>
+              <span className="sub">
+                ({totalMotoboyDiff === 0 ? "Conferido" : totalMotoboyDiff > 0 ? "Pago a mais" : "Pago a menos"})
+              </span>
+            </div>
+          </>
+        )}
+        {subFilter === "fiscal" && (
+          <>
+            <div className="cash-audit-stat-chip">
+              <span className="label">Total Emitido:</span>
+              <strong>{brl(totalInvoiceIssued)}</strong>
+            </div>
+            <div className={`cash-audit-stat-chip ${totalInvoiceDiff === 0 ? "ok" : "bad"}`}>
+              <span className="label">Divergência Fiscal:</span>
+              <strong>{brl(Math.abs(totalInvoiceDiff))}</strong>
+              <span className="sub">
+                ({totalInvoiceDiff === 0 ? "Nota confere" : totalInvoiceDiff > 0 ? "Sobra fiscal" : "Divergência"})
+              </span>
+            </div>
+          </>
+        )}
+        {subFilter === "divergent" && (
+          <>
+            <div className="cash-audit-stat-chip bad">
+              <AlertTriangle size={13} className="text-amber-500" />
+              <span className="label">Divergências Identificadas:</span>
+              <strong>{divergentItems.length} registro(s)</strong>
+            </div>
+            {totalMotoboyDiff !== 0 && (
+              <div className="cash-audit-stat-chip bad">
+                <span className="label">Dif. Motoboys:</span>
+                <strong>{brl(totalMotoboyDiff)}</strong>
+              </div>
+            )}
+            {totalInvoiceDiff !== 0 && (
+              <div className="cash-audit-stat-chip bad">
+                <span className="label">Dif. Fiscal:</span>
+                <strong>{brl(totalInvoiceDiff)}</strong>
+              </div>
+            )}
+          </>
+        )}
+        {subFilter === "all" && (
+          <>
+            <div className="cash-audit-stat-chip">
+              <span className="label">Motoboys Pago:</span>
+              <strong>{brl(totalMotoboyPaid)}</strong>
+            </div>
+            <div className="cash-audit-stat-chip">
+              <span className="label">Notas Emitidas:</span>
+              <strong>{brl(totalInvoiceIssued)}</strong>
+            </div>
+            {(totalMotoboyDiff !== 0 || totalInvoiceDiff !== 0) && (
+              <div className="cash-audit-stat-chip bad">
+                <span className="label">Divergências:</span>
+                <strong>{brl(totalMotoboyDiff + totalInvoiceDiff)}</strong>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Cards List */}
