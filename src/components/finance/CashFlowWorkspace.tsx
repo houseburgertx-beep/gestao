@@ -260,79 +260,79 @@ export function CashFlowWorkspace({
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
       {statusMessage && (
-        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2.5 text-emerald-400 text-xs font-semibold">
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-emerald-700 text-xs font-semibold shadow-sm">
           <CheckCircle2 size={16} />
           <span>{statusMessage}</span>
         </div>
       )}
 
-      {/* ── KPI Cards Header ────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* ── KPI Cards Header (Modo Claro) ────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* Card 1: Saldo Total dos Bancos */}
-        <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800 shadow-xl flex flex-col justify-between relative overflow-hidden group">
+        <div className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm flex flex-col justify-between relative overflow-hidden group">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400">Saldo Total dos Bancos</span>
-            <div className="h-8 w-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-              <Wallet size={16} />
+            <span className="text-xs font-semibold text-zinc-500">Saldo Total dos Bancos</span>
+            <div className="h-9 w-9 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600 shadow-sm">
+              <Wallet size={17} />
             </div>
           </div>
           <div className="mt-3">
-            <strong className={`text-xl sm:text-2xl font-bold tracking-tight ${totalBankBalance >= 0 ? "text-white" : "text-rose-400"}`}>
+            <strong className={`text-2xl font-bold tracking-tight ${totalBankBalance >= 0 ? "text-zinc-900" : "text-rose-600"}`}>
               {currency(totalBankBalance)}
             </strong>
-            <span className="block text-[11px] text-zinc-500 mt-0.5 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[11px] text-zinc-500 mt-1 flex items-center gap-1.5 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               Atualizado em tempo real ({bankAccounts.length} contas)
             </span>
           </div>
         </div>
 
         {/* Card 2: Saídas Totais no Período */}
-        <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800 shadow-xl flex flex-col justify-between relative overflow-hidden">
+        <div className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm flex flex-col justify-between relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400">Saídas Totais (Baixas)</span>
-            <div className="h-8 w-8 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
-              <TrendingDown size={16} />
+            <span className="text-xs font-semibold text-zinc-500">Saídas Totais (Baixas)</span>
+            <div className="h-9 w-9 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shadow-sm">
+              <TrendingDown size={17} />
             </div>
           </div>
           <div className="mt-3">
-            <strong className="text-xl sm:text-2xl font-bold tracking-tight text-rose-400">
+            <strong className="text-2xl font-bold tracking-tight text-rose-600">
               -{currency(totalOutflowsAmount)}
             </strong>
-            <span className="block text-[11px] text-zinc-500 mt-0.5">
+            <span className="block text-[11px] text-zinc-500 mt-1 font-medium">
               {outflowsCount === 1 ? "1 pagamento registrado" : `${outflowsCount} pagamentos registrados`}
             </span>
           </div>
         </div>
 
-        {/* Card 3: Saldo Disponível Consolidado */}
-        <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800 shadow-xl flex flex-col justify-between relative overflow-hidden">
+        {/* Card 3: Posição Financeira Líquida */}
+        <div className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm flex flex-col justify-between relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400">Posição Financeira Líquida</span>
-            <div className="h-8 w-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-              <Landmark size={16} />
+            <span className="text-xs font-semibold text-zinc-500">Posição Financeira Líquida</span>
+            <div className="h-9 w-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-sm">
+              <Landmark size={17} />
             </div>
           </div>
           <div className="mt-3">
-            <strong className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-100">
+            <strong className="text-2xl font-bold tracking-tight text-zinc-900">
               {currency(totalBankBalance)}
             </strong>
-            <span className="block text-[11px] text-zinc-500 mt-0.5">
-              Disponível em caixa e bancos
+            <span className="block text-[11px] text-zinc-500 mt-1 font-medium">
+              Disponível consolidado em bancos
             </span>
           </div>
         </div>
 
-        {/* Card 4: Status do Período */}
-        <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800 shadow-xl flex flex-col justify-between relative overflow-hidden">
+        {/* Card 4: Filtro de Visualização */}
+        <div className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm flex flex-col justify-between relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400">Filtro de Visualização</span>
-            <div className="h-8 w-8 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300">
-              <Filter size={15} />
+            <span className="text-xs font-semibold text-zinc-500">Período Selecionado</span>
+            <div className="h-9 w-9 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-600">
+              <Filter size={16} />
             </div>
           </div>
           <div className="mt-3">
-            <span className="text-sm font-bold text-purple-400">
+            <span className="text-base font-bold text-purple-700 block truncate">
               {periodFilter === "today"
                 ? "Pagamentos de Hoje"
                 : periodFilter === "yesterday"
@@ -343,18 +343,18 @@ export function CashFlowWorkspace({
                 ? "Mês Vigente"
                 : "Todo o Histórico"}
             </span>
-            <span className="block text-[11px] text-zinc-500 mt-0.5">
+            <span className="block text-[11px] text-zinc-500 mt-1 font-medium">
               Exibindo apenas saídas confirmadas
             </span>
           </div>
         </div>
       </div>
 
-      {/* ── Filtros e Barra de Ações ─────────────────────────────────── */}
-      <div className="p-3.5 bg-zinc-900/80 border border-zinc-800 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex flex-wrap items-center gap-2">
+      {/* ── Filtros e Barra de Ações (Modo Claro & Alturas Corrigidas) ── */}
+      <div className="p-4 bg-white border border-zinc-200 rounded-2xl shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2.5">
           {/* Período */}
-          <div className="flex items-center bg-zinc-800/90 rounded-xl p-1 border border-zinc-700">
+          <div className="flex items-center bg-zinc-100 rounded-xl p-1 border border-zinc-200">
             {[
               { id: "today", label: "Hoje" },
               { id: "yesterday", label: "Ontem" },
@@ -366,10 +366,10 @@ export function CashFlowWorkspace({
                 key={tab.id}
                 type="button"
                 onClick={() => setPeriodFilter(tab.id as any)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                   periodFilter === tab.id
-                    ? "bg-purple-600 text-white shadow"
-                    : "text-zinc-400 hover:text-zinc-200"
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "text-zinc-600 hover:text-zinc-900"
                 }`}
               >
                 {tab.label}
@@ -377,11 +377,11 @@ export function CashFlowWorkspace({
             ))}
           </div>
 
-          {/* Filtro por Banco */}
+          {/* Filtro por Banco (com altura h-10 e sem corte de texto!) */}
           <select
             value={bankFilter}
             onChange={(e) => setBankFilter(e.target.value)}
-            className="h-8 px-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-zinc-300 text-xs focus:outline-none focus:border-purple-500"
+            className="h-10 px-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-800 text-xs font-semibold focus:bg-white focus:outline-none focus:border-purple-600 transition"
           >
             <option value="all">Todos os bancos</option>
             {bankAccounts.map((b) => (
@@ -391,12 +391,12 @@ export function CashFlowWorkspace({
             ))}
           </select>
 
-          {/* Filtro por Loja / Unidade */}
+          {/* Filtro por Loja / Unidade (com altura h-10 e sem corte de texto!) */}
           {data.units.length > 1 && (
             <select
               value={unitFilter}
               onChange={(e) => setUnitFilter(e.target.value)}
-              className="h-8 px-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-zinc-300 text-xs focus:outline-none focus:border-purple-500"
+              className="h-10 px-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-800 text-xs font-semibold focus:bg-white focus:outline-none focus:border-purple-600 transition"
             >
               <option value="all">Todas as unidades</option>
               {data.units
@@ -412,47 +412,49 @@ export function CashFlowWorkspace({
 
         {/* Busca por texto */}
         <div className="relative w-full sm:w-64">
-          <Search size={13} className="absolute left-3 top-2.5 text-zinc-400" />
+          <Search size={14} className="absolute left-3.5 top-3 text-zinc-400" />
           <input
             type="text"
             placeholder="Buscar por conta ou fornecedor..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full h-8 pl-8 pr-3 bg-zinc-800 border border-zinc-700 rounded-xl text-zinc-200 placeholder-zinc-500 text-xs focus:outline-none focus:border-purple-500 transition"
+            className="w-full h-10 pl-9 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-800 placeholder-zinc-400 text-xs font-medium focus:bg-white focus:outline-none focus:border-purple-600 transition"
           />
         </div>
       </div>
 
-      {/* ── Lista de Saídas Totais do Fluxo de Caixa ──────────────────── */}
-      <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/95">
-          <div className="flex items-center gap-2">
-            <Receipt size={16} className="text-purple-400" />
-            <h2 className="text-xs font-bold text-zinc-100 uppercase tracking-wider">
+      {/* ── Lista de Saídas Totais do Fluxo de Caixa (Modo Claro) ─────── */}
+      <div className="bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-lg bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600">
+              <Receipt size={15} />
+            </div>
+            <h2 className="text-xs font-bold text-zinc-900 uppercase tracking-wider">
               Movimentações de Saída do Período
             </h2>
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20 font-semibold">
+            <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 font-bold">
               {filteredOutflows.length} saídas
             </span>
           </div>
           <div className="text-right">
-            <span className="text-[11px] text-zinc-400 font-medium mr-2">Total baixado:</span>
-            <strong className="text-sm font-bold text-rose-400">-{currency(totalOutflowsAmount)}</strong>
+            <span className="text-xs text-zinc-500 font-medium mr-2">Total baixado:</span>
+            <strong className="text-sm font-bold text-rose-600">-{currency(totalOutflowsAmount)}</strong>
           </div>
         </div>
 
         {filteredOutflows.length === 0 ? (
-          <div className="py-14 px-4 text-center">
-            <TrendingDown size={32} className="mx-auto text-zinc-600 mb-2 opacity-60" />
-            <p className="text-xs font-semibold text-zinc-300">Nenhuma saída registrada neste período.</p>
+          <div className="py-16 px-4 text-center">
+            <TrendingDown size={36} className="mx-auto text-zinc-300 mb-2" />
+            <p className="text-xs font-bold text-zinc-700">Nenhuma saída registrada neste período.</p>
             <p className="text-[11px] text-zinc-500 mt-1 max-w-sm mx-auto">
-              Quando você baixar contas no Contas a Pagar, todas as saídas serão refletidas aqui em tempo real.
+              Quando você registrar pagamentos no Contas a Pagar, todas as saídas serão refletidas aqui em tempo real.
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-zinc-800/80 overflow-x-auto">
-            <table className="w-full text-left text-xs text-zinc-300">
-              <thead className="bg-zinc-800/50 text-[11px] font-semibold text-zinc-400 uppercase tracking-wider select-none">
+          <div className="divide-y divide-zinc-100 overflow-x-auto">
+            <table className="w-full text-left text-xs text-zinc-700">
+              <thead className="bg-zinc-50 border-b border-zinc-200 text-[11px] font-bold text-zinc-500 uppercase tracking-wider select-none">
                 <tr>
                   <th className="py-3 px-4">Data</th>
                   <th className="py-3 px-4">Descrição da Conta</th>
@@ -464,7 +466,7 @@ export function CashFlowWorkspace({
                   <th className="py-3 px-4 text-center">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/50">
+              <tbody className="divide-y divide-zinc-100">
                 {filteredOutflows.map((row) => {
                   const bank = data.bankAccounts.find((b) => b.id === row.bankAccountId);
                   const payable = data.payables.find((p) => p.id === row.obligationId);
@@ -480,15 +482,15 @@ export function CashFlowWorkspace({
                   return (
                     <tr
                       key={row.id}
-                      className="hover:bg-zinc-800/40 transition group"
+                      className="hover:bg-purple-50/40 transition group"
                     >
                       {/* Data */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className="font-semibold text-zinc-200">
+                        <span className="font-bold text-zinc-900">
                           {str(row, "date").split("-").reverse().join("/")}
                         </span>
                         {unit && (
-                          <span className="block text-[10px] text-zinc-500">
+                          <span className="block text-[10px] text-zinc-400 font-medium">
                             {str(unit, "name")}
                           </span>
                         )}
@@ -496,11 +498,11 @@ export function CashFlowWorkspace({
 
                       {/* Descrição */}
                       <td className="py-3.5 px-4">
-                        <span className="font-semibold text-zinc-100 block">
+                        <span className="font-semibold text-zinc-900 block">
                           {str(row, "description").replace(/^Baixa:\s*/i, "")}
                         </span>
                         {payable?.installmentText && (
-                          <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] bg-zinc-800 border border-zinc-700 text-purple-300 font-medium">
+                          <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] bg-purple-50 border border-purple-200 text-purple-700 font-semibold">
                             Parcela {payable.installmentText}
                           </span>
                         )}
@@ -508,31 +510,31 @@ export function CashFlowWorkspace({
 
                       {/* Fornecedor */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className="text-zinc-300 font-medium">{supplierName}</span>
+                        <span className="text-zinc-700 font-medium">{supplierName}</span>
                       </td>
 
                       {/* Banco */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         {bank ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 font-medium text-[11px]">
-                            <Landmark size={12} className="text-purple-400" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-100 border border-zinc-200 text-zinc-800 font-semibold text-[11px]">
+                            <Landmark size={12} className="text-purple-600" />
                             {str(bank, "name")}
                           </span>
                         ) : (
-                          <span className="text-zinc-500">—</span>
+                          <span className="text-zinc-400">—</span>
                         )}
                       </td>
 
                       {/* Forma / Tipo */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-zinc-800/80 border border-zinc-700/80 text-zinc-400">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-zinc-100 border border-zinc-200 text-zinc-600">
                           {paymentMethod}
                         </span>
                       </td>
 
                       {/* Valor */}
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <strong className="text-rose-400 font-bold text-sm tracking-tight">
+                        <strong className="text-rose-600 font-bold text-sm tracking-tight">
                           -{currency(Number(row.amount || 0))}
                         </strong>
                       </td>
@@ -550,13 +552,13 @@ export function CashFlowWorkspace({
                                 size: Number(row.paymentProofSize || 0),
                               });
                             }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300 hover:bg-purple-600/30 font-semibold text-[11px] transition"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 font-bold text-[11px] transition shadow-xs"
                             title="Visualizar comprovante"
                           >
                             <Eye size={12} /> Ver
                           </button>
                         ) : (
-                          <span className="text-[11px] text-zinc-500 italic">Sem anexo</span>
+                          <span className="text-[11px] text-zinc-400 italic">Sem anexo</span>
                         )}
                       </td>
 
@@ -567,10 +569,10 @@ export function CashFlowWorkspace({
                             type="button"
                             disabled={reversingTxId === row.id}
                             onClick={() => handleReversePayment(row)}
-                            className="text-zinc-400 hover:text-amber-400 p-1.5 rounded-lg hover:bg-amber-500/10 transition"
+                            className="text-zinc-400 hover:text-amber-600 p-1.5 rounded-lg hover:bg-amber-50 transition"
                             title="Estornar pagamento (retorna para Contas a Pagar)"
                           >
-                            <RotateCcw size={13} className={reversingTxId === row.id ? "animate-spin" : ""} />
+                            <RotateCcw size={14} className={reversingTxId === row.id ? "animate-spin" : ""} />
                           </button>
                         )}
                       </td>

@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
   Plus,
   Calendar,
-  DollarSign,
   Barcode,
   CreditCard,
   Repeat,
@@ -14,8 +13,6 @@ import {
   Check,
   AlertCircle,
   Loader2,
-  Building2,
-  Layers,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,13 +44,13 @@ const ACCOUNT_TYPES: {
   key: PayableAccountType;
   label: string;
   icon: React.ElementType;
-  tone: string;
+  activeTone: string;
 }[] = [
-  { key: "Boleto", label: "Boleto", icon: Barcode, tone: "border-blue-500/40 text-blue-400 bg-blue-500/10" },
-  { key: "Cheque", label: "Cheque", icon: CreditCard, tone: "border-amber-500/40 text-amber-400 bg-amber-500/10" },
-  { key: "Conta fixa", label: "Conta Fixa", icon: Repeat, tone: "border-purple-500/40 text-purple-400 bg-purple-500/10" },
-  { key: "Contabilidade", label: "Contabilidade", icon: Calculator, tone: "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" },
-  { key: "Empréstimo", label: "Empréstimo", icon: Landmark, tone: "border-rose-500/40 text-rose-400 bg-rose-500/10" },
+  { key: "Boleto", label: "Boleto", icon: Barcode, activeTone: "border-blue-500 bg-blue-50 text-blue-700 shadow-sm" },
+  { key: "Cheque", label: "Cheque", icon: CreditCard, activeTone: "border-amber-500 bg-amber-50 text-amber-700 shadow-sm" },
+  { key: "Conta fixa", label: "Conta Fixa", icon: Repeat, activeTone: "border-purple-500 bg-purple-50 text-purple-700 shadow-sm" },
+  { key: "Contabilidade", label: "Contabilidade", icon: Calculator, activeTone: "border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm" },
+  { key: "Empréstimo", label: "Empréstimo", icon: Landmark, activeTone: "border-rose-500 bg-rose-50 text-rose-700 shadow-sm" },
 ];
 
 interface SimplifiedPayableModalProps {
@@ -129,7 +126,7 @@ export function SimplifiedPayableModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // Auto-sync Valor com Juros when Valor Original changes (unless user explicitly modified it)
+  // Auto-sync Valor com Juros when Valor Original changes (unless user explicitly edited it)
   const handleOriginalAmountChange = (val: string) => {
     setOriginalAmountStr(val);
     if (!interestManual) {
@@ -223,11 +220,8 @@ export function SimplifiedPayableModal({
       const recordsToSave: RecordData[] = [];
 
       if (shouldGenerateMultiple) {
-        // Divide or repeat values across installments
-        // In business payables, usually the finalCents is either per parcel or total.
-        // If finalCents is per installment:
         for (let i = 0; i < totalInstallments; i++) {
-          const installmentDueDate = addDays(dueDate, i * 30); // or addMonths
+          const installmentDueDate = addDays(dueDate, i * 30);
           const partNumber = i + 1;
           const partId = i === 0 ? baseId : `${baseId}-p${partNumber}`;
           const partDesc = `${name.trim()} (${partNumber}/${totalInstallments})`;
@@ -261,7 +255,6 @@ export function SimplifiedPayableModal({
           });
         }
       } else {
-        // Single record (or editing)
         const installmentLabel = parsedInstallment.isValid
           ? `${parsedInstallment.current}/${parsedInstallment.total}`
           : installmentInput.trim() || "1/1";
@@ -344,22 +337,22 @@ export function SimplifiedPayableModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150">
       <div
-        className="w-full max-w-xl bg-zinc-900 border border-zinc-700/80 rounded-2xl shadow-2xl shadow-purple-950/40 overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-xl bg-white border border-zinc-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/90">
-          <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
-              <Plus size={18} />
+        {/* Header (Modo Claro) */}
+        <div className="px-6 py-4 border-b border-zinc-100 flex items-center justify-between bg-white">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600 shadow-sm">
+              <Plus size={20} />
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-bold text-zinc-100">
+              <h2 className="text-base font-bold text-zinc-900">
                 {initialRecord ? "Editar Conta a Pagar" : "Nova Conta a Pagar"}
               </h2>
-              <p className="text-[11px] text-zinc-400">
+              <p className="text-xs text-zinc-500">
                 Preencha os dados essenciais para controle do financeiro
               </p>
             </div>
@@ -367,17 +360,17 @@ export function SimplifiedPayableModal({
           <button
             type="button"
             onClick={onClose}
-            className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition"
+            className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition"
             title="Fechar (Esc)"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
+        {/* Form Body (Modo Claro & Sem elementos sobrepostos) */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
           {error && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-start gap-2.5 text-rose-400">
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-rose-700 text-xs font-medium">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -385,8 +378,8 @@ export function SimplifiedPayableModal({
 
           {/* 1. Nome da Conta */}
           <div>
-            <label className="block text-zinc-300 font-semibold mb-1.5">
-              Nome / Descrição da Conta <span className="text-purple-400">*</span>
+            <label className="block text-zinc-700 font-semibold mb-1.5">
+              Nome / Descrição da Conta <span className="text-purple-600">*</span>
             </label>
             <input
               type="text"
@@ -395,15 +388,15 @@ export function SimplifiedPayableModal({
               placeholder="Ex: Aluguel Loja Centro, Carnes OESA, Internet Fibra..."
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full h-10 px-3 bg-zinc-800/80 border border-zinc-700 rounded-xl text-zinc-100 placeholder-zinc-500 text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
+              className="w-full h-11 px-3.5 bg-zinc-50 border border-zinc-300 rounded-xl text-zinc-900 placeholder-zinc-400 text-xs font-medium focus:bg-white focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-100 transition"
             />
           </div>
 
           {/* 2. Fornecedor */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-zinc-300 font-semibold">
-                Fornecedor <span className="text-purple-400">*</span>
+              <label className="text-zinc-700 font-semibold">
+                Fornecedor <span className="text-purple-600">*</span>
               </label>
               <button
                 type="button"
@@ -411,7 +404,7 @@ export function SimplifiedPayableModal({
                   setNewSupplierMode(!newSupplierMode);
                   setCustomSupplierName("");
                 }}
-                className="text-[11px] text-purple-400 hover:text-purple-300 flex items-center gap-1 transition"
+                className="text-xs text-purple-600 hover:text-purple-700 font-semibold flex items-center gap-1 transition"
               >
                 {newSupplierMode ? "← Selecionar da lista" : "+ Novo fornecedor"}
               </button>
@@ -423,13 +416,13 @@ export function SimplifiedPayableModal({
                 placeholder="Digite o nome do novo fornecedor..."
                 value={customSupplierName}
                 onChange={(e) => setCustomSupplierName(e.target.value)}
-                className="w-full h-10 px-3 bg-zinc-800/80 border border-purple-500/40 rounded-xl text-zinc-100 placeholder-zinc-500 text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
+                className="w-full h-11 px-3.5 bg-purple-50/50 border border-purple-300 rounded-xl text-zinc-900 placeholder-zinc-400 text-xs font-medium focus:bg-white focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-100 transition"
               />
             ) : (
               <select
                 value={supplierId}
                 onChange={(e) => setSupplierId(e.target.value)}
-                className="w-full h-10 px-3 bg-zinc-800/80 border border-zinc-700 rounded-xl text-zinc-100 text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
+                className="w-full h-11 px-3.5 bg-zinc-50 border border-zinc-300 rounded-xl text-zinc-900 text-xs font-medium focus:bg-white focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-100 transition"
               >
                 <option value="">Selecione um fornecedor cadastrado...</option>
                 {data.suppliers
@@ -447,36 +440,36 @@ export function SimplifiedPayableModal({
           {/* 3. Data de Validade (Vencimento) */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-zinc-300 font-semibold flex items-center gap-1.5">
-                <Calendar size={13} className="text-purple-400" />
-                Data de Validade (Vencimento) <span className="text-purple-400">*</span>
+              <label className="text-zinc-700 font-semibold flex items-center gap-1.5">
+                <Calendar size={14} className="text-purple-600" />
+                Data de Validade (Vencimento) <span className="text-purple-600">*</span>
               </label>
               <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setQuickDate("today")}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[10px] transition"
+                  className="px-2.5 py-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg text-[11px] font-medium transition"
                 >
                   Hoje
                 </button>
                 <button
                   type="button"
                   onClick={() => setQuickDate("tomorrow")}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[10px] transition"
+                  className="px-2.5 py-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg text-[11px] font-medium transition"
                 >
                   Amanhã
                 </button>
                 <button
                   type="button"
                   onClick={() => setQuickDate("7days")}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[10px] transition"
+                  className="px-2.5 py-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg text-[11px] font-medium transition"
                 >
                   +7d
                 </button>
                 <button
                   type="button"
                   onClick={() => setQuickDate("monthEnd")}
-                  className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[10px] transition"
+                  className="px-2.5 py-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg text-[11px] font-medium transition"
                 >
                   Fim do Mês
                 </button>
@@ -487,112 +480,101 @@ export function SimplifiedPayableModal({
               required
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              className="w-full h-10 px-3 bg-zinc-800/80 border border-zinc-700 rounded-xl text-zinc-100 text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
+              className="w-full h-11 px-3.5 bg-zinc-50 border border-zinc-300 rounded-xl text-zinc-900 text-xs font-medium focus:bg-white focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-100 transition"
             />
           </div>
 
-          {/* 4 & 5. Valores: Original e Com Juros */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* 4 & 5. Valores: Original e Com Juros (Limpos, sem caracteres sobrepostos) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-zinc-300 font-semibold mb-1.5">
-                Valor Original (R$) <span className="text-purple-400">*</span>
+              <label className="block text-zinc-700 font-semibold mb-1.5">
+                Valor Original (R$) <span className="text-purple-600">*</span>
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-zinc-400 font-semibold text-xs">
-                  R$
-                </span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  required
-                  placeholder="0,00"
-                  value={originalAmountStr}
-                  onChange={(e) => handleOriginalAmountChange(e.target.value)}
-                  className="w-full h-10 pl-9 pr-3 bg-zinc-800/80 border border-zinc-700 rounded-xl text-zinc-100 placeholder-zinc-500 text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition font-medium"
-                />
-              </div>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+                placeholder="0,00"
+                value={originalAmountStr}
+                onChange={(e) => handleOriginalAmountChange(e.target.value)}
+                className="w-full h-11 px-3.5 bg-zinc-50 border border-zinc-300 rounded-xl text-zinc-900 placeholder-zinc-400 text-xs font-semibold focus:bg-white focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-100 transition"
+              />
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-zinc-300 font-semibold">
-                  Valor com Juros (R$) <span className="text-purple-400">*</span>
+                <label className="text-zinc-700 font-semibold">
+                  Valor com Juros (R$) <span className="text-purple-600">*</span>
                 </label>
                 {interestManual && (
-                  <span className="text-[10px] text-amber-400 font-medium">
+                  <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
                     Ajustado manual
                   </span>
                 )}
               </div>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-zinc-400 font-semibold text-xs">
-                  R$
-                </span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  required
-                  placeholder="0,00"
-                  value={amountWithInterestStr}
-                  onChange={(e) => handleInterestAmountChange(e.target.value)}
-                  className={`w-full h-10 pl-9 pr-3 bg-zinc-800/80 border rounded-xl text-zinc-100 placeholder-zinc-500 text-xs focus:outline-none focus:ring-1 transition font-medium ${
-                    interestManual && Number(amountWithInterestStr) > Number(originalAmountStr)
-                      ? "border-amber-500/60 focus:border-amber-500 focus:ring-amber-500"
-                      : "border-zinc-700 focus:border-purple-500 focus:ring-purple-500"
-                  }`}
-                />
-              </div>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+                placeholder="0,00"
+                value={amountWithInterestStr}
+                onChange={(e) => handleInterestAmountChange(e.target.value)}
+                className={`w-full h-11 px-3.5 bg-zinc-50 border rounded-xl text-zinc-900 placeholder-zinc-400 text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 transition ${
+                  interestManual && Number(amountWithInterestStr) > Number(originalAmountStr)
+                    ? "border-amber-400 focus:border-amber-500 focus:ring-amber-100"
+                    : "border-zinc-300 focus:border-purple-600 focus:ring-purple-100"
+                }`}
+              />
             </div>
           </div>
 
-          {/* 6. Parcelamento */}
+          {/* 6. Parcelamento (Limpo, sem ícone sobreposto) */}
           <div>
-            <label className="block text-zinc-300 font-semibold mb-1.5">
-              Parcelamento <span className="text-zinc-500 font-normal">(Ex: 1/10, 1/1, 2/6)</span>
+            <label className="block text-zinc-700 font-semibold mb-1.5">
+              Parcelamento <span className="text-zinc-400 font-normal">(Ex: 1/10, 1/1, 2/6)</span>
             </label>
             <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Layers size={13} className="absolute left-3 top-3 text-zinc-400" />
-                <input
-                  type="text"
-                  placeholder="Ex: 1/10"
-                  value={installmentInput}
-                  onChange={(e) => setInstallmentInput(e.target.value)}
-                  className="w-full h-10 pl-8 pr-3 bg-zinc-800/80 border border-zinc-700 rounded-xl text-zinc-100 placeholder-zinc-500 text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition"
-                />
-              </div>
+              <input
+                type="text"
+                placeholder="1/1"
+                value={installmentInput}
+                onChange={(e) => setInstallmentInput(e.target.value)}
+                className="w-24 h-11 px-3 bg-zinc-50 border border-zinc-300 rounded-xl text-zinc-900 placeholder-zinc-400 text-xs font-semibold text-center focus:bg-white focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-100 transition"
+              />
 
-              {/* Quick selectors */}
-              {["1/1", "1/2", "1/3", "1/6", "1/10", "1/12"].map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setInstallmentInput(p)}
-                  className={`h-10 px-2.5 rounded-xl border text-[11px] font-medium transition ${
-                    installmentInput === p
-                      ? "bg-purple-600/30 border-purple-500 text-purple-300"
-                      : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200"
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
+              {/* Botões de atalho rápido */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {["1/1", "1/2", "1/3", "1/6", "1/10", "1/12"].map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setInstallmentInput(p)}
+                    className={`h-9 px-3 rounded-lg border text-xs font-semibold transition ${
+                      installmentInput === p
+                        ? "bg-purple-600 border-purple-600 text-white shadow-sm"
+                        : "bg-zinc-100 border-zinc-200 text-zinc-600 hover:bg-zinc-200"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Option to generate all installments if > 1 */}
+            {/* Opção para gerar parcelas múltiplas */}
             {parsedInstallment.total > 1 && !initialRecord && (
-              <label className="flex items-center gap-2 mt-2 px-1 text-[11px] text-zinc-300 cursor-pointer select-none">
+              <label className="flex items-center gap-2 mt-2 px-1 text-xs text-zinc-700 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={generateAllInstallments}
                   onChange={(e) => setGenerateAllInstallments(e.target.checked)}
-                  className="rounded border-zinc-700 text-purple-600 focus:ring-purple-500 bg-zinc-800"
+                  className="rounded border-zinc-300 text-purple-600 focus:ring-purple-500"
                 />
                 <span>
-                  Gerar automaticamente todas as{" "}
-                  <strong className="text-purple-300">{parsedInstallment.total} parcelas</strong> com
+                  Gerar automaticamente as{" "}
+                  <strong className="text-purple-700">{parsedInstallment.total} parcelas</strong> com
                   vencimento mensal consecutivo no sistema
                 </span>
               </label>
@@ -601,8 +583,8 @@ export function SimplifiedPayableModal({
 
           {/* 7. Tipo de Conta */}
           <div>
-            <label className="block text-zinc-300 font-semibold mb-2">
-              Tipo de Conta <span className="text-purple-400">*</span>
+            <label className="block text-zinc-700 font-semibold mb-2">
+              Tipo de Conta <span className="text-purple-600">*</span>
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {ACCOUNT_TYPES.map((type) => {
@@ -615,11 +597,11 @@ export function SimplifiedPayableModal({
                     onClick={() => setAccountType(type.key)}
                     className={`h-11 px-3 rounded-xl border flex items-center gap-2.5 text-xs font-semibold transition ${
                       isSelected
-                        ? type.tone + " shadow-md"
-                        : "border-zinc-700/80 bg-zinc-800/60 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+                        ? type.activeTone
+                        : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
                     }`}
                   >
-                    <Icon size={15} className="shrink-0" />
+                    <Icon size={16} className="shrink-0" />
                     <span className="truncate">{type.label}</span>
                     {isSelected && <Check size={14} className="ml-auto shrink-0" />}
                   </button>
@@ -631,13 +613,13 @@ export function SimplifiedPayableModal({
           {/* Unidade (se houver mais de uma) */}
           {data.units.length > 1 && (
             <div>
-              <label className="block text-zinc-400 font-medium mb-1">
+              <label className="block text-zinc-600 font-medium mb-1">
                 Unidade / Loja
               </label>
               <select
                 value={unitId}
                 onChange={(e) => setUnitId(e.target.value)}
-                className="w-full h-9 px-3 bg-zinc-800/60 border border-zinc-700/80 rounded-xl text-zinc-300 text-xs focus:outline-none focus:border-purple-500"
+                className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-700 text-xs focus:bg-white focus:outline-none focus:border-purple-600"
               >
                 {data.units
                   .filter((u) => !u.archived)
@@ -651,13 +633,13 @@ export function SimplifiedPayableModal({
           )}
         </form>
 
-        {/* Footer Actions */}
-        <div className="px-5 py-4 border-t border-zinc-800 bg-zinc-900/90 flex items-center justify-between gap-3">
+        {/* Footer Actions (Modo Claro) */}
+        <div className="px-6 py-4 border-t border-zinc-100 bg-zinc-50 flex items-center justify-between gap-3">
           <button
             type="button"
             disabled={busy}
             onClick={onClose}
-            className="h-10 px-4 rounded-xl border border-zinc-700 hover:bg-zinc-800 text-zinc-300 font-medium text-xs transition"
+            className="h-10 px-5 rounded-xl border border-zinc-200 hover:bg-zinc-100 text-zinc-700 font-semibold text-xs transition"
           >
             Cancelar
           </button>
@@ -665,7 +647,7 @@ export function SimplifiedPayableModal({
             type="button"
             disabled={busy}
             onClick={handleSubmit}
-            className="h-10 px-5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs flex items-center gap-2 shadow-lg shadow-purple-950/40 transition disabled:opacity-50"
+            className="h-10 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-purple-200 transition disabled:opacity-50"
           >
             {busy ? (
               <>
@@ -674,7 +656,7 @@ export function SimplifiedPayableModal({
               </>
             ) : (
               <>
-                <Check size={14} />
+                <Check size={15} />
                 {initialRecord ? "Salvar Alterações" : "Cadastrar Conta"}
               </>
             )}

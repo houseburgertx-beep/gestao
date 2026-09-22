@@ -4,12 +4,14 @@ import { useMemo, useState } from "react";
 import {
   ArrowRightLeft,
   CalendarDays,
+  Check,
   CreditCard,
   Eye,
   Landmark,
   LayoutGrid,
   List,
   MessageCircle,
+  Paperclip,
   Pencil,
   Plus,
   PlusCircle,
@@ -18,6 +20,7 @@ import {
   Store,
   Trash2,
   WalletCards,
+  X,
   Zap,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
@@ -1872,223 +1875,354 @@ export function InstantPaymentModal({
 }) {
   const { data } = useManagement();
   const { user } = useAuth();
-  const [unit, setUnit] = useState("");
+
+  // Selected bank account defaults to the first available account
+  const [bankAccountId, setBankAccountId] = useState(() => accounts[0]?.id || "");
+  const selectedAccount = useMemo(
+    () => accounts.find((a) => a.id === bankAccountId) || accounts[0],
+    [accounts, bankAccountId]
+  );
+
+  // Unit defaults to selected account's unitId, or first active unit
+  const [unitId, setUnitId] = useState(() => selectedAccount?.unitId || "");
+  const [showUnitOverride, setShowUnitOverride] = useState(false);
+
+  // Form states
+  const [description, setDescription] = useState("");
+  const [amountStr, setAmountStr] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("PIX");
+  const [date, setDate] = useState(() => dateToday());
+  const [categoryId, setCategoryId] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const handleBankChange = (newBankId: string) => {
+    setBankAccountId(newBankId);
+    const acct = accounts.find((a) => a.id === newBankId);
+    if (acct?.unitId) {
+      setUnitId(acct.unitId);
+    }
+  };
+
+  const QUICK_CHIPS = ["Motoboy", "Gelo", "Hortifrúti", "Manutenção", "Embalagens", "Gás"];
+  const PAYMENT_METHODS = [
+    { key: "PIX", label: "PIX", icon: "⚡" },
+    { key: "Cartão Débito", label: "Débito", icon: "💳" },
+    { key: "Dinheiro", label: "Dinheiro", icon: "💵" },
+    { key: "Transferência", label: "TED / Transf.", icon: "🏦" },
+    { key: "Boleto", label: "Boleto", icon: "📄" },
+    { key: "Cartão Crédito", label: "Crédito", icon: "💳" },
+  ];
+
+  const parsedAmount = parseFloat(amountStr.replace(",", "."));
+  const isValidAmount = !isNaN(parsedAmount) && parsedAmount > 0;
+  const canSubmit = isValidAmount && description.trim().length > 0 && Boolean(bankAccountId);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!user) return;
+
+    if (!isValidAmount) {
+      setError("Informe um valor válido maior que zero.");
+      return;
+    }
+    if (!description.trim()) {
+      setError("Informe a descrição do que está sendo pago.");
+      return;
+    }
+    if (!bankAccountId) {
+      setError("Selecione a conta bancária de saída.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+
+    try {
+      const now = new Date().toISOString();
+      const defaultCategory =
+        data.categories.find((c) => !c.archived && /operacion/i.test(str(c, "name"))) ||
+        data.categories.find((c) => !c.archived);
+      const finalCategoryId = categoryId || defaultCategory?.id || "";
+
+      const row: RecordData = {
+        id: safeUUID(),
+        kind: "transactions",
+        tenantId: tenantId || "house190",
+        unitId: unitId || "",
+        version: 0,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: user.uid,
+        updatedBy: user.uid,
+        description: description.trim(),
+        date,
+        competence: date.slice(0, 7),
+        direction: "Saída",
+        amount: Math.round(parsedAmount * 100),
+        bankAccountId,
+        nature: "Operacional",
+        categoryId: finalCategoryId,
+        paymentMethod,
+        externalId: safeUUID(),
+        instantPayment: true,
+      };
+
+      if (proofFile && proofFile.size) {
+        const { nameFileForDrive, uploadFileToDrive } = await import(
+          "@/services/driveService"
+        );
+        const stored = await uploadFileToDrive(
+          nameFileForDrive(
+            proofFile,
+            `Pagamento instantâneo - ${row.description}`,
+          ),
+          "payment_proofs",
+        );
+        row.paymentProofFileId = stored.fileId;
+        row.paymentProofFileName = stored.fileName;
+        row.paymentProofContentType = proofFile.type;
+        row.paymentProofSize = proofFile.size;
+      }
+
+      await saveManagement(row, data);
+      onSaved();
+    } catch (e) {
+      console.error("Erro ao registrar pagamento instantâneo:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (
+        msg.includes("permission") ||
+        msg.includes("Permissão") ||
+        msg.includes("Missing or insufficient")
+      ) {
+        setError(
+          "Permissão insuficiente no Firebase para registrar a saída. Verifique seu login.",
+        );
+      } else {
+        setError(msg || "Não foi possível registrar.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div
-      className="mg-modal-shade"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
       onClick={(e) => {
         if (e.target === e.currentTarget && !busy) onClose();
       }}
     >
-      <div className="mg-modal task-modal-modern" role="dialog" aria-modal="true">
-        <header className="task-modal-header">
-          <div className="task-modal-title-box">
-            <div
-              className="task-modal-icon-badge"
-              style={{ background: "#fef3c7", color: "#d97706" }}
-            >
-              <Zap size={18} />
+      <div
+        className="w-full max-w-lg bg-white border border-zinc-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header Limpo & Direto */}
+        <header className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/70">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shadow-xs">
+              <Zap size={20} className="fill-amber-500" />
             </div>
             <div>
-              <h2>Pagamento de Despesa</h2>
-              <p>Lançamento de saída com baixa imediata no saldo bancário</p>
+              <h2 className="text-base font-bold text-zinc-900 leading-tight">
+                Pagamento Rápido
+              </h2>
+              <p className="text-[12px] text-zinc-500">
+                Baixa imediata no saldo bancário e fluxo de caixa
+              </p>
             </div>
           </div>
           <button
             type="button"
-            className="task-modal-close"
             onClick={onClose}
             disabled={busy}
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200/60 transition"
+            title="Fechar"
           >
-            ✕
+            <X size={18} />
           </button>
         </header>
 
-        <form
-          className="task-modal-form"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            if (!user) return;
-            setBusy(true);
-            setError("");
-            try {
-              const form = new FormData(event.currentTarget);
-              const proof = form.get("proof");
-              const now = new Date().toISOString();
-              const row: RecordData = {
-                id: safeUUID(),
-                kind: "transactions",
-                tenantId: tenantId || "house190",
-                unitId: unit || "",
-                version: 0,
-                createdAt: now,
-                updatedAt: now,
-                createdBy: user.uid,
-                updatedBy: user.uid,
-                description: String(form.get("description") || "").trim(),
-                date: String(form.get("date")),
-                competence: String(form.get("date")).slice(0, 7),
-                direction: "Saída",
-                amount: Math.round(Number(form.get("amount")) * 100),
-                bankAccountId: String(form.get("bank")),
-                nature: "Operacional",
-                categoryId: String(form.get("category")),
-                paymentMethod: String(form.get("method")),
-                externalId: safeUUID(),
-                instantPayment: true,
-              };
-              if (proof instanceof File && proof.size) {
-                const { nameFileForDrive, uploadFileToDrive } = await import(
-                  "@/services/driveService"
-                );
-                const stored = await uploadFileToDrive(
-                  nameFileForDrive(
-                    proof,
-                    `Pagamento instantâneo - ${row.description}`,
-                  ),
-                  "payment_proofs",
-                );
-                row.paymentProofFileId = stored.fileId;
-                row.paymentProofFileName = stored.fileName;
-              }
-              await saveManagement(row, data);
-              onSaved();
-            } catch (e) {
-              console.error("Erro ao registrar pagamento instantâneo:", e);
-              const msg = e instanceof Error ? e.message : String(e);
-              if (
-                msg.includes("permission") ||
-                msg.includes("Permissão") ||
-                msg.includes("Missing or insufficient")
-              ) {
-                setError(
-                  "Permissão insuficiente no Firebase para registrar a saída. Verifique seu login.",
-                );
-              } else {
-                setError(msg || "Não foi possível registrar.");
-              }
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          {/* Card 1: Descrição e Unidade/Conta */}
-          <div className="task-compact-card">
-            <div className="task-field-group full">
-              <label htmlFor="instant-description">
-                Descrição da despesa <span className="task-req">*</span>
-              </label>
+        <form onSubmit={handleSubmit} className="overflow-y-auto p-5 space-y-4">
+          {/* 1. Valor em Destaque */}
+          <div>
+            <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
+              Valor da Saída <span className="text-rose-500">*</span>
+            </label>
+            <div className="flex items-center bg-zinc-50 border-2 border-zinc-200 focus-within:border-amber-500 focus-within:bg-white rounded-xl px-4 py-2.5 transition">
+              <span className="text-xl font-bold text-zinc-400 mr-2 select-none">R$</span>
               <input
-                id="instant-description"
-                name="description"
-                type="text"
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder="0,00"
                 autoFocus
                 required
-                className="task-input-title"
-                placeholder="Ex.: Compra emergencial, motoboy extra, manutenção..."
+                value={amountStr}
+                onChange={(e) => setAmountStr(e.target.value)}
+                className="w-full bg-transparent text-2xl sm:text-3xl font-black text-zinc-900 placeholder:text-zinc-300 focus:outline-none"
               />
-            </div>
-
-            <div className="task-grid-columns-two">
-              <div className="task-field-group">
-                <label htmlFor="instant-unit">
-                  Unidade da despesa <span className="task-req">*</span>
-                </label>
-                <select
-                  id="instant-unit"
-                  name="unit"
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
-                >
-                  <option value="">Matriz / Geral (Grupo)</option>
-                  {data.units
-                    .filter((u) => !u.archived)
-                    .map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {str(u, "name")}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div className="task-field-group">
-                <label htmlFor="instant-bank">
-                  Conta bancária de saída <span className="task-req">*</span>
-                </label>
-                <select id="instant-bank" name="bank" required defaultValue="">
-                  <option value="">Selecione a conta</option>
-                  {accounts.map((b) => {
-                    const u = data.units.find((unitItem) => unitItem.id === b.unitId);
-                    const uName = u ? str(u, "name") : "Matriz";
-                    return (
-                      <option key={b.id} value={b.id}>
-                        {str(b, "name")} ({str(b, "bank") || "Conta"} · {uName})
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
             </div>
           </div>
 
-          {/* Card 2: Valores e Classificação */}
-          <div className="task-compact-card">
-            <div className="task-grid-columns-three">
-              <div className="task-field-group">
-                <label htmlFor="instant-date">
-                  Data <span className="task-req">*</span>
-                </label>
+          {/* 2. Descrição com chips rápidos */}
+          <div>
+            <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
+              O que está sendo pago? <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Ex.: Motoboy (Lucas), Gelo, Troco, Manutenção..."
+              className="w-full h-11 px-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-semibold text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-amber-500 focus:bg-white transition"
+            />
+            {/* Quick chips para restaurantes */}
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              <span className="text-[10px] text-zinc-400 font-semibold self-center mr-1">Atalhos:</span>
+              {QUICK_CHIPS.map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => {
+                    if (!description) {
+                      setDescription(chip);
+                    } else if (!description.includes(chip)) {
+                      setDescription(`${chip} - ${description}`);
+                    }
+                  }}
+                  className="px-2 py-0.5 rounded-lg bg-zinc-100 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 border border-zinc-200/80 text-[11px] font-medium text-zinc-600 transition"
+                >
+                  +{chip}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 3. Forma de Pagamento (Pills Rápidos em 1 clique) */}
+          <div>
+            <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
+              Forma de Pagamento
+            </label>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+              {PAYMENT_METHODS.map((pm) => {
+                const active = paymentMethod === pm.key;
+                return (
+                  <button
+                    key={pm.key}
+                    type="button"
+                    onClick={() => setPaymentMethod(pm.key)}
+                    className={`flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 rounded-xl text-xs font-bold border transition ${
+                      active
+                        ? "bg-amber-50 border-amber-500 text-amber-900 shadow-xs"
+                        : "bg-zinc-50 border-zinc-200 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                    }`}
+                  >
+                    <span>{pm.icon}</span>
+                    <span className="truncate">{pm.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 4. Conta Bancária de Saída & Unidade */}
+          <div>
+            <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
+              Conta Bancária de Saída <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={bankAccountId}
+              onChange={(e) => handleBankChange(e.target.value)}
+              required
+              className="w-full h-11 px-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs sm:text-sm font-semibold text-zinc-900 focus:outline-none focus:border-amber-500 focus:bg-white transition"
+            >
+              {accounts.map((b) => {
+                const u = data.units.find((unitItem) => unitItem.id === b.unitId);
+                const uName = u ? str(u, "name") : "Matriz";
+                const bal = currentBalance(b, data.transactions, data.bankTransfers || []);
+                const balFormatted = bal !== null ? currency(bal) : "—";
+                return (
+                  <option key={b.id} value={b.id}>
+                    {str(b, "name")} ({str(b, "bank") || "Conta"} · {uName}) — Saldo: {balFormatted}
+                  </option>
+                );
+              })}
+            </select>
+
+            <div className="mt-1.5 flex items-center justify-between text-[11px] text-zinc-500 px-1">
+              <span>
+                Unidade vinculada:{" "}
+                <strong className="text-zinc-700 font-semibold">
+                  {data.units.find((u) => u.id === unitId)?.name || "Matriz / Geral (Grupo)"}
+                </strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowUnitOverride(!showUnitOverride)}
+                className="text-amber-600 hover:text-amber-700 font-semibold underline"
+              >
+                {showUnitOverride ? "Ocultar" : "Trocar unidade"}
+              </button>
+            </div>
+
+            {showUnitOverride && (
+              <select
+                value={unitId}
+                onChange={(e) => setUnitId(e.target.value)}
+                className="mt-1.5 w-full h-9 px-3 bg-zinc-50 border border-zinc-200 rounded-lg text-xs font-medium text-zinc-800"
+              >
+                <option value="">Matriz / Geral (Grupo)</option>
+                {data.units
+                  .filter((u) => !u.archived)
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {str(u, "name")}
+                    </option>
+                  ))}
+              </select>
+            )}
+          </div>
+
+          {/* 5. Data & Categoria */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
+                Data do Pagamento
+              </label>
+              <div className="flex gap-1.5">
                 <input
-                  id="instant-date"
-                  name="date"
                   type="date"
-                  defaultValue={dateToday()}
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
                   required
+                  className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs sm:text-sm font-semibold text-zinc-800 focus:outline-none focus:border-amber-500 focus:bg-white transition"
                 />
-              </div>
-
-              <div className="task-field-group">
-                <label htmlFor="instant-amount">
-                  Valor (R$) <span className="task-req">*</span>
-                </label>
-                <input
-                  id="instant-amount"
-                  name="amount"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  placeholder="0,00"
-                  required
-                  style={{ fontWeight: 700 }}
-                />
-              </div>
-
-              <div className="task-field-group">
-                <label htmlFor="instant-method">
-                  Forma <span className="task-req">*</span>
-                </label>
-                <select id="instant-method" name="method" required defaultValue="PIX">
-                  <option value="PIX">PIX</option>
-                  <option value="Transferência">Transferência</option>
-                  <option value="Débito automático">Débito automático</option>
-                  <option value="Dinheiro">Dinheiro</option>
-                  <option value="Boleto">Boleto</option>
-                  <option value="Cartão Débito">Cartão Débito</option>
-                  <option value="Cartão Crédito">Cartão Crédito</option>
-                  <option value="Outros">Outros</option>
-                </select>
+                <button
+                  type="button"
+                  onClick={() => setDate(dateToday())}
+                  className="px-2.5 py-1 text-[11px] font-bold text-zinc-600 hover:text-amber-700 bg-zinc-100 hover:bg-amber-50 border border-zinc-200 rounded-xl transition shrink-0"
+                >
+                  Hoje
+                </button>
               </div>
             </div>
 
-            <div className="task-field-group full">
-              <label htmlFor="instant-category">
-                Categoria da despesa <span className="task-req">*</span>
+            <div>
+              <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
+                Categoria (Opcional)
               </label>
-              <select id="instant-category" name="category" required defaultValue="">
-                <option value="">Selecione a categoria financeira</option>
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs sm:text-sm font-medium text-zinc-800 focus:outline-none focus:border-amber-500 focus:bg-white transition"
+              >
+                <option value="">Despesas Operacionais (Padrão)</option>
                 {data.categories
                   .filter((c) => !c.archived)
                   .map((c) => (
@@ -2100,56 +2234,79 @@ export function InstantPaymentModal({
             </div>
           </div>
 
-          {/* Card 3: Comprovante */}
-          <div className="task-compact-card">
-            <div className="task-field-group full">
-              <label htmlFor="instant-proof" style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Comprovante / Anexo (opcional)</span>
-                <span style={{ fontSize: "10px", fontWeight: 400, color: "#94a3b8" }}>
-                  Upload direto para o Google Drive
-                </span>
+          {/* 6. Comprovante / Anexo (Opcional) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-zinc-600 uppercase tracking-wider">
+                Comprovante / Anexo (Opcional)
               </label>
-              <input
-                id="instant-proof"
-                name="proof"
-                type="file"
-                accept=".pdf,image/*"
-              />
+              <span className="text-[10px] text-zinc-400 font-medium">Google Drive</span>
             </div>
+
+            {proofFile ? (
+              <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-medium">
+                <div className="flex items-center gap-2 truncate">
+                  <Check size={16} className="text-emerald-600 shrink-0" />
+                  <span className="truncate">{proofFile.name}</span>
+                  <span className="text-[10px] text-emerald-600 shrink-0">
+                    ({(proofFile.size / 1024).toFixed(0)} KB)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setProofFile(null)}
+                  className="p-1 text-emerald-600 hover:text-emerald-900 rounded-lg hover:bg-emerald-100 transition shrink-0"
+                  title="Remover anexo"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center justify-center gap-2 py-2.5 px-4 border-2 border-dashed border-zinc-200 hover:border-amber-400 rounded-xl bg-zinc-50/60 hover:bg-amber-50/30 cursor-pointer text-xs font-semibold text-zinc-600 hover:text-amber-700 transition">
+                <Paperclip size={14} className="text-zinc-400" />
+                <span>Anexar comprovante ou print do PIX</span>
+                <input
+                  type="file"
+                  accept=".pdf,image/*"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                      setProofFile(e.target.files[0]);
+                    }
+                  }}
+                  className="hidden"
+                />
+              </label>
+            )}
           </div>
 
+          {/* Erro */}
           {error && (
-            <div
-              style={{
-                padding: "10px 14px",
-                background: "#fef2f2",
-                border: "1px solid #fecaca",
-                borderRadius: "8px",
-                color: "#991b1b",
-                fontSize: "12px",
-                fontWeight: 600,
-              }}
-            >
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-semibold">
               {error}
             </div>
           )}
 
-          <footer className="task-modal-footer">
+          {/* Footer com botões de ação */}
+          <footer className="pt-3 border-t border-zinc-100 flex items-center justify-between gap-3">
             <button
               type="button"
-              className="workspace-secondary task-btn-cancel"
               onClick={onClose}
               disabled={busy}
+              className="px-4 py-2.5 rounded-xl border border-zinc-200 bg-white hover:bg-zinc-100 text-xs sm:text-sm font-semibold text-zinc-700 transition"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="workspace-primary task-save-submit"
-              disabled={busy}
-              style={{ background: "#4f46e5", borderColor: "#4338ca" }}
+              disabled={busy || !canSubmit}
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm font-bold text-white shadow-md shadow-amber-500/20 transition"
             >
-              {busy ? "Registrando..." : "Confirmar Pagamento"}
+              <Zap size={16} className="fill-white" />
+              {busy
+                ? "Registrando..."
+                : isValidAmount
+                ? `Confirmar Pagamento (${currency(Math.round(parsedAmount * 100))})`
+                : "Confirmar Pagamento"}
             </button>
           </footer>
         </form>
