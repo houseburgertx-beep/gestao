@@ -7,7 +7,7 @@ import {
   ClipboardCheck, Coins, CreditCard, Download, Edit3, Eye, FileCheck2,
   FileText, Image as ImageIcon, Landmark, Loader2, Paperclip, Percent, Plus,
   Receipt, RotateCcw, RotateCw, Search, Share2, ShieldCheck, Sliders, Smartphone, Sparkles, Store, Trash2,
-  Upload, User, Users, Wallet, X, Zap, ZoomIn, ZoomOut, Copy, KeyRound
+  Upload, User, Users, Wallet, X, Zap, ZoomIn, ZoomOut, Copy, KeyRound, MapPin
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useUnit } from "@/contexts/UnitContext";
@@ -344,7 +344,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
   const { data } = useManagement(); const { user, userProfile } = useAuth();
   const [closingOpen, setClosingOpen] = useState(false); const [editingClosing, setEditingClosing] = useState<RecordData|null>(null); const [reviewing, setReviewing] = useState<RecordData|null>(null); const [message, setMessage] = useState("");
   const [viewingClosing, setViewingClosing] = useState<RecordData|null>(null);
-  const [confTab, setConfTab] = useState<"queue"|"audit"|"rates">("queue");
+  const [confTab, setConfTab] = useState<"queue"|"audit"|"rates"|"sangrias">("queue");
   const [queueFilter, setQueueFilter] = useState<string>("all");
 
   useEffect(() => {
@@ -417,6 +417,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
     );
   };
   const auditClosings = closings.filter(hasAuditData);
+  const sangriaClosings = closings.filter(r => Number(r.sangriaAmount || 0) > 0);
 
   return <div className="workspace-shell cash-workspace">
     {mode === "audit" ? (
@@ -464,6 +465,9 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
         <button className={`cash-subtab ${confTab === "rates" ? "active" : ""}`} onClick={() => setConfTab("rates")}>
           <Percent size={16} /> Taxas das Máquinas & Bancos
         </button>
+        <button className={`cash-subtab ${confTab === "sangrias" ? "active" : ""}`} onClick={() => setConfTab("sangrias")}>
+          <Coins size={16} /> Sangrias <b>{sangriaClosings.length}</b>
+        </button>
       </div>
     )}
 
@@ -473,6 +477,8 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
       <AuditHistoryTab closings={closings} onViewClosing={setViewingClosing} />
     ) : mode === "conference" && confTab === "rates" ? (
       <BankRatesTab />
+    ) : mode === "conference" && confTab === "sangrias" ? (
+      <SangriasTab closings={closings} onViewClosing={setViewingClosing} />
     ) : (
       <section className="cash-list">
         <header>
@@ -2602,7 +2608,44 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
     });
   };
 
-  const [checks, setChecks] = useState({ cash: false, credit: false, debit: false, pix: false, serviceFee: false });
+  const parsedInitialChecks = useMemo(() => {
+    try {
+      const conf = data.cashConferences.find(c => !c.archived && c.closingId === closing.id);
+      if (conf?.checksJson) {
+        return JSON.parse(str(conf, "checksJson"));
+      }
+    } catch {}
+    return null;
+  }, [data.cashConferences, closing.id]);
+
+  const [checks, setChecks] = useState<{ cash: boolean; serviceFee: boolean }>(() => ({
+    cash: Boolean(parsedInitialChecks?.cash),
+    serviceFee: Boolean(parsedInitialChecks?.serviceFee),
+  }));
+
+  const [machineChecks, setMachineChecks] = useState<Record<string, { credit: boolean; debit: boolean; pix: boolean }>>(() => {
+    const res: Record<string, { credit: boolean; debit: boolean; pix: boolean }> = {};
+    const byMachine = parsedInitialChecks?.machines || parsedInitialChecks?.byMachine || {};
+    availableBanks.forEach(b => {
+      res[b.id] = {
+        credit: Boolean(byMachine[b.id]?.credit ?? (parsedInitialChecks ? parsedInitialChecks.credit : false)),
+        debit: Boolean(byMachine[b.id]?.debit ?? (parsedInitialChecks ? parsedInitialChecks.debit : false)),
+        pix: Boolean(byMachine[b.id]?.pix ?? (parsedInitialChecks ? parsedInitialChecks.pix : false)),
+      };
+    });
+    return res;
+  });
+
+  const toggleMachineCheck = (type: "credit" | "debit" | "pix", checked: boolean) => {
+    const targetId = activeBankId || displayBanks[0]?.id || "machine_default";
+    setMachineChecks(prev => ({
+      ...prev,
+      [targetId]: {
+        ...(prev[targetId] || { credit: false, debit: false, pix: false }),
+        [type]: checked
+      }
+    }));
+  };
   const [notes, setNotes] = useState(() => str(closing, "conferenceNotes") || str(closing, "notes") || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -2670,7 +2713,17 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
     });
   }, [displayBanks, bankVals]);
 
-  const allChecked = Object.values(checks).every(Boolean);
+  const isMachineChecked = (bankId: string) => {
+    const m = machineChecks[bankId];
+    const vals = bankVals[bankId] || { credit: 0, debit: 0, pix: 0 };
+    const creditOk = vals.credit === 0 || Boolean(m?.credit);
+    const debitOk = vals.debit === 0 || Boolean(m?.debit);
+    const pixOk = vals.pix === 0 || Boolean(m?.pix);
+    return creditOk && debitOk && pixOk;
+  };
+
+  const allMachinesChecked = displayBanks.length === 0 || displayBanks.every(b => isMachineChecked(b.id));
+  const allChecked = Boolean(checks.cash) && allMachinesChecked;
   const hasDifference = totalDiff !== 0;
 
   const [attachmentsList, setAttachmentsList] = useState<CashAttachment[]>(() => parseAttachments(closing));
@@ -2870,7 +2923,14 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         operatorName: str(closing, "operatorName"),
         beforeBalancesJson: JSON.stringify(before),
         afterBalancesJson: JSON.stringify(afterNetValues),
-        checksJson: JSON.stringify(checks),
+        checksJson: JSON.stringify({
+          cash: checks.cash,
+          serviceFee: checks.serviceFee,
+          credit: displayBanks.length > 0 && displayBanks.every(b => machineChecks[b.id]?.credit),
+          debit: displayBanks.length > 0 && displayBanks.every(b => machineChecks[b.id]?.debit),
+          pix: displayBanks.length > 0 && displayBanks.every(b => machineChecks[b.id]?.pix),
+          machines: machineChecks,
+        }),
         difference: totalDiff,
         status: "Conferido",
         reviewedBy: userProfile?.displayName || user.email || user.uid,
@@ -3248,17 +3308,21 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
               <div className="conf-machine-tabs">
                 <span className="conf-machine-label">Máquina em conferência:</span>
                 <div className="conf-machine-pills">
-                  {displayBanks.map(b => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      className={`conf-machine-pill ${activeBankId === b.id ? "active" : ""}`}
-                      onClick={() => setActiveBankId(b.id)}
-                    >
-                      <Landmark size={13} />
-                      <span>{str(b, "name") || "Máquina"}</span>
-                    </button>
-                  ))}
+                  {displayBanks.map(b => {
+                    const isAllOk = isMachineChecked(b.id);
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        className={`conf-machine-pill ${activeBankId === b.id ? "active" : ""}`}
+                        onClick={() => setActiveBankId(b.id)}
+                      >
+                        <Landmark size={13} />
+                        <span>{str(b, "name") || "Máquina"}</span>
+                        {isAllOk && <Check size={12} className="text-emerald-500 font-bold ml-1" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <span className="text-[11px] text-zinc-500 font-medium">Editando valores da máquina selecionada</span>
@@ -3357,7 +3421,12 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
               </div>
               <Difference value={creditDiff} />
               <label className="conf-check-label">
-                <input type="checkbox" checked={checks.credit} disabled={review} onChange={e => setChecks(c => ({ ...c, credit: e.target.checked }))} /> OK
+                <input
+                  type="checkbox"
+                  checked={machineChecks[activeBank.id]?.credit || false}
+                  disabled={review}
+                  onChange={e => toggleMachineCheck("credit", e.target.checked)}
+                /> OK
               </label>
             </div>
 
@@ -3401,7 +3470,12 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
               </div>
               <Difference value={debitDiff} />
               <label className="conf-check-label">
-                <input type="checkbox" checked={checks.debit} disabled={review} onChange={e => setChecks(c => ({ ...c, debit: e.target.checked }))} /> OK
+                <input
+                  type="checkbox"
+                  checked={machineChecks[activeBank.id]?.debit || false}
+                  disabled={review}
+                  onChange={e => toggleMachineCheck("debit", e.target.checked)}
+                /> OK
               </label>
             </div>
 
@@ -3445,7 +3519,12 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
               </div>
               <Difference value={pixDiff} />
               <label className="conf-check-label">
-                <input type="checkbox" checked={checks.pix} disabled={review} onChange={e => setChecks(c => ({ ...c, pix: e.target.checked }))} /> OK
+                <input
+                  type="checkbox"
+                  checked={machineChecks[activeBank.id]?.pix || false}
+                  disabled={review}
+                  onChange={e => toggleMachineCheck("pix", e.target.checked)}
+                /> OK
               </label>
             </div>
 
@@ -5085,6 +5164,476 @@ function BankRatesTab(){
           <div className="people-empty">
             <Landmark size={28}/>
             <strong>Nenhum banco ou máquina encontrado.</strong>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// Tab for recording and managing Sangrias (cash withdrawals from register)
+function SangriasTab({
+  closings,
+  onViewClosing,
+}: {
+  closings: RecordData[];
+  onViewClosing?: (closing: RecordData) => void;
+}) {
+  const { data } = useManagement();
+  const { user } = useAuth();
+  const [filterUnit, setFilterUnit] = useState<string>("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [search, setSearch] = useState<string>("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editRecipient, setEditRecipient] = useState<string>("");
+  const [editStatus, setEditStatus] = useState<string>("Na loja");
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [successId, setSuccessId] = useState<string | null>(null);
+
+  // All closings with a positive sangria amount
+  const allSangrias = useMemo(() => {
+    return closings
+      .filter(c => Number(c.sangriaAmount || 0) > 0)
+      .sort((a, b) => str(b, "date").localeCompare(str(a, "date")));
+  }, [closings]);
+
+  const filteredSangrias = useMemo(() => {
+    return allSangrias.filter(c => {
+      if (filterUnit && c.unitId !== filterUnit) return false;
+      const status = str(c, "sangriaStatus") || "Na loja";
+      if (filterStatus !== "all") {
+        if (filterStatus === "responsible" && status !== "Entregue a responsável") return false;
+        if (filterStatus === "store" && status !== "Na loja") return false;
+        if (filterStatus === "deposited" && status !== "Depositado") return false;
+      }
+      if (search) {
+        const text = `${str(c, "sangriaRecipient")} ${str(c, "sangriaStatus")} ${str(c, "operatorName")} ${str(c, "date")} ${str(c, "notes")}`.toLowerCase();
+        if (!text.includes(search.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [allSangrias, filterUnit, filterStatus, search]);
+
+  // Accumulated metrics
+  const totalAccumulated = useMemo(() => {
+    return filteredSangrias.reduce((sum, c) => sum + Number(c.sangriaAmount || 0), 0);
+  }, [filteredSangrias]);
+
+  const totalResponsible = useMemo(() => {
+    return filteredSangrias
+      .filter(c => (str(c, "sangriaStatus") || "") === "Entregue a responsável")
+      .reduce((sum, c) => sum + Number(c.sangriaAmount || 0), 0);
+  }, [filteredSangrias]);
+
+  const totalInStore = useMemo(() => {
+    return filteredSangrias
+      .filter(c => (str(c, "sangriaStatus") || "Na loja") === "Na loja")
+      .reduce((sum, c) => sum + Number(c.sangriaAmount || 0), 0);
+  }, [filteredSangrias]);
+
+  const totalDeposited = useMemo(() => {
+    return filteredSangrias
+      .filter(c => (str(c, "sangriaStatus") || "") === "Depositado")
+      .reduce((sum, c) => sum + Number(c.sangriaAmount || 0), 0);
+  }, [filteredSangrias]);
+
+  const responsibleCount = useMemo(() => {
+    return filteredSangrias.filter(c => (str(c, "sangriaStatus") || "") === "Entregue a responsável").length;
+  }, [filteredSangrias]);
+
+  const storeCount = useMemo(() => {
+    return filteredSangrias.filter(c => (str(c, "sangriaStatus") || "Na loja") === "Na loja").length;
+  }, [filteredSangrias]);
+
+  const depositedCount = useMemo(() => {
+    return filteredSangrias.filter(c => (str(c, "sangriaStatus") || "") === "Depositado").length;
+  }, [filteredSangrias]);
+
+  const startEditing = (row: RecordData) => {
+    setEditingId(row.id);
+    setEditRecipient(str(row, "sangriaRecipient") || "");
+    setEditStatus(str(row, "sangriaStatus") || "Na loja");
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+  };
+
+  const handleSaveSangria = async (closing: RecordData) => {
+    if (!user) return;
+    setSavingId(closing.id);
+    try {
+      const now = new Date().toISOString();
+      const updated: RecordData = {
+        ...closing,
+        sangriaRecipient: editRecipient.trim(),
+        sangriaStatus: editStatus || str(closing, "sangriaStatus") || "Na loja",
+        updatedAt: now,
+        updatedBy: user.uid,
+      };
+      await commitRecords([updated], data, updated);
+      setSuccessId(closing.id);
+      setEditingId(null);
+      setTimeout(() => setSuccessId(null), 3500);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erro ao atualizar localização da sangria.");
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const quickSet = (recipient: string, status: string) => {
+    setEditRecipient(recipient);
+    setEditStatus(status);
+  };
+
+  return (
+    <section className="cash-sangrias-section">
+      <header className="cash-sangrias-header">
+        <div>
+          <span className="workspace-eyebrow">CONTROLE DE RETIRADAS E CAIXA FÍSICO</span>
+          <h2>Registro e Controle de Sangrias</h2>
+          <p>
+            Histórico consolidado de todas as sangrias realizadas nas lojas. Acompanhe o valor acumulado e
+            atualize em tempo real a localização de cada quantia (com responsável, no cofre ou depositado).
+          </p>
+        </div>
+      </header>
+
+      {/* KPI Cards: Valor Acumulado & Detalhamento */}
+      <div className="cash-sangrias-metrics">
+        <article className="cash-sangria-kpi hero">
+          <div className="cash-sangria-kpi-icon gold">
+            <Coins size={22} />
+          </div>
+          <div className="cash-sangria-kpi-content">
+            <span className="cash-sangria-kpi-label">VALOR TOTAL ACUMULADO</span>
+            <strong className="cash-sangria-kpi-value hero-val">{brl(totalAccumulated)}</strong>
+            <span className="cash-sangria-kpi-sub">{filteredSangrias.length} sangria(s) registrada(s)</span>
+          </div>
+        </article>
+
+        <article className="cash-sangria-kpi purple">
+          <div className="cash-sangria-kpi-icon purple">
+            <User size={20} />
+          </div>
+          <div className="cash-sangria-kpi-content">
+            <span className="cash-sangria-kpi-label">COM RESPONSÁVEL</span>
+            <strong className="cash-sangria-kpi-value">{brl(totalResponsible)}</strong>
+            <span className="cash-sangria-kpi-sub">{responsibleCount} retirada(s) em posse</span>
+          </div>
+        </article>
+
+        <article className="cash-sangria-kpi amber">
+          <div className="cash-sangria-kpi-icon amber">
+            <Store size={20} />
+          </div>
+          <div className="cash-sangria-kpi-content">
+            <span className="cash-sangria-kpi-label">NO COFRE / LOJA</span>
+            <strong className="cash-sangria-kpi-value">{brl(totalInStore)}</strong>
+            <span className="cash-sangria-kpi-sub">{storeCount} guardada(s) na unidade</span>
+          </div>
+        </article>
+
+        <article className="cash-sangria-kpi green">
+          <div className="cash-sangria-kpi-icon green">
+            <Landmark size={20} />
+          </div>
+          <div className="cash-sangria-kpi-content">
+            <span className="cash-sangria-kpi-label">DEPOSITADO EM CONTA</span>
+            <strong className="cash-sangria-kpi-value">{brl(totalDeposited)}</strong>
+            <span className="cash-sangria-kpi-sub">{depositedCount} já liquidada(s) em banco</span>
+          </div>
+        </article>
+      </div>
+
+      {/* Barra de Filtros e Busca */}
+      <div className="cash-sangrias-filter-bar">
+        <div className="cash-sangrias-filter-pills">
+          <button
+            type="button"
+            className={`cash-sangria-filter-pill ${filterStatus === "all" ? "active" : ""}`}
+            onClick={() => setFilterStatus("all")}
+          >
+            Todas ({allSangrias.length})
+          </button>
+          <button
+            type="button"
+            className={`cash-sangria-filter-pill ${filterStatus === "responsible" ? "active" : ""}`}
+            onClick={() => setFilterStatus("responsible")}
+          >
+            Com Responsável ({allSangrias.filter(c => (str(c, "sangriaStatus") || "") === "Entregue a responsável").length})
+          </button>
+          <button
+            type="button"
+            className={`cash-sangria-filter-pill ${filterStatus === "store" ? "active" : ""}`}
+            onClick={() => setFilterStatus("store")}
+          >
+            No Cofre / Loja ({allSangrias.filter(c => (str(c, "sangriaStatus") || "Na loja") === "Na loja").length})
+          </button>
+          <button
+            type="button"
+            className={`cash-sangria-filter-pill ${filterStatus === "deposited" ? "active" : ""}`}
+            onClick={() => setFilterStatus("deposited")}
+          >
+            Depositado ({allSangrias.filter(c => (str(c, "sangriaStatus") || "") === "Depositado").length})
+          </button>
+        </div>
+
+        <div className="cash-sangrias-controls">
+          <select
+            value={filterUnit}
+            onChange={e => setFilterUnit(e.target.value)}
+            className="cash-sangrias-unit-select"
+          >
+            <option value="">Todas as Unidades</option>
+            {data.units.filter(u => !u.archived).map(u => (
+              <option key={u.id} value={u.id}>{str(u, "name")}</option>
+            ))}
+          </select>
+
+          <div className="cash-sangrias-search">
+            <Search size={14} />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar por responsável, operador, data..."
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Lista de Cards de Sangria */}
+      <div className="cash-sangrias-list">
+        {filteredSangrias.map(row => {
+          const unit = data.units.find(u => u.id === row.unitId);
+          const unitName = String(unit?.name || row.unitId || "House 190");
+          const dateFormatted = str(row, "date").split("-").reverse().join("/");
+          const sangriaVal = Number(row.sangriaAmount || 0);
+          const currentRecipient = str(row, "sangriaRecipient") || "";
+          const currentStatus = str(row, "sangriaStatus") || "Na loja";
+          const isRowConferred = isClosingConferred(row, data.cashConferences);
+          const isEditing = editingId === row.id;
+          const isSaving = savingId === row.id;
+          const isSuccess = successId === row.id;
+
+          return (
+            <article key={row.id} className={`cash-sangria-card ${isEditing ? "editing" : ""}`}>
+              <header className="cash-sangria-card-header">
+                <div className="cash-sangria-card-meta">
+                  <div className="cash-sangria-card-date-badge">
+                    <Coins size={14} />
+                    <span>{dateFormatted}</span>
+                    <span className="cash-sangria-shift-tag">{str(row, "shift") || "Turno Único"}</span>
+                  </div>
+                  <strong className="cash-sangria-unit-title">{unitName}</strong>
+                </div>
+
+                <div className="cash-sangria-card-status-tags">
+                  {isRowConferred ? (
+                    <span className="difference-pill ok">
+                      <CheckCircle2 size={12} /> Caixa conferido
+                    </span>
+                  ) : (
+                    <span className="difference-pill shortage">
+                      Aguardando conferência
+                    </span>
+                  )}
+                </div>
+              </header>
+
+              <div className="cash-sangria-card-body">
+                {/* Destaque do Valor */}
+                <div className="cash-sangria-amount-panel">
+                  <span className="cash-sangria-amount-title">VALOR DA SANGRIA</span>
+                  <strong className="cash-sangria-amount-number">{brl(sangriaVal)}</strong>
+                  <span className="cash-sangria-operator">
+                    <User size={12} /> Operador: <b>{str(row, "operatorName") || "Não informado"}</b>
+                  </span>
+                </div>
+
+                {/* Localização e Destino */}
+                <div className="cash-sangria-location-panel">
+                  {isEditing ? (
+                    <div className="cash-sangria-edit-box">
+                      <div className="cash-sangria-edit-header">
+                        <MapPin size={15} className="text-purple-600" />
+                        <strong>Atualizar Onde Está a Sangria</strong>
+                      </div>
+
+                      <div className="cash-sangria-edit-fields">
+                        <div className="cash-sangria-edit-row">
+                          <label className="cash-sangria-field-label">
+                            <span>Situação / Destino</span>
+                            <select
+                              value={editStatus}
+                              onChange={e => setEditStatus(e.target.value)}
+                              className="cash-sangria-status-select"
+                            >
+                              <option value="Entregue a responsável">Entregue a responsável</option>
+                              <option value="Na loja">Na loja (Cofre)</option>
+                              <option value="Depositado">Depositado em conta</option>
+                              <option value="Outro">Outro destino</option>
+                            </select>
+                          </label>
+
+                          <label className="cash-sangria-field-label flex-1">
+                            <span>Onde está / Com quem está</span>
+                            <input
+                              type="text"
+                              value={editRecipient}
+                              onChange={e => setEditRecipient(e.target.value)}
+                              placeholder="Ex.: GLEUCE, No cofre da loja, Banco Santander..."
+                              className="cash-sangria-recipient-input"
+                              autoFocus
+                            />
+                          </label>
+                        </div>
+
+                        {/* Atalhos rápidos de 1 clique */}
+                        <div className="cash-sangria-quick-bar">
+                          <span className="cash-sangria-quick-label">Atalhos rápidos:</span>
+                          <div className="cash-sangria-quick-chips">
+                            <button
+                              type="button"
+                              className="cash-sangria-chip"
+                              onClick={() => quickSet("GLEUCE", "Entregue a responsável")}
+                            >
+                              👤 GLEUCE
+                            </button>
+                            <button
+                              type="button"
+                              className="cash-sangria-chip"
+                              onClick={() => quickSet("No cofre da loja", "Na loja")}
+                            >
+                              🏦 Cofre Loja
+                            </button>
+                            <button
+                              type="button"
+                              className="cash-sangria-chip"
+                              onClick={() => quickSet("No cofre do escritório", "Entregue a responsável")}
+                            >
+                              🏢 Cofre Escritório
+                            </button>
+                            <button
+                              type="button"
+                              className="cash-sangria-chip"
+                              onClick={() => quickSet("Depositado em conta bancária", "Depositado")}
+                            >
+                              💳 Depositado
+                            </button>
+                            <button
+                              type="button"
+                              className="cash-sangria-chip"
+                              onClick={() => quickSet("Entregue ao gerente de turno", "Entregue a responsável")}
+                            >
+                              👔 Gerente
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="cash-sangria-edit-actions">
+                          <button
+                            type="button"
+                            className="workspace-primary cash-sangria-save-btn"
+                            disabled={isSaving}
+                            onClick={() => handleSaveSangria(row)}
+                          >
+                            {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                            {isSaving ? "Salvando..." : "Salvar onde está"}
+                          </button>
+                          <button
+                            type="button"
+                            className="mg-button secondary cash-sangria-cancel-btn"
+                            onClick={cancelEditing}
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="cash-sangria-view-box">
+                      <div className="cash-sangria-view-main">
+                        <div className="cash-sangria-status-pill-badge">
+                          {currentStatus === "Entregue a responsável" ? (
+                            <span className="cash-sangria-badge-pill responsible">
+                              <User size={13} /> Entregue a responsável
+                            </span>
+                          ) : currentStatus === "Depositado" ? (
+                            <span className="cash-sangria-badge-pill deposited">
+                              <Landmark size={13} /> Depositado em conta
+                            </span>
+                          ) : (
+                            <span className="cash-sangria-badge-pill store">
+                              <Store size={13} /> Na loja (Cofre)
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="cash-sangria-recipient-showcase">
+                          <div className="cash-sangria-loc-tag">
+                            <MapPin size={15} className="text-purple-600 shrink-0" />
+                            <span className="loc-label">Aonde está agora:</span>
+                            <strong className="loc-val">{currentRecipient || "Local não informado"}</strong>
+                          </div>
+                          {isSuccess && (
+                            <span className="cash-sangria-success-badge">
+                              <Check size={13} /> Localização atualizada!
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="cash-sangria-edit-trigger-btn"
+                        onClick={() => startEditing(row)}
+                        title="Editar onde está esta sangria"
+                      >
+                        <Edit3 size={13} /> Editar localização
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <footer className="cash-sangria-card-footer">
+                <div className="cash-sangria-footer-note">
+                  {str(row, "notes") ? (
+                    <span className="text-zinc-500 text-xs italic">
+                      Obs.: {str(row, "notes")}
+                    </span>
+                  ) : (
+                    <span className="text-zinc-400 text-xs">Sem observações adicionais</span>
+                  )}
+                </div>
+
+                <div className="cash-sangria-footer-actions">
+                  {onViewClosing && (
+                    <button
+                      type="button"
+                      className="cash-audit-view-btn"
+                      onClick={() => onViewClosing(row)}
+                      title="Ver detalhes do fechamento de caixa completo"
+                    >
+                      <Eye size={13} /> Ver Fechamento
+                    </button>
+                  )}
+                </div>
+              </footer>
+            </article>
+          );
+        })}
+
+        {filteredSangrias.length === 0 && (
+          <div className="people-empty">
+            <Coins size={32} className="text-zinc-400" />
+            <strong>Nenhuma sangria encontrada.</strong>
+            <p className="text-xs text-zinc-500 mt-1">
+              Ajuste os filtros de unidade, situação ou termo de busca acima.
+            </p>
           </div>
         )}
       </div>
