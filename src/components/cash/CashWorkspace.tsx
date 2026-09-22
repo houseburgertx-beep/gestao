@@ -65,8 +65,10 @@ const parseAttachments = (row: RecordData): CashAttachment[] => {
     const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
     if (!Array.isArray(parsed)) return [];
     return parsed.map((att: CashAttachment) => {
-      // Clean up corrupt/truncated dataUrls (e.g. exactly 60000 chars from slice bug)
-      if (att.dataUrl && !isValidDataUrl(att.dataUrl)) {
+      // For Drive-backed files: strip corrupt/truncated dataUrls (Drive is source of truth)
+      // For local-only files: preserve the dataUrl even if truncated so the lightbox can try
+      const isLocal = !att.fileId || att.fileId.startsWith("local-");
+      if (!isLocal && att.dataUrl && !isValidDataUrl(att.dataUrl)) {
         return { ...att, dataUrl: undefined };
       }
       return att;
@@ -163,20 +165,24 @@ export function AttachmentLightbox({
     setZoom(1);
     setRotation(0);
     setError("");
+    setBlobUrl("");
 
     const hasDriveFile = Boolean(attachment.fileId && !attachment.fileId.startsWith("local-"));
+    // Prefer strict validation for thumbnails, but for the lightbox allow any non-empty string
     const validDataUrl = isValidDataUrl(attachment.dataUrl) ? attachment.dataUrl : undefined;
+    // Fallback: raw dataUrl for local-only files (even if truncated, browser may partially decode)
+    const rawDataUrl = typeof attachment.dataUrl === "string" && attachment.dataUrl.length > 50
+      ? attachment.dataUrl
+      : undefined;
 
     let isMounted = true;
     let objectUrlToRevoke: string | null = null;
 
     if (hasDriveFile) {
       setLoading(true);
-      // Fast preview if valid dataUrl exists
+      // Fast preview if valid dataUrl exists while Drive download happens
       if (validDataUrl) {
         setBlobUrl(validDataUrl);
-      } else {
-        setBlobUrl("");
       }
 
       getFileBlobFromDrive(attachment.fileId)
@@ -209,13 +215,19 @@ export function AttachmentLightbox({
         }
       };
     } else if (validDataUrl) {
+      // Local file with a valid dataUrl
       setBlobUrl(validDataUrl);
+      setLoading(false);
+    } else if (rawDataUrl) {
+      // Local file with a potentially truncated/corrupt dataUrl — try anyway, onError handles failure
+      setBlobUrl(rawDataUrl);
       setLoading(false);
     } else {
       setLoading(false);
-      setError("Este comprovante não possui arquivo sincronizado no Google Drive.");
+      setError("Comprovante sem arquivo disponível. Não foi enviado para o Drive e não há preview salvo.");
     }
   }, [attachment]);
+
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -365,7 +377,7 @@ export function AttachmentLightbox({
                           setError(err instanceof Error ? err.message : "Erro ao carregar do Drive.");
                         });
                     } else {
-                      setError("Não foi possível decodificar o arquivo de imagem.");
+                      setError("Imagem corrompida ou incompleta. Este comprovante foi salvo localmente e o preview ficou danificado. Peça o operador para reenviar o comprovante.");
                     }
                   }}
                 />
