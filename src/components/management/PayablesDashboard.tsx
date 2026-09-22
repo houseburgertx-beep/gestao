@@ -24,6 +24,7 @@ import {
   ExternalLink,
   Copy,
   KeyRound,
+  Plus,
 } from "lucide-react";
 import {
   Bar,
@@ -45,6 +46,8 @@ import { fullSyncToSheet, getCachedSpreadsheetUrl } from "@/services/sheetsBacku
 import { downloadFileFromDrive } from "@/services/driveService";
 import { RecordTable, SettlementForm, formatDateBR, formatShortUnit } from "./RecordTable";
 import { InstantPaymentModal } from "@/components/finance/BankWorkspace";
+import { SimplifiedPayableModal } from "./SimplifiedPayableModal";
+import { CashFlowWorkspace } from "@/components/finance/CashFlowWorkspace";
 
 const COLORS = ["#5b5ce2", "#06a77d", "#ff9f43", "#e84a5f", "#20a4f3", "#8f5bd7"];
 
@@ -62,6 +65,8 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
   const [backupMessage, setBackupMessage] = useState("");
   const [backingUp, setBackingUp] = useState(false);
   const [instantOpen, setInstantOpen] = useState(false);
+  const [newPayableOpen, setNewPayableOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"payables" | "cashflow">("payables");
   const [showOutflows, setShowOutflows] = useState(false);
   type RecorteKey = "overdue" | "today" | "next7" | "fixed" | "taxes" | "paid";
   const [selectedRecorte, setSelectedRecorte] = useState<RecorteKey | null>(null);
@@ -344,6 +349,13 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
         </div>
         <div className="payables-hero-actions">
           <button
+            className="payables-hero-btn-new-account"
+            onClick={() => setNewPayableOpen(true)}
+            title="Cadastrar nova conta a pagar de forma simples"
+          >
+            <Plus size={16} /> Nova Conta
+          </button>
+          <button
             className="payables-hero-btn-fixed"
             onClick={() => window.dispatchEvent(new CustomEvent("open-fixed-expense-form"))}
             title="Lançar conta ou despesa fixa recorrente"
@@ -376,6 +388,46 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
           </div>
         </div>
       </section>
+
+      {/* ── Seletor de Abas: Contas a Pagar vs Fluxo de Caixa ──────────────── */}
+      <div className="flex items-center gap-2 p-1.5 bg-zinc-900/90 border border-zinc-800 rounded-2xl mb-4 w-fit shadow-xl">
+        <button
+          type="button"
+          onClick={() => setActiveTab("payables")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            activeTab === "payables"
+              ? "bg-purple-600 text-white shadow-md shadow-purple-950/40"
+              : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60"
+          }`}
+        >
+          <ReceiptText size={15} />
+          <span>Contas a Pagar</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-black/30 font-semibold text-purple-200">
+            Registro & Controle ({open.length})
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("cashflow")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            activeTab === "cashflow"
+              ? "bg-purple-600 text-white shadow-md shadow-purple-950/40"
+              : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60"
+          }`}
+        >
+          <Wallet size={15} />
+          <span>Fluxo de Caixa</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">
+            Bancos & Saídas
+          </span>
+        </button>
+      </div>
+
+      {activeTab === "cashflow" ? (
+        <CashFlowWorkspace filters={filters} />
+      ) : (
+        <>
 
       {/* ── Painel de Saldo dos Bancos em Tempo Real ───────────────────────── */}
       <div className="payables-bank-bar">
@@ -817,6 +869,18 @@ export function PayablesDashboard({ filters }: { filters: Filters }) {
       </section>
 
       <RecordTable kind="payables" filters={filters} />
+        </>
+      )}
+      {newPayableOpen && (
+        <SimplifiedPayableModal
+          initialUnitId={filters.unitId}
+          onClose={() => setNewPayableOpen(false)}
+          onSaved={(msg) => {
+            setNewPayableOpen(false);
+            if (msg) setBackupMessage(msg);
+          }}
+        />
+      )}
       {instantOpen && (
         <InstantPaymentModal
           accounts={data.bankAccounts.filter((row) => !row.archived)}

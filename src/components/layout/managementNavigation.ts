@@ -1,6 +1,7 @@
-import { TrendingUp, Users, ReceiptText, Truck, Columns3, FolderLock, Landmark, ClipboardCheck, BadgeCheck, FileText, Bike } from "lucide-react";
+import { TrendingUp, Users, ReceiptText, Truck, Columns3, FolderLock, Landmark, ClipboardCheck, BadgeCheck, FileText, Bike, Wallet } from "lucide-react";
 export const MANAGEMENT_NAV = [
   { title: "Contas a pagar", href: "/", icon: ReceiptText, roles: ["admin","accountant"] },
+  { title: "Fluxo de caixa", href: "/fluxo-de-caixa", icon: Wallet, roles: ["admin","accountant"] },
   { title: "NF Recebidas", href: "/nfe-recebida", icon: FileText, roles: ["admin","accountant"] },
   { title: "Bancos", href: "/bancos", icon: Landmark, roles: ["admin","accountant"] },
   { title: "Fornecedores", href: "/fornecedores", icon: Truck, roles: ["admin","accountant"] },

@@ -1041,6 +1041,29 @@
   }
 }
 
+.payables-hero-btn-new-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9) !important;
+  color: #ffffff !important;
+  font-size: 13px;
+  font-weight: 750;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 14px rgba(109, 40, 217, 0.35);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+.payables-hero-btn-new-account:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed) !important;
+  box-shadow: 0 6px 18px rgba(109, 40, 217, 0.5);
+}
+
 .payables-hero-btn-fixed {
   display: inline-flex;
   align-items: center;

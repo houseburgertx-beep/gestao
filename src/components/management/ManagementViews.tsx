@@ -30,6 +30,7 @@ import {
   RecordData,
 } from "@/domain/management/model";
 import { useManagement } from "@/contexts/ManagementContext";
+import { CashFlowWorkspace } from "@/components/finance/CashFlowWorkspace";
 import { MetricGrid, Kpi, AlertList, Empty } from "./ManagementPage";
 import { Tables, RecordTable } from "./RecordTable";
 import { LegacyImport } from "./LegacyImport";
@@ -44,27 +45,7 @@ export function ExtendedView({
   filters: Filters;
 }) {
   const { data } = useManagement();
-  if (view === "cash")
-    return (
-      <>
-        <MetricGrid
-          result={result}
-          keys={[
-            "bank",
-            "operatingReceipts",
-            "operatingSpending",
-            "cashGeneration",
-            "committed",
-            "freeCash",
-          ]}
-        />
-        <CashForecast result={result} />
-        <Tables
-          kinds={["bankAccounts", "transactions", "receivables", "payables"]}
-          filters={filters}
-        />
-      </>
-    );
+  if (view === "cash") return <CashFlowWorkspace filters={filters} />;
   if (view === "dre")
     return (
       <>
