@@ -31,7 +31,7 @@ import {
 } from "@/domain/management/model";
 import { Filters } from "@/domain/management/engine";
 import { AttachmentLightbox, CashAttachment } from "@/components/cash/CashWorkspace";
-import { commitRecords } from "@/services/managementService";
+import { commitRecords, reverseSettlement } from "@/services/managementService";
 import { downloadFileFromDrive } from "@/services/driveService";
 
 export function CashFlowWorkspace({
@@ -120,8 +120,23 @@ export function CashFlowWorkspace({
 
   // 2. Transações de Saída (Outflows)
   const allOutflows = useMemo(() => {
+    // Identificar IDs de liquidações que já foram estornadas
+    const reversedIds = new Set<string>();
+    (data.transactions || []).forEach((t) => {
+      if (!t.archived && t.reversalOf) {
+        reversedIds.add(str(t, "reversalOf"));
+      }
+    });
+
     return (data.transactions || [])
-      .filter((row) => !row.archived && row.direction === "Saída" && !row.reversalOf)
+      .filter(
+        (row) =>
+          !row.archived &&
+          row.direction === "Saída" &&
+          !row.reversalOf &&
+          !row.reversedBy &&
+          !reversedIds.has(row.id)
+      )
       .sort((a, b) => {
         const dateCmp = str(b, "date").localeCompare(str(a, "date"));
         if (dateCmp !== 0) return dateCmp;
@@ -199,59 +214,37 @@ export function CashFlowWorkspace({
 
     try {
       setReversingTxId(tx.id);
-      const now = new Date().toISOString();
+      const effectiveDate = str(tx, "date") > today ? str(tx, "date") : today;
 
-      // Create Reversal Transaction
-      const reversalTx: RecordData = {
-        id: `rev-${tx.id}`,
-        kind: "transactions",
-        tenantId,
-        unitId: tx.unitId,
-        version: 0,
-        createdAt: now,
-        updatedAt: now,
-        createdBy: user.uid,
-        updatedBy: user.uid,
-        description: `Estorno: ${str(tx, "description")}`,
-        date: today,
-        competence: today.slice(0, 7),
-        amount: tx.amount,
-        direction: "Entrada",
-        bankAccountId: tx.bankAccountId,
-        nature: tx.nature || "Operacional",
-        obligationId: tx.obligationId,
-        obligationKind: tx.obligationKind,
-        reversalOf: tx.id,
-      };
-
-      const toCommit: RecordData[] = [reversalTx];
-
-      // Update original transaction
-      toCommit.push({
-        ...tx,
-        reversedBy: reversalTx.id,
-        reversedAt: now,
-        updatedAt: now,
-        updatedBy: user.uid,
-      });
-
-      // Update payable if applicable
       if (tx.obligationId) {
-        const payable = data.payables.find((p) => p.id === tx.obligationId);
-        if (payable) {
-          toCommit.push({
-            ...payable,
-            status: "Pendente",
-            updatedAt: now,
-            updatedBy: user.uid,
-          });
-        }
+        // Estorno canônico que atualiza settledAmount da conta a pagar e cria transação de estorno
+        await reverseSettlement(tx, data, user.uid, effectiveDate);
+      } else {
+        // Estorno de pagamento instantâneo ou saída direta sem obrigação
+        const now = new Date().toISOString();
+        const reversalTx: RecordData = {
+          ...tx,
+          id: `rev-${tx.id}`,
+          kind: "transactions",
+          version: 0,
+          date: effectiveDate,
+          competence: effectiveDate.slice(0, 7),
+          reversalOf: tx.id,
+          direction: tx.direction === "Entrada" ? "Saída" : "Entrada",
+          description: `Estorno: ${str(tx, "description")}`,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: user.uid,
+          updatedBy: user.uid,
+          principal: tx.principal ? -Number(tx.principal) : 0,
+        };
+        await commitRecords([reversalTx], data, reversalTx);
       }
 
-      await commitRecords(toCommit, data, reversalTx);
-      setStatusMessage("Estorno realizado com sucesso! A conta retornou para o Contas a Pagar.");
+      setStatusMessage("Estorno realizado com sucesso! A conta retornou para o Contas a Pagar e o saldo foi restaurado.");
       setTimeout(() => setStatusMessage(""), 5000);
     } catch (err) {
+      console.error("Erro ao estornar pagamento:", err);
       alert(err instanceof Error ? err.message : "Erro ao estornar pagamento.");
     } finally {
       setReversingTxId(null);
