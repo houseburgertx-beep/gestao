@@ -2926,32 +2926,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
       const before = Object.fromEntries(displayBanks.map(b => [b.id, typeof b.balance === "number" ? b.balance : null]));
       const afterNetValues = Object.fromEntries(bankCalculations.map(c => [c.bank.id, c.netAmount]));
 
-      let previousNetAmounts: Record<string, number> = {};
-      try {
-        previousNetAmounts = JSON.parse(str(closing, "netBankAmountsJson") || "{}");
-      } catch {}
       const isAlreadyConferred = isClosingConferred(closing, data.cashConferences);
-
-      // Update bank account balances with NET amounts (or delta if already conferred)
-      const updates = bankCalculations.map(calcItem => {
-        const prevBal = typeof calcItem.bank.balance === "number" ? Number(calcItem.bank.balance) : 0;
-        const previousNet = isAlreadyConferred ? Number(previousNetAmounts[calcItem.bank.id] || 0) : 0;
-        const deltaNet = calcItem.netAmount - previousNet;
-        const newBalance = prevBal + deltaNet;
-        const closingDate = str(closing, "date");
-        const bankBalDate = str(calcItem.bank, "balanceDate");
-        const nextBalanceDate = bankBalDate && bankBalDate > closingDate ? bankBalDate : closingDate;
-
-        return {
-          ...calcItem.bank,
-          balance: Math.round(newBalance),
-          balanceDate: nextBalanceDate,
-          balanceUpdatedAt: now,
-          reconciled: true,
-          updatedAt: now,
-          updatedBy: user.uid
-        };
-      });
 
       // Dedicated Sangria Account handling (idempotent via delta)
       const previousConferredSangria = isAlreadyConferred ? Number(closing.conferredSangriaAmount ?? closing.sangriaAmount ?? 0) : 0;
@@ -3066,7 +3041,8 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         updatedBy: user.uid
       };
 
-      const recordsToCommit: RecordData[] = [...updates, conference, updatedClosing];
+      // Máquinas NÃO alteram saldos bancários automaticamente (controle direto pelo financeiro)
+      const recordsToCommit: RecordData[] = [conference, updatedClosing];
       if (sangriaAccountUpdate) {
         recordsToCommit.push(sangriaAccountUpdate);
       }

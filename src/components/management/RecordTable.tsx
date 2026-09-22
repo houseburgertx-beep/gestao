@@ -63,6 +63,7 @@ import { addNotificationToFirestore } from "@/services/firestoreService";
 import { parseDebtDocument, parseEmployeeDocument } from "@/domain/management/documentParsing";
 import { readDocumentText } from "@/services/documentTextReader";
 import { FixedExpenseModal } from "./FixedExpenseModal";
+import { SimplifiedPayableModal } from "./SimplifiedPayableModal";
 
 const safeUUID = () =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -1010,18 +1011,30 @@ export function RecordTable({
         />
       )}
       {editing !== null && (
-        <RecordForm
-          kind={editing ? editing.kind : kind}
-          record={editing || undefined}
-          suggestedUnit={
-            filters.unitId || (allowedUnit === "all" ? "" : allowedUnit)
-          }
-          onClose={() => setEditing(null)}
-          onSaved={(savedMessage) => {
-            setEditing(null);
-            setMessage(savedMessage || "Registro salvo e confirmado na nuvem.");
-          }}
-        />
+        (editing ? editing.kind : kind) === "payables" ? (
+          <SimplifiedPayableModal
+            initialRecord={editing || undefined}
+            initialUnitId={filters.unitId || (allowedUnit === "all" ? "" : allowedUnit)}
+            onClose={() => setEditing(null)}
+            onSaved={(savedMessage) => {
+              setEditing(null);
+              setMessage(savedMessage || "Conta salva com sucesso.");
+            }}
+          />
+        ) : (
+          <RecordForm
+            kind={editing ? editing.kind : kind}
+            record={editing || undefined}
+            suggestedUnit={
+              filters.unitId || (allowedUnit === "all" ? "" : allowedUnit)
+            }
+            onClose={() => setEditing(null)}
+            onSaved={(savedMessage) => {
+              setEditing(null);
+              setMessage(savedMessage || "Registro salvo e confirmado na nuvem.");
+            }}
+          />
+        )
       )}
       {paying && (
         <SettlementForm
