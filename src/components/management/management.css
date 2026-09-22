@@ -4295,6 +4295,598 @@
   font-size: 12px !important;
 }
 
+/* ==========================================================================
+   CASH SANGRIAS TAB - Gestão de Retiradas e Caixa Físico
+   ========================================================================== */
+.cash-sangrias-section {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+.cash-sangrias-header {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.cash-sangrias-header h2 {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 4px 0;
+}
+.cash-sangrias-header p {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+  max-width: 800px;
+}
+
+/* KPI Cards - Valor Acumulado */
+.cash-sangrias-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.cash-sangria-kpi {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.cash-sangria-kpi:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+.cash-sangria-kpi.hero {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1.5px solid #fde68a;
+}
+.cash-sangria-kpi.purple {
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+}
+.cash-sangria-kpi.amber {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+.cash-sangria-kpi.green {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.cash-sangria-kpi-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.cash-sangria-kpi-icon.gold {
+  background: #d97706;
+  color: #ffffff;
+}
+.cash-sangria-kpi-icon.purple {
+  background: #6d28d9;
+  color: #ffffff;
+}
+.cash-sangria-kpi-icon.amber {
+  background: #ea580c;
+  color: #ffffff;
+}
+.cash-sangria-kpi-icon.green {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.cash-sangria-kpi-content {
+  display: flex;
+  flex-direction: column;
+}
+.cash-sangria-kpi-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+.cash-sangria-kpi.hero .cash-sangria-kpi-label {
+  color: #92400e;
+}
+.cash-sangria-kpi-value {
+  font-size: 20px;
+  font-weight: 850;
+  color: #0f172a;
+  line-height: 1.2;
+}
+.cash-sangria-kpi-value.hero-val {
+  font-size: 22px;
+  color: #78350f;
+}
+.cash-sangria-kpi-sub {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* Filters and Search Bar */
+.cash-sangrias-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.cash-sangrias-filter-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cash-sangria-filter-pill {
+  padding: 6px 13px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 650;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.cash-sangria-filter-pill:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+.cash-sangria-filter-pill.active {
+  background: #5044b8;
+  border-color: #5044b8;
+  color: #ffffff;
+}
+
+.cash-sangrias-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cash-sangrias-unit-select {
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+  background: #ffffff;
+  color: #1e293b;
+}
+.cash-sangrias-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #64748b;
+}
+.cash-sangrias-search input {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  color: #1e293b;
+  outline: none;
+  min-width: 210px;
+}
+
+/* Cards List */
+.cash-sangrias-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cash-sangria-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 20px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+.cash-sangria-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+.cash-sangria-card.editing {
+  border-color: #a855f7;
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.15);
+}
+
+.cash-sangria-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 14px;
+}
+.cash-sangria-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cash-sangria-card-date-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  background: #f1f5f9;
+  padding: 4px 10px;
+  border-radius: 7px;
+}
+.cash-sangria-shift-tag {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  background: #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.cash-sangria-unit-title {
+  font-size: 13px;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+/* Card Body */
+.cash-sangria-card-body {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 840px) {
+  .cash-sangria-card-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cash-sangria-amount-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+.cash-sangria-amount-title {
+  font-size: 10px;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.05em;
+}
+.cash-sangria-amount-number {
+  font-size: 22px;
+  font-weight: 850;
+  color: #b45309;
+  margin: 2px 0 6px;
+}
+.cash-sangria-operator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* Location and Recipient Section */
+.cash-sangria-location-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  justify-content: center;
+}
+.cash-sangria-view-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 11px;
+}
+.cash-sangria-view-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cash-sangria-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.cash-sangria-badge-pill.responsible {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+.cash-sangria-badge-pill.store {
+  background: #fef3c7;
+  color: #92400e;
+}
+.cash-sangria-badge-pill.deposited {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.cash-sangria-recipient-showcase {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cash-sangria-loc-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #334155;
+}
+.cash-sangria-loc-tag .loc-label {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+}
+.cash-sangria-loc-tag .loc-val {
+  font-size: 14px;
+  font-weight: 800;
+  color: #1e1b4b;
+  background: #f3e8ff;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid #e9d5ff;
+}
+.cash-sangria-success-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #059669;
+  background: #ecfdf5;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.cash-sangria-edit-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4338ca;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.cash-sangria-edit-trigger-btn:hover {
+  background: #eef2ff;
+  border-color: #a5b4fc;
+}
+
+/* Edit Form */
+.cash-sangria-edit-box {
+  background: #fdf4ff;
+  border: 1.5px solid #d8b4fe;
+  border-radius: 12px;
+  padding: 16px;
+}
+.cash-sangria-edit-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #6b21a8;
+}
+.cash-sangria-edit-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cash-sangria-edit-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cash-sangria-field-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 750;
+  color: #4b5563;
+  text-transform: uppercase;
+}
+.cash-sangria-status-select,
+.cash-sangria-recipient-input {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 13px;
+  font-weight: 650;
+  background: #ffffff;
+  color: #1e293b;
+}
+.cash-sangria-recipient-input:focus,
+.cash-sangria-status-select:focus {
+  border-color: #9333ea;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.15);
+}
+
+.cash-sangria-quick-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+}
+.cash-sangria-quick-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+}
+.cash-sangria-quick-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cash-sangria-chip {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 650;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.cash-sangria-chip:hover {
+  background: #f3e8ff;
+  border-color: #c084fc;
+  color: #6b21a8;
+}
+
+.cash-sangria-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.cash-sangria-save-btn {
+  padding: 7px 16px !important;
+  font-size: 12px !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cash-sangria-cancel-btn {
+  padding: 7px 14px !important;
+  font-size: 12px !important;
+}
+
+/* Card Footer */
+.cash-sangria-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+  margin-top: 14px;
+}
+
+/* Dark Mode Overrides */
+.dark .cash-sangrias-section {
+  background: #111420;
+  border-color: #232a3e;
+}
+.dark .cash-sangrias-header h2 {
+  color: #f1f5f9;
+}
+.dark .cash-sangrias-header p {
+  color: #94a3b8;
+}
+.dark .cash-sangria-kpi {
+  background: #181d2f;
+  border-color: #262f48;
+}
+.dark .cash-sangria-kpi-value {
+  color: #f8fafc;
+}
+.dark .cash-sangria-kpi.hero {
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.15) 0%, rgba(180, 83, 9, 0.2) 100%);
+  border-color: #78350f;
+}
+.dark .cash-sangria-kpi-value.hero-val {
+  color: #fde68a;
+}
+.dark .cash-sangria-card {
+  background: #141827;
+  border-color: #232a3e;
+}
+.dark .cash-sangria-unit-title {
+  color: #f1f5f9;
+}
+.dark .cash-sangria-amount-panel {
+  background: #181d2f;
+  border-color: #262f48;
+}
+.dark .cash-sangria-view-box {
+  background: #181d2f;
+  border-color: #2d3748;
+}
+.dark .cash-sangria-loc-tag {
+  color: #e2e8f0;
+}
+.dark .cash-sangria-loc-tag .loc-val {
+  background: #3b0764;
+  color: #e9d5ff;
+  border-color: #581c87;
+}
+.dark .cash-sangria-edit-box {
+  background: #1e152f;
+  border-color: #6b21a8;
+}
+.dark .cash-sangria-edit-header {
+  color: #d8b4fe;
+}
+.dark .cash-sangria-recipient-input,
+.dark .cash-sangria-status-select {
+  background: #131724;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+.dark .cash-sangria-chip {
+  background: #181d2f;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+.dark .cash-sangria-chip:hover {
+  background: #3b0764;
+  border-color: #7e22ce;
+  color: #f3e8ff;
+}
+
+
 /* Modern Compact Task Modal */
 .task-modal-modern {
   width: min(680px, calc(100vw - 24px)) !important;

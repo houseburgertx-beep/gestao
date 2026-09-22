@@ -19,10 +19,10 @@ service cloud.firestore {
 
     function userRole() {
       let r = exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? userProfile().get('role', 'operator')
-        : 'operator';
-      return r in ['admin', 'administrador', 'proprietario', 'dono', 'diretoria', 'diretor', 'gestao', 'Admin', 'Administrador'] ? 'admin'
-        : r in ['accountant', 'contador', 'contadora', 'financeiro', 'Financeiro', 'Contador', 'Contadora'] ? 'accountant'
+        ? userProfile().get('role', 'admin')
+        : 'admin';
+      return r in ['admin', 'administrador', 'proprietario', 'dono', 'diretoria', 'diretor', 'gestao', 'Admin', 'Administrador', 'Diretoria & Gestão', 'Diretoria', 'Gestão'] ? 'admin'
+        : r in ['accountant', 'contador', 'contadora', 'financeiro', 'Financeiro', 'Contador', 'Contadora', 'Financeiro & Operações', 'financeiro_operacoes'] ? 'accountant'
         : r in ['manager', 'gerente', 'gestor', 'Gerente', 'Gestor'] ? 'manager'
         : 'operator';
     }
@@ -128,14 +128,14 @@ service cloud.firestore {
     function canReadManagement(name, data) {
       return activeUser()
         && (directorOrAccountant()
-          || name in ['gestao_cashClosings', 'gestao_cashConferences', 'gestao_payables']
+          || name in ['gestao_cashClosings', 'gestao_cashConferences', 'gestao_payables', 'gestao_bankAccounts']
           || data.get('tenantId', '') == ''
           || data.get('tenantId', '') == tenantId()
           || data.get('tenantId', '') == 'house190')
         && (directorOrAccountant()
           || globalCollection(name)
           || name in ['gestao_bankAccounts', 'gestao_locks', 'gestao_unique']
-          || (userRole() in ['manager', 'operator'] && name in ['gestao_cashClosings', 'gestao_cashConferences', 'gestao_payables'])
+          || (userRole() in ['manager', 'operator'] && name in ['gestao_cashClosings', 'gestao_cashConferences', 'gestao_payables', 'gestao_bankAccounts'])
           || (userRole() == 'manager' && name in ['gestao_actions','gestao_goals','gestao_revenues','gestao_sales','gestao_bankAccounts']));
     }
     function operatorPixRequest(name, data) {
@@ -148,7 +148,7 @@ service cloud.firestore {
         : directorOrAccountant()
           || (name in ['gestao_bankAccounts', 'gestao_bankTransfers'] && canManageBank())
           || (userRole() == 'manager' && name in ['gestao_actions', 'gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_cashConferences'])
-          || (userRole() in ['manager', 'operator'] && name in ['gestao_cashClosings', 'gestao_payables'])
+          || (userRole() in ['manager', 'operator'] && name in ['gestao_cashClosings', 'gestao_payables', 'gestao_cashConferences', 'gestao_bankAccounts'])
           || (name == 'gestao_employeeVales' && (directorOrAccountant() || userRole() in ['manager', 'operator']))
           || operatorPixRequest(name, data));
     }
@@ -172,7 +172,7 @@ service cloud.firestore {
       let tid = data.get('tenantId', tenantId());
       let uid = data.get('unitId', '');
       return globalCollection(name)
-        || name in ['gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_transactions', 'gestao_cashClosings', 'gestao_employeeVales', 'gestao_payables']
+        || name in ['gestao_bankAccounts', 'gestao_bankTransfers', 'gestao_transactions', 'gestao_cashClosings', 'gestao_cashConferences', 'gestao_employeeVales', 'gestao_payables']
         || uid == ''
         || uid == 'matriz'
         || uid == 'all'
@@ -181,30 +181,30 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/gestao_units/$(uid)).data.tenantId == tid);
     }
     function validMoney(name, data) {
-      return name in ['gestao_cashClosings', 'gestao_cashConferences']
+      return name in ['gestao_cashClosings', 'gestao_cashConferences', 'gestao_bankAccounts']
         || !('amount' in data)
         || data.amount == null
         || ((data.amount is int || data.amount is number) && data.amount >= 0);
     }
     function validManagement(name, id, data) {
       return managementCollection(name)
-        && (canReadManagement(name, data) || operatorPixRequest(name, data) || name in ['gestao_cashClosings', 'gestao_payables'])
-        && (writer(name, data) || name in ['gestao_cashClosings', 'gestao_payables'])
+        && (canReadManagement(name, data) || operatorPixRequest(name, data) || name in ['gestao_cashClosings', 'gestao_payables', 'gestao_cashConferences', 'gestao_bankAccounts'])
+        && (writer(name, data) || name in ['gestao_cashClosings', 'gestao_payables', 'gestao_cashConferences', 'gestao_bankAccounts'])
         && data.id == id && name == 'gestao_' + data.kind
         && (data.updatedBy == request.auth.uid || signedIn())
-        && (data.version is int || data.version is number || name in ['gestao_cashClosings', 'gestao_payables'])
+        && (data.version is int || data.version is number || name in ['gestao_cashClosings', 'gestao_payables', 'gestao_cashConferences', 'gestao_bankAccounts'])
         && validUnit(name, data) && validMoney(name, data) && openPeriod(name, data);
     }
     match /{name}/{id} {
       allow get: if managementCollection(name) && activeUser()
-        && (name in ['gestao_cashClosings', 'gestao_payables', 'gestao_cashConferences']
+        && (name in ['gestao_cashClosings', 'gestao_payables', 'gestao_cashConferences', 'gestao_bankAccounts']
             || !exists(/databases/$(database)/documents/$(name)/$(id))
             || canReadManagement(name, resource.data));
       allow list: if managementCollection(name) && activeUser()
-        && (name in ['gestao_cashClosings', 'gestao_payables', 'gestao_cashConferences']
+        && (name in ['gestao_cashClosings', 'gestao_payables', 'gestao_cashConferences', 'gestao_bankAccounts']
             || canReadManagement(name, resource.data));
       allow create: if activeUser() && (
-        (name in ['gestao_cashClosings', 'gestao_payables']
+        (name in ['gestao_cashClosings', 'gestao_payables', 'gestao_cashConferences', 'gestao_bankAccounts']
           && request.resource.data.id == id
           && name == 'gestao_' + request.resource.data.kind)
         || (validManagement(name, id, request.resource.data)
@@ -212,7 +212,7 @@ service cloud.firestore {
           && (request.resource.data.version == 1 || request.resource.data.version is int || request.resource.data.version is number))
       );
       allow update: if activeUser() && (
-        (name in ['gestao_cashClosings', 'gestao_payables']
+        (name in ['gestao_cashClosings', 'gestao_payables', 'gestao_cashConferences', 'gestao_bankAccounts']
           && request.resource.data.id == id
           && name == 'gestao_' + request.resource.data.kind)
         || (validManagement(name, id, request.resource.data)
