@@ -50,16 +50,61 @@ export type CashAttachment = {
   uploadedAt?: string;
 };
 
+export function isValidDataUrl(url?: string): url is string {
+  if (!url || typeof url !== "string") return false;
+  // Exact 60000 length was caused by the slice(0, 60000) bug which corrupted base64 images
+  if (url.length === 60000) return false;
+  if (!url.startsWith("data:image/")) return false;
+  return url.length > 200;
+}
+
 const parseAttachments = (row: RecordData): CashAttachment[] => {
   try {
     const raw = row.attachmentsJson;
     if (!raw) return [];
     const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((att: CashAttachment) => {
+      // Clean up corrupt/truncated dataUrls (e.g. exactly 60000 chars from slice bug)
+      if (att.dataUrl && !isValidDataUrl(att.dataUrl)) {
+        return { ...att, dataUrl: undefined };
+      }
+      return att;
+    });
   } catch {
     return [];
   }
 };
+
+export function AttachmentThumbnail({
+  att,
+  onClick,
+}: {
+  att: CashAttachment;
+  onClick: () => void;
+}) {
+  const [loadFailed, setLoadFailed] = useState(false);
+  const isPdf = att.mimeType === "application/pdf" || att.fileName.toLowerCase().endsWith(".pdf");
+  const validDataUrl = isValidDataUrl(att.dataUrl) ? att.dataUrl : undefined;
+
+  return (
+    <div className="conf-att-preview" onClick={onClick} title="Clique para visualizar">
+      {!isPdf && validDataUrl && !loadFailed ? (
+        <img
+          src={validDataUrl}
+          alt={att.fileName}
+          className="conf-att-thumb"
+          onError={() => setLoadFailed(true)}
+        />
+      ) : isPdf ? (
+        <div className="conf-att-icon-box pdf"><FileText size={24} /><span>PDF</span></div>
+      ) : (
+        <div className="conf-att-icon-box img"><ImageIcon size={24} /><span>FOTO</span></div>
+      )}
+      <div className="conf-att-overlay"><Eye size={14} /> <span>Ver</span></div>
+    </div>
+  );
+}
 const closingValue=(row:RecordData,key:string,fallback=0)=>typeof row[key]==="number"?Number(row[key]):fallback;
 
 export const isClosingConferred = (
@@ -108,44 +153,67 @@ export function AttachmentLightbox({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const isPdf =
+    attachment?.mimeType === "application/pdf" ||
+    attachment?.fileName.toLowerCase().endsWith(".pdf") ||
+    false;
+
   useEffect(() => {
     if (!attachment) return;
     setZoom(1);
     setRotation(0);
     setError("");
 
-    if (attachment.dataUrl) {
-      setBlobUrl(attachment.dataUrl);
-      setLoading(false);
-      return;
-    }
+    const hasDriveFile = Boolean(attachment.fileId && !attachment.fileId.startsWith("local-"));
+    const validDataUrl = isValidDataUrl(attachment.dataUrl) ? attachment.dataUrl : undefined;
 
-    if (attachment.fileId && !attachment.fileId.startsWith("local-")) {
+    let isMounted = true;
+    let objectUrlToRevoke: string | null = null;
+
+    if (hasDriveFile) {
       setLoading(true);
-      let isMounted = true;
+      // Fast preview if valid dataUrl exists
+      if (validDataUrl) {
+        setBlobUrl(validDataUrl);
+      } else {
+        setBlobUrl("");
+      }
+
       getFileBlobFromDrive(attachment.fileId)
         .then((res) => {
           if (isMounted) {
+            objectUrlToRevoke = res.url;
             setBlobUrl(res.url);
             setLoading(false);
+          } else {
+            URL.revokeObjectURL(res.url);
           }
         })
         .catch((err) => {
           if (isMounted) {
             setLoading(false);
-            setError(
-              err instanceof Error
-                ? err.message
-                : "Não foi possível carregar o arquivo do Drive."
-            );
+            if (!validDataUrl) {
+              setError(
+                err instanceof Error
+                  ? err.message
+                  : "Não foi possível carregar o arquivo do Drive."
+              );
+            }
           }
         });
+
       return () => {
         isMounted = false;
+        if (objectUrlToRevoke) {
+          URL.revokeObjectURL(objectUrlToRevoke);
+        }
       };
+    } else if (validDataUrl) {
+      setBlobUrl(validDataUrl);
+      setLoading(false);
     } else {
       setLoading(false);
-      setError("Este comprovante não possui arquivo sincronizado no Drive.");
+      setError("Este comprovante não possui arquivo sincronizado no Google Drive.");
     }
   }, [attachment]);
 
@@ -159,20 +227,9 @@ export function AttachmentLightbox({
 
   if (!attachment) return null;
 
-  const isPdf =
-    attachment.mimeType === "application/pdf" ||
-    attachment.fileName.toLowerCase().endsWith(".pdf");
-
   const handleDownload = async () => {
     try {
-      if (blobUrl && !blobUrl.startsWith("blob:")) {
-        const link = document.createElement("a");
-        link.href = blobUrl;
-        link.download = attachment.fileName || "comprovante.jpg";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-      } else if (attachment.fileId && !attachment.fileId.startsWith("local-")) {
+      if (attachment.fileId && !attachment.fileId.startsWith("local-")) {
         await downloadFileFromDrive(attachment.fileId, attachment.fileName);
       } else if (blobUrl) {
         const link = document.createElement("a");
@@ -181,6 +238,8 @@ export function AttachmentLightbox({
         document.body.appendChild(link);
         link.click();
         link.remove();
+      } else {
+        alert("Arquivo indisponível para download.");
       }
     } catch {
       alert("Erro ao baixar arquivo.");
@@ -275,7 +334,7 @@ export function AttachmentLightbox({
             </div>
           )}
 
-          {!loading && !error && blobUrl && (
+          {!error && blobUrl && (
             <div className="att-lightbox-viewport">
               {isPdf ? (
                 <iframe
@@ -291,6 +350,23 @@ export function AttachmentLightbox({
                   style={{
                     transform: `scale(${zoom}) rotate(${rotation}deg)`,
                     transition: "transform 0.15s ease",
+                  }}
+                  onError={() => {
+                    if (attachment.fileId && !attachment.fileId.startsWith("local-") && blobUrl !== "") {
+                      setBlobUrl("");
+                      setLoading(true);
+                      getFileBlobFromDrive(attachment.fileId)
+                        .then((res) => {
+                          setBlobUrl(res.url);
+                          setLoading(false);
+                        })
+                        .catch((err) => {
+                          setLoading(false);
+                          setError(err instanceof Error ? err.message : "Erro ao carregar do Drive.");
+                        });
+                    } else {
+                      setError("Não foi possível decodificar o arquivo de imagem.");
+                    }
                   }}
                 />
               )}
@@ -1064,14 +1140,14 @@ function ClosingModal({
 
       const uploadedAttachments: CashAttachment[] = [...existingAttachments.map(att => ({
         ...att,
-        // Strip large dataUrls from existing attachments that are already in Drive
-        dataUrl: att.fileId && !att.fileId.startsWith("local-") ? undefined : (att.dataUrl && att.dataUrl.length > 60000 ? att.dataUrl.slice(0, 60000) : att.dataUrl),
+        // File is in Drive: do NOT store large base64 strings in Firestore
+        dataUrl: att.fileId && !att.fileId.startsWith("local-") ? undefined : (isValidDataUrl(att.dataUrl) ? att.dataUrl : undefined),
       }))];
       for (const item of newFiles) {
         try {
           const named = nameFileForDrive(item.file, `Fechamento ${date} - ${unit}`);
           const saved = await uploadFileToDrive(named, "payment_proofs");
-          // File is safe in Drive — do NOT store dataUrl in Firestore (saves ~300KB per photo)
+          // File is safe in Drive — do NOT store dataUrl in Firestore
           uploadedAttachments.push({
             fileId: saved.fileId,
             fileName: saved.fileName,
@@ -1081,15 +1157,13 @@ function ClosingModal({
             uploadedAt: new Date().toISOString()
           });
         } catch (uploadErr) {
-          console.warn("[Fechamento] Falha ao enviar comprovante para o Drive, mantendo fallback com preview:", uploadErr);
-          // Fallback: cap dataUrl at 60KB to stay well within Firestore 1MB limit (5 attachments * 60KB = 300KB max)
-          const safeDataUrl = item.dataUrl && item.dataUrl.length > 60000 ? item.dataUrl.slice(0, 60000) : (item.dataUrl || undefined);
+          console.warn("[Fechamento] Falha ao enviar comprovante para o Drive, mantendo fallback:", uploadErr);
           uploadedAttachments.push({
             fileId: `local-${Date.now()}-${item.file.name}`,
             fileName: item.file.name,
             mimeType: item.file.type || "image/jpeg",
             size: item.size,
-            dataUrl: safeDataUrl,
+            dataUrl: isValidDataUrl(item.dataUrl) ? item.dataUrl : undefined,
             uploadedAt: new Date().toISOString()
           });
         }
@@ -2219,8 +2293,15 @@ function ClosingModal({
                       {existingAttachments.map(att => (
                         <div key={att.fileId} className="flex items-center justify-between gap-2 p-2 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs">
                           <div className="flex items-center gap-2.5 truncate min-w-0">
-                            {att.dataUrl ? (
-                              <img src={att.dataUrl} alt="" className="w-8 h-8 object-cover rounded-lg shrink-0 border border-zinc-200" />
+                            {att.dataUrl && isValidDataUrl(att.dataUrl) ? (
+                              <img
+                                src={att.dataUrl}
+                                alt=""
+                                className="w-8 h-8 object-cover rounded-lg shrink-0 border border-zinc-200"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLElement).style.display = "none";
+                                }}
+                              />
                             ) : (
                               <FileText size={18} className="text-purple-600 shrink-0" />
                             )}
@@ -2801,7 +2882,11 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   const downloadAttachment = async (att: CashAttachment) => {
     try {
       setDownloading(att.fileId);
-      if (att.dataUrl) {
+      if (att.fileId && !att.fileId.startsWith("local-")) {
+        await downloadFileFromDrive(att.fileId, att.fileName);
+        return;
+      }
+      if (isValidDataUrl(att.dataUrl)) {
         const link = document.createElement("a");
         link.href = att.dataUrl;
         link.download = att.fileName || "comprovante.jpg";
@@ -2810,11 +2895,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         link.remove();
         return;
       }
-      if (att.fileId && !att.fileId.startsWith("local-")) {
-        await downloadFileFromDrive(att.fileId, att.fileName);
-      } else {
-        alert("Comprovante sem arquivo disponível para download.");
-      }
+      alert("Comprovante sem arquivo disponível para download.");
     } catch (e) {
       alert(e instanceof Error ? e.message : "Erro ao baixar arquivo do Drive.");
     } finally {
@@ -3138,21 +3219,9 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
           ) : (
             <div className="conf-att-grid">
               {attachmentsList.map(att => {
-                const isPdf = att.mimeType === "application/pdf" || att.fileName.toLowerCase().endsWith(".pdf");
                 return (
                   <div key={att.fileId} className="conf-att-item">
-                    <div className="conf-att-preview" onClick={() => setPreviewAttachment(att)} title="Clique para visualizar em tela cheia">
-                      {att.dataUrl ? (
-                        <img src={att.dataUrl} alt={att.fileName} className="conf-att-thumb" />
-                      ) : isPdf ? (
-                        <div className="conf-att-icon-box pdf"><FileText size={26} /><span>PDF</span></div>
-                      ) : (
-                        <div className="conf-att-icon-box img"><ImageIcon size={26} /><span>FOTO</span></div>
-                      )}
-                      <div className="conf-att-overlay">
-                        <Eye size={16} /> <span>Visualizar</span>
-                      </div>
-                    </div>
+                    <AttachmentThumbnail att={att} onClick={() => setPreviewAttachment(att)} />
                     <div className="conf-att-meta">
                       <span className="conf-att-name" title={att.fileName}>{att.fileName}</span>
                       <small className="conf-att-size">{formatFileSize(att.size)}</small>
@@ -4037,7 +4106,11 @@ function ClosingDetailsModal({
   const downloadAttachment = async (att: CashAttachment) => {
     try {
       setDownloading(att.fileId);
-      if (att.dataUrl) {
+      if (att.fileId && !att.fileId.startsWith("local-")) {
+        await downloadFileFromDrive(att.fileId, att.fileName);
+        return;
+      }
+      if (isValidDataUrl(att.dataUrl)) {
         const link = document.createElement("a");
         link.href = att.dataUrl;
         link.download = att.fileName || "comprovante.jpg";
@@ -4046,11 +4119,7 @@ function ClosingDetailsModal({
         link.remove();
         return;
       }
-      if (att.fileId && !att.fileId.startsWith("local-")) {
-        await downloadFileFromDrive(att.fileId, att.fileName);
-      } else {
-        alert("Comprovante sem arquivo disponível para download.");
-      }
+      alert("Comprovante sem arquivo disponível para download.");
     } catch (e) {
       alert(e instanceof Error ? e.message : "Erro ao baixar arquivo do Drive.");
     } finally {
@@ -4480,19 +4549,9 @@ function ClosingDetailsModal({
           ) : (
             <div className="conf-att-grid">
               {attachments.map(att => {
-                const isPdf = att.mimeType === "application/pdf" || att.fileName.toLowerCase().endsWith(".pdf");
                 return (
                   <div key={att.fileId} className="conf-att-item">
-                    <div className="conf-att-preview" onClick={() => setPreviewAttachment(att)} title="Clique para visualizar">
-                      {att.dataUrl ? (
-                        <img src={att.dataUrl} alt={att.fileName} className="conf-att-thumb" />
-                      ) : isPdf ? (
-                        <div className="conf-att-icon-box pdf"><FileText size={24} /><span>PDF</span></div>
-                      ) : (
-                        <div className="conf-att-icon-box img"><ImageIcon size={24} /><span>FOTO</span></div>
-                      )}
-                      <div className="conf-att-overlay"><Eye size={14} /> <span>Ver</span></div>
-                    </div>
+                    <AttachmentThumbnail att={att} onClick={() => setPreviewAttachment(att)} />
                     <div className="conf-att-meta">
                       <span className="conf-att-name" title={att.fileName}>{att.fileName}</span>
                       <small className="conf-att-size">{formatFileSize(att.size)}</small>
