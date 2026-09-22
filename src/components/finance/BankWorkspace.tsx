@@ -364,51 +364,57 @@ export function BankWorkspace() {
   };
 
   return (
-    <div className="workspace-shell banking-workspace">
+    <div className="space-y-5 animate-in fade-in duration-200">
       {/* Executive Header */}
-      <header className="workspace-header">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-zinc-200">
         <div>
-          <span className="workspace-eyebrow">TESOURARIA & FINANÇAS</span>
-          <h1>Bancos & Caixas</h1>
-          <p>Saldos em tempo real, conciliação por loja e movimentações financeiras.</p>
+          <span className="text-[11px] font-bold tracking-wider uppercase text-purple-600 block mb-0.5">
+            TESOURARIA & FINANÇAS
+          </span>
+          <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">
+            Bancos & Caixas
+          </h1>
+          <p className="text-xs text-zinc-500 mt-0.5">
+            Saldos em tempo real, conciliação por loja e movimentações financeiras.
+          </p>
         </div>
-        <div className="bank-actions">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className="bank-btn-whatsapp"
             onClick={() => share("banks")}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 font-bold text-xs transition shadow-2xs"
             title="Compartilhar resumo executivo no WhatsApp"
           >
             <MessageCircle size={14} /> WhatsApp
           </button>
           <button
             type="button"
-            className="bank-action-btn is-add"
             onClick={() => setQuickModal({ mode: "add" })}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 font-bold text-xs transition shadow-2xs"
             title="Incluir mais valor ou entrada em qualquer banco"
           >
             <PlusCircle size={14} /> Incluir Valor
           </button>
           <button
             type="button"
-            className="bank-action-btn"
             onClick={() => setInstantOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 font-bold text-xs transition shadow-2xs"
             title="Registrar pagamento instantâneo de conta"
           >
-            <Zap size={14} /> Pagamento
+            <Zap size={14} className="fill-amber-500" /> Pagamento
           </button>
           <button
             type="button"
-            className="bank-action-btn"
             onClick={() => setTransferOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 font-bold text-xs transition shadow-2xs"
             title="Transferência entre contas"
           >
             <ArrowRightLeft size={14} /> Transferir
           </button>
           <button
             type="button"
-            className="workspace-primary"
             onClick={() => setEditingBank(false)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-sm transition"
           >
             <Plus size={14} /> Nova Conta
           </button>
@@ -416,27 +422,30 @@ export function BankWorkspace() {
       </header>
 
       {/* KPI Cards Grid (Clickable store filter) */}
-      <section className="bank-kpi-grid">
-        {/* Consolidated Total Card (Light Executive Style) */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* Consolidated Total Card */}
         <div
-          className={`bank-kpi-card is-total ${unitFilter === "all" ? "is-active-filter" : ""}`}
           onClick={() => setUnitFilter("all")}
+          className={`p-5 rounded-2xl bg-white border cursor-pointer transition shadow-sm flex flex-col justify-between group ${
+            unitFilter === "all" ? "border-purple-500 ring-2 ring-purple-100" : "border-zinc-200 hover:border-zinc-300"
+          }`}
           title="Clique para filtrar todas as contas"
         >
-          <div className="bank-kpi-header">
-            <span>TOTAL CONSOLIDADO</span>
-            <div className="bank-kpi-icon">
-              <WalletCards size={16} />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-zinc-500">TOTAL CONSOLIDADO</span>
+            <div className="h-9 w-9 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600 shadow-sm">
+              <WalletCards size={17} />
             </div>
           </div>
-          <div className="bank-kpi-value">
-            {accounts.length ? currency(total) : "R$ 0,00"}
-          </div>
-          <div className="bank-kpi-footer">
-            <span>
+          <div className="mt-3">
+            <strong className="text-2xl font-bold tracking-tight text-zinc-900">
+              {accounts.length ? currency(total) : "R$ 0,00"}
+            </strong>
+            <span className="text-[11px] text-zinc-500 mt-1 flex items-center gap-1.5 font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               {accounts.length - missingCount} de {accounts.length} contas com saldo
+              {missingCount > 0 && <span className="text-amber-600 font-semibold">· {missingCount} pendente(s)</span>}
             </span>
-            {missingCount > 0 && <span>· {missingCount} pendente(s)</span>}
           </div>
         </div>
 
@@ -446,157 +455,146 @@ export function BankWorkspace() {
           return (
             <div
               key={summary.unit.id}
-              className={`bank-kpi-card ${isActive ? "is-active-filter" : ""}`}
-              onClick={() =>
-                setUnitFilter(isActive ? "all" : summary.unit.id)
-              }
+              onClick={() => setUnitFilter(isActive ? "all" : summary.unit.id)}
+              className={`p-5 rounded-2xl bg-white border cursor-pointer transition shadow-sm flex flex-col justify-between ${
+                isActive ? "border-purple-500 ring-2 ring-purple-100" : "border-zinc-200 hover:border-zinc-300"
+              }`}
               title={`Clique para filtrar ${summary.shortName}`}
             >
-              <div className="bank-kpi-header">
-                <span>{summary.shortName.toUpperCase()}</span>
-                <div className="bank-kpi-icon">
-                  <Store size={15} />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-zinc-500 uppercase">{summary.shortName}</span>
+                <div className="h-9 w-9 rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-center text-zinc-600 shadow-sm">
+                  <Store size={16} />
                 </div>
               </div>
-              <div className="bank-kpi-value">{currency(summary.total)}</div>
-              <div className="bank-kpi-footer">
-                <span>
-                  {summary.informedCount} de {summary.count} conta(s)
-                </span>
-                {isActive && (
-                  <span style={{ color: "#6366f1", fontWeight: 700 }}>· Filtrado</span>
-                )}
+              <div className="mt-3">
+                <strong className="text-2xl font-bold tracking-tight text-zinc-900">
+                  {currency(summary.total)}
+                </strong>
+                <div className="flex items-center justify-between text-[11px] text-zinc-500 mt-1 font-medium">
+                  <span>{summary.informedCount} de {summary.count} conta(s)</span>
+                  {isActive && <span className="text-purple-600 font-bold">· Filtrado</span>}
+                </div>
               </div>
             </div>
           );
         })}
       </section>
 
-      {/* Modern Filter Toolbar */}
-      <section className="bank-controls-bar">
-        <div className="bank-filter-group">
-          {/* Unit Tabs */}
-          <button
-            type="button"
-            className={`bank-filter-btn ${unitFilter === "all" ? "active" : ""}`}
-            onClick={() => setUnitFilter("all")}
-          >
-            Todas ({balances.length})
-          </button>
-          {unitSummaries.map((s) => (
+      {/* Modern Controls Bar */}
+      <section className="p-4 bg-white border border-zinc-200 rounded-2xl shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Store Tabs */}
+          <div className="flex items-center bg-zinc-100 rounded-xl p-1 border border-zinc-200">
             <button
-              key={s.unit.id}
               type="button"
-              className={`bank-filter-btn ${unitFilter === s.unit.id ? "active" : ""}`}
-              onClick={() => setUnitFilter(s.unit.id)}
+              onClick={() => setUnitFilter("all")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                unitFilter === "all" ? "bg-white text-purple-700 shadow-xs" : "text-zinc-600 hover:text-zinc-900"
+              }`}
             >
-              {s.shortName} ({s.count})
+              Todas ({balances.length})
             </button>
-          ))}
+            {unitSummaries.map((s) => (
+              <button
+                key={s.unit.id}
+                type="button"
+                onClick={() => setUnitFilter(s.unit.id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  unitFilter === s.unit.id ? "bg-white text-purple-700 shadow-xs" : "text-zinc-600 hover:text-zinc-900"
+                }`}
+              >
+                {s.shortName} ({s.count})
+              </button>
+            ))}
+          </div>
 
-          <div className="bank-filter-divider" />
-
-          {/* Category Filter */}
-          <button
-            type="button"
-            className={`bank-filter-btn ${categoryFilter === "all" ? "active" : ""}`}
-            onClick={() => setCategoryFilter("all")}
-          >
-            Todos Tipos
-          </button>
-          <button
-            type="button"
-            className={`bank-filter-btn ${categoryFilter === "card_machine" ? "active" : ""}`}
-            onClick={() => setCategoryFilter("card_machine")}
-          >
-            Maquininhas
-          </button>
-          <button
-            type="button"
-            className={`bank-filter-btn ${categoryFilter === "delivery" ? "active" : ""}`}
-            onClick={() => setCategoryFilter("delivery")}
-          >
-            Delivery / iFood
-          </button>
-          <button
-            type="button"
-            className={`bank-filter-btn ${categoryFilter === "traditional" ? "active" : ""}`}
-            onClick={() => setCategoryFilter("traditional")}
-          >
-            Bancos
-          </button>
-          <button
-            type="button"
-            className={`bank-filter-btn ${categoryFilter === "cash" ? "active" : ""}`}
-            onClick={() => setCategoryFilter("cash")}
-          >
-            Caixa / Sangria
-          </button>
-
-          <div className="bank-filter-divider" />
+          {/* Category Tabs */}
+          <div className="flex items-center bg-zinc-100 rounded-xl p-1 border border-zinc-200">
+            {[
+              { id: "all", label: "Todos Tipos" },
+              { id: "card_machine", label: "Maquininhas" },
+              { id: "delivery", label: "Delivery / iFood" },
+              { id: "traditional", label: "Bancos" },
+              { id: "cash", label: "Caixa / Sangria" },
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setCategoryFilter(t.id as any)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  categoryFilter === t.id ? "bg-white text-purple-700 shadow-xs" : "text-zinc-600 hover:text-zinc-900"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
 
           {/* Status Filter */}
-          <button
-            type="button"
-            className={`bank-filter-btn ${statusFilter === "has_balance" ? "active" : ""}`}
-            onClick={() =>
-              setStatusFilter(statusFilter === "has_balance" ? "all" : "has_balance")
-            }
-          >
-            Com Saldo
-          </button>
-          <button
-            type="button"
-            className={`bank-filter-btn ${statusFilter === "pending" ? "active" : ""}`}
-            onClick={() =>
-              setStatusFilter(statusFilter === "pending" ? "all" : "pending")
-            }
-          >
-            Pendentes ({missingCount})
-          </button>
+          <div className="flex items-center bg-zinc-100 rounded-xl p-1 border border-zinc-200">
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === "has_balance" ? "all" : "has_balance")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                statusFilter === "has_balance" ? "bg-white text-purple-700 shadow-xs" : "text-zinc-600 hover:text-zinc-900"
+              }`}
+            >
+              Com Saldo
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === "pending" ? "all" : "pending")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                statusFilter === "pending" ? "bg-white text-amber-700 shadow-xs" : "text-zinc-600 hover:text-zinc-900"
+              }`}
+            >
+              Pendentes ({missingCount})
+            </button>
+          </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          {/* Search Box */}
-          <div className="bank-search-box">
-            <Search size={14} style={{ color: "#94a3b8" }} />
+        {/* Search & View Switch */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-60 h-10 px-3.5 bg-zinc-50 border border-zinc-200 rounded-xl focus-within:bg-white focus-within:border-purple-600 transition">
+            <Search size={15} className="text-zinc-400 shrink-0 select-none" />
             <input
               type="text"
               placeholder="Buscar conta ou banco..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ padding: 0, border: "none", outline: "none", background: "transparent" }}
+              className="w-full text-xs font-medium text-zinc-800 placeholder-zinc-400 focus:outline-none"
             />
             {searchTerm && (
               <button
                 type="button"
                 onClick={() => setSearchTerm("")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#94a3b8",
-                  cursor: "pointer",
-                  padding: 0,
-                }}
+                className="text-zinc-400 hover:text-zinc-700 shrink-0"
+                title="Limpar busca"
               >
-                ✕
+                <X size={13} />
               </button>
             )}
           </div>
 
-          {/* View Mode Switch */}
-          <div className="bank-view-switch">
+          <div className="flex items-center bg-zinc-100 rounded-xl p-1 border border-zinc-200 shrink-0">
             <button
               type="button"
-              className={`bank-view-btn ${viewMode === "cards" ? "active" : ""}`}
               onClick={() => setViewMode("cards")}
+              className={`p-2 rounded-lg transition ${
+                viewMode === "cards" ? "bg-white text-purple-700 shadow-xs" : "text-zinc-500 hover:text-zinc-900"
+              }`}
               title="Visualização em Cards"
             >
               <LayoutGrid size={15} />
             </button>
             <button
               type="button"
-              className={`bank-view-btn ${viewMode === "table" ? "active" : ""}`}
               onClick={() => setViewMode("table")}
+              className={`p-2 rounded-lg transition ${
+                viewMode === "table" ? "bg-white text-purple-700 shadow-xs" : "text-zinc-500 hover:text-zinc-900"
+              }`}
               title="Visualização em Tabela"
             >
               <List size={15} />
@@ -607,22 +605,15 @@ export function BankWorkspace() {
 
       {/* Messages */}
       {message && (
-        <p
-          className="workspace-message"
-          style={{
-            margin: "0",
-            background: "#ecfdf5",
-            borderColor: "#a7f3d0",
-            color: "#065f46",
-          }}
-        >
-          {message}
-        </p>
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-emerald-700 text-xs font-semibold shadow-sm">
+          <Check size={16} />
+          <span>{message}</span>
+        </div>
       )}
 
       {/* Content: Cards View vs Table View */}
       {viewMode === "cards" ? (
-        <section className="bank-cards-grid">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
           {filteredBalances.map(({ account, balance }) => {
             const meta = getBankInstitutionMeta(
               str(account, "bank"),
@@ -635,56 +626,61 @@ export function BankWorkspace() {
             const isNegative = balance !== null && balance < 0;
 
             return (
-              <article className="bank-card-modern" key={account.id}>
-                <div className="bank-card-top">
-                  <span
-                    className="bank-inst-badge"
-                    style={{
-                      backgroundColor: meta.bg,
-                      borderColor: meta.border,
-                      color: meta.color,
-                    }}
-                  >
-                    {meta.label}
-                  </span>
-                  <span className="bank-unit-chip">{unitShort}</span>
-                </div>
-
-                <div className="bank-card-body">
-                  <h3 className="bank-card-name">{str(account, "name")}</h3>
-                  {account.isSangriaAccount ? (
-                    <span className="bank-card-sangria">Caixa de Sangria</span>
-                  ) : null}
-
-                  <div className="bank-card-balance-box">
+              <article
+                className="p-4 bg-white border border-zinc-200 hover:border-purple-300 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
+                key={account.id}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2.5">
                     <span
-                      className={`bank-balance-num ${
-                        isPending
-                          ? "is-pending"
-                          : isNegative
-                            ? "is-negative"
-                            : "is-positive"
-                      }`}
+                      className="px-2 py-0.5 rounded-md text-[11px] font-bold border"
+                      style={{
+                        backgroundColor: meta.bg,
+                        borderColor: meta.border,
+                        color: meta.color,
+                      }}
                     >
-                      {isPending ? "R$ —" : currency(balance)}
+                      {meta.label}
                     </span>
-                    {isPending && (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-zinc-100 border border-zinc-200 text-zinc-600">
+                      {unitShort}
+                    </span>
+                  </div>
+
+                  <h3 className="text-sm font-bold text-zinc-900 group-hover:text-purple-700 transition leading-snug">
+                    {str(account, "name")}
+                  </h3>
+                  {account.isSangriaAccount && (
+                    <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 border border-amber-200 text-amber-700">
+                      Caixa de Sangria
+                    </span>
+                  )}
+
+                  <div className="mt-3">
+                    <div className="flex items-baseline gap-1.5">
                       <span
-                        style={{
-                          fontSize: "11px",
-                          color: "#94a3b8",
-                          fontWeight: 600,
-                        }}
+                        className={`text-2xl font-black tracking-tight ${
+                          isPending
+                            ? "text-zinc-400"
+                            : isNegative
+                            ? "text-rose-600"
+                            : "text-zinc-900"
+                        }`}
                       >
-                        Pendente
+                        {isPending ? "R$ —" : currency(balance)}
                       </span>
-                    )}
+                      {isPending && (
+                        <span className="text-[11px] text-amber-600 font-semibold">
+                          Pendente
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <div className="bank-card-footer">
+                <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center justify-between gap-1 text-xs">
                   <span
-                    className="bank-card-date"
+                    className="text-[11px] text-zinc-400 font-medium truncate"
                     title={
                       str(account, "balanceDate")
                         ? `Última atualização: ${str(account, "balanceDate").split("-").reverse().join("/")}`
@@ -695,38 +691,38 @@ export function BankWorkspace() {
                       ? str(account, "balanceDate").split("-").reverse().join("/")
                       : "Sem saldo"}
                   </span>
-                  <div className="bank-card-actions">
+                  <div className="flex items-center gap-1 shrink-0">
                     <button
                       type="button"
-                      className="bank-quick-btn add"
                       onClick={() => setQuickModal({ account, mode: "add" })}
+                      className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200/70 text-purple-700 font-bold text-[11px] transition shadow-2xs flex items-center gap-1"
                       title="Incluir mais valor / somar a esta conta"
                     >
                       <Plus size={11} /> Incluir
                     </button>
                     <button
                       type="button"
-                      className="bank-quick-btn"
                       onClick={() => setQuickModal({ account, mode: "set" })}
+                      className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200/70 text-amber-700 font-bold text-[11px] transition shadow-2xs flex items-center gap-1"
                       title="Ajustar saldo total"
                     >
-                      <Zap size={10} /> Saldo
+                      <Zap size={11} className="fill-amber-500" /> Saldo
                     </button>
                     <button
                       type="button"
-                      className="bank-quick-btn icon-only"
                       onClick={() => setViewingStatementAccount(account)}
-                      title="Ver saídas, entradas e quem realizou as movimentações"
+                      className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 transition"
+                      title="Ver saídas, entradas e extrato da conta"
                     >
-                      <Eye size={12} />
+                      <Eye size={13} />
                     </button>
                     <button
                       type="button"
-                      className="bank-quick-btn icon-only"
                       onClick={() => setEditingBank(account)}
-                      title="Configurações completas da conta"
+                      className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 transition"
+                      title="Configurações da conta"
                     >
-                      <Pencil size={11} />
+                      <Pencil size={12} />
                     </button>
                   </div>
                 </div>
@@ -734,206 +730,146 @@ export function BankWorkspace() {
             );
           })}
           {!filteredBalances.length && (
-            <div
-              className="bank-empty"
-              style={{
-                gridColumn: "1 / -1",
-                padding: "36px",
-                background: "#ffffff",
-                borderRadius: "12px",
-                border: "1px dashed #cbd5e1",
-                textAlign: "center",
-                color: "#64748b",
-              }}
-            >
+            <div className="col-span-full p-12 bg-white border border-dashed border-zinc-200 rounded-2xl text-center text-zinc-500 text-xs">
               Nenhuma conta bancária encontrada com os filtros selecionados.
             </div>
           )}
         </section>
       ) : (
-        <section
-          style={{
-            background: "#ffffff",
-            borderRadius: "12px",
-            border: "1px solid #e2e8f0",
-            overflow: "hidden",
-            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.03)",
-          }}
-        >
+        <section className="bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden">
           {filteredBalances.length > 0 ? (
-            <table className="bank-table-modern">
-              <thead>
-                <tr>
-                  <th style={{ width: "160px" }}>Instituição</th>
-                  <th>Nome da Conta</th>
-                  <th style={{ width: "160px" }}>Unidade</th>
-                  <th style={{ textAlign: "right", width: "170px" }}>Saldo Atual</th>
-                  <th style={{ textAlign: "center", width: "150px" }}>
-                    Última Atualização
-                  </th>
-                  <th style={{ textAlign: "right", width: "190px" }}>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBalances.map(({ account, balance }) => {
-                  const meta = getBankInstitutionMeta(
-                    str(account, "bank"),
-                    str(account, "name"),
-                    Boolean(account.isSangriaAccount),
-                  );
-                  const unit = data.units.find((u) => u.id === account.unitId);
-                  const isPending = balance === null;
-                  const isNegative = balance !== null && balance < 0;
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-zinc-700">
+                <thead className="bg-zinc-50 border-b border-zinc-200 text-[11px] font-bold text-zinc-500 uppercase tracking-wider select-none">
+                  <tr>
+                    <th className="py-3 px-4" style={{ width: "160px" }}>Instituição</th>
+                    <th className="py-3 px-4">Nome da Conta</th>
+                    <th className="py-3 px-4" style={{ width: "160px" }}>Unidade</th>
+                    <th className="py-3 px-4 text-right" style={{ width: "170px" }}>Saldo Atual</th>
+                    <th className="py-3 px-4 text-center" style={{ width: "150px" }}>
+                      Última Atualização
+                    </th>
+                    <th className="py-3 px-4 text-right" style={{ width: "210px" }}>Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {filteredBalances.map(({ account, balance }) => {
+                    const meta = getBankInstitutionMeta(
+                      str(account, "bank"),
+                      str(account, "name"),
+                      Boolean(account.isSangriaAccount),
+                    );
+                    const unit = data.units.find((u) => u.id === account.unitId);
+                    const isPending = balance === null;
+                    const isNegative = balance !== null && balance < 0;
 
-                  return (
-                    <tr key={account.id}>
-                      <td>
-                        <span
-                          className="bank-inst-badge"
-                          style={{
-                            backgroundColor: meta.bg,
-                            borderColor: meta.border,
-                            color: meta.color,
-                          }}
-                        >
-                          {meta.label}
-                        </span>
-                      </td>
-                      <td>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "2px",
-                          }}
-                        >
-                          <strong style={{ fontSize: "13px", color: "#0f172a" }}>
+                    return (
+                      <tr key={account.id} className="hover:bg-purple-50/40 transition group">
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span
+                            className="px-2.5 py-1 rounded-lg text-xs font-bold border inline-block"
+                            style={{
+                              backgroundColor: meta.bg,
+                              borderColor: meta.border,
+                              color: meta.color,
+                            }}
+                          >
+                            {meta.label}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <strong className="text-zinc-900 font-bold block text-xs sm:text-sm group-hover:text-purple-700 transition">
                             {str(account, "name")}
                           </strong>
                           {account.isSangriaAccount && (
-                            <span
-                              className="bank-card-sangria"
-                              style={{ width: "fit-content" }}
-                            >
+                            <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] bg-amber-50 border border-amber-200 text-amber-700 font-semibold">
                               Caixa de Sangria
                             </span>
                           )}
-                        </div>
-                      </td>
-                      <td>
-                        <span className="bank-unit-chip">
-                          {unit ? getUnitShortName(str(unit, "name")) : "Matriz"}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        {isPending ? (
-                          <span
-                            style={{
-                              color: "#94a3b8",
-                              fontWeight: 600,
-                              fontSize: "13px",
-                            }}
-                          >
-                            —
+                        </td>
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-zinc-100 border border-zinc-200 text-zinc-700">
+                            {unit ? getUnitShortName(str(unit, "name")) : "Matriz"}
                           </span>
-                        ) : (
-                          <strong
-                            style={{
-                              fontSize: "14px",
-                              color: isNegative ? "#dc2626" : "#0f172a",
-                              fontVariantNumeric: "tabular-nums",
-                            }}
-                          >
-                            {currency(balance)}
-                          </strong>
-                        )}
-                      </td>
-                      <td
-                        style={{
-                          textAlign: "center",
-                          fontSize: "12px",
-                          color: "#64748b",
-                        }}
-                      >
-                        {str(account, "balanceDate") ? (
-                          str(account, "balanceDate").split("-").reverse().join("/")
-                        ) : (
-                          <span style={{ color: "#94a3b8" }}>Pendente</span>
-                        )}
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        <div className="bank-card-actions">
-                          <button
-                            type="button"
-                            className="bank-quick-btn add"
-                            onClick={() => setQuickModal({ account, mode: "add" })}
-                            title="Incluir mais valor nesta conta"
-                          >
-                            <Plus size={11} /> Incluir
-                          </button>
-                          <button
-                            type="button"
-                            className="bank-quick-btn"
-                            onClick={() => setQuickModal({ account, mode: "set" })}
-                            title="Ajustar saldo total"
-                          >
-                            <Zap size={10} /> Saldo
-                          </button>
-                          <button
-                            type="button"
-                            className="bank-quick-btn icon-only"
-                            onClick={() => setViewingStatementAccount(account)}
-                            title="Ver saídas, entradas e quem realizou as movimentações"
-                          >
-                            <Eye size={12} />
-                          </button>
-                          <button
-                            type="button"
-                            className="bank-quick-btn icon-only"
-                            onClick={() => setEditingBank(account)}
-                            title="Editar configurações da conta"
-                          >
-                            <Pencil size={11} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="bank-table-total-row">
-                  <td colSpan={3}>
-                    <strong>TOTAL ({filteredBalances.length} CONTAS FILTRADAS)</strong>
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    <strong style={{ fontSize: "15px", color: "#0f172a" }}>
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          {isPending ? (
+                            <span className="text-zinc-400 font-semibold text-xs">—</span>
+                          ) : (
+                            <strong
+                              className={`font-black text-sm tracking-tight ${
+                                isNegative ? "text-rose-600" : "text-zinc-900"
+                              }`}
+                            >
+                              {currency(balance)}
+                            </strong>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap text-zinc-500 font-medium">
+                          {str(account, "balanceDate")
+                            ? str(account, "balanceDate").split("-").reverse().join("/")
+                            : <span className="text-zinc-400 italic">Sem saldo</span>}
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setQuickModal({ account, mode: "add" })}
+                              className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 font-bold text-xs transition"
+                              title="Incluir mais valor nesta conta"
+                            >
+                              <Plus size={12} className="inline mr-0.5" /> Incluir
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setQuickModal({ account, mode: "set" })}
+                              className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 font-bold text-xs transition"
+                              title="Ajustar saldo total"
+                            >
+                              <Zap size={11} className="inline mr-0.5 fill-amber-500" /> Saldo
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setViewingStatementAccount(account)}
+                              className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 transition"
+                              title="Extrato da conta"
+                            >
+                              <Eye size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingBank(account)}
+                              className="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 transition"
+                              title="Editar configurações"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="bg-zinc-50/80 border-t border-zinc-200 font-bold text-xs">
+                  <tr>
+                    <td colSpan={3} className="py-3.5 px-4 text-zinc-600">
+                      TOTAL ({filteredBalances.length} CONTAS FILTRADAS)
+                    </td>
+                    <td className="py-3.5 px-4 text-right text-sm font-black text-zinc-900">
                       {currency(filteredTotal)}
-                    </strong>
-                  </td>
-                  <td
-                    colSpan={2}
-                    style={{
-                      textAlign: "center",
-                      fontSize: "12px",
-                      color: "#64748b",
-                    }}
-                  >
-                    {filteredBalances.filter((b) => b.balance !== null).length} com saldo
-                    informado
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                    </td>
+                    <td
+                      colSpan={2}
+                      className="py-3.5 px-4 text-center text-zinc-500 font-normal"
+                    >
+                      {filteredBalances.filter((b) => b.balance !== null).length} com saldo informado
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           ) : (
-            <div
-              style={{
-                padding: "36px",
-                textAlign: "center",
-                color: "#64748b",
-                fontSize: "13px",
-              }}
-            >
+            <div className="p-12 text-center text-zinc-500 text-xs">
               Nenhuma conta bancária encontrada com os filtros selecionados.
             </div>
           )}
@@ -941,22 +877,28 @@ export function BankWorkspace() {
       )}
 
       {/* Daily Payments Summary Row */}
-      <section className="bank-report-row">
-        <div>
-          <CalendarDays size={20} />
+      <section className="p-4 bg-white border border-zinc-200 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600 shadow-xs">
+            <CalendarDays size={20} />
+          </div>
           <div>
-            <span>PAGAMENTOS REGISTRADOS HOJE</span>
-            <strong>{currency(paidTotal)}</strong>
-            <small>{paidToday.length} pagamento(s) liquidado(s)</small>
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
+              PAGAMENTOS REGISTRADOS HOJE
+            </span>
+            <div className="flex items-baseline gap-2">
+              <strong className="text-lg font-black text-zinc-900">{currency(paidTotal)}</strong>
+              <span className="text-xs text-zinc-500 font-medium">· {paidToday.length} pagamento(s) liquidado(s)</span>
+            </div>
           </div>
         </div>
         <button
           type="button"
-          className="bank-action-btn"
           onClick={() => share("paid")}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 font-bold text-xs transition shadow-xs self-start sm:self-auto"
           title="Compartilhar lista de pagamentos do dia no WhatsApp"
         >
-          <MessageCircle size={14} /> Relatório de Pagamentos
+          <MessageCircle size={15} /> Relatório de Pagamentos WhatsApp
         </button>
       </section>
 
@@ -1892,7 +1834,6 @@ export function InstantPaymentModal({
   const [amountStr, setAmountStr] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("PIX");
   const [date, setDate] = useState(() => dateToday());
-  const [categoryId, setCategoryId] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
 
   const [busy, setBusy] = useState(false);
@@ -1945,7 +1886,7 @@ export function InstantPaymentModal({
       const defaultCategory =
         data.categories.find((c) => !c.archived && /operacion/i.test(str(c, "name"))) ||
         data.categories.find((c) => !c.archived);
-      const finalCategoryId = categoryId || defaultCategory?.id || "";
+      const finalCategoryId = defaultCategory?.id || "";
 
       const row: RecordData = {
         id: safeUUID(),
@@ -2189,48 +2130,26 @@ export function InstantPaymentModal({
             )}
           </div>
 
-          {/* 5. Data & Categoria */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
-                Data do Pagamento
-              </label>
-              <div className="flex gap-1.5">
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  required
-                  className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs sm:text-sm font-semibold text-zinc-800 focus:outline-none focus:border-amber-500 focus:bg-white transition"
-                />
-                <button
-                  type="button"
-                  onClick={() => setDate(dateToday())}
-                  className="px-2.5 py-1 text-[11px] font-bold text-zinc-600 hover:text-amber-700 bg-zinc-100 hover:bg-amber-50 border border-zinc-200 rounded-xl transition shrink-0"
-                >
-                  Hoje
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
-                Categoria (Opcional)
-              </label>
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs sm:text-sm font-medium text-zinc-800 focus:outline-none focus:border-amber-500 focus:bg-white transition"
+          {/* 5. Data do Pagamento */}
+          <div>
+            <label className="block text-xs font-bold text-zinc-600 uppercase tracking-wider mb-1.5">
+              Data do Pagamento
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+                className="w-full h-10 px-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs sm:text-sm font-semibold text-zinc-800 focus:outline-none focus:border-amber-500 focus:bg-white transition"
+              />
+              <button
+                type="button"
+                onClick={() => setDate(dateToday())}
+                className="px-3 py-1 text-xs font-bold text-zinc-600 hover:text-amber-700 bg-zinc-100 hover:bg-amber-50 border border-zinc-200 rounded-xl transition shrink-0"
               >
-                <option value="">Despesas Operacionais (Padrão)</option>
-                {data.categories
-                  .filter((c) => !c.archived)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {str(c, "name")}
-                    </option>
-                  ))}
-              </select>
+                Hoje
+              </button>
             </div>
           </div>
 
