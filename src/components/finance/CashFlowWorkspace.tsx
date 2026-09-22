@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Receipt,
   Layers,
+  X,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -266,8 +267,8 @@ export function CashFlowWorkspace({
         </div>
       )}
 
-      {/* ── KPI Cards Header (Modo Claro) ────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      {/* ── KPI Cards Header (Modo Claro - 3 Cards Principais) ────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 gap-4">
         {/* Card 1: Saldo Total dos Bancos */}
         <div className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm flex flex-col justify-between relative overflow-hidden group">
           <div className="flex items-center justify-between">
@@ -319,32 +320,6 @@ export function CashFlowWorkspace({
             </strong>
             <span className="block text-[11px] text-zinc-500 mt-1 font-medium">
               Disponível consolidado em bancos
-            </span>
-          </div>
-        </div>
-
-        {/* Card 4: Filtro de Visualização */}
-        <div className="p-5 rounded-2xl bg-white border border-zinc-200 shadow-sm flex flex-col justify-between relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-500">Período Selecionado</span>
-            <div className="h-9 w-9 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-600">
-              <Filter size={16} />
-            </div>
-          </div>
-          <div className="mt-3">
-            <span className="text-base font-bold text-purple-700 block truncate">
-              {periodFilter === "today"
-                ? "Pagamentos de Hoje"
-                : periodFilter === "yesterday"
-                ? "Pagamentos de Ontem"
-                : periodFilter === "7days"
-                ? "Últimos 7 dias"
-                : periodFilter === "month"
-                ? "Mês Vigente"
-                : "Todo o Histórico"}
-            </span>
-            <span className="block text-[11px] text-zinc-500 mt-1 font-medium">
-              Exibindo apenas saídas confirmadas
             </span>
           </div>
         </div>
@@ -410,16 +385,27 @@ export function CashFlowWorkspace({
           )}
         </div>
 
-        {/* Busca por texto */}
-        <div className="relative w-full sm:w-64">
-          <Search size={14} className="absolute left-3.5 top-3 text-zinc-400" />
+        {/* Busca por texto sem sobreposição de ícone */}
+        <div className="flex items-center gap-2 w-full sm:w-64 h-10 px-3.5 bg-zinc-50 border border-zinc-200 rounded-xl focus-within:bg-white focus-within:border-purple-600 transition">
+          <Search size={15} className="text-zinc-400 shrink-0 select-none" />
           <input
             type="text"
             placeholder="Buscar por conta ou fornecedor..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full h-10 pl-9 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-800 placeholder-zinc-400 text-xs font-medium focus:bg-white focus:outline-none focus:border-purple-600 transition"
+            style={{ padding: 0, border: "none", outline: "none", background: "transparent" }}
+            className="w-full text-xs font-medium text-zinc-800 placeholder-zinc-400 focus:outline-none"
           />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm("")}
+              className="text-zinc-400 hover:text-zinc-600 shrink-0"
+              title="Limpar busca"
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
       </div>
 
