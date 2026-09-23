@@ -204,6 +204,7 @@ export const DEFINITIONS: Record<string, Definition> = {
       f("debitFeePct", "Taxa Débito (%)", "percent", false),
       f("pixFeePct", "Taxa PIX (%)", "percent", false),
       f("isSangriaAccount", "Caixa exclusivo de sangria", "check", false),
+      f("isServiceFeeAccount", "Máquina exclusiva de Taxa de Serviço", "check", false),
       f("reconciled", "Saldo conferido", "check"),
       f("notes", "Observações", "textarea", false),
     ],
@@ -809,5 +810,22 @@ export function normalizeObligationType(type?: string): string {
   if (type === "Imposto" || type === "Imposto / Tributo") return "Imposto / Tributo";
   if (type === "Empréstimo" || type === "Empréstimo / Financiamento") return "Empréstimo / Financiamento";
   return type;
+}
+
+export function isServiceFeeAccount(account?: RecordData | null): boolean {
+  if (!account) return false;
+  if (account.isServiceFeeAccount === true || account.isServiceFeeAccount === "true") return true;
+  const name = str(account, "name").toLowerCase();
+  const bank = str(account, "bank").toLowerCase();
+  return (
+    name.includes("taxa de servi") ||
+    name.includes("taxa de servico") ||
+    name.includes("taxa de serviço") ||
+    name.includes("taxa servico") ||
+    name.includes("taxa serviço") ||
+    name.includes("gorjeta") ||
+    bank.includes("taxa de servi") ||
+    bank.includes("gorjeta")
+  );
 }
 

@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { currency, dateToday, RecordData, str } from "@/domain/management/model";
+import { currency, dateToday, isServiceFeeAccount, RecordData, str } from "@/domain/management/model";
 import { saveManagement } from "@/services/managementService";
 import "@/components/management/management.css";
 import { BankStatementModal } from "./BankStatementModal";
@@ -655,6 +655,11 @@ export function BankWorkspace() {
                       Caixa de Sangria
                     </span>
                   )}
+                  {isServiceFeeAccount(account) && (
+                    <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 border border-purple-200 text-purple-700">
+                      ✨ Taxa de Serviço (Isolada)
+                    </span>
+                  )}
 
                   <div className="mt-3">
                     <div className="flex items-baseline gap-1.5">
@@ -784,6 +789,11 @@ export function BankWorkspace() {
                           {account.isSangriaAccount && (
                             <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[10px] bg-amber-50 border border-amber-200 text-amber-700 font-semibold">
                               Caixa de Sangria
+                            </span>
+                          )}
+                          {isServiceFeeAccount(account) && (
+                            <span className="inline-block mt-0.5 ml-1 px-1.5 py-0.2 rounded text-[10px] bg-purple-50 border border-purple-200 text-purple-700 font-semibold">
+                              ✨ Taxa de Serviço (Isolada)
                             </span>
                           )}
                         </td>
@@ -1447,6 +1457,9 @@ function BankAccountModal({
   const [isSangriaAccount, setIsSangriaAccount] = useState(() =>
     Boolean(account?.isSangriaAccount),
   );
+  const [isServiceFeeAccountState, setIsServiceFeeAccountState] = useState(() =>
+    isServiceFeeAccount(account),
+  );
   const [reconciled, setReconciled] = useState(() =>
     account ? Boolean(account.reconciled) : true,
   );
@@ -1486,6 +1499,7 @@ function BankAccountModal({
         debitFeePct: Number(debitFeePct) || 0,
         pixFeePct: Number(pixFeePct) || 0,
         isSangriaAccount,
+        isServiceFeeAccount: isServiceFeeAccountState,
         reconciled,
         notes: notes.trim(),
         version: Number(account?.version || 0),
@@ -1725,6 +1739,14 @@ function BankAccountModal({
                     onChange={(e) => setIsSangriaAccount(e.target.checked)}
                   />
                   <span>Caixa exclusivo de sangria</span>
+                </label>
+                <label className="bank-check-item">
+                  <input
+                    type="checkbox"
+                    checked={isServiceFeeAccountState}
+                    onChange={(e) => setIsServiceFeeAccountState(e.target.checked)}
+                  />
+                  <span>✨ Máquina de Taxa de Serviço / Gorjeta (Isolada da Conciliação de Vendas)</span>
                 </label>
                 <label className="bank-check-item">
                   <input
