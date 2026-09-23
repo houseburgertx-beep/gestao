@@ -79,6 +79,8 @@ const parseAttachments = (row: RecordData): CashAttachment[] => {
   }
 };
 
+export const driveBlobCache = new Map<string, string>();
+
 export function AttachmentThumbnail({
   att,
   onClick,
@@ -86,27 +88,159 @@ export function AttachmentThumbnail({
   att: CashAttachment;
   onClick: () => void;
 }) {
-  const [loadFailed, setLoadFailed] = useState(false);
   const isPdf = att.mimeType === "application/pdf" || att.fileName.toLowerCase().endsWith(".pdf");
   const validDataUrl = isValidDataUrl(att.dataUrl) ? att.dataUrl : undefined;
 
+  const [imageUrl, setImageUrl] = useState<string>(() => {
+    if (validDataUrl) return validDataUrl;
+    if (att.fileId && driveBlobCache.has(att.fileId)) {
+      return driveBlobCache.get(att.fileId)!;
+    }
+    return "";
+  });
+
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (isPdf) return false;
+    if (validDataUrl) return false;
+    if (att.fileId && driveBlobCache.has(att.fileId)) return false;
+    return Boolean(att.fileId && !att.fileId.startsWith("local-"));
+  });
+
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  useEffect(() => {
+    if (isPdf) return;
+
+    if (validDataUrl) {
+      setImageUrl(validDataUrl);
+      setLoading(false);
+      setLoadFailed(false);
+      return;
+    }
+
+    if (att.fileId && driveBlobCache.has(att.fileId)) {
+      setImageUrl(driveBlobCache.get(att.fileId)!);
+      setLoading(false);
+      setLoadFailed(false);
+      return;
+    }
+
+    if (!att.fileId || att.fileId.startsWith("local-")) {
+      setLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setLoading(true);
+    setLoadFailed(false);
+
+    getFileBlobFromDrive(att.fileId)
+      .then((res) => {
+        driveBlobCache.set(att.fileId, res.url);
+        if (isMounted) {
+          setImageUrl(res.url);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.warn(`[AttachmentThumbnail] Falha ao carregar preview do Drive (${att.fileId}):`, err);
+        if (isMounted) {
+          setLoading(false);
+          setLoadFailed(true);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [att.fileId, att.dataUrl, isPdf, validDataUrl]);
+
   return (
-    <div className="conf-att-preview" onClick={onClick} title="Clique para visualizar">
-      {!isPdf && validDataUrl && !loadFailed ? (
+    <div className="conf-att-preview" onClick={onClick} title="Clique para visualizar em tela cheia">
+      {!isPdf && imageUrl && !loadFailed ? (
         <img
-          src={validDataUrl}
+          src={imageUrl}
           alt={att.fileName}
           className="conf-att-thumb"
+          loading="lazy"
           onError={() => setLoadFailed(true)}
         />
+      ) : loading ? (
+        <div className="conf-att-icon-box img animate-pulse">
+          <Loader2 size={22} className="animate-spin text-purple-600 dark:text-purple-400" />
+          <span className="text-[10px] text-zinc-500 font-medium">Carregando foto...</span>
+        </div>
       ) : isPdf ? (
-        <div className="conf-att-icon-box pdf"><FileText size={24} /><span>PDF</span></div>
+        <div className="conf-att-icon-box pdf">
+          <FileText size={26} />
+          <span>PDF</span>
+        </div>
       ) : (
-        <div className="conf-att-icon-box img"><ImageIcon size={24} /><span>FOTO</span></div>
+        <div className="conf-att-icon-box img">
+          {loadFailed ? (
+            <>
+              <AlertCircle size={22} className="text-rose-500" />
+              <span className="text-rose-500 text-[9px]">FALHA NO PREVIEW</span>
+            </>
+          ) : (
+            <>
+              <ImageIcon size={26} />
+              <span>FOTO</span>
+            </>
+          )}
+        </div>
       )}
-      <div className="conf-att-overlay"><Eye size={14} /> <span>Ver</span></div>
+      <div className="conf-att-overlay">
+        <Eye size={14} /> <span>Ampliar</span>
+      </div>
     </div>
   );
+}
+
+export function SmallAttachmentThumbnail({ att }: { att: CashAttachment }) {
+  const isPdf = att.mimeType === "application/pdf" || att.fileName.toLowerCase().endsWith(".pdf");
+  const validDataUrl = isValidDataUrl(att.dataUrl) ? att.dataUrl : undefined;
+
+  const [imageUrl, setImageUrl] = useState<string>(() => {
+    if (validDataUrl) return validDataUrl;
+    if (att.fileId && driveBlobCache.has(att.fileId)) return driveBlobCache.get(att.fileId)!;
+    return "";
+  });
+
+  useEffect(() => {
+    if (isPdf || validDataUrl || imageUrl) return;
+    if (!att.fileId || att.fileId.startsWith("local-")) return;
+    if (driveBlobCache.has(att.fileId)) {
+      setImageUrl(driveBlobCache.get(att.fileId)!);
+      return;
+    }
+
+    let isMounted = true;
+    getFileBlobFromDrive(att.fileId)
+      .then((res) => {
+        driveBlobCache.set(att.fileId, res.url);
+        if (isMounted) setImageUrl(res.url);
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [att.fileId, att.dataUrl, isPdf, validDataUrl, imageUrl]);
+
+  if (imageUrl) {
+    return (
+      <img
+        src={imageUrl}
+        alt=""
+        className="w-8 h-8 object-cover rounded-lg shrink-0 border border-zinc-200 dark:border-zinc-700"
+      />
+    );
+  }
+  if (isPdf) {
+    return <FileText size={18} className="text-rose-500 shrink-0" />;
+  }
+  return <ImageIcon size={18} className="text-purple-600 shrink-0" />;
 }
 const closingValue=(row:RecordData,key:string,fallback=0)=>typeof row[key]==="number"?Number(row[key]):fallback;
 
@@ -180,6 +314,12 @@ export function AttachmentLightbox({
     let objectUrlToRevoke: string | null = null;
 
     if (hasDriveFile) {
+      if (driveBlobCache.has(attachment.fileId)) {
+        setBlobUrl(driveBlobCache.get(attachment.fileId)!);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       // Fast preview if valid dataUrl exists while Drive download happens
       if (validDataUrl) {
@@ -188,12 +328,10 @@ export function AttachmentLightbox({
 
       getFileBlobFromDrive(attachment.fileId)
         .then((res) => {
+          driveBlobCache.set(attachment.fileId, res.url);
           if (isMounted) {
-            objectUrlToRevoke = res.url;
             setBlobUrl(res.url);
             setLoading(false);
-          } else {
-            URL.revokeObjectURL(res.url);
           }
         })
         .catch((err) => {
@@ -211,9 +349,6 @@ export function AttachmentLightbox({
 
       return () => {
         isMounted = false;
-        if (objectUrlToRevoke) {
-          URL.revokeObjectURL(objectUrlToRevoke);
-        }
       };
     } else if (validDataUrl) {
       // Local file with a valid dataUrl
@@ -2449,18 +2584,7 @@ function ClosingModal({
                       {existingAttachments.map(att => (
                         <div key={att.fileId} className="flex items-center justify-between gap-2 p-2 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs">
                           <div className="flex items-center gap-2.5 truncate min-w-0">
-                            {att.dataUrl && isValidDataUrl(att.dataUrl) ? (
-                              <img
-                                src={att.dataUrl}
-                                alt=""
-                                className="w-8 h-8 object-cover rounded-lg shrink-0 border border-zinc-200"
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLElement).style.display = "none";
-                                }}
-                              />
-                            ) : (
-                              <FileText size={18} className="text-purple-600 shrink-0" />
-                            )}
+                            <SmallAttachmentThumbnail att={att} />
                             <div className="truncate min-w-0">
                               <p className="truncate font-semibold">{att.fileName}</p>
                               <span className="text-[10px] text-zinc-400 block">{formatFileSize(att.size)}</span>

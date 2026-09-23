@@ -7488,7 +7488,12 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center top;
   display: block;
+  transition: transform 0.2s ease;
+}
+.conf-att-preview:hover .conf-att-thumb {
+  transform: scale(1.04);
 }
 .conf-att-icon-box {
   display: flex;
