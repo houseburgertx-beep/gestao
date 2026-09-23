@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, Banknote, Bike,
-  Bookmark, Calculator, Camera, Check, CheckCircle2, ChevronDown, ChevronUp,
+  Bookmark, Calculator, Calendar, Camera, Check, CheckCircle2, ChevronDown, ChevronUp,
   ClipboardCheck, Coins, CreditCard, Download, Edit3, Eye, FileCheck2,
   FileText, Image as ImageIcon, Landmark, Loader2, Paperclip, Percent, Plus,
   Receipt, RotateCcw, RotateCw, Search, Share2, ShieldCheck, Sliders, Smartphone, Sparkles, Store, Trash2,
@@ -23,7 +23,8 @@ import {
   nameFileForDrive,
   uploadFileToDrive
 } from "@/services/driveService";
-import { validate } from "@/domain/management/operations";
+import { validate, settlement } from "@/domain/management/operations";
+import { outstanding } from "@/domain/management/engine";
 import "@/components/management/management.css";
 
 const safeUUID = () =>
@@ -2629,6 +2630,323 @@ function ClosingModal({
   );
 }
 
+function PixPaymentModal({
+  item,
+  closing,
+  payable,
+  onClose,
+  onSuccess,
+}: {
+  item: { id: string; name: string; key: string; description: string; amount: string | number };
+  closing: RecordData;
+  payable?: RecordData;
+  onClose: () => void;
+  onSuccess: (msg: string) => void;
+}) {
+  const { data, tenantId } = useManagement();
+  const { user } = useAuth();
+  const today = dateToday();
+  const itemCents = Math.round(Number(item.amount || 0) * 100);
+  const unit = data.units.find((u) => u.id === closing.unitId);
+
+  // Contas bancárias ativas priorizando contas da unidade
+  const bankAccounts = useMemo(
+    () =>
+      data.bankAccounts
+        .filter((b) => !b.archived)
+        .sort((a, b) => {
+          if (a.unitId === closing.unitId && b.unitId !== closing.unitId) return -1;
+          if (a.unitId !== closing.unitId && b.unitId === closing.unitId) return 1;
+          return str(a, "name").localeCompare(str(b, "name"));
+        }),
+    [data.bankAccounts, closing.unitId]
+  );
+
+  const [selectedBankId, setSelectedBankId] = useState<string>(
+    () => bankAccounts[0]?.id || ""
+  );
+  const [paymentDate, setPaymentDate] = useState<string>(today);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [copiedKey, setCopiedKey] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    if (!selectedBankId) {
+      setError("Selecione a conta bancária de saída.");
+      return;
+    }
+
+    if (!paymentDate) {
+      setError("Informe a data do pagamento.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+
+    try {
+      const now = new Date().toISOString();
+      let targetPayable = payable;
+
+      // 1. Se a conta a pagar ainda não existir na base, garante sua criação no Firestore
+      if (!targetPayable) {
+        const defaultCategory =
+          data.categories.find((c) => !c.archived && /operacion/i.test(str(c, "name")))?.id ||
+          data.categories.find((c) => !c.archived)?.id ||
+          "";
+
+        const newPayableId = `pix-${closing.id}-${item.id}`;
+        targetPayable = {
+          id: newPayableId,
+          kind: "payables",
+          tenantId: closing.tenantId || tenantId || "house190",
+          unitId: closing.unitId || "",
+          version: 0,
+          createdAt: closing.createdAt || now,
+          updatedAt: now,
+          createdBy: user.uid,
+          updatedBy: user.uid,
+          obligationType: "Outros",
+          categoryId: defaultCategory,
+          description: `PIX — ${item.description || "Solicitação de PIX"} (${item.name || "Favorecido"})`,
+          competence: str(closing, "date").slice(0, 7) || today.slice(0, 7),
+          dueDate: str(closing, "date") || today,
+          amount: itemCents,
+          paymentMethod: "PIX",
+          status: "Pendente",
+          nature: "Operacional",
+          sourceId: closing.id,
+          pixKey: item.key,
+          pixRecipient: item.name,
+          notes: `Solicitação criada no fechamento de caixa. Chave PIX: ${item.key}`,
+        };
+        await saveManagement(targetPayable, data);
+      }
+
+      // 2. Prepara a liquidação (baixa)
+      const txId = safeUUID();
+      const txRow = settlement(
+        targetPayable,
+        data,
+        itemCents,
+        paymentDate,
+        selectedBankId,
+        user.uid,
+        txId
+      );
+
+      // 3. Upload de comprovante se houver
+      if (proofFile && proofFile.size > 0) {
+        const named = nameFileForDrive(
+          proofFile,
+          `Comprovante PIX - ${item.name || targetPayable.description} - ${paymentDate}`
+        );
+        const stored = await uploadFileToDrive(named, "payment_proofs");
+        txRow.paymentProofFileId = stored.fileId;
+        txRow.paymentProofFileName = stored.fileName;
+        txRow.paymentProofMimeType = stored.mimeType;
+        txRow.paymentProofSize = stored.size;
+      }
+
+      // 4. Executa commit atômico no Firestore
+      await commitRecords([txRow], data, txRow);
+
+      // 5. Espelho na planilha Google Sheets (em background)
+      void import("@/services/payablesBackupService")
+        .then(({ backupPayablesSpreadsheet }) => backupPayablesSpreadsheet(data, [txRow]))
+        .catch(() => {});
+
+      onSuccess(`PIX de ${currency(itemCents)} para ${item.name || "o favorecido"} pago e baixado no Contas a Pagar!`);
+    } catch (err) {
+      console.error("Erro ao pagar PIX:", err);
+      setError(err instanceof Error ? err.message : "Falha ao registrar pagamento.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[120] animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-150">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+              <Zap size={16} className="fill-current" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                Pagar e Baixar PIX
+              </h3>
+              <p className="text-[11px] text-zinc-500">
+                Dará baixa no Contas a Pagar e debitará do banco
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onClose}
+            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
+          {error && (
+            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 font-semibold flex items-center gap-2">
+              <AlertCircle size={15} className="shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Card Resumo do PIX */}
+          <div className="p-3.5 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-900/60 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider block">
+                  Favorecido {unit ? `· ${str(unit, "name")}` : ""}
+                </span>
+                <strong className="text-sm text-zinc-900 dark:text-zinc-100">
+                  {item.name || "Não informado"}
+                </strong>
+                {item.description && (
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                    Motivo: {item.description}
+                  </p>
+                )}
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider block">
+                  Valor
+                </span>
+                <strong className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                  {currency(itemCents)}
+                </strong>
+              </div>
+            </div>
+
+            {item.key && (
+              <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg border border-purple-200 dark:border-purple-800">
+                <div className="flex items-center gap-1.5 truncate mr-2">
+                  <KeyRound size={12} className="text-purple-600 shrink-0" />
+                  <code className="text-purple-900 dark:text-purple-200 font-mono text-[11px] select-all truncate">
+                    {item.key}
+                  </code>
+                </div>
+                <button
+                  type="button"
+                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1 transition shrink-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText(item.key);
+                    setCopiedKey(true);
+                    setTimeout(() => setCopiedKey(false), 2000);
+                  }}
+                >
+                  <Copy size={10} />
+                  <span>{copiedKey ? "Copiado!" : "Copiar"}</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Seleção do Banco de Saída */}
+          <div>
+            <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1.5 flex items-center gap-1">
+              <Landmark size={13} className="text-purple-600" />
+              <span>Conta Bancária de Saída *</span>
+            </label>
+            <select
+              value={selectedBankId}
+              onChange={(e) => setSelectedBankId(e.target.value)}
+              required
+              className="w-full p-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-medium text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+            >
+              <option value="">Selecione a conta bancária para saída...</option>
+              {bankAccounts.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {str(b, "name") || str(b, "bank")}{" "}
+                  {typeof b.balance === "number"
+                    ? `— Saldo: ${currency(Number(b.balance))}`
+                    : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Data do Pagamento */}
+          <div>
+            <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1.5 flex items-center gap-1">
+              <Calendar size={13} className="text-purple-600" />
+              <span>Data do Pagamento *</span>
+            </label>
+            <input
+              type="date"
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+              max={today}
+              required
+              className="w-full p-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-medium text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+            />
+          </div>
+
+          {/* Comprovante de Pagamento (Opcional) */}
+          <div>
+            <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1.5 flex items-center gap-1">
+              <Paperclip size={13} className="text-zinc-400" />
+              <span>Comprovante PIX (Opcional)</span>
+            </label>
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => setProofFile(e.target.files?.[0] || null)}
+              className="w-full text-xs text-zinc-600 dark:text-zinc-400 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-50 dark:file:bg-purple-950 file:text-purple-700 dark:file:text-purple-300 hover:file:bg-purple-100 cursor-pointer"
+            />
+            {proofFile && (
+              <span className="text-[10px] text-zinc-500 mt-1 block">
+                Arquivo: {proofFile.name} ({(proofFile.size / 1024).toFixed(1)} KB)
+              </span>
+            )}
+          </div>
+
+          {/* Ações */}
+          <div className="pt-2 flex items-center justify-end gap-2 border-t border-zinc-100 dark:border-zinc-800">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onClose}
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={busy || !selectedBankId}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white flex items-center gap-1.5 transition shadow-sm"
+            >
+              {busy ? (
+                <>
+                  <Loader2 size={13} className="animate-spin" />
+                  <span>Baixando no Contas a Pagar...</span>
+                </>
+              ) : (
+                <>
+                  <Zap size={13} className="fill-current" />
+                  <span>Confirmar Baixa ({currency(itemCents)})</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; onClose: () => void; onSaved: () => void }) {
   const { data, tenantId } = useManagement();
   const { user, userProfile } = useAuth();
@@ -2744,6 +3062,12 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState<string | null>(null);
   const [copiedPixId, setCopiedPixId] = useState<string | null>(null);
+  const [payingPixItem, setPayingPixItem] = useState<{
+    item: { id: string; name: string; key: string; description: string; amount: string | number };
+    closing: RecordData;
+    payable?: RecordData;
+  } | null>(null);
+  const [pixSuccessMsg, setPixSuccessMsg] = useState("");
 
   const outflowsList = useMemo(() => parseOutflows(closing.cashOutflowsJson), [closing.cashOutflowsJson]);
   const pixRequestsList = useMemo(() => parsePixRequests(closing.pixRequestsJson), [closing.pixRequestsJson]);
@@ -3871,46 +4195,103 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
               Nenhuma solicitação de PIX registrada para este turno.
             </p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {pixRequestsList.map((item, idx) => (
-                <div key={item.id || idx} className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900 text-xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <strong className="text-sm text-purple-900 dark:text-purple-200 block">{item.name || "Favorecido"}</strong>
-                      <span className="text-[10px] font-bold text-purple-700 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/60 px-1.5 py-0.5 rounded">
-                        ⚡ Contas a Pagar
-                      </span>
-                    </div>
-                    <strong className="text-base font-black text-purple-700 dark:text-purple-300">{brl(Number(item.amount || 0) * 100)}</strong>
-                  </div>
-                  {item.description && (
-                    <p className="text-zinc-600 dark:text-zinc-400 text-xs italic bg-white/70 dark:bg-zinc-900/70 p-1.5 rounded-lg border border-purple-100 dark:border-purple-900">
-                      Motivo: {item.description}
-                    </p>
-                  )}
-                  {item.key && (
-                    <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg border border-purple-200 dark:border-purple-800">
-                      <div className="flex items-center gap-1.5 truncate mr-2">
-                        <KeyRound size={12} className="text-purple-600 shrink-0" />
-                        <code className="text-purple-900 dark:text-purple-200 font-mono text-xs select-all truncate">{item.key}</code>
-                      </div>
-                      <button
-                        type="button"
-                        className="px-2.5 py-1 rounded-md text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1 transition shrink-0"
-                        onClick={() => {
-                          navigator.clipboard.writeText(item.key);
-                          setCopiedPixId(item.id || String(idx));
-                          setTimeout(() => setCopiedPixId(null), 2000);
-                        }}
-                      >
-                        <Copy size={11} />
-                        <span>{copiedPixId === (item.id || String(idx)) ? "Copiado!" : "Copiar"}</span>
-                      </button>
-                    </div>
-                  )}
+            <>
+              {pixSuccessMsg && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-800 dark:text-emerald-200 text-xs font-semibold flex items-center gap-2 mb-2.5 shadow-xs animate-in fade-in">
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                  <span>{pixSuccessMsg}</span>
                 </div>
-              ))}
-            </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {pixRequestsList.map((item, idx) => {
+                  const itemCents = Math.round(Number(item.amount || 0) * 100);
+                  const payable = (data.payables || []).find(
+                    (p) =>
+                      !p.archived &&
+                      (p.id === `pix-${closing.id}-${item.id}` ||
+                        (p.sourceId === closing.id &&
+                          p.pixKey === item.key &&
+                          Number(p.amount) === itemCents) ||
+                        (p.sourceId === closing.id &&
+                          item.name &&
+                          str(p, "description").toLowerCase().includes(item.name.toLowerCase()) &&
+                          Number(p.amount) === itemCents))
+                  );
+                  const isPaid = payable ? (outstanding(payable, data, dateToday()) === 0 || payable.status === "Pago") : false;
+                  const paymentTx = isPaid
+                    ? (data.transactions || []).find(
+                        (t) => !t.archived && t.obligationId === payable?.id && t.direction === "Saída" && !t.reversalOf
+                      )
+                    : null;
+                  const paidBank = paymentTx ? data.bankAccounts.find((b) => b.id === paymentTx.bankAccountId) : null;
+
+                  return (
+                    <div key={item.id || idx} className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900 text-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <strong className="text-sm text-purple-900 dark:text-purple-200 block">{item.name || "Favorecido"}</strong>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            isPaid
+                              ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"
+                              : "bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-400"
+                          }`}>
+                            {isPaid ? "✓ Quitado no Contas a Pagar" : "⚡ Contas a Pagar (Pendente)"}
+                          </span>
+                        </div>
+                        <strong className="text-base font-black text-purple-700 dark:text-purple-300">{brl(Number(item.amount || 0) * 100)}</strong>
+                      </div>
+                      {item.description && (
+                        <p className="text-zinc-600 dark:text-zinc-400 text-xs italic bg-white/70 dark:bg-zinc-900/70 p-1.5 rounded-lg border border-purple-100 dark:border-purple-900">
+                          Motivo: {item.description}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-2 rounded-lg border border-purple-200 dark:border-purple-800">
+                        <div className="flex items-center gap-1.5 truncate mr-2">
+                          <KeyRound size={12} className="text-purple-600 shrink-0" />
+                          <code className="text-purple-900 dark:text-purple-200 font-mono text-xs select-all truncate">{item.key || "Sem chave informada"}</code>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {item.key && (
+                            <button
+                              type="button"
+                              className="px-2.5 py-1 rounded-md text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1 transition shrink-0 shadow-xs"
+                              onClick={() => {
+                                navigator.clipboard.writeText(item.key);
+                                setCopiedPixId(item.id || String(idx));
+                                setTimeout(() => setCopiedPixId(null), 2000);
+                              }}
+                              title="Copiar chave PIX"
+                            >
+                              <Copy size={11} />
+                              <span>{copiedPixId === (item.id || String(idx)) ? "Copiado!" : "Copiar"}</span>
+                            </button>
+                          )}
+                          {isPaid ? (
+                            <span
+                              className="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1 shrink-0 select-none cursor-default"
+                              title={paymentTx ? `Pago em ${str(paymentTx, "date").split("-").reverse().join("/")} via ${paidBank ? str(paidBank, "name") : "Banco"}` : "Conta liquidada no Contas a Pagar"}
+                            >
+                              <Check size={12} className="stroke-[3]" />
+                              <span>Pago</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center gap-1 transition shrink-0 shadow-xs"
+                              onClick={() => setPayingPixItem({ item, closing, payable })}
+                              title="Pagar este PIX e dar baixa no Contas a Pagar"
+                            >
+                              <Zap size={11} className="fill-current" />
+                              <span>Pagar</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </section>
 
@@ -3982,6 +4363,20 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
           onClose={() => setPreviewAttachment(null)}
         />
       )}
+
+      {payingPixItem && (
+        <PixPaymentModal
+          item={payingPixItem.item}
+          closing={payingPixItem.closing}
+          payable={payingPixItem.payable}
+          onClose={() => setPayingPixItem(null)}
+          onSuccess={(msg) => {
+            setPayingPixItem(null);
+            setPixSuccessMsg(msg);
+            setTimeout(() => setPixSuccessMsg(""), 5000);
+          }}
+        />
+      )}
     </Modal>
   );
 }
@@ -3997,6 +4392,12 @@ function ClosingDetailsModal({
   const [previewAttachment, setPreviewAttachment] = useState<CashAttachment | null>(null);
   const [copiedPixId, setCopiedPixId] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [payingPixItem, setPayingPixItem] = useState<{
+    item: { id: string; name: string; key: string; description: string; amount: string | number };
+    closing: RecordData;
+    payable?: RecordData;
+  } | null>(null);
+  const [pixSuccessMsg, setPixSuccessMsg] = useState("");
 
   const unit = data.units.find(u => u.id === closing.unitId);
   const conference = data.cashConferences.find(
@@ -4462,36 +4863,98 @@ function ClosingDetailsModal({
               Nenhuma solicitação de PIX registrada neste fechamento.
             </p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {pixRequests.map((item, idx) => (
-                <div key={item.id || idx} className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900 text-xs space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <strong className="text-sm text-purple-900 dark:text-purple-200">{item.name || "Favorecido"}</strong>
-                    <strong className="text-sm font-bold text-purple-700 dark:text-purple-400">{brl(Number(item.amount || 0) * 100)}</strong>
-                  </div>
-                  {item.description && (
-                    <p className="text-zinc-600 dark:text-zinc-400 text-[11px]">{item.description}</p>
-                  )}
-                  {item.key && (
-                    <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-1.5 rounded-lg border border-purple-100 dark:border-purple-800">
-                      <code className="text-purple-800 dark:text-purple-300 font-mono text-[11px] select-all truncate max-w-[180px]">{item.key}</code>
-                      <button
-                        type="button"
-                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1 transition"
-                        onClick={() => {
-                          navigator.clipboard.writeText(item.key);
-                          setCopiedPixId(item.id || String(idx));
-                          setTimeout(() => setCopiedPixId(null), 2000);
-                        }}
-                      >
-                        <Copy size={10} />
-                        <span>{copiedPixId === (item.id || String(idx)) ? "Copiado!" : "Copiar"}</span>
-                      </button>
-                    </div>
-                  )}
+            <>
+              {pixSuccessMsg && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-800 dark:text-emerald-200 text-xs font-semibold flex items-center gap-2 mb-2 shadow-xs animate-in fade-in">
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                  <span>{pixSuccessMsg}</span>
                 </div>
-              ))}
-            </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {pixRequests.map((item, idx) => {
+                  const itemCents = Math.round(Number(item.amount || 0) * 100);
+                  const payable = (data.payables || []).find(
+                    (p) =>
+                      !p.archived &&
+                      (p.id === `pix-${closing.id}-${item.id}` ||
+                        (p.sourceId === closing.id &&
+                          p.pixKey === item.key &&
+                          Number(p.amount) === itemCents) ||
+                        (p.sourceId === closing.id &&
+                          item.name &&
+                          str(p, "description").toLowerCase().includes(item.name.toLowerCase()) &&
+                          Number(p.amount) === itemCents))
+                  );
+                  const isPaid = payable ? (outstanding(payable, data, dateToday()) === 0 || payable.status === "Pago") : false;
+                  const paymentTx = isPaid
+                    ? (data.transactions || []).find(
+                        (t) => !t.archived && t.obligationId === payable?.id && t.direction === "Saída" && !t.reversalOf
+                      )
+                    : null;
+                  const paidBank = paymentTx ? data.bankAccounts.find((b) => b.id === paymentTx.bankAccountId) : null;
+
+                  return (
+                    <div key={item.id || idx} className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <strong className="text-sm text-purple-900 dark:text-purple-200 block">{item.name || "Favorecido"}</strong>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            isPaid
+                              ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"
+                              : "bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-400"
+                          }`}>
+                            {isPaid ? "✓ Quitado no Contas a Pagar" : "⚡ Contas a Pagar (Pendente)"}
+                          </span>
+                        </div>
+                        <strong className="text-sm font-bold text-purple-700 dark:text-purple-400">{brl(Number(item.amount || 0) * 100)}</strong>
+                      </div>
+                      {item.description && (
+                        <p className="text-zinc-600 dark:text-zinc-400 text-[11px]">{item.description}</p>
+                      )}
+                      <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-1.5 rounded-lg border border-purple-100 dark:border-purple-800">
+                        <code className="text-purple-800 dark:text-purple-300 font-mono text-[11px] select-all truncate max-w-[150px]">{item.key || "Sem chave"}</code>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {item.key && (
+                            <button
+                              type="button"
+                              className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1 transition shadow-xs"
+                              onClick={() => {
+                                navigator.clipboard.writeText(item.key);
+                                setCopiedPixId(item.id || String(idx));
+                                setTimeout(() => setCopiedPixId(null), 2000);
+                              }}
+                              title="Copiar chave PIX"
+                            >
+                              <Copy size={10} />
+                              <span>{copiedPixId === (item.id || String(idx)) ? "Copiado!" : "Copiar"}</span>
+                            </button>
+                          )}
+                          {isPaid ? (
+                            <span
+                              className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1 shrink-0 select-none cursor-default"
+                              title={paymentTx ? `Pago em ${str(paymentTx, "date").split("-").reverse().join("/")} via ${paidBank ? str(paidBank, "name") : "Banco"}` : "Conta liquidada no Contas a Pagar"}
+                            >
+                              <Check size={11} className="stroke-[3]" />
+                              <span>Pago</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white flex items-center gap-1 transition shrink-0 shadow-xs"
+                              onClick={() => setPayingPixItem({ item, closing, payable })}
+                              title="Pagar este PIX e dar baixa no Contas a Pagar"
+                            >
+                              <Zap size={10} className="fill-current" />
+                              <span>Pagar</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
 
@@ -4590,6 +5053,20 @@ function ClosingDetailsModal({
         <AttachmentLightbox
           attachment={previewAttachment}
           onClose={() => setPreviewAttachment(null)}
+        />
+      )}
+
+      {payingPixItem && (
+        <PixPaymentModal
+          item={payingPixItem.item}
+          closing={payingPixItem.closing}
+          payable={payingPixItem.payable}
+          onClose={() => setPayingPixItem(null)}
+          onSuccess={(msg) => {
+            setPayingPixItem(null);
+            setPixSuccessMsg(msg);
+            setTimeout(() => setPixSuccessMsg(""), 5000);
+          }}
         />
       )}
     </Modal>
