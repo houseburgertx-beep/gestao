@@ -17,6 +17,7 @@ import { commitRecords, saveManagement } from "@/services/managementService";
 import { db } from "@/lib/firebase";
 import {
   compressImageFile,
+  createThumbnailDataUrl,
   downloadFileFromDrive,
   formatFileSize,
   getFileBlobFromDrive,
@@ -93,6 +94,7 @@ export function AttachmentThumbnail({
 }) {
   const isPdf = att.mimeType === "application/pdf" || att.fileName.toLowerCase().endsWith(".pdf");
   const validDataUrl = isValidDataUrl(att.dataUrl) ? att.dataUrl : undefined;
+  const [retryCount, setRetryCount] = useState(0);
 
   const [imageUrl, setImageUrl] = useState<string>(() => {
     if (validDataUrl) return validDataUrl;
@@ -121,7 +123,7 @@ export function AttachmentThumbnail({
       return;
     }
 
-    if (att.fileId && driveBlobCache.has(att.fileId)) {
+    if (att.fileId && driveBlobCache.has(att.fileId) && retryCount === 0) {
       setImageUrl(driveBlobCache.get(att.fileId)!);
       setLoading(false);
       setLoadFailed(false);
@@ -143,6 +145,7 @@ export function AttachmentThumbnail({
         if (isMounted) {
           setImageUrl(res.url);
           setLoading(false);
+          setLoadFailed(false);
         }
       })
       .catch((err) => {
@@ -156,7 +159,7 @@ export function AttachmentThumbnail({
     return () => {
       isMounted = false;
     };
-  }, [att.fileId, att.dataUrl, isPdf, validDataUrl]);
+  }, [att.fileId, att.dataUrl, isPdf, validDataUrl, retryCount]);
 
   return (
     <div className="conf-att-preview" onClick={onClick} title="Clique para visualizar em tela cheia">
@@ -181,10 +184,17 @@ export function AttachmentThumbnail({
       ) : (
         <div className="conf-att-icon-box img">
           {loadFailed ? (
-            <>
-              <AlertCircle size={22} className="text-rose-500" />
-              <span className="text-rose-500 text-[9px]">FALHA NO PREVIEW</span>
-            </>
+            <div
+              className="flex flex-col items-center justify-center p-2 text-center w-full h-full cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition rounded-xl"
+              onClick={(e) => {
+                e.stopPropagation();
+                setRetryCount(c => c + 1);
+              }}
+              title="Clique para tentar carregar novamente"
+            >
+              <RotateCcw size={18} className="text-amber-500 mb-1" />
+              <span className="text-zinc-600 dark:text-zinc-300 text-[9px] font-semibold">Tentar carregar</span>
+            </div>
           ) : (
             <>
               <ImageIcon size={26} />
@@ -1298,14 +1308,16 @@ function ClosingModal({
 
       const uploadedAttachments: CashAttachment[] = [...existingAttachments.map(att => ({
         ...att,
-        // File is in Drive: do NOT store large base64 strings in Firestore
-        dataUrl: att.fileId && !att.fileId.startsWith("local-") ? undefined : (isValidDataUrl(att.dataUrl) ? att.dataUrl : undefined),
+        dataUrl: isValidDataUrl(att.dataUrl) ? att.dataUrl : undefined,
       }))];
 
       const newUploadResults = await runWithConcurrency(newFiles, 3, async (item) => {
         try {
           const named = nameFileForDrive(item.file, `Fechamento ${date} - ${unit}`);
-          const saved = await uploadFileToDrive(named, "payment_proofs");
+          const [saved, thumbUrl] = await Promise.all([
+            uploadFileToDrive(named, "payment_proofs"),
+            createThumbnailDataUrl(item.file, 260, 0.65)
+          ]);
           completedCount++;
           setBusyMessage(`Enviando comprovantes (${completedCount}/${totalNew})...`);
           return {
@@ -1313,7 +1325,7 @@ function ClosingModal({
             fileName: saved.fileName,
             mimeType: saved.mimeType,
             size: saved.size,
-            dataUrl: undefined,
+            dataUrl: thumbUrl || undefined,
             uploadedAt: new Date().toISOString()
           };
         } catch (uploadErr) {
@@ -3304,13 +3316,16 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         }
         try {
           const named = nameFileForDrive(fileToSend, `Conferencia ${str(closing, "date")} - ${closing.unitId}`);
-          const saved = await uploadFileToDrive(named, "payment_proofs");
+          const [saved, thumbUrl] = await Promise.all([
+            uploadFileToDrive(named, "payment_proofs"),
+            createThumbnailDataUrl(fileToSend, 260, 0.65)
+          ]);
           return {
             fileId: saved.fileId,
             fileName: saved.fileName,
             mimeType: saved.mimeType,
             size: saved.size,
-            dataUrl: clientDataUrl && clientDataUrl.length < 350000 ? clientDataUrl : undefined,
+            dataUrl: thumbUrl || (clientDataUrl && clientDataUrl.length < 350000 ? clientDataUrl : undefined),
             uploadedAt: new Date().toISOString()
           };
         } catch {

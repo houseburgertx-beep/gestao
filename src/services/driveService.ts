@@ -225,13 +225,135 @@ export async function uploadFileToDrive(file: File, category: DriveCategory): Pr
   };
 }
 
+export async function createThumbnailDataUrl(
+  file: File | Blob,
+  maxDimension = 260,
+  quality = 0.65
+): Promise<string> {
+  if (
+    typeof window === "undefined" ||
+    typeof document === "undefined" ||
+    !file.type ||
+    !file.type.startsWith("image/") ||
+    file.type === "image/svg+xml" ||
+    file.type === "image/gif"
+  ) {
+    return "";
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        let { width, height } = img;
+        if (!width || !height) {
+          resolve("");
+          return;
+        }
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve("");
+          return;
+        }
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "medium";
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve(dataUrl);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve("");
+      };
+      img.src = objectUrl;
+    } catch {
+      resolve("");
+    }
+  });
+}
+
+// Global in-flight deduplication and concurrency control for Google Drive downloads
+const inFlightDownloads = new Map<string, Promise<{ blob: Blob; url: string; mimeType: string }>>();
+let activeDriveDownloads = 0;
+const driveDownloadWaitQueue: Array<() => void> = [];
+
+function acquireDriveDownloadSlot(): Promise<void> {
+  if (activeDriveDownloads < 2) {
+    activeDriveDownloads++;
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    driveDownloadWaitQueue.push(() => {
+      activeDriveDownloads++;
+      resolve();
+    });
+  });
+}
+
+function releaseDriveDownloadSlot(): void {
+  activeDriveDownloads = Math.max(0, activeDriveDownloads - 1);
+  const next = driveDownloadWaitQueue.shift();
+  if (next) {
+    next();
+  }
+}
+
 export async function getFileBlobFromDrive(fileId: string): Promise<{ blob: Blob; url: string; mimeType: string }> {
-  const response = await authenticatedPost("/files/download", { fileId });
-  if (!response.ok) throw new Error("Não foi possível carregar o arquivo do Drive.");
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const mimeType = response.headers.get("content-type") || blob.type || "application/octet-stream";
-  return { blob, url, mimeType };
+  if (!fileId || typeof fileId !== "string") {
+    throw new Error("ID do arquivo inválido.");
+  }
+
+  // Deduplicate simultaneous requests for the same fileId
+  if (inFlightDownloads.has(fileId)) {
+    return inFlightDownloads.get(fileId)!;
+  }
+
+  const task = (async () => {
+    await acquireDriveDownloadSlot();
+    try {
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const response = await authenticatedPost("/files/download", { fileId });
+          if (!response.ok) {
+            const errJson = await response.json().catch(() => null);
+            const msg = errJson?.message || errJson?.error || `HTTP ${response.status}`;
+            throw new Error(msg);
+          }
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const mimeType = response.headers.get("content-type") || blob.type || "application/octet-stream";
+          return { blob, url, mimeType };
+        } catch (err) {
+          lastErr = err;
+          if (attempt < 2) {
+            await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 800));
+          }
+        }
+      }
+      throw lastErr instanceof Error ? lastErr : new Error(String(lastErr || "Falha ao baixar arquivo do Drive"));
+    } finally {
+      releaseDriveDownloadSlot();
+      inFlightDownloads.delete(fileId);
+    }
+  })();
+
+  inFlightDownloads.set(fileId, task);
+  return task;
 }
 
 export async function downloadFileFromDrive(fileId: string, suggestedName: string): Promise<void> {
