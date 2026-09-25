@@ -12,7 +12,7 @@ import {
 import { useManagement } from "@/contexts/ManagementContext";
 import { useUnit } from "@/contexts/UnitContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { currency, dateToday, isServiceFeeAccount, RecordData, str } from "@/domain/management/model";
+import { currency, dateToday, RecordData, str } from "@/domain/management/model";
 import { commitRecords, saveManagement } from "@/services/managementService";
 import { db } from "@/lib/firebase";
 import {
@@ -998,8 +998,6 @@ function ClosingModal({
 
   // Step 3: Maquininhas
   const banks = useMemo(() => data.bankAccounts.filter(row => !row.archived && row.unitId === unit), [data.bankAccounts, unit]);
-  const regularBanks = useMemo(() => banks.filter(b => !isServiceFeeAccount(b)), [banks]);
-  const serviceFeeBanks = useMemo(() => banks.filter(b => isServiceFeeAccount(b)), [banks]);
   const [machines, setMachines] = useState<Record<string, { used: boolean; credit: string; debit: string; pix: string }>>(() => {
     if (initialClosing) {
       const saved = parseBankAmounts(initialClosing);
@@ -1230,24 +1228,17 @@ function ClosingModal({
   let cCreditFound = 0;
   let cDebitFound = 0;
   let cPixFound = 0;
-  let cServiceFeeFound = 0;
-  Object.entries(machines).forEach(([bId, m]) => {
+  Object.entries(machines).forEach(([_, m]) => {
     if (m.used) {
-      const bank = banks.find(b => b.id === bId);
-      if (isServiceFeeAccount(bank)) {
-        cServiceFeeFound += c(m.credit) + c(m.debit) + c(m.pix);
-      } else {
-        cCreditFound += c(m.credit);
-        cDebitFound += c(m.debit);
-        cPixFound += c(m.pix);
-      }
+      cCreditFound += c(m.credit);
+      cDebitFound += c(m.debit);
+      cPixFound += c(m.pix);
     }
   });
 
   const cCreditDiff = cCreditFound - cSysCredit;
   const cDebitDiff = cDebitFound - cSysDebit;
   const cPixDiff = cPixFound - cSysPix;
-  const cServiceFeeDiff = cServiceFeeFound > 0 ? cServiceFeeFound - cSysServiceFee : 0;
   const cTotalConfirmed = cCashFound + cCreditFound + cDebitFound + cPixFound;
   const cTotalDiff = cCashDiff + cCreditDiff + cDebitDiff + cPixDiff;
 
@@ -2048,16 +2039,16 @@ function ClosingModal({
                     <div className="p-3 bg-white dark:bg-zinc-800/80 rounded-xl border border-zinc-200 dark:border-zinc-700/80 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
-                          <CreditCard size={14} className="text-blue-600" /> Maquininhas de Cartão & PIX (Vendas)
+                          <CreditCard size={14} className="text-blue-600" /> Maquininhas de Cartão & PIX
                         </span>
                         <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
-                          Total Vendas: {brl(cCreditFound + cDebitFound + cPixFound)}
+                          Total: {brl(cCreditFound + cDebitFound + cPixFound)}
                         </span>
                       </div>
 
-                      {regularBanks.length ? (
+                      {banks.length ? (
                         <div className="space-y-2.5">
-                          {regularBanks.map(bank => {
+                          {banks.map(bank => {
                             const m = machines[bank.id] || { used: false, credit: "", debit: "", pix: "" };
                             const machineTotal = c(m.credit) + c(m.debit) + c(m.pix);
                             return (
@@ -2142,111 +2133,9 @@ function ClosingModal({
                           })}
                         </div>
                       ) : (
-                        <p className="text-xs text-zinc-400 italic">Nenhuma máquina de venda cadastrada para esta unidade.</p>
+                        <p className="text-xs text-zinc-400 italic">Nenhuma máquina cadastrada para esta unidade.</p>
                       )}
                     </div>
-
-                    {/* Máquina Exclusiva de Taxa de Serviço (Isolada) */}
-                    {serviceFeeBanks.length > 0 && (
-                      <div className="p-3 bg-purple-50/70 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
-                            <Sparkles size={14} className="text-purple-600" /> Máquina de Taxa de Serviço (Isolada de Vendas)
-                          </span>
-                          <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
-                            Total Taxa: {brl(cServiceFeeFound)}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-purple-700/80 dark:text-purple-300/80">
-                          Valores informados aqui referem-se à taxa de serviço / gorjeta e <strong>NÃO se misturam nem alteram os valores de crédito, débito e PIX de vendas</strong>.
-                        </p>
-                        <div className="space-y-2.5">
-                          {serviceFeeBanks.map(bank => {
-                            const m = machines[bank.id] || { used: false, credit: "", debit: "", pix: "" };
-                            const machineTotal = c(m.credit) + c(m.debit) + c(m.pix);
-                            return (
-                              <div key={bank.id} className={`closing-machine-card border-purple-200 dark:border-purple-800 ${m.used ? "active" : ""}`}>
-                                <div className="closing-machine-header">
-                                  <label className="flex items-center gap-2 cursor-pointer font-bold text-xs text-purple-900 dark:text-purple-100">
-                                    <input
-                                      type="checkbox"
-                                      checked={m.used}
-                                      onChange={e => setMachines(prev => ({
-                                        ...prev,
-                                        [bank.id]: { ...m, used: e.target.checked }
-                                      }))}
-                                      className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
-                                    />
-                                    <Landmark size={15} className="text-purple-600" />
-                                    <span>{str(bank, "name")}</span>
-                                  </label>
-                                  {m.used && (
-                                    <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
-                                      {brl(machineTotal)}
-                                    </span>
-                                  )}
-                                </div>
-                                {m.used && (
-                                  <div className="grid grid-cols-3 gap-2 pt-1">
-                                    <div>
-                                      <label className="text-[9px] font-semibold text-purple-600 uppercase block mb-1">Crédito</label>
-                                      <div className="closing-input-wrapper">
-                                        <span className="prefix">R$</span>
-                                        <input
-                                          type="number"
-                                          step="0.01"
-                                          min="0"
-                                          placeholder="0,00"
-                                          value={m.credit}
-                                          onChange={e => setMachines(prev => ({
-                                            ...prev,
-                                            [bank.id]: { ...m, credit: e.target.value }
-                                          }))}
-                                        />
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <label className="text-[9px] font-semibold text-purple-600 uppercase block mb-1">Débito</label>
-                                      <div className="closing-input-wrapper">
-                                        <span className="prefix">R$</span>
-                                        <input
-                                          type="number"
-                                          step="0.01"
-                                          min="0"
-                                          placeholder="0,00"
-                                          value={m.debit}
-                                          onChange={e => setMachines(prev => ({
-                                            ...prev,
-                                            [bank.id]: { ...m, debit: e.target.value }
-                                          }))}
-                                        />
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <label className="text-[9px] font-semibold text-purple-600 uppercase block mb-1">PIX</label>
-                                      <div className="closing-input-wrapper">
-                                        <span className="prefix">R$</span>
-                                        <input
-                                          type="number"
-                                          step="0.01"
-                                          min="0"
-                                          placeholder="0,00"
-                                          value={m.pix}
-                                          onChange={e => setMachines(prev => ({
-                                            ...prev,
-                                            [bank.id]: { ...m, pix: e.target.value }
-                                          }))}
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -2315,38 +2204,6 @@ function ClosingModal({
                       <strong>{brl(cPixFound)}</strong>
                     </div>
                   </div>
-
-                  {/* Taxa de Serviço Isolada */}
-                  {(cSysServiceFee > 0 || serviceFeeBanks.length > 0) && (
-                    <div className="closing-pillar-box col-span-full bg-purple-50/50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800">
-                      <div className="closing-pillar-head">
-                        <span className="flex items-center gap-1.5 font-bold text-purple-900 dark:text-purple-200">
-                          <Sparkles size={14} className="text-purple-600" /> Taxa de Serviço (Isolada do Caixa)
-                        </span>
-                        {serviceFeeBanks.length > 0 ? (
-                          <Difference value={cServiceFeeDiff} />
-                        ) : (
-                          <span className="text-[10px] text-zinc-400">Sem máquina exclusiva</span>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1">
-                        <div className="closing-pillar-row">
-                          <span>PDV Sistema:</span>
-                          <strong>{brl(cSysServiceFee)}</strong>
-                        </div>
-                        {serviceFeeBanks.length > 0 && (
-                          <div className="closing-pillar-row">
-                            <span>Máquina Serviço:</span>
-                            <strong className="text-purple-700 dark:text-purple-300">{brl(cServiceFeeFound)}</strong>
-                          </div>
-                        )}
-                        <div className="closing-pillar-row col-span-full sm:col-span-1 text-[10px] text-zinc-500 italic">
-                          <span>Status:</span>
-                          <span>Não afeta divergência de vendas</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
           )}
@@ -3246,9 +3103,6 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
     return [{ id: "machine_default", name: "Máquina Principal", unitId: closing.unitId } as any];
   }, [allBanks, data.bankAccounts, closing.unitId]);
 
-  const regularBanks = useMemo(() => availableBanks.filter(b => !isServiceFeeAccount(b)), [availableBanks]);
-  const serviceFeeBanks = useMemo(() => availableBanks.filter(b => isServiceFeeAccount(b)), [availableBanks]);
-
   const [bankVals, setBankVals] = useState<Record<string, { credit: number; debit: number; pix: number }>>(() => {
     const res: Record<string, { credit: number; debit: number; pix: number }> = {};
     availableBanks.forEach(b => {
@@ -3266,16 +3120,16 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
     return res;
   });
 
-  // Active regular banks to display as tabs (those with values > 0 or in initialSaved, or all)
+  // Active banks to display (those with values > 0 or in initialSaved, or all)
   const displayBanks = useMemo(() => {
-    const list = regularBanks.filter(b => initialSaved[b.id] !== undefined || (bankVals[b.id]?.credit || 0) > 0 || (bankVals[b.id]?.debit || 0) > 0 || (bankVals[b.id]?.pix || 0) > 0 || regularBanks.length <= 3);
-    return list.length > 0 ? list : (regularBanks.length > 0 ? regularBanks : [{ id: "machine_default", name: "Máquina Principal" } as any]);
-  }, [regularBanks, initialSaved, bankVals]);
+    const list = availableBanks.filter(b => initialSaved[b.id] !== undefined || (bankVals[b.id]?.credit || 0) > 0 || (bankVals[b.id]?.debit || 0) > 0 || (bankVals[b.id]?.pix || 0) > 0 || availableBanks.length <= 3);
+    return list.length > 0 ? list : availableBanks;
+  }, [availableBanks, initialSaved, bankVals]);
 
   const [activeBankId, setActiveBankId] = useState<string>(() => {
-    const firstSaved = Object.keys(initialSaved).find(k => regularBanks.some(b => b.id === k));
-    if (firstSaved) return firstSaved;
-    return displayBanks[0]?.id || regularBanks[0]?.id || "machine_default";
+    const firstSaved = Object.keys(initialSaved)[0];
+    if (firstSaved && availableBanks.some(b => b.id === firstSaved)) return firstSaved;
+    return availableBanks[0]?.id || "machine_default";
   });
 
   const updateActiveBank = (type: "credit" | "debit" | "pix", val: number) => {
@@ -3359,9 +3213,9 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   const cashFound = sangriaAmount + closingFloat;
   const cashDiff = cashFound - cashExpected;
 
-  const totalCreditFound = regularBanks.reduce((s, b) => s + (bankVals[b.id]?.credit || 0), 0);
-  const totalDebitFound = regularBanks.reduce((s, b) => s + (bankVals[b.id]?.debit || 0), 0);
-  const totalPixFound = regularBanks.reduce((s, b) => s + (bankVals[b.id]?.pix || 0), 0);
+  const totalCreditFound = Object.values(bankVals).reduce((s, b) => s + b.credit, 0);
+  const totalDebitFound = Object.values(bankVals).reduce((s, b) => s + b.debit, 0);
+  const totalPixFound = Object.values(bankVals).reduce((s, b) => s + b.pix, 0);
 
   const creditDiff = totalCreditFound - systemCredit;
   const debitDiff = totalDebitFound - systemDebit;
@@ -3369,16 +3223,9 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   const totalDiff = cashDiff + creditDiff + debitDiff + pixDiff;
   const systemTotal = systemCash + systemCredit + systemDebit + systemPix + systemServiceFee + otherSales;
 
-  const serviceFeeFound = serviceFeeBanks.reduce((s, b) => {
-    const v = bankVals[b.id] || { credit: 0, debit: 0, pix: 0 };
-    return s + v.credit + v.debit + v.pix;
-  }, 0);
-  const serviceFeeDiff = serviceFeeBanks.length > 0 ? serviceFeeFound - systemServiceFee : 0;
-
   // Fee deductions calculation per bank
   const bankCalculations = useMemo(() => {
-    const allRelevant = [...displayBanks, ...serviceFeeBanks.filter(sb => !displayBanks.some(db => db.id === sb.id))];
-    return allRelevant.map(bank => {
+    return displayBanks.map(bank => {
       const vals = bankVals[bank.id] || { credit: 0, debit: 0, pix: 0 };
       const creditPct = Number(bank.creditFeePct || 0);
       const debitPct = Number(bank.debitFeePct || 0);
@@ -3390,7 +3237,6 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
       const pixFee = Math.round(vals.pix * (pixPct / 100));
       const totalFees = creditFee + debitFee + pixFee;
       const netAmount = grossAmount - totalFees;
-      const isService = isServiceFeeAccount(bank);
 
       return {
         bank,
@@ -3404,10 +3250,9 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         pixFee,
         totalFees,
         netAmount,
-        isService
       };
     });
-  }, [displayBanks, serviceFeeBanks, bankVals]);
+  }, [displayBanks, bankVals]);
 
   const isMachineChecked = (bankId: string) => {
     const m = machineChecks[bankId];
@@ -3418,10 +3263,8 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
     return creditOk && debitOk && pixOk;
   };
 
-  const allRegularChecked = regularBanks.length === 0 || regularBanks.every(b => isMachineChecked(b.id));
-  const allServiceChecked = serviceFeeBanks.length === 0 || serviceFeeBanks.every(b => isMachineChecked(b.id));
-  const allMachinesChecked = allRegularChecked && allServiceChecked;
-  const allChecked = Boolean(checks.cash) && allMachinesChecked && (serviceFeeBanks.length === 0 || Boolean(checks.serviceFee));
+  const allMachinesChecked = availableBanks.length === 0 || availableBanks.every(b => isMachineChecked(b.id));
+  const allChecked = Boolean(checks.cash) && allMachinesChecked && Boolean(checks.serviceFee);
   const hasDifference = totalDiff !== 0;
 
   const [attachmentsList, setAttachmentsList] = useState<CashAttachment[]>(() => parseAttachments(closing));
@@ -3599,10 +3442,9 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         checksJson: JSON.stringify({
           cash: checks.cash,
           serviceFee: checks.serviceFee,
-          credit: regularBanks.length > 0 && regularBanks.every(b => machineChecks[b.id]?.credit),
-          debit: regularBanks.length > 0 && regularBanks.every(b => machineChecks[b.id]?.debit),
-          pix: regularBanks.length > 0 && regularBanks.every(b => machineChecks[b.id]?.pix),
-          serviceFeeMachines: serviceFeeBanks.every(b => isMachineChecked(b.id)),
+          credit: displayBanks.length > 0 && displayBanks.every(b => machineChecks[b.id]?.credit),
+          debit: displayBanks.length > 0 && displayBanks.every(b => machineChecks[b.id]?.debit),
+          pix: displayBanks.length > 0 && displayBanks.every(b => machineChecks[b.id]?.pix),
           machines: machineChecks,
         }),
         difference: totalDiff,
@@ -4213,144 +4055,14 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
                 <span className="conf-val-static">{brl(systemServiceFee)}</span>
               )}
               <div className="conf-editable-cell">
-                {serviceFeeBanks.length > 0 ? (
-                  <div className="flex items-center gap-1.5">
-                    <span className="conf-val-static font-bold text-purple-700 dark:text-purple-300">{brl(serviceFeeFound)}</span>
-                    <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-1 py-0.5 rounded border border-purple-200 dark:border-purple-800">
-                      Máq. Isolada
-                    </span>
-                  </div>
-                ) : (
-                  <span className="conf-val-static">{brl(systemServiceFee)}</span>
-                )}
+                <span className="conf-val-static">{brl(systemServiceFee)}</span>
               </div>
-              <Difference value={serviceFeeDiff} />
+              <Difference value={0} />
               <label className="conf-check-label">
                 <input type="checkbox" checked={checks.serviceFee} disabled={review} onChange={e => setChecks(c => ({ ...c, serviceFee: e.target.checked }))} /> OK
               </label>
             </div>
           </div>
-
-          {/* Card Isolado da Máquina de Taxa de Serviço */}
-          {serviceFeeBanks.length > 0 && (
-            <div className="p-3.5 bg-purple-50/70 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800 space-y-3">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <h4 className="text-xs font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
-                    <Sparkles size={15} className="text-purple-600" />
-                    Máquina de Taxa de Serviço (Isolada da Conciliação de Vendas)
-                  </h4>
-                  <p className="text-[11px] text-purple-700/80 dark:text-purple-300/80 mt-0.5">
-                    Os valores desta máquina <strong>NÃO somam nem subtraem dos valores de crédito, débito e PIX do PDV</strong> e não afetam o caixa da loja.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/60 px-2.5 py-1 rounded-lg border border-purple-200 dark:border-purple-800">
-                    Total Máquina: {brl(serviceFeeFound)}
-                  </span>
-                  <Difference value={serviceFeeDiff} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {serviceFeeBanks.map(bank => {
-                  const vals = bankVals[bank.id] || { credit: 0, debit: 0, pix: 0 };
-                  const mCheck = machineChecks[bank.id];
-                  const machineTotal = vals.credit + vals.debit + vals.pix;
-                  return (
-                    <div key={bank.id} className="p-3 bg-white dark:bg-zinc-900 rounded-xl border border-purple-200 dark:border-purple-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <Landmark size={14} className="text-purple-600" />
-                          <strong className="text-xs text-zinc-900 dark:text-zinc-100">{str(bank, "name")}</strong>
-                        </div>
-                        <span className="text-xs font-bold text-purple-700 dark:text-purple-400">{brl(machineTotal)}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div>
-                          <label className="text-[10px] font-semibold text-zinc-500 block mb-0.5">Crédito</label>
-                          <div className="conf-input-box">
-                            <span className="conf-input-prefix">R$</span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={(vals.credit || 0) / 100}
-                              disabled={review}
-                              onChange={e => {
-                                const val = Math.round(Number(e.target.value) * 100);
-                                setBankVals(prev => ({
-                                  ...prev,
-                                  [bank.id]: { ...(prev[bank.id] || { credit: 0, debit: 0, pix: 0 }), credit: val }
-                                }));
-                              }}
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-semibold text-zinc-500 block mb-0.5">Débito</label>
-                          <div className="conf-input-box">
-                            <span className="conf-input-prefix">R$</span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={(vals.debit || 0) / 100}
-                              disabled={review}
-                              onChange={e => {
-                                const val = Math.round(Number(e.target.value) * 100);
-                                setBankVals(prev => ({
-                                  ...prev,
-                                  [bank.id]: { ...(prev[bank.id] || { credit: 0, debit: 0, pix: 0 }), debit: val }
-                                }));
-                              }}
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-semibold text-zinc-500 block mb-0.5">PIX</label>
-                          <div className="conf-input-box">
-                            <span className="conf-input-prefix">R$</span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={(vals.pix || 0) / 100}
-                              disabled={review}
-                              onChange={e => {
-                                const val = Math.round(Number(e.target.value) * 100);
-                                setBankVals(prev => ({
-                                  ...prev,
-                                  [bank.id]: { ...(prev[bank.id] || { credit: 0, debit: 0, pix: 0 }), pix: val }
-                                }));
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between pt-1 border-t border-purple-100 dark:border-purple-900/60">
-                        <span className="text-[10px] text-zinc-500">Conferência individual</span>
-                        <label className="conf-check-label">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(mCheck?.credit && mCheck?.debit && mCheck?.pix)}
-                            disabled={review}
-                            onChange={e => {
-                              const checked = e.target.checked;
-                              setMachineChecks(prev => ({
-                                ...prev,
-                                [bank.id]: { credit: checked, debit: checked, pix: checked }
-                              }));
-                            }}
-                          /> OK Máquina
-                        </label>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           <div className={`total-divergence ${totalDiff === 0 ? "ok" : "bad"}`}>
             <span>DIVERGÊNCIA TOTAL RECALCULADA</span>
@@ -4395,13 +4107,8 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
                   <tr key={c.bank.id} className={activeBankId === c.bank.id ? "bg-indigo-50/50 dark:bg-indigo-950/20" : ""}>
                     <td>
                       <div className="flex items-center gap-1.5">
-                        <Landmark size={13} className={c.isService ? "text-purple-600 shrink-0" : "text-zinc-500 shrink-0"} />
+                        <Landmark size={13} className="text-zinc-500 shrink-0" />
                         <strong>{str(c.bank, "name")}</strong>
-                        {c.isService && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300">
-                            ✨ Taxa Isolada
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td style={{ textAlign: "right" }}>
@@ -4435,7 +4142,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
                   return (
                     <>
                       <tr className="conf-tfoot-row font-bold bg-zinc-50 dark:bg-zinc-800/60 border-t-2 border-zinc-300 dark:border-zinc-700">
-                        <td>TOTAL MÁQUINAS (VENDAS)</td>
+                        <td>TOTAL MÁQUINAS</td>
                         <td style={{ textAlign: "right" }}>{brl(totalCreditFound)}</td>
                         <td style={{ textAlign: "right" }}>{brl(totalDebitFound)}</td>
                         <td style={{ textAlign: "right" }}>{brl(totalPixFound)}</td>
@@ -4448,7 +4155,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
                         </td>
                       </tr>
                       <tr className="conf-tfoot-row text-xs font-semibold bg-zinc-100/70 dark:bg-zinc-800/40 text-zinc-700 dark:text-zinc-300">
-                        <td>SISTEMA (PDV VENDAS)</td>
+                        <td>SISTEMA (PDV)</td>
                         <td style={{ textAlign: "right" }}>{brl(systemCredit)}</td>
                         <td style={{ textAlign: "right" }}>{brl(systemDebit)}</td>
                         <td style={{ textAlign: "right" }}>{brl(systemPix)}</td>
@@ -4465,15 +4172,6 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
                         <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
                         <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
                       </tr>
-                      {serviceFeeBanks.length > 0 && (
-                        <tr className="conf-tfoot-row text-xs font-semibold bg-purple-50/50 dark:bg-purple-950/20 text-purple-900 dark:text-purple-200 border-t border-purple-200 dark:border-purple-800">
-                          <td>✨ TAXA DE SERVIÇO (MÁQ ISOLADA)</td>
-                          <td style={{ textAlign: "right" }} colSpan={3}>PDV: {brl(systemServiceFee)} · Máq: {brl(serviceFeeFound)}</td>
-                          <td style={{ textAlign: "right" }}><Difference value={serviceFeeDiff} /></td>
-                          <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
-                          <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
-                        </tr>
-                      )}
                     </>
                   );
                 })()}
@@ -4902,7 +4600,6 @@ function ClosingDetailsModal({
       const pixFee = Math.round(pix * (pixPct / 100));
       const totalFees = creditFee + debitFee + pixFee;
       const netAmount = grossAmount - totalFees;
-      const isService = isServiceFeeAccount(bank);
       return {
         bank,
         vals: { credit, debit, pix },
@@ -4915,15 +4612,9 @@ function ClosingDetailsModal({
         pixFee,
         totalFees,
         netAmount,
-        isService,
       };
     });
   }, [savedBankAmounts, data.bankAccounts]);
-
-  const serviceFeeFound = useMemo(() => {
-    return bankCalculations.filter(c => c.isService).reduce((s, c) => s + c.grossAmount, 0);
-  }, [bankCalculations]);
-  const serviceFeeDiff = serviceFeeFound > 0 ? serviceFeeFound - systemServiceFee : 0;
 
   const downloadAttachment = async (att: CashAttachment) => {
     try {
@@ -5144,39 +4835,6 @@ function ClosingDetailsModal({
                 <b>{brl(pixFound)}</b>
               </div>
             </div>
-
-            {/* Taxa de Serviço Isolada */}
-            {(systemServiceFee > 0 || serviceFeeFound > 0) && (
-              <div className="closing-pillar-box col-span-full bg-purple-50/50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800">
-                <div className="closing-pillar-head">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={15} className="text-purple-600" />
-                    <strong className="text-purple-900 dark:text-purple-200">✨ Taxa de Serviço (Isolada do Caixa)</strong>
-                  </div>
-                  {serviceFeeFound > 0 ? (
-                    <Difference value={serviceFeeDiff} />
-                  ) : (
-                    <span className="text-[10px] text-zinc-400">Sem máquina exclusiva</span>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1">
-                  <div className="closing-pillar-row">
-                    <span>Sistema (PDV)</span>
-                    <b>{brl(systemServiceFee)}</b>
-                  </div>
-                  {serviceFeeFound > 0 && (
-                    <div className="closing-pillar-row">
-                      <span>Máquina de Serviço</span>
-                      <b className="text-purple-700 dark:text-purple-300">{brl(serviceFeeFound)}</b>
-                    </div>
-                  )}
-                  <div className="closing-pillar-row col-span-full sm:col-span-1 text-[10px] text-zinc-500 italic">
-                    <span>Status</span>
-                    <span>Isolada da conferência de vendas</span>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -5205,13 +4863,8 @@ function ClosingDetailsModal({
                     <tr key={c.bank.id}>
                       <td>
                         <div className="flex items-center gap-1.5">
-                          <Landmark size={13} className={c.isService ? "text-purple-600 shrink-0" : "text-zinc-500 shrink-0"} />
+                          <Landmark size={13} className="text-zinc-500 shrink-0" />
                           <strong>{str(c.bank, "name")}</strong>
-                          {c.isService && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300">
-                              ✨ Taxa Isolada
-                            </span>
-                          )}
                         </div>
                       </td>
                       <td style={{ textAlign: "right" }}>
@@ -5240,17 +4893,16 @@ function ClosingDetailsModal({
                 </tbody>
                 <tfoot>
                   {(() => {
-                    const regularCalcs = bankCalculations.filter(c => !c.isService);
-                    const totalCredit = regularCalcs.reduce((s, c) => s + c.vals.credit, 0);
-                    const totalDebit = regularCalcs.reduce((s, c) => s + c.vals.debit, 0);
-                    const totalPix = regularCalcs.reduce((s, c) => s + c.vals.pix, 0);
+                    const totalCredit = bankCalculations.reduce((s, c) => s + c.vals.credit, 0);
+                    const totalDebit = bankCalculations.reduce((s, c) => s + c.vals.debit, 0);
+                    const totalPix = bankCalculations.reduce((s, c) => s + c.vals.pix, 0);
                     const totalGross = totalCredit + totalDebit + totalPix;
                     const totalFees = bankCalculations.reduce((s, c) => s + c.totalFees, 0);
                     const totalNet = bankCalculations.reduce((s, c) => s + c.netAmount, 0);
                     return (
                       <>
                         <tr className="conf-tfoot-row font-bold bg-zinc-50 dark:bg-zinc-800/60 border-t-2 border-zinc-300 dark:border-zinc-700">
-                          <td>TOTAL MÁQUINAS (VENDAS)</td>
+                          <td>TOTAL MÁQUINAS</td>
                           <td style={{ textAlign: "right" }}>{brl(totalCredit)}</td>
                           <td style={{ textAlign: "right" }}>{brl(totalDebit)}</td>
                           <td style={{ textAlign: "right" }}>{brl(totalPix)}</td>
@@ -5263,7 +4915,7 @@ function ClosingDetailsModal({
                           </td>
                         </tr>
                         <tr className="conf-tfoot-row text-xs font-semibold bg-zinc-100/70 dark:bg-zinc-800/40 text-zinc-700 dark:text-zinc-300">
-                          <td>SISTEMA (PDV VENDAS)</td>
+                          <td>SISTEMA (PDV)</td>
                           <td style={{ textAlign: "right" }}>{brl(systemCredit)}</td>
                           <td style={{ textAlign: "right" }}>{brl(systemDebit)}</td>
                           <td style={{ textAlign: "right" }}>{brl(systemPix)}</td>
@@ -5280,15 +4932,6 @@ function ClosingDetailsModal({
                           <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
                           <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
                         </tr>
-                        {serviceFeeFound > 0 && (
-                          <tr className="conf-tfoot-row text-xs font-semibold bg-purple-50/50 dark:bg-purple-950/20 text-purple-900 dark:text-purple-200 border-t border-purple-200 dark:border-purple-800">
-                            <td>✨ TAXA DE SERVIÇO (MÁQ ISOLADA)</td>
-                            <td style={{ textAlign: "right" }} colSpan={3}>PDV: {brl(systemServiceFee)} · Máq: {brl(serviceFeeFound)}</td>
-                            <td style={{ textAlign: "right" }}><Difference value={serviceFeeDiff} /></td>
-                            <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
-                            <td style={{ textAlign: "right" }} className="text-zinc-400 font-normal">—</td>
-                          </tr>
-                        )}
                       </>
                     );
                   })()}
