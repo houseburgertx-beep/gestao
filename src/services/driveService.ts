@@ -16,8 +16,8 @@ export type StoredDriveFile = {
 
 export async function compressImageFile(
   file: File,
-  maxDimension = 1600,
-  quality = 0.75
+  maxDimension = 1400,
+  quality = 0.72
 ): Promise<{ file: File; dataUrl: string; size: number }> {
   if (
     typeof window === "undefined" ||
@@ -78,6 +78,11 @@ export async function compressImageFile(
               type: outMime,
               lastModified: Date.now(),
             });
+            try {
+              Object.defineProperty(compressedFile, "__preCompressed", { value: true, writable: false });
+            } catch {
+              // ignore
+            }
             resolve({ file: compressedFile, dataUrl, size: blob.size });
           },
           outMime,
@@ -127,11 +132,47 @@ export function nameFileForDrive(file: File, context: string): File {
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = "";
-  const chunkSize = 32768;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...Array.from(bytes.subarray(offset, offset + chunkSize)));
+  const chunkSize = 16384;
+  const len = bytes.length;
+  for (let offset = 0; offset < len; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, Math.min(offset + chunkSize, len));
+    binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
   }
   return btoa(binary);
+}
+
+async function fileToBase64(file: Blob): Promise<string> {
+  if (typeof FileReader !== "undefined") {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const comma = dataUrl.indexOf(",");
+        resolve(comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl);
+      };
+      reader.onerror = () => reject(reader.error || new Error("Erro ao ler arquivo"));
+      reader.readAsDataURL(file);
+    });
+  }
+  return arrayBufferToBase64(await file.arrayBuffer());
+}
+
+export async function runWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIdx = 0;
+  const count = items.length;
+  const workers = Array.from({ length: Math.min(concurrency, count) }, async () => {
+    while (nextIdx < count) {
+      const idx = nextIdx++;
+      results[idx] = await fn(items[idx], idx);
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 async function authenticatedPost(path: string, body: object): Promise<Response> {
@@ -156,10 +197,11 @@ export async function uploadFileToDrive(file: File, category: DriveCategory): Pr
   let fileToUpload = file;
   let clientDataUrl = "";
 
-  // Auto-compress large images client-side before sending to Drive worker
-  if (file.type && file.type.startsWith("image/") && file.size > 250 * 1024) {
+  // Auto-compress large images client-side before sending to Drive worker (skip if already compressed)
+  const isPreCompressed = Boolean((file as any).__preCompressed);
+  if (!isPreCompressed && file.type && file.type.startsWith("image/") && file.size > 400 * 1024) {
     try {
-      const compressed = await compressImageFile(file, 1600, 0.75);
+      const compressed = await compressImageFile(file, 1400, 0.72);
       fileToUpload = compressed.file;
       clientDataUrl = compressed.dataUrl;
     } catch {
@@ -168,10 +210,11 @@ export async function uploadFileToDrive(file: File, category: DriveCategory): Pr
   }
 
   if (fileToUpload.size > MAX_DRIVE_FILE_SIZE) throw new Error("O arquivo deve ter no máximo 8 MB.");
+  const base64 = await fileToBase64(fileToUpload);
   const response = await authenticatedPost("/files/upload", {
     fileName: fileToUpload.name,
     mimeType: fileToUpload.type || "application/octet-stream",
-    base64: arrayBufferToBase64(await fileToUpload.arrayBuffer()),
+    base64,
     category,
   });
   const result = (await response.json().catch(() => null)) as (StoredDriveFile & { error?: string; message?: string }) | null;

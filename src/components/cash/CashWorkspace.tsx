@@ -21,11 +21,14 @@ import {
   formatFileSize,
   getFileBlobFromDrive,
   nameFileForDrive,
+  runWithConcurrency,
   uploadFileToDrive
 } from "@/services/driveService";
 import { validate, settlement } from "@/domain/management/operations";
 import { outstanding } from "@/domain/management/engine";
 import "@/components/management/management.css";
+
+const MAX_CLOSING_ATTACHMENTS = 15;
 
 const safeUUID = () =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -1089,9 +1092,9 @@ function ClosingModal({
   };
 
   const handleAddFiles = async (fileList: FileList | File[]) => {
-    const remaining = 5 - (existingAttachments.length + newFiles.length);
+    const remaining = MAX_CLOSING_ATTACHMENTS - (existingAttachments.length + newFiles.length);
     if (remaining <= 0) {
-      alert("Você pode anexar no máximo 5 comprovantes.");
+      alert(`Você pode anexar no máximo ${MAX_CLOSING_ATTACHMENTS} comprovantes.`);
       return;
     }
     const toProcess = Array.from(fileList).slice(0, remaining);
@@ -1100,7 +1103,7 @@ function ClosingModal({
       const processed = await Promise.all(
         toProcess.map(async (file) => {
           if (file.type && file.type.startsWith("image/")) {
-            const comp = await compressImageFile(file, 1600, 0.75);
+            const comp = await compressImageFile(file, 1400, 0.72);
             return {
               file: comp.file,
               previewUrl: comp.dataUrl || (typeof window !== "undefined" ? URL.createObjectURL(comp.file) : ""),
@@ -1123,6 +1126,7 @@ function ClosingModal({
   };
 
   const [busy, setBusy] = useState(false);
+  const [busyMessage, setBusyMessage] = useState("");
   const [error, setError] = useState("");
 
   const handleDiscardDraft = () => {
@@ -1282,8 +1286,14 @@ function ClosingModal({
         throw new Error("Informe para quem foi entregue a sangria ou onde está guardada na loja.");
       }
 
-      if (existingAttachments.length + newFiles.length > 5) {
-        throw new Error("Envie no máximo 5 comprovantes.");
+      if (existingAttachments.length + newFiles.length > MAX_CLOSING_ATTACHMENTS) {
+        throw new Error(`Envie no máximo ${MAX_CLOSING_ATTACHMENTS} comprovantes.`);
+      }
+
+      let completedCount = 0;
+      const totalNew = newFiles.length;
+      if (totalNew > 0) {
+        setBusyMessage(`Enviando comprovantes (0/${totalNew})...`);
       }
 
       const uploadedAttachments: CashAttachment[] = [...existingAttachments.map(att => ({
@@ -1291,31 +1301,37 @@ function ClosingModal({
         // File is in Drive: do NOT store large base64 strings in Firestore
         dataUrl: att.fileId && !att.fileId.startsWith("local-") ? undefined : (isValidDataUrl(att.dataUrl) ? att.dataUrl : undefined),
       }))];
-      for (const item of newFiles) {
+
+      const newUploadResults = await runWithConcurrency(newFiles, 3, async (item) => {
         try {
           const named = nameFileForDrive(item.file, `Fechamento ${date} - ${unit}`);
           const saved = await uploadFileToDrive(named, "payment_proofs");
-          // File is safe in Drive — do NOT store dataUrl in Firestore
-          uploadedAttachments.push({
+          completedCount++;
+          setBusyMessage(`Enviando comprovantes (${completedCount}/${totalNew})...`);
+          return {
             fileId: saved.fileId,
             fileName: saved.fileName,
             mimeType: saved.mimeType,
             size: saved.size,
             dataUrl: undefined,
             uploadedAt: new Date().toISOString()
-          });
+          };
         } catch (uploadErr) {
           console.warn("[Fechamento] Falha ao enviar comprovante para o Drive, mantendo fallback:", uploadErr);
-          uploadedAttachments.push({
+          completedCount++;
+          setBusyMessage(`Enviando comprovantes (${completedCount}/${totalNew})...`);
+          return {
             fileId: `local-${Date.now()}-${item.file.name}`,
             fileName: item.file.name,
             mimeType: item.file.type || "image/jpeg",
             size: item.size,
             dataUrl: isValidDataUrl(item.dataUrl) ? item.dataUrl : undefined,
             uploadedAt: new Date().toISOString()
-          });
+          };
         }
-      }
+      });
+      uploadedAttachments.push(...newUploadResults);
+      setBusyMessage("Gravando fechamento...");
 
       const now = new Date().toISOString();
       const targetClosing = activeTargetClosing;
@@ -1473,6 +1489,7 @@ function ClosingModal({
       }
     } finally {
       setBusy(false);
+      setBusyMessage("");
     }
   };
 
@@ -2427,7 +2444,7 @@ function ClosingModal({
                 <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
-                      <Camera size={15} className="text-purple-600" /> Comprovantes / Fotos ({existingAttachments.length + newFiles.length}/5)
+                      <Camera size={15} className="text-purple-600" /> Comprovantes / Fotos ({existingAttachments.length + newFiles.length}/{MAX_CLOSING_ATTACHMENTS})
                     </label>
                     {compressingFiles && (
                       <span className="text-[11px] text-purple-600 flex items-center gap-1 font-semibold">
@@ -2736,7 +2753,7 @@ function ClosingModal({
                 onClick={handleSubmit}
               >
                 {busy ? (
-                  "Enviando ao financeiro..."
+                  busyMessage || "Enviando ao financeiro..."
                 ) : initialClosing ? (
                   "Salvar e Reenviar Fechamento"
                 ) : (
@@ -3272,41 +3289,42 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   const [uploadingAtt, setUploadingAtt] = useState(false);
 
   const handleAddFinanceAttachment = async (fileList: FileList | File[]) => {
-    if (!fileList.length) return;
+    const files = Array.from(fileList);
+    if (!files.length) return;
     setUploadingAtt(true);
     setError("");
     try {
-      const newList: CashAttachment[] = [...attachmentsList];
-      for (const file of Array.from(fileList)) {
+      const newItems = await runWithConcurrency(files, 3, async (file) => {
         let fileToSend = file;
         let clientDataUrl = "";
         if (file.type && file.type.startsWith("image/")) {
-          const comp = await compressImageFile(file, 1600, 0.75);
+          const comp = await compressImageFile(file, 1400, 0.72);
           fileToSend = comp.file;
           clientDataUrl = comp.dataUrl;
         }
         try {
           const named = nameFileForDrive(fileToSend, `Conferencia ${str(closing, "date")} - ${closing.unitId}`);
           const saved = await uploadFileToDrive(named, "payment_proofs");
-          newList.push({
+          return {
             fileId: saved.fileId,
             fileName: saved.fileName,
             mimeType: saved.mimeType,
             size: saved.size,
             dataUrl: clientDataUrl && clientDataUrl.length < 350000 ? clientDataUrl : undefined,
             uploadedAt: new Date().toISOString()
-          });
+          };
         } catch {
-          newList.push({
+          return {
             fileId: `local-${Date.now()}-${file.name}`,
             fileName: file.name,
             mimeType: file.type || "image/jpeg",
             size: file.size,
             dataUrl: clientDataUrl || undefined,
             uploadedAt: new Date().toISOString()
-          });
+          };
         }
-      }
+      });
+      const newList: CashAttachment[] = [...attachmentsList, ...newItems];
       setAttachmentsList(newList);
       const updatedClosing: RecordData = {
         ...closing,
