@@ -580,10 +580,25 @@ function generateWhatsAppClosingText(row: RecordData, unitName: string) {
 
 export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audit" }) {
   const { data } = useManagement(); const { user, userProfile } = useAuth();
+  const { currentUnit, setCurrentUnit } = useUnit();
+  const [selectedUnit, setSelectedUnit] = useState<string>(() => currentUnit || "all");
   const [closingOpen, setClosingOpen] = useState(false); const [editingClosing, setEditingClosing] = useState<RecordData|null>(null); const [reviewing, setReviewing] = useState<RecordData|null>(null); const [message, setMessage] = useState("");
   const [viewingClosing, setViewingClosing] = useState<RecordData|null>(null);
   const [confTab, setConfTab] = useState<"queue"|"audit"|"rates"|"sangrias">("queue");
   const [queueFilter, setQueueFilter] = useState<string>("all");
+
+  useEffect(() => {
+    if (currentUnit) {
+      setSelectedUnit(currentUnit);
+    }
+  }, [currentUnit]);
+
+  const handleSelectUnit = (unitId: string) => {
+    setSelectedUnit(unitId);
+    if (setCurrentUnit) {
+      setCurrentUnit(unitId as any);
+    }
+  };
 
   useEffect(() => {
     if (mode !== "closing") return;
@@ -693,15 +708,39 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
   const userUnit = userProfile?.unitId;
   const roleStr = String(userProfile?.role || "");
   const isOperator = roleStr === "operator" || roleStr === "operador" || roleStr === "caixa";
+
+  const availableUnits = useMemo(() => {
+    const list: { id: string; name: string }[] = [];
+    const seen = new Set<string>();
+    (data.units || []).filter(u => !u.archived && u.id && u.id !== "all").forEach(u => {
+      seen.add(u.id);
+      list.push({ id: u.id, name: str(u, "name") || u.id });
+    });
+    closings.forEach(c => {
+      const uid = c.unitId;
+      if (uid && uid !== "all" && !seen.has(uid)) {
+        seen.add(uid);
+        const matchUnit = data.units.find(x => x.id === uid);
+        list.push({ id: uid, name: matchUnit ? str(matchUnit, "name") : uid });
+      }
+    });
+    return list;
+  }, [data.units, closings]);
+
+  const closingsForUnit = useMemo(() => {
+    if (selectedUnit === "all") return closings;
+    return closings.filter(r => r.unitId === selectedUnit);
+  }, [closings, selectedUnit]);
+
   const visible = mode === "closing" || mode === "audit"
-    ? (isOperator && userUnit && userUnit !== "all" ? closings.filter(r => r.unitId === userUnit) : closings)
-    : closings.filter(r => r.status !== "Rascunho");
+    ? (isOperator && userUnit && userUnit !== "all" ? closings.filter(r => r.unitId === userUnit) : closingsForUnit)
+    : closingsForUnit.filter(r => r.status !== "Rascunho");
 
   const todayRows = visible.filter(r => str(r, "date") === today);
   const difference = todayRows.reduce((sum, row) => sum + Number(row.difference || 0), 0);
 
-  const pending = closings.filter(row => !isConferred(row) && row.status !== "Rascunho");
-  const reviewed = closings.filter(row => isConferred(row));
+  const pending = closingsForUnit.filter(row => !isConferred(row) && row.status !== "Rascunho");
+  const reviewed = closingsForUnit.filter(row => isConferred(row));
 
   const filteredQueue = visible.filter(row => {
     if (queueFilter === "pending") return !isConferred(row);
@@ -721,8 +760,33 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
       closingValue(row, "invoiceDifference") !== 0
     );
   };
-  const auditClosings = closings.filter(hasAuditData);
-  const sangriaClosings = closings.filter(r => Number(r.sangriaAmount || 0) > 0);
+  const auditClosings = closingsForUnit.filter(hasAuditData);
+  const sangriaClosings = closingsForUnit.filter(r => Number(r.sangriaAmount || 0) > 0);
+
+  const groupedQueue = useMemo(() => {
+    if (selectedUnit !== "all") {
+      const uObj = availableUnits.find(u => u.id === selectedUnit);
+      return [{
+        unitId: selectedUnit,
+        unitName: uObj?.name || selectedUnit,
+        items: filteredQueue
+      }];
+    }
+    const map = new Map<string, RecordData[]>();
+    filteredQueue.forEach(row => {
+      const uid = row.unitId || "outros";
+      if (!map.has(uid)) map.set(uid, []);
+      map.get(uid)!.push(row);
+    });
+    return Array.from(map.entries()).map(([uid, items]) => {
+      const uObj = availableUnits.find(u => u.id === uid);
+      return {
+        unitId: uid,
+        unitName: uObj ? uObj.name : uid,
+        items
+      };
+    });
+  }, [filteredQueue, selectedUnit, availableUnits, data.units]);
 
   return <div className="workspace-shell cash-workspace">
     {mode === "audit" ? (
@@ -748,6 +812,37 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
       </header>
     )}
 
+    {mode === "conference" && availableUnits.length > 0 && (
+      <div className="cash-store-pills-bar">
+        <button
+          type="button"
+          className={`cash-store-pill ${selectedUnit === "all" ? "active" : ""}`}
+          onClick={() => handleSelectUnit("all")}
+        >
+          <Store size={14} />
+          <span>Todas as Lojas</span>
+          <b>{closings.length}</b>
+        </button>
+        {availableUnits.map(u => {
+          const count = closings.filter(c => c.unitId === u.id).length;
+          const pendCount = closings.filter(c => c.unitId === u.id && !isConferred(c) && c.status !== "Rascunho").length;
+          return (
+            <button
+              key={u.id}
+              type="button"
+              className={`cash-store-pill ${selectedUnit === u.id ? "active" : ""}`}
+              onClick={() => handleSelectUnit(u.id)}
+            >
+              <Store size={14} />
+              <span>{u.name}</span>
+              <b>{count}</b>
+              {pendCount > 0 && <span className="cash-store-pill-badge">{pendCount}</span>}
+            </button>
+          );
+        })}
+      </div>
+    )}
+
     {mode !== "audit" && (
       <section className="workspace-metrics">
         <Metric icon={Wallet} tone="purple" label="Registros de hoje" value={String(todayRows.length)}/>
@@ -765,7 +860,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
           <ClipboardCheck size={16} /> Caixas para conferência <b>{pending.length}</b>
         </button>
         <button className={`cash-subtab ${confTab === "audit" ? "active" : ""}`} onClick={() => setConfTab("audit")}>
-          <FileText size={16} /> Auditoria de Motoboys & Notas <b>{auditClosings.length || closings.length}</b>
+          <FileText size={16} /> Auditoria de Motoboys & Notas <b>{auditClosings.length}</b>
         </button>
         <button className={`cash-subtab ${confTab === "rates" ? "active" : ""}`} onClick={() => setConfTab("rates")}>
           <Percent size={16} /> Taxas das Máquinas & Bancos
@@ -777,13 +872,13 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
     )}
 
     {mode === "audit" ? (
-      <AuditHistoryTab closings={visible} isOperatorMode={isOperator} onViewClosing={setViewingClosing} />
+      <AuditHistoryTab closings={visible} isOperatorMode={isOperator} selectedUnit={selectedUnit} onSelectUnit={handleSelectUnit} onViewClosing={setViewingClosing} />
     ) : mode === "conference" && confTab === "audit" ? (
-      <AuditHistoryTab closings={closings} onViewClosing={setViewingClosing} />
+      <AuditHistoryTab closings={closingsForUnit} selectedUnit={selectedUnit} onSelectUnit={handleSelectUnit} onViewClosing={setViewingClosing} />
     ) : mode === "conference" && confTab === "rates" ? (
       <BankRatesTab />
     ) : mode === "conference" && confTab === "sangrias" ? (
-      <SangriasTab closings={closings} onViewClosing={setViewingClosing} />
+      <SangriasTab closings={closingsForUnit} selectedUnit={selectedUnit} onSelectUnit={handleSelectUnit} onViewClosing={setViewingClosing} />
     ) : (
       <section className="cash-list">
         <header>
@@ -809,138 +904,173 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
           )}
           <b>{filteredQueue.length}</b>
         </header>
-        {filteredQueue.length?filteredQueue.map(row=>{
-          const unit=data.units.find(u=>u.id===row.unitId);
-          const hasDiff=Number(row.difference||0)!==0;
-          const rowConferred=isConferred(row);
-          const effectiveStatus=getEffectiveStatus(row);
-          return <article key={row.id}>
-            <div className={`cash-status-icon ${rowConferred ? "ok" : ""}`}><ClipboardCheck size={18}/></div>
-            <div>
-              <strong>{unit?.name||"Unidade"}</strong>
-              <span>{str(row,"date").split("-").reverse().join("/")} · Turno {str(row,"shift")} · {str(row,"operatorName")}</span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {Number(row.sangriaAmount||0)>0&&(
-                  <small className="cash-sangria-badge">
-                    Sangria: {brl(Number(row.sangriaAmount))} ({str(row,"sangriaStatus")||"Registrada"}{str(row,"sangriaRecipient")?` · ${str(row,"sangriaRecipient")}`:""})
-                  </small>
+        {filteredQueue.length ? (
+          groupedQueue.map(group => {
+            const groupPending = group.items.filter(r => !isConferred(r)).length;
+            const groupTotal = group.items.reduce((s, r) => s + Number(r.systemTotal || 0), 0);
+            return (
+              <div key={group.unitId} className="cash-store-section">
+                {selectedUnit === "all" && groupedQueue.length > 1 && (
+                  <div className="cash-store-section-header">
+                    <div className="cash-store-section-title">
+                      <Store size={15} className="text-purple-600 dark:text-purple-400" />
+                      <strong>{group.unitName}</strong>
+                      <span className="cash-store-section-badge">
+                        {group.items.length} {group.items.length === 1 ? "caixa" : "caixas"}
+                      </span>
+                      {groupPending > 0 ? (
+                        <span className="cash-store-section-pending">{groupPending} pendente(s)</span>
+                      ) : (
+                        <span className="cash-store-section-ok">Todos conferidos</span>
+                      )}
+                    </div>
+                    <span className="cash-store-section-total">Total faturado: <b>{currency(groupTotal)}</b></span>
+                  </div>
                 )}
-                {parseAttachments(row).length > 0 && (
-                  <small className="cash-attachment-badge">
-                    <Paperclip size={11} /> {parseAttachments(row).length} comprovante(s)
-                  </small>
-                )}
-                {str(row, "returnReason") && (
-                  <small className="cash-return-reason-badge" title={`Motivo da devolução: ${str(row, "returnReason")}`}>
-                    <Undo2 size={11} /> Devolvido: {str(row, "returnReason")}
-                  </small>
-                )}
+                {group.items.map(row => {
+                  const unit = data.units.find(u => u.id === row.unitId);
+                  const hasDiff = Number(row.difference || 0) !== 0;
+                  const rowConferred = isConferred(row);
+                  const effectiveStatus = getEffectiveStatus(row);
+                  return (
+                    <article key={row.id}>
+                      <div className={`cash-status-icon ${rowConferred ? "ok" : ""}`}><ClipboardCheck size={18}/></div>
+                      <div>
+                        <strong>{unit?.name || "Unidade"}</strong>
+                        <span>{str(row,"date").split("-").reverse().join("/")} · Turno {str(row,"shift")} · {str(row,"operatorName")}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {Number(row.sangriaAmount||0)>0&&(
+                            <small className="cash-sangria-badge">
+                              Sangria: {brl(Number(row.sangriaAmount))} ({str(row,"sangriaStatus")||"Registrada"}{str(row,"sangriaRecipient")?` · ${str(row,"sangriaRecipient")}`:""})
+                            </small>
+                          )}
+                          {parseAttachments(row).length > 0 && (
+                            <small className="cash-attachment-badge">
+                              <Paperclip size={11} /> {parseAttachments(row).length} comprovante(s)
+                            </small>
+                          )}
+                          {str(row, "returnReason") && (
+                            <small className="cash-return-reason-badge" title={`Motivo da devolução: ${str(row, "returnReason")}`}>
+                              <Undo2 size={11} /> Devolvido: {str(row, "returnReason")}
+                            </small>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <small>Entrada total</small>
+                        <b>{currency(Number(row.systemTotal||0))}</b>
+                      </div>
+                      <div>
+                        <small>Diferença total</small>
+                        <b className={!hasDiff?"ok":"bad"}>{currency(Number(row.difference||0))}</b>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`cash-badge ${effectiveStatus.toLowerCase().replace(/\s+/g,"-")}`}>
+                          {rowConferred ? "Conferido" : effectiveStatus}
+                        </span>
+                        {rowConferred && hasDiff && (
+                          <span className="cash-divergence-pill" title="Divergência registrada e aprovada pelo financeiro">
+                            Dif. {currency(Number(row.difference||0))}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          className={`cash-eye-detail-btn ${rowConferred ? "conferred" : ""}`}
+                          title={rowConferred ? "Visualizar todas as informações do fechamento conferido" : "Visualizar detalhes completos do fechamento"}
+                          onClick={() => setViewingClosing(row)}
+                        >
+                          <Eye size={12} />
+                          <span>{rowConferred ? "Ver Fechamento" : "Ver Detalhes"}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="cash-whatsapp-btn"
+                          title="Compartilhar demonstrativo do fechamento no WhatsApp"
+                          onClick={() => {
+                            const uObj = data.units.find(u => u.id === row.unitId);
+                            const unitName = (uObj ? str(uObj, "name") : "") || String(row.unitId || "Unidade");
+                            const text = generateWhatsAppClosingText(row, unitName);
+                            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+                          }}
+                        >
+                          <Share2 size={12} /> WhatsApp
+                        </button>
+                        {mode==="conference"&&(
+                          <>
+                            <button
+                              className={rowConferred ? "workspace-secondary" : "workspace-primary"}
+                              onClick={()=>setReviewing(row)}
+                              title={rowConferred ? "Conferência concluída. Clique para rever detalhes." : "Clique para conferir o caixa."}
+                            >
+                              {rowConferred ? <Check size={14}/> : <BadgeCheck size={15}/>}
+                              <span>{rowConferred ? "Rever" : "Conferir Caixa"}</span>
+                            </button>
+                            <button
+                              type="button"
+                              className={`cash-return-operator-btn ${row.status === "Devolvido ao operador" ? "returned" : ""}`}
+                              title={row.status === "Devolvido ao operador" ? "Caixa marcado como devolvido ao operador. Clique para ver ou cancelar." : "Devolver este caixa para conferência do operador por divergência"}
+                              onClick={() => handleReturnToOperator(row)}
+                            >
+                              <Undo2 size={12} />
+                              <span>{row.status === "Devolvido ao operador" ? "Devolvido" : "Devolver"}</span>
+                            </button>
+                          </>
+                        )}
+                        {mode==="closing"&&!rowConferred&&(
+                          <>
+                            <button
+                              type="button"
+                              className="cash-reopen-btn"
+                              title="Reabrir este fechamento para corrigir ou ajustar valores antes da conferência do financeiro"
+                              onClick={()=>{ setEditingClosing(row); setClosingOpen(true); }}
+                            >
+                              <RotateCcw size={12}/> Reabrir
+                            </button>
+                            <button
+                              type="button"
+                              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition border border-rose-200 dark:border-rose-900 flex items-center gap-1"
+                              title="Excluir este fechamento de caixa caso tenha sido lançado com data errada ou duplicado"
+                              onClick={async () => {
+                                const unitName = data.units.find(u => u.id === row.unitId)?.name || row.unitId;
+                                const formattedDate = str(row, "date").split("-").reverse().join("/");
+                                if (!window.confirm(`Tem certeza que deseja excluir o fechamento de ${formattedDate} (${unitName})? Caso tenha lançado com a data errada, você poderá lançar novamente com a data certa.`)) return;
+                                try {
+                                  const rowToDelete = { ...row, updatedBy: user?.uid || row.updatedBy };
+                                  await saveManagement(rowToDelete, data, true);
+                                  setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
+                                } catch (err) {
+                                  console.warn("Falha no soft-delete do fechamento, tentando exclusão direta:", err);
+                                  try {
+                                    const { deleteDoc, doc } = await import("firebase/firestore");
+                                    await deleteDoc(doc(db, "gestao_cashClosings", row.id));
+                                    setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
+                                  } catch (delErr) {
+                                    console.error("Erro ao excluir fechamento:", delErr);
+                                    alert("Não foi possível excluir o fechamento: " + (delErr instanceof Error ? delErr.message : String(delErr)));
+                                  }
+                                }
+                              }}
+                            >
+                              <Trash2 size={12}/> Excluir
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
-            </div>
-            <div>
-              <small>Entrada total</small>
-              <b>{currency(Number(row.systemTotal||0))}</b>
-            </div>
-            <div>
-              <small>Diferença total</small>
-              <b className={!hasDiff?"ok":"bad"}>{currency(Number(row.difference||0))}</b>
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className={`cash-badge ${effectiveStatus.toLowerCase().replace(/\s+/g,"-")}`}>
-                {rowConferred ? "Conferido" : effectiveStatus}
-              </span>
-              {rowConferred && hasDiff && (
-                <span className="cash-divergence-pill" title="Divergência registrada e aprovada pelo financeiro">
-                  Dif. {currency(Number(row.difference||0))}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <button
-                type="button"
-                className={`cash-eye-detail-btn ${rowConferred ? "conferred" : ""}`}
-                title={rowConferred ? "Visualizar todas as informações do fechamento conferido" : "Visualizar detalhes completos do fechamento"}
-                onClick={() => setViewingClosing(row)}
-              >
-                <Eye size={12} />
-                <span>{rowConferred ? "Ver Fechamento" : "Ver Detalhes"}</span>
-              </button>
-              <button
-                type="button"
-                className="cash-whatsapp-btn"
-                title="Compartilhar demonstrativo do fechamento no WhatsApp"
-                onClick={() => {
-                  const uObj = data.units.find(u => u.id === row.unitId);
-                  const unitName = (uObj ? str(uObj, "name") : "") || String(row.unitId || "Unidade");
-                  const text = generateWhatsAppClosingText(row, unitName);
-                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
-                }}
-              >
-                <Share2 size={12} /> WhatsApp
-              </button>
-              {mode==="conference"&&(
-                <>
-                  <button
-                    className={rowConferred ? "workspace-secondary" : "workspace-primary"}
-                    onClick={()=>setReviewing(row)}
-                    title={rowConferred ? "Conferência concluída. Clique para rever detalhes." : "Clique para conferir o caixa."}
-                  >
-                    {rowConferred ? <Check size={14}/> : <BadgeCheck size={15}/>}
-                    <span>{rowConferred ? "Rever" : "Conferir Caixa"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`cash-return-operator-btn ${row.status === "Devolvido ao operador" ? "returned" : ""}`}
-                    title={row.status === "Devolvido ao operador" ? "Caixa marcado como devolvido ao operador. Clique para ver ou cancelar." : "Devolver este caixa para conferência do operador por divergência"}
-                    onClick={() => handleReturnToOperator(row)}
-                  >
-                    <Undo2 size={12} />
-                    <span>{row.status === "Devolvido ao operador" ? "Devolvido" : "Devolver"}</span>
-                  </button>
-                </>
-              )}
-              {mode==="closing"&&!rowConferred&&(
-                <>
-                  <button
-                    type="button"
-                    className="cash-reopen-btn"
-                    title="Reabrir este fechamento para corrigir ou ajustar valores antes da conferência do financeiro"
-                    onClick={()=>{ setEditingClosing(row); setClosingOpen(true); }}
-                  >
-                    <RotateCcw size={12}/> Reabrir
-                  </button>
-                  <button
-                    type="button"
-                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition border border-rose-200 dark:border-rose-900 flex items-center gap-1"
-                    title="Excluir este fechamento de caixa caso tenha sido lançado com data errada ou duplicado"
-                    onClick={async () => {
-                      const unitName = data.units.find(u => u.id === row.unitId)?.name || row.unitId;
-                      const formattedDate = str(row, "date").split("-").reverse().join("/");
-                      if (!window.confirm(`Tem certeza que deseja excluir o fechamento de ${formattedDate} (${unitName})? Caso tenha lançado com a data errada, você poderá lançar novamente com a data certa.`)) return;
-                      try {
-                        const rowToDelete = { ...row, updatedBy: user?.uid || row.updatedBy };
-                        await saveManagement(rowToDelete, data, true);
-                        setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
-                      } catch (err) {
-                        console.warn("Falha no soft-delete do fechamento, tentando exclusão direta:", err);
-                        try {
-                          const { deleteDoc, doc } = await import("firebase/firestore");
-                          await deleteDoc(doc(db, "gestao_cashClosings", row.id));
-                          setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
-                        } catch (delErr) {
-                          console.error("Erro ao excluir fechamento:", delErr);
-                          alert("Não foi possível excluir o fechamento: " + (delErr instanceof Error ? delErr.message : String(delErr)));
-                        }
-                      }
-                    }}
-                  >
-                    <Trash2 size={12}/> Excluir
-                  </button>
-                </>
-              )}
-            </div>
-          </article>;
-        }):<div className="people-empty"><FileCheck2 size={30}/><strong>Nenhum fechamento encontrado</strong><span>{mode==="closing"?"Use “Novo fechamento” para iniciar.":"Nenhum caixa encontrado para este filtro."}</span></div>}
+            );
+          })
+        ) : (
+          <div className="people-empty">
+            <FileCheck2 size={30} />
+            <strong>Nenhum fechamento encontrado</strong>
+            <span>{mode === "closing" ? "Use “Novo fechamento” para iniciar." : "Nenhum caixa encontrado para este filtro."}</span>
+          </div>
+        )}
       </section>
     )}
 
@@ -5401,17 +5531,25 @@ function AuditHistoryTab({
   closings,
   onViewClosing,
   isOperatorMode = false,
+  selectedUnit = "all",
+  onSelectUnit,
 }: {
   closings: RecordData[];
   onViewClosing?: (closing: RecordData) => void;
   isOperatorMode?: boolean;
+  selectedUnit?: string;
+  onSelectUnit?: (unitId: string) => void;
 }) {
   const { data } = useManagement();
   const [subFilter, setSubFilter] = useState<"motoboy" | "fiscal" | "all" | "divergent">("motoboy");
   const [search, setSearch] = useState("");
-  const [filterUnit, setFilterUnit] = useState("");
+  const [filterUnit, setFilterUnit] = useState(selectedUnit !== "all" ? selectedUnit : "");
   const [previewAttachment, setPreviewAttachment] = useState<CashAttachment | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    setFilterUnit(selectedUnit !== "all" ? selectedUnit : "");
+  }, [selectedUnit]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -5674,6 +5812,48 @@ function AuditHistoryTab({
     (subFilter === "divergent" && divergentItems.length === 0) ||
     (subFilter === "all" && allAuditItems.length === 0);
 
+  const renderAuditItemsGrouped = (
+    items: RecordData[],
+    renderFn: (row: RecordData) => React.ReactNode
+  ) => {
+    if (filterUnit || selectedUnit !== "all") {
+      return items.map(renderFn);
+    }
+    const map = new Map<string, RecordData[]>();
+    items.forEach(r => {
+      const uid = r.unitId || "outros";
+      if (!map.has(uid)) map.set(uid, []);
+      map.get(uid)!.push(r);
+    });
+    if (map.size <= 1) {
+      return items.map(renderFn);
+    }
+    return Array.from(map.entries()).map(([uid, unitItems]) => {
+      const unit = data.units.find(u => u.id === uid);
+      const unitName = String(unit?.name || uid || "Unidade");
+      const unitMotoboyPaid = unitItems.reduce((s, r) => s + closingValue(r, "motoboyPaid"), 0);
+      const unitInvoiceIssued = unitItems.reduce((s, r) => s + closingValue(r, "invoiceIssued"), 0);
+      return (
+        <div key={uid} className="cash-store-section mb-6">
+          <div className="cash-store-section-header rounded-xl mb-3 shadow-xs">
+            <div className="cash-store-section-title">
+              <Store size={15} className="text-purple-600 dark:text-purple-400" />
+              <strong>{unitName}</strong>
+              <span className="cash-store-section-badge">{unitItems.length} {unitItems.length === 1 ? "registro" : "registros"}</span>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-zinc-500">
+              {unitMotoboyPaid > 0 && <span>Motoboy: <b>{brl(unitMotoboyPaid)}</b></span>}
+              {unitInvoiceIssued > 0 && <span>NFC-e: <b>{brl(unitInvoiceIssued)}</b></span>}
+            </div>
+          </div>
+          <div className="space-y-3">
+            {unitItems.map(renderFn)}
+          </div>
+        </div>
+      );
+    });
+  };
+
   return (
     <section className="cash-audit-history-section">
       {/* Header matching Fotos 1 e 2 */}
@@ -5726,7 +5906,14 @@ function AuditHistoryTab({
 
         <div className="cash-audit-filters">
           {!isOperatorMode && data.units.length > 1 && (
-            <select value={filterUnit} onChange={e => setFilterUnit(e.target.value)}>
+            <select
+              value={filterUnit}
+              onChange={e => {
+                const val = e.target.value;
+                setFilterUnit(val);
+                if (onSelectUnit) onSelectUnit(val || "all");
+              }}
+            >
               <option value="">Todas as unidades</option>
               {data.units.filter(u => !u.archived).map(u => (
                 <option key={u.id} value={u.id}>{str(u, "name")}</option>
@@ -5819,36 +6006,28 @@ function AuditHistoryTab({
 
       {/* Cards List */}
       <div className="cash-audit-cards-list">
-        {subFilter === "motoboy" && motoboyItems.map(renderMotoboyCard)}
-        {subFilter === "fiscal" && fiscalItems.map(renderFiscalCard)}
-        {subFilter === "divergent" && (
-          <>
-            {divergentItems.map(row => {
-              const mDiff = closingValue(row, "motoboyDifference");
-              const iDiff = closingValue(row, "invoiceDifference");
-              return (
-                <div key={`div-${row.id}`} className="space-y-3">
-                  {mDiff !== 0 && renderMotoboyCard(row)}
-                  {iDiff !== 0 && renderFiscalCard(row)}
-                </div>
-              );
-            })}
-          </>
-        )}
-        {subFilter === "all" && (
-          <>
-            {allAuditItems.map(row => {
-              const hasM = closingValue(row, "motoboySystem") > 0 || closingValue(row, "motoboyPaid") > 0 || closingValue(row, "motoboyDifference") !== 0;
-              const hasF = closingValue(row, "ifoodAudit") > 0 || closingValue(row, "fiscalMachines") > 0 || closingValue(row, "invoiceIssued") > 0 || closingValue(row, "invoiceDifference") !== 0;
-              return (
-                <div key={`all-${row.id}`} className="space-y-3">
-                  {hasM && renderMotoboyCard(row)}
-                  {hasF && renderFiscalCard(row)}
-                </div>
-              );
-            })}
-          </>
-        )}
+        {subFilter === "motoboy" && renderAuditItemsGrouped(motoboyItems, renderMotoboyCard)}
+        {subFilter === "fiscal" && renderAuditItemsGrouped(fiscalItems, renderFiscalCard)}
+        {subFilter === "divergent" && renderAuditItemsGrouped(divergentItems, row => {
+          const mDiff = closingValue(row, "motoboyDifference");
+          const iDiff = closingValue(row, "invoiceDifference");
+          return (
+            <div key={`div-${row.id}`} className="space-y-3">
+              {mDiff !== 0 && renderMotoboyCard(row)}
+              {iDiff !== 0 && renderFiscalCard(row)}
+            </div>
+          );
+        })}
+        {subFilter === "all" && renderAuditItemsGrouped(allAuditItems, row => {
+          const hasM = closingValue(row, "motoboySystem") > 0 || closingValue(row, "motoboyPaid") > 0 || closingValue(row, "motoboyDifference") !== 0;
+          const hasF = closingValue(row, "ifoodAudit") > 0 || closingValue(row, "fiscalMachines") > 0 || closingValue(row, "invoiceIssued") > 0 || closingValue(row, "invoiceDifference") !== 0;
+          return (
+            <div key={`all-${row.id}`} className="space-y-3">
+              {hasM && renderMotoboyCard(row)}
+              {hasF && renderFiscalCard(row)}
+            </div>
+          );
+        })}
 
         {isEmpty && (
           <div className="cash-audit-empty">
@@ -6022,13 +6201,17 @@ function BankRatesTab(){
 function SangriasTab({
   closings,
   onViewClosing,
+  selectedUnit = "all",
+  onSelectUnit,
 }: {
   closings: RecordData[];
   onViewClosing?: (closing: RecordData) => void;
+  selectedUnit?: string;
+  onSelectUnit?: (unitId: string) => void;
 }) {
   const { data } = useManagement();
   const { user } = useAuth();
-  const [filterUnit, setFilterUnit] = useState<string>("");
+  const [filterUnit, setFilterUnit] = useState<string>(selectedUnit !== "all" ? selectedUnit : "");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -6036,6 +6219,10 @@ function SangriasTab({
   const [editStatus, setEditStatus] = useState<string>("Na loja");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [successId, setSuccessId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFilterUnit(selectedUnit !== "all" ? selectedUnit : "");
+  }, [selectedUnit]);
 
   // All closings with a positive sangria amount
   const allSangrias = useMemo(() => {
@@ -6230,7 +6417,11 @@ function SangriasTab({
         <div className="cash-sangrias-controls">
           <select
             value={filterUnit}
-            onChange={e => setFilterUnit(e.target.value)}
+            onChange={e => {
+              const val = e.target.value;
+              setFilterUnit(val);
+              if (onSelectUnit) onSelectUnit(val || "all");
+            }}
             className="cash-sangrias-unit-select"
           >
             <option value="">Todas as Unidades</option>
@@ -6253,7 +6444,8 @@ function SangriasTab({
 
       {/* Lista de Cards de Sangria */}
       <div className="cash-sangrias-list">
-        {filteredSangrias.map(row => {
+        {(() => {
+          const renderSangriaCard = (row: RecordData) => {
           const unit = data.units.find(u => u.id === row.unitId);
           const unitName = String(unit?.name || row.unitId || "House 190");
           const dateFormatted = str(row, "date").split("-").reverse().join("/");
@@ -6472,7 +6664,50 @@ function SangriasTab({
               </footer>
             </article>
           );
-        })}
+        };
+
+        if (filteredSangrias.length === 0) {
+          return null;
+        }
+
+        if (filterUnit || selectedUnit !== "all") {
+          return filteredSangrias.map(renderSangriaCard);
+        }
+
+        const map = new Map<string, RecordData[]>();
+        filteredSangrias.forEach(r => {
+          const uid = r.unitId || "outros";
+          if (!map.has(uid)) map.set(uid, []);
+          map.get(uid)!.push(r);
+        });
+
+        if (map.size <= 1) {
+          return filteredSangrias.map(renderSangriaCard);
+        }
+
+        return Array.from(map.entries()).map(([uid, unitItems]) => {
+          const unit = data.units.find(u => u.id === uid);
+          const unitName = String(unit?.name || uid || "Unidade");
+          const unitTotal = unitItems.reduce((sum, c) => sum + Number(c.sangriaAmount || 0), 0);
+          return (
+            <div key={uid} className="cash-store-section mb-6">
+              <div className="cash-store-section-header rounded-xl mb-3 shadow-xs">
+                <div className="cash-store-section-title">
+                  <Coins size={15} className="text-amber-600 dark:text-amber-400" />
+                  <strong>{unitName}</strong>
+                  <span className="cash-store-section-badge">{unitItems.length} {unitItems.length === 1 ? "sangria" : "sangrias"}</span>
+                </div>
+                <div className="text-xs text-zinc-500">
+                  <span>Total em sangrias: <b>{brl(unitTotal)}</b></span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {unitItems.map(renderSangriaCard)}
+              </div>
+            </div>
+          );
+        });
+      })()}
 
         {filteredSangrias.length === 0 && (
           <div className="people-empty">
