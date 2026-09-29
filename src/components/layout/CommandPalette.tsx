@@ -2,16 +2,22 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Columns3, FolderLock, ReceiptText, Search, TrendingUp, Truck, Users, X } from "lucide-react";
+import { ArrowRight, Bike, ClipboardCheck, Columns3, FolderLock, ReceiptText, Search, TrendingUp, Truck, Users, X } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { normalizeRole, roleCanAccess } from "@/components/layout/managementNavigation";
 import { currency, str } from "@/domain/management/model";
 import { outstanding } from "@/domain/management/engine";
 
 export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const router = useRouter();
   const { data, filters } = useManagement();
+  const { userProfile } = useAuth();
   const [search, setSearch] = useState("");
   const input = useRef<HTMLInputElement>(null);
+
+  const role = normalizeRole(userProfile?.role);
+  const isFinanceOrAdmin = role === "admin" || role === "accountant";
 
   useEffect(() => {
     if (isOpen) setTimeout(() => input.current?.focus(), 30);
@@ -28,13 +34,15 @@ export function CommandPalette({ isOpen, onClose }: { isOpen: boolean; onClose: 
   const pages = [
     { title: "Contas a pagar", detail: "Boletos, impostos e vencimentos", href: "/", icon: ReceiptText },
     { title: "Fornecedores", detail: "Cadastros ligados ao financeiro", href: "/fornecedores", icon: Truck },
+    { title: "Fechamento de caixa", detail: "Lançamento e conferência de turno", href: "/fechamento-caixa", icon: ClipboardCheck },
+    { title: "Auditoria de motoboys & notas", detail: "Conciliação de entregas e notas fiscais", href: "/auditoria-caixa", icon: Bike },
     { title: "Tarefas", detail: "Kanban dos gerentes", href: "/tarefas", icon: Columns3 },
     { title: "Equipe", detail: "Colaboradores e salários", href: "/rh", icon: Users },
     { title: "Vendas", detail: "Faturamento e metas", href: "/faturamento", icon: TrendingUp },
     { title: "Documentos", detail: "Contratos, alvarás e vencimentos", href: "/documentos", icon: FolderLock },
-  ].filter((item) => !query || `${item.title} ${item.detail}`.toLocaleLowerCase().includes(query));
-  const suppliers = data.suppliers.filter((item) => !item.archived && (!query || `${item.name} ${item.document}`.toLocaleLowerCase().includes(query))).slice(0, 4);
-  const payables = data.payables.filter((item) => !item.archived && (!query || `${item.description} ${item.documentNumber}`.toLocaleLowerCase().includes(query))).slice(0, 4);
+  ].filter((item) => roleCanAccess(userProfile?.role, item.href) && (!query || `${item.title} ${item.detail}`.toLocaleLowerCase().includes(query)));
+  const suppliers = isFinanceOrAdmin ? data.suppliers.filter((item) => !item.archived && (!query || `${item.name} ${item.document}`.toLocaleLowerCase().includes(query))).slice(0, 4) : [];
+  const payables = isFinanceOrAdmin ? data.payables.filter((item) => !item.archived && (!query || `${item.description} ${item.documentNumber}`.toLocaleLowerCase().includes(query))).slice(0, 4) : [];
   const tasks = data.actions.filter((item) => !item.archived && (!query || `${item.problem} ${item.owner}`.toLocaleLowerCase().includes(query))).slice(0, 4);
   const go = (href: string) => { router.push(href); onClose(); };
 

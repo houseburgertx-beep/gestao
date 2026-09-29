@@ -3,13 +3,20 @@
 import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, Check, Building } from "lucide-react";
 import { useUnit } from "@/contexts/UnitContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { normalizeRole } from "@/components/layout/managementNavigation";
 import { UnitId } from "@/types";
 import { cn } from "@/lib/utils";
 
 export function UnitSelector() {
   const { currentUnit, setCurrentUnit, units, activeUnitData } = useUnit();
+  const { userProfile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const role = normalizeRole(userProfile?.role);
+  const isFinanceOrAdmin = role === "admin" || role === "accountant";
+  const isLocked = !isFinanceOrAdmin || units.length <= 1;
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -20,6 +27,17 @@ export function UnitSelector() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  if (isLocked) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-zinc-200/80 bg-zinc-50/70 text-xs font-medium text-zinc-800 shadow-2xs dark:bg-zinc-900/70 dark:border-zinc-800 dark:text-zinc-200 select-none">
+        <Building className="h-3.5 w-3.5 text-zinc-500" />
+        <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+          {activeUnitData.shortName}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="relative" ref={dropdownRef}>

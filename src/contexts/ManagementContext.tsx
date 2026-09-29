@@ -95,7 +95,9 @@ export function ManagementProvider({
     "house190";
   const normRole = normalizeRole(userProfile?.role);
   const isFinanceOrAdmin = normRole === "admin" || normRole === "accountant";
-  const allowedUnit = isFinanceOrAdmin ? "all" : (userProfile?.unitId || "all");
+  const allowedUnit = isFinanceOrAdmin
+    ? "all"
+    : (userProfile?.unitId && userProfile.unitId !== "all" ? userProfile.unitId : "teixeira");
   useEffect(() => {
     const targetKinds = Object.keys(DEFINITIONS).filter((k) => {
       if (isFinanceOrAdmin) return true;

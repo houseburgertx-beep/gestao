@@ -708,8 +708,14 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
   const userUnit = userProfile?.unitId;
   const roleStr = String(userProfile?.role || "");
   const isOperator = roleStr === "operator" || roleStr === "operador" || roleStr === "caixa";
+  const isManager = roleStr === "manager" || roleStr === "gerente";
+  const isScopedStoreUser = (isOperator || isManager) && Boolean(userUnit && userUnit !== "all");
 
   const availableUnits = useMemo(() => {
+    if (isScopedStoreUser && userUnit) {
+      const matchUnit = data.units.find(x => x.id === userUnit);
+      return [{ id: userUnit, name: matchUnit ? str(matchUnit, "name") : userUnit }];
+    }
     const list: { id: string; name: string }[] = [];
     const seen = new Set<string>();
     (data.units || []).filter(u => !u.archived && u.id && u.id !== "all").forEach(u => {
@@ -725,15 +731,18 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
       }
     });
     return list;
-  }, [data.units, closings]);
+  }, [data.units, closings, isScopedStoreUser, userUnit]);
 
   const closingsForUnit = useMemo(() => {
+    if (isScopedStoreUser && userUnit) {
+      return closings.filter(r => r.unitId === userUnit);
+    }
     if (selectedUnit === "all") return closings;
     return closings.filter(r => r.unitId === selectedUnit);
-  }, [closings, selectedUnit]);
+  }, [closings, selectedUnit, isScopedStoreUser, userUnit]);
 
   const visible = mode === "closing" || mode === "audit"
-    ? (isOperator && userUnit && userUnit !== "all" ? closings.filter(r => r.unitId === userUnit) : closingsForUnit)
+    ? (isScopedStoreUser && userUnit ? closings.filter(r => r.unitId === userUnit) : closingsForUnit)
     : closingsForUnit.filter(r => r.status !== "Rascunho");
 
   const todayRows = visible.filter(r => str(r, "date") === today);
@@ -872,7 +881,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
     )}
 
     {mode === "audit" ? (
-      <AuditHistoryTab closings={visible} isOperatorMode={isOperator} selectedUnit={selectedUnit} onSelectUnit={handleSelectUnit} onViewClosing={setViewingClosing} />
+      <AuditHistoryTab closings={visible} isOperatorMode={isOperator || isManager} selectedUnit={selectedUnit} onSelectUnit={handleSelectUnit} onViewClosing={setViewingClosing} />
     ) : mode === "conference" && confTab === "audit" ? (
       <AuditHistoryTab closings={closingsForUnit} selectedUnit={selectedUnit} onSelectUnit={handleSelectUnit} onViewClosing={setViewingClosing} />
     ) : mode === "conference" && confTab === "rates" ? (
