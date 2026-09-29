@@ -7,7 +7,7 @@ import {
   ClipboardCheck, Coins, CreditCard, Download, Edit3, Eye, FileCheck2,
   FileText, Image as ImageIcon, Landmark, Loader2, Paperclip, Percent, Plus,
   Receipt, RotateCcw, RotateCw, Search, Share2, ShieldCheck, Sliders, Smartphone, Sparkles, Store, Trash2,
-  Upload, User, Users, Wallet, X, Zap, ZoomIn, ZoomOut, Copy, KeyRound, MapPin
+  Upload, User, Users, Wallet, X, Zap, ZoomIn, ZoomOut, Copy, KeyRound, MapPin, Undo2
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useUnit } from "@/contexts/UnitContext";
@@ -261,6 +261,7 @@ export const isClosingConferred = (
   closing: RecordData,
   cashConferences?: RecordData[]
 ): boolean => {
+  if (closing.status === "Devolvido ao operador" || closing.status === "Devolvido") return false;
   if (closing.status === "Conferido") return true;
   if (closing.conferredAt || closing.conferredBy) return true;
   if (cashConferences && cashConferences.some(c => !c.archived && c.closingId === closing.id)) {
@@ -594,6 +595,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
   const isConferred = (row: RecordData) => isClosingConferred(row, data.cashConferences);
 
   const getEffectiveStatus = (row: RecordData) => {
+    if (row.status === "Devolvido ao operador" || row.status === "Devolvido") return "Devolvido ao operador";
     if (isConferred(row)) return "Conferido";
     return str(row, "status") || "Aguardando conferência";
   };
@@ -602,7 +604,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
   useEffect(() => {
     if (!user) return;
     const toHeal = data.cashClosings.filter(
-      r => !r.archived && r.status !== "Conferido" && isConferred(r)
+      r => !r.archived && r.status !== "Conferido" && r.status !== "Devolvido ao operador" && r.status !== "Devolvido" && isConferred(r)
     );
     if (toHeal.length > 0) {
       const now = new Date().toISOString();
@@ -619,6 +621,72 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
       });
     }
   }, [data.cashClosings, data.cashConferences, user, userProfile]);
+
+  const handleReturnToOperator = async (row: RecordData) => {
+    const isCurrentlyReturned = row.status === "Devolvido ao operador" || row.status === "Devolvido";
+    const userUid = user?.uid || String(row.updatedBy || "system");
+    if (isCurrentlyReturned) {
+      if (!window.confirm("Este caixa já está devolvido ao operador. Deseja cancelar a devolução e retornar para a fila de conferência?")) return;
+      const now = new Date().toISOString();
+      const updated: RecordData = {
+        ...row,
+        status: "Aguardando conferência",
+        returnReason: "",
+        returnedToOperatorAt: "",
+        returnedToOperatorBy: "",
+        updatedAt: now,
+        updatedBy: userUid
+      };
+      try {
+        await commitRecords([updated], data, updated);
+        setMessage("Devolução cancelada. Caixa retornou para Aguardando conferência.");
+      } catch (err) {
+        console.error("Erro ao cancelar devolução:", err);
+        setMessage("Erro ao atualizar status do caixa.");
+      }
+      return;
+    }
+
+    const currentReason = str(row, "returnReason") || "";
+    const reasonPrompt = window.prompt(
+      "Devolver caixa para o operador revisar/ajustar divergência.\nInforme o motivo da divergência ou instrução (opcional):",
+      currentReason
+    );
+    if (reasonPrompt === null) return;
+
+    const now = new Date().toISOString();
+    const userIdentifier = userProfile?.displayName || user?.email || "Financeiro";
+
+    const relatedConferences: RecordData[] = (data.cashConferences || [])
+      .filter((c: RecordData) => !c.archived && c.closingId === row.id)
+      .map((c: RecordData) => ({
+        ...c,
+        archived: true,
+        updatedAt: now,
+        updatedBy: userUid
+      }));
+
+    const updated: RecordData = {
+      ...row,
+      status: "Devolvido ao operador",
+      returnReason: reasonPrompt.trim() || undefined,
+      returnedToOperatorAt: now,
+      returnedToOperatorBy: userIdentifier,
+      conferredAt: "",
+      conferredBy: "",
+      conferenceNotes: "",
+      updatedAt: now,
+      updatedBy: userUid
+    };
+
+    try {
+      await commitRecords([updated, ...relatedConferences], data, updated);
+      setMessage("Caixa devolvido ao operador para conferência.");
+    } catch (err) {
+      console.error("Erro ao devolver caixa ao operador:", err);
+      setMessage("Erro ao devolver caixa ao operador.");
+    }
+  };
 
   const today = dateToday();
   const closings = data.cashClosings.filter(row => !row.archived).sort((a, b) => str(b, "date").localeCompare(str(a, "date")));
@@ -762,6 +830,11 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
                     <Paperclip size={11} /> {parseAttachments(row).length} comprovante(s)
                   </small>
                 )}
+                {str(row, "returnReason") && (
+                  <small className="cash-return-reason-badge" title={`Motivo da devolução: ${str(row, "returnReason")}`}>
+                    <Undo2 size={11} /> Devolvido: {str(row, "returnReason")}
+                  </small>
+                )}
               </div>
             </div>
             <div>
@@ -806,14 +879,25 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
                 <Share2 size={12} /> WhatsApp
               </button>
               {mode==="conference"&&(
-                <button
-                  className={rowConferred ? "workspace-secondary" : "workspace-primary"}
-                  onClick={()=>setReviewing(row)}
-                  title={rowConferred ? "Conferência concluída. Clique para rever detalhes." : "Clique para conferir o caixa."}
-                >
-                  {rowConferred ? <Check size={14}/> : <BadgeCheck size={15}/>}
-                  <span>{rowConferred ? "Rever" : "Conferir Caixa"}</span>
-                </button>
+                <>
+                  <button
+                    className={rowConferred ? "workspace-secondary" : "workspace-primary"}
+                    onClick={()=>setReviewing(row)}
+                    title={rowConferred ? "Conferência concluída. Clique para rever detalhes." : "Clique para conferir o caixa."}
+                  >
+                    {rowConferred ? <Check size={14}/> : <BadgeCheck size={15}/>}
+                    <span>{rowConferred ? "Rever" : "Conferir Caixa"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`cash-return-operator-btn ${row.status === "Devolvido ao operador" ? "returned" : ""}`}
+                    title={row.status === "Devolvido ao operador" ? "Caixa marcado como devolvido ao operador. Clique para ver ou cancelar." : "Devolver este caixa para conferência do operador por divergência"}
+                    onClick={() => handleReturnToOperator(row)}
+                  >
+                    <Undo2 size={12} />
+                    <span>{row.status === "Devolvido ao operador" ? "Devolvido" : "Devolver"}</span>
+                  </button>
+                </>
               )}
               {mode==="closing"&&!rowConferred&&(
                 <>
@@ -1528,10 +1612,22 @@ function ClosingModal({
 
         {/* Reopen or Draft Notice Banner */}
         {activeTargetClosing ? (
-          <div className="mx-6 mt-3 flex items-center justify-between p-2.5 px-3.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs text-indigo-900 dark:text-indigo-200">
+          <div className={`mx-6 mt-3 flex items-center justify-between p-2.5 px-3.5 ${str(activeTargetClosing, "status") === "Devolvido ao operador" ? "bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200" : "bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200"} rounded-xl text-xs`}>
             <div className="flex items-center gap-2">
-              <RotateCcw size={14} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
-              <span>Você está editando o fechamento de <b>{str(activeTargetClosing, "date").split("-").reverse().join("/")} ({str(activeTargetClosing, "operatorName")})</b>. Ajuste os valores e clique em salvar no final.</span>
+              {str(activeTargetClosing, "status") === "Devolvido ao operador" ? (
+                <Undo2 size={14} className="text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              ) : (
+                <RotateCcw size={14} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+              )}
+              <span>
+                {str(activeTargetClosing, "status") === "Devolvido ao operador" ? (
+                  <>
+                    <b>Devolvido pelo financeiro:</b> {str(activeTargetClosing, "returnReason") ? `"${str(activeTargetClosing, "returnReason")}". ` : "Por favor, confira os valores divergentes. "}Ajuste e clique em salvar para reenviar à conferência.
+                  </>
+                ) : (
+                  <>Você está editando o fechamento de <b>{str(activeTargetClosing, "date").split("-").reverse().join("/")} ({str(activeTargetClosing, "operatorName")})</b>. Ajuste os valores e clique em salvar no final.</>
+                )}
+              </span>
             </div>
           </div>
         ) : existingForShift ? (
@@ -3552,6 +3648,53 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
     }
   };
 
+  const handleReturnFromModal = async () => {
+    const currentReason = str(closing, "returnReason") || "";
+    const reasonPrompt = window.prompt(
+      "Devolver este caixa para o operador de loja revisar/ajustar divergência.\nMotivo da divergência ou instrução (opcional):",
+      currentReason
+    );
+    if (reasonPrompt === null) return;
+
+    setBusy(true);
+    try {
+      const now = new Date().toISOString();
+      const userIdentifier = userProfile?.displayName || user?.email || "Financeiro";
+      const userUid = user?.uid || String(closing.updatedBy || "system");
+
+      const relatedConferences: RecordData[] = (data.cashConferences || [])
+        .filter((c: RecordData) => !c.archived && c.closingId === closing.id)
+        .map((c: RecordData) => ({
+          ...c,
+          archived: true,
+          updatedAt: now,
+          updatedBy: userUid
+        }));
+
+      const updated: RecordData = {
+        ...closing,
+        status: "Devolvido ao operador",
+        returnReason: reasonPrompt.trim() || undefined,
+        returnedToOperatorAt: now,
+        returnedToOperatorBy: userIdentifier,
+        conferredAt: "",
+        conferredBy: "",
+        conferenceNotes: "",
+        updatedAt: now,
+        updatedBy: userUid
+      };
+
+      await commitRecords([updated, ...relatedConferences], data, updated);
+      onSaved();
+      onClose();
+    } catch (err) {
+      console.error("[Conferência] Erro ao devolver caixa ao operador:", err);
+      setError("Falha ao devolver caixa para o operador.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const activeBank = availableBanks.find(b => b.id === activeBankId) || availableBanks[0] || { id: "machine_default", name: "Máquina Principal" };
   const activeCredit = bankVals[activeBank.id]?.credit || 0;
   const activeDebit = bankVals[activeBank.id]?.debit || 0;
@@ -4495,9 +4638,21 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         {error && <p className="mg-error">{error}</p>}
 
         <footer>
-          <button type="button" className="mg-button secondary" onClick={review ? () => setReview(false) : onClose}>
-            {review ? "Voltar e ajustar" : "Cancelar"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" className="mg-button secondary" onClick={review ? () => setReview(false) : onClose}>
+              {review ? "Voltar e ajustar" : "Cancelar"}
+            </button>
+            <button
+              type="button"
+              className="cash-return-operator-btn"
+              title="Devolver este caixa para que o operador de loja faça as correções necessárias"
+              disabled={busy}
+              onClick={handleReturnFromModal}
+            >
+              <Undo2 size={12} />
+              <span>Devolver ao operador</span>
+            </button>
+          </div>
           <button
             type="button"
             className="mg-button"
@@ -4681,12 +4836,16 @@ function ClosingDetailsModal({
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span className="conf-tag">FECHAMENTO CONFERIDO</span>
-                {isConferred && (
+                <span className="conf-tag">{isConferred ? "FECHAMENTO CONFERIDO" : closing.status === "Devolvido ao operador" ? "DEVOLVIDO AO OPERADOR" : "FECHAMENTO REGISTRADO"}</span>
+                {closing.status === "Devolvido ao operador" ? (
+                  <span className="conf-conferred-badge" style={{ background: "#fff7ed", color: "#c2410c", borderColor: "#fed7aa" }}>
+                    <Undo2 size={12} /> Devolvido para conferência
+                  </span>
+                ) : isConferred ? (
                   <span className="conf-conferred-badge">
                     <CheckCircle2 size={12} /> Conferência Concluída
                   </span>
-                )}
+                ) : null}
                 <span className="text-xs font-semibold text-zinc-500">
                   {unit?.name || "Unidade"}
                 </span>
@@ -4703,6 +4862,12 @@ function ClosingDetailsModal({
                   <> em <strong>{new Date(String(closing.conferredAt)).toLocaleDateString("pt-BR")} às {new Date(String(closing.conferredAt)).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</strong></>
                 )}
               </p>
+              {closing.returnReason && (
+                <div className="mt-2 text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg p-2 flex items-center gap-2">
+                  <Undo2 size={13} className="text-amber-600 shrink-0" />
+                  <span><strong>Motivo da devolução:</strong> {String(closing.returnReason)}</span>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button

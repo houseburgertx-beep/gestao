@@ -3197,6 +3197,16 @@
   color: #065f46 !important;
   border-color: #a7f3d0 !important;
 }
+.cash-badge.devolvido-ao-operador, .cash-badge.devolvido {
+  background: #fff7ed !important;
+  color: #c2410c !important;
+  border-color: #fed7aa !important;
+}
+.dark .cash-badge.devolvido-ao-operador, .dark .cash-badge.devolvido {
+  background: #431407 !important;
+  color: #fdba74 !important;
+  border-color: #9a3412 !important;
+}
 
 .cash-status-icon.ok {
   background: #ecfdf5 !important;
@@ -9622,6 +9632,70 @@
 .dark .cash-eye-detail-btn.conferred:hover {
   background: #14532d;
   border-color: #22c55e;
+}
+
+/* Botão Devolver para o Operador Minimalista */
+.cash-return-operator-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.cash-return-operator-btn:hover {
+  background: #ffedd5;
+  color: #9a3412;
+  border-color: #fdba74;
+  transform: translateY(-1px);
+}
+.cash-return-operator-btn.returned {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+.cash-return-operator-btn.returned:hover {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.dark .cash-return-operator-btn {
+  background: #431407;
+  color: #fdba74;
+  border-color: #9a3412;
+}
+.dark .cash-return-operator-btn:hover {
+  background: #7c2d12;
+  color: #ffedd5;
+  border-color: #ea580c;
+}
+
+.cash-return-reason-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dark .cash-return-reason-badge {
+  background: #431407;
+  color: #fdba74;
+  border-color: #9a3412;
 }
 
 /* Grid Executivo de Topo da Conferência / Detalhamento */
