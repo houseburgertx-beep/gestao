@@ -5,10 +5,10 @@ export const MANAGEMENT_NAV = [
   { title: "NF Recebidas", href: "/nfe-recebida", icon: FileText, roles: ["admin","accountant"] },
   { title: "Bancos", href: "/bancos", icon: Landmark, roles: ["admin","accountant"] },
   { title: "Fornecedores", href: "/fornecedores", icon: Truck, roles: ["admin","accountant"] },
-  { title: "Tarefas", href: "/tarefas", icon: Columns3, roles: ["admin","accountant","manager"] },
+  { title: "Fechamento de caixa", href: "/fechamento-caixa", icon: ClipboardCheck, roles: ["admin","accountant","operator","manager"] },
+  { title: "Auditoria de motoboys & notas", href: "/auditoria-caixa", icon: Bike, roles: ["operator","manager"] },
   { title: "Vendas", href: "/faturamento", icon: TrendingUp, roles: ["admin","accountant","manager"] },
-  { title: "Fechamento de caixa", href: "/fechamento-caixa", icon: ClipboardCheck, roles: ["admin","accountant","operator"] },
-  { title: "Auditoria de motoboys & notas", href: "/auditoria-caixa", icon: Bike, roles: ["operator"] },
+  { title: "Tarefas", href: "/tarefas", icon: Columns3, roles: ["admin","accountant","manager"] },
   { title: "Conferência de caixa", href: "/conferencia-caixa", icon: BadgeCheck, roles: ["admin","accountant"] },
   { title: "Equipe", href: "/rh", icon: Users, roles: ["admin","accountant"] },
   { title: "Documentos", href: "/documentos", icon: FolderLock, roles: ["admin","accountant"] },
@@ -47,7 +47,13 @@ export function roleCanAccess(role: string | undefined, pathname?: string | null
   if (norm === "admin" || norm === "accountant") return true;
   const path = normalizePath(pathname);
   if (norm === "manager") {
-    return path.startsWith("/tarefas") || path.startsWith("/faturamento") || path.startsWith("/integracoes/takeat") || path.startsWith("/nfe-recebida");
+    return (
+      path.startsWith("/fechamento-caixa") ||
+      path.startsWith("/auditoria-caixa") ||
+      path.startsWith("/faturamento") ||
+      path.startsWith("/tarefas") ||
+      path.startsWith("/integracoes/takeat")
+    );
   }
   if (norm === "operator") {
     return path.startsWith("/fechamento-caixa") || path.startsWith("/auditoria-caixa");

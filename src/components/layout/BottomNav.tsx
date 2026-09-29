@@ -18,7 +18,7 @@ export function BottomNav({ onOpenMobileMenu }: { onOpenMobileMenu: () => void }
     role === "admin" || role === "accountant"
       ? ["/", "/bancos", "/faturamento", "/fechamento-caixa"]
       : role === "manager"
-        ? ["/faturamento", "/tarefas"]
+        ? ["/fechamento-caixa", "/auditoria-caixa", "/faturamento", "/tarefas"]
         : ["/fechamento-caixa", "/auditoria-caixa"];
 
   const items = allNav

@@ -20,6 +20,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { normalizeRole } from "@/components/layout/managementNavigation";
 import { calculate } from "@/domain/management/engine";
 import { currency as formatManagedCurrency, monthEnd, percent as formatManagedPercent } from "@/domain/management/model";
 import { store } from "@/services/store";
@@ -65,16 +67,28 @@ const UNIT_LABELS: Record<string, string> = {
 export default function FaturamentoPage() {
   const { data: managementData, filters: managementFilters } = useManagement();
   const { currentUnit, setCurrentUnit } = useUnit();
+  const { userProfile } = useAuth();
+
+  const role = normalizeRole(userProfile?.role);
+  const isFinanceOrAdmin = role === "admin" || role === "accountant";
+  const userUnit = userProfile?.unitId;
+  const isScopedStoreUser = !isFinanceOrAdmin && Boolean(userUnit && userUnit !== "all");
+
+  const effectiveUnit = (
+    isScopedStoreUser && userUnit && userUnit !== "all"
+      ? (userUnit === "central" ? "teixeira" : userUnit)
+      : currentUnit === "all" || currentUnit === "central"
+        ? "teixeira"
+        : currentUnit
+  ) as "teixeira" | "eunapolis" | "foodpark" | "all";
 
   // Mode: Diário vs Mensal
   const [viewMode, setViewMode] = useState<"daily" | "monthly">("daily");
   const [selectedDate, setSelectedDate] = useState<string>(getYesterdayBahiaDate());
   const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentBahiaMonth());
 
-  // Loja Selecionada na tela (100% individual por padrão)
-  const [activeStoreTab, setActiveStoreTab] = useState<"teixeira" | "eunapolis" | "foodpark" | "all">(
-    currentUnit === "all" ? "teixeira" : currentUnit === "central" ? "teixeira" : currentUnit
-  );
+  // Loja Selecionada na tela (100% individual por padrão, bloqueada na loja atribuída se for gerente)
+  const [activeStoreTab, setActiveStoreTab] = useState<"teixeira" | "eunapolis" | "foodpark" | "all">(effectiveUnit);
 
   // Sub-aba de Marca para Teixeira e Eunápolis: "consolidated" | "house" | "bruttus"
   const [selectedBrandView, setSelectedBrandView] = useState<"consolidated" | "house" | "bruttus">("consolidated");
@@ -105,12 +119,22 @@ export default function FaturamentoPage() {
   const [applyToAllUnits, setApplyToAllUnits] = useState(true);
   const [copiedHelper, setCopiedHelper] = useState(false);
 
-  // Sincroniza a aba ativa quando a unidade do contexto global mudar
+  // Sincroniza a aba ativa quando a unidade do contexto global mudar ou trava na loja do gerente
   useEffect(() => {
+    if (isScopedStoreUser && userUnit && userUnit !== "all") {
+      const target = (userUnit === "central" ? "teixeira" : userUnit) as "teixeira" | "eunapolis" | "foodpark";
+      if (activeStoreTab !== target) {
+        setActiveStoreTab(target);
+      }
+      if (currentUnit !== target && setCurrentUnit) {
+        setCurrentUnit(target);
+      }
+      return;
+    }
     if (currentUnit !== "all" && currentUnit !== "central") {
       setActiveStoreTab(currentUnit);
     }
-  }, [currentUnit]);
+  }, [currentUnit, isScopedStoreUser, userUnit, activeStoreTab, setCurrentUnit]);
 
   // Carregamento de dados limpos e sincronizados
   const refreshData = () => {
@@ -159,7 +183,9 @@ export default function FaturamentoPage() {
       const targetStore = storeKeyOverride || activeStoreTab;
 
       let unitsToSync: Exclude<UnitId, "all">[] = [];
-      if (targetStore === "all") {
+      if (isScopedStoreUser && userUnit && userUnit !== "all") {
+        unitsToSync = [(userUnit === "central" ? "teixeira" : userUnit) as Exclude<UnitId, "all">];
+      } else if (targetStore === "all") {
         unitsToSync = ["teixeira", "eunapolis", "foodpark"];
       } else {
         unitsToSync = [targetStore as Exclude<UnitId, "all">];
@@ -563,7 +589,9 @@ export default function FaturamentoPage() {
             </span>
           </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Vendas oficiais apuradas por loja individual e marcas no PDV Takeat
+            {isScopedStoreUser
+              ? `Vendas oficiais apuradas da unidade ${UNIT_LABELS[activeStoreTab] || activeStoreTab} no PDV Takeat`
+              : "Vendas oficiais apuradas por loja individual e marcas no PDV Takeat"}
           </p>
         </div>
 
@@ -672,96 +700,100 @@ export default function FaturamentoPage() {
             <span>{viewMode === "monthly" ? "Sincronizar Mês" : "Sincronizar Dia"}</span>
           </Button>
 
-          {/* Botão de Configurações */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleOpenCredsModal()}
-            title="Configurar conexões Takeat"
-            className="gap-1.5 text-zinc-600 hover:text-zinc-900 border-zinc-200 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-          </Button>
+          {/* Botão de Configurações (apenas Administrador e Financeiro) */}
+          {isFinanceOrAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleOpenCredsModal()}
+              title="Configurar conexões Takeat"
+              className="gap-1.5 text-zinc-600 hover:text-zinc-900 border-zinc-200 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* 1. SELETOR DE LOJAS INDIVIDUAIS (CADA LOJA SEPARADA) */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-zinc-200/60 dark:border-zinc-800">
-        <button
-          type="button"
-          onClick={() => {
-            setActiveStoreTab("teixeira");
-            setSelectedBrandView("consolidated");
-            setCurrentUnit("teixeira");
-          }}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ${
-            activeStoreTab === "teixeira"
-              ? "bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900"
-              : "bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200/80 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800"
-          }`}
-        >
-          <Building2 className="h-4 w-4" />
-          <span>House 190 Teixeira (TX)</span>
-          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-white/20 dark:bg-zinc-800">
-            {formatCurrency(storeData.teixeira.consolidated.totalRevenue)}
-          </span>
-        </button>
+      {/* 1. SELETOR DE LOJAS INDIVIDUAIS (APENAS DIRETORIA E FINANCEIRO) */}
+      {!isScopedStoreUser && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-zinc-200/60 dark:border-zinc-800">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveStoreTab("teixeira");
+              setSelectedBrandView("consolidated");
+              setCurrentUnit("teixeira");
+            }}
+            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ${
+              activeStoreTab === "teixeira"
+                ? "bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900"
+                : "bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200/80 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800"
+            }`}
+          >
+            <Building2 className="h-4 w-4" />
+            <span>House 190 Teixeira (TX)</span>
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-white/20 dark:bg-zinc-800">
+              {formatCurrency(storeData.teixeira.consolidated.totalRevenue)}
+            </span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            setActiveStoreTab("eunapolis");
-            setSelectedBrandView("consolidated");
-            setCurrentUnit("eunapolis");
-          }}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ${
-            activeStoreTab === "eunapolis"
-              ? "bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900"
-              : "bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200/80 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800"
-          }`}
-        >
-          <Building2 className="h-4 w-4" />
-          <span>House 190 Eunápolis</span>
-          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-white/20 dark:bg-zinc-800">
-            {formatCurrency(storeData.eunapolis.consolidated.totalRevenue)}
-          </span>
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveStoreTab("eunapolis");
+              setSelectedBrandView("consolidated");
+              setCurrentUnit("eunapolis");
+            }}
+            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ${
+              activeStoreTab === "eunapolis"
+                ? "bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900"
+                : "bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200/80 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800"
+            }`}
+          >
+            <Building2 className="h-4 w-4" />
+            <span>House 190 Eunápolis</span>
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-white/20 dark:bg-zinc-800">
+              {formatCurrency(storeData.eunapolis.consolidated.totalRevenue)}
+            </span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            setActiveStoreTab("foodpark");
-            setCurrentUnit("foodpark");
-          }}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ${
-            activeStoreTab === "foodpark"
-              ? "bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900"
-              : "bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200/80 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800"
-          }`}
-        >
-          <Store className="h-4 w-4" />
-          <span>House Foodpark</span>
-          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-white/20 dark:bg-zinc-800">
-            {formatCurrency(storeData.foodpark.totalRevenue)}
-          </span>
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveStoreTab("foodpark");
+              setCurrentUnit("foodpark");
+            }}
+            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ${
+              activeStoreTab === "foodpark"
+                ? "bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900"
+                : "bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200/80 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800"
+            }`}
+          >
+            <Store className="h-4 w-4" />
+            <span>House Foodpark</span>
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-white/20 dark:bg-zinc-800">
+              {formatCurrency(storeData.foodpark.totalRevenue)}
+            </span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            setActiveStoreTab("all");
-            setCurrentUnit("all");
-          }}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ml-auto ${
-            activeStoreTab === "all"
-              ? "bg-violet-600 text-white shadow-sm"
-              : "bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200/80 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800"
-          }`}
-        >
-          <Layers className="h-4 w-4" />
-          <span>Todas as Lojas (Consolidado)</span>
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveStoreTab("all");
+              setCurrentUnit("all");
+            }}
+            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ml-auto ${
+              activeStoreTab === "all"
+                ? "bg-violet-600 text-white shadow-sm"
+                : "bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200/80 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800"
+            }`}
+          >
+            <Layers className="h-4 w-4" />
+            <span>Todas as Lojas (Consolidado)</span>
+          </button>
+        </div>
+      )}
 
       {/* 2. SUB-ABAS DE MARCA (APENAS PARA TEIXEIRA OU EUNÁPOLIS) */}
       {(activeStoreTab === "teixeira" || activeStoreTab === "eunapolis") && (
