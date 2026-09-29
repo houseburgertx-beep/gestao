@@ -3305,7 +3305,8 @@
   font-size: 12px;
   font-weight: 750;
 }
-.cash-list > article {
+.cash-list > article,
+.cash-list article {
   display: grid;
   grid-template-columns: 44px minmax(200px, 1fr) 150px 140px auto auto;
   align-items: center;
@@ -3314,10 +3315,12 @@
   border-bottom: 1px solid #edf0f7;
   transition: background 0.15s ease;
 }
-.cash-list > article:hover {
+.cash-list > article:hover,
+.cash-list article:hover {
   background: #fbfcfe;
 }
-.cash-list > article:last-child {
+.cash-list > article:last-child,
+.cash-list article:last-child {
   border: 0;
 }
 .cash-status-icon {

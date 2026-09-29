@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { Fragment, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle, AlertTriangle, ArrowLeft, ArrowRight, BadgeCheck, Banknote, Bike,
   Bookmark, Calculator, Calendar, Camera, Check, CheckCircle2, ChevronDown, ChevronUp,
@@ -909,7 +909,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
             const groupPending = group.items.filter(r => !isConferred(r)).length;
             const groupTotal = group.items.reduce((s, r) => s + Number(r.systemTotal || 0), 0);
             return (
-              <div key={group.unitId} className="cash-store-section">
+              <React.Fragment key={group.unitId}>
                 {selectedUnit === "all" && groupedQueue.length > 1 && (
                   <div className="cash-store-section-header">
                     <div className="cash-store-section-title">
@@ -1061,7 +1061,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
                     </article>
                   );
                 })}
-              </div>
+              </React.Fragment>
             );
           })
         ) : (
