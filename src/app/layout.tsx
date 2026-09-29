@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import {homeForRole, navigationForRole, roleCanAccess, normalizePath} from "@/components/layout/managementNavigation";
+import {homeForRole, navigationForRole, roleCanAccess, normalizePath, normalizeRole} from "@/components/layout/managementNavigation";
 import { usePathname, useRouter } from "next/navigation";
 import "./globals.css";
 import "@/components/management/management.css";
@@ -41,7 +41,7 @@ function ProtectedShell({
   const pathname = usePathname();
   const router = useRouter();
 
-  const effectiveRole = userProfile?.role || "admin";
+  const effectiveRole = normalizeRole(userProfile?.role);
   const menuItems = navigationForRole(effectiveRole);
   const canAccess = roleCanAccess(effectiveRole, pathname);
 

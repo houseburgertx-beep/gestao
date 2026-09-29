@@ -18,7 +18,7 @@ export function normalizeRole(role?: string): "admin" | "manager" | "operator" |
   const r = role.toLowerCase().trim();
   if (r === "admin" || r === "administrador" || r === "proprietario" || r === "dono" || r === "diretoria" || r === "diretor" || r === "gestao") return "admin";
   if (r === "accountant" || r === "contador" || r === "contadora" || r === "financeiro") return "accountant";
-  if (r === "manager" || r === "gerente") return "manager";
+  if (r === "manager" || r === "gerente" || r === "gestor") return "manager";
   return "operator";
 }
 
