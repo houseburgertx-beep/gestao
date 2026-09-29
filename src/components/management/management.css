@@ -9999,4 +9999,179 @@
   border-radius: 6px !important;
 }
 
+/* ==========================================================================
+   Separadores e Filtros por Loja na Conferência Financeira
+   ========================================================================== */
+
+.cash-store-pills-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 8px 2px;
+  margin-bottom: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+.cash-store-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #ffffff;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.cash-store-pill:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+.cash-store-pill.active {
+  background: #4f46e5;
+  color: #ffffff;
+  border-color: #4338ca;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
+}
+.cash-store-pill b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  background: #f1f5f9;
+  color: #334155;
+}
+.cash-store-pill.active b {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+.cash-store-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.cash-store-pill.active .cash-store-pill-badge {
+  background: #ef4444;
+  color: #ffffff;
+}
+.dark .cash-store-pill {
+  background: #181b24;
+  color: #94a3b8;
+  border-color: #2b354f;
+}
+.dark .cash-store-pill:hover {
+  background: #232734;
+  color: #f8fafc;
+}
+.dark .cash-store-pill.active {
+  background: #6366f1;
+  color: #ffffff;
+  border-color: #4f46e5;
+}
+.dark .cash-store-pill b {
+  background: #272c3d;
+  color: #cbd5e1;
+}
+
+/* Divisores de Seção por Loja quando Todas as Lojas estiver selecionado */
+.cash-store-section {
+  display: flex;
+  flex-direction: column;
+}
+.cash-store-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+  color: #334155;
+}
+.dark .cash-store-section-header {
+  background: #131722;
+  border-color: #272d3f;
+  color: #cbd5e1;
+}
+.cash-store-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cash-store-section-title strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: #1e293b;
+}
+.dark .cash-store-section-title strong {
+  color: #f1f5f9;
+}
+.cash-store-section-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #6d28d9;
+}
+.dark .cash-store-section-badge {
+  background: #312e81;
+  color: #c4b5fd;
+}
+.cash-store-section-pending {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.dark .cash-store-section-pending {
+  background: #450a0a;
+  color: #fca5a5;
+}
+.cash-store-section-ok {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #065f46;
+}
+.dark .cash-store-section-ok {
+  background: #064e3b;
+  color: #6ee7b7;
+}
+.cash-store-section-total {
+  font-size: 11px;
+  color: #64748b;
+}
+.dark .cash-store-section-total {
+  color: #94a3b8;
+}
+.cash-store-section-total b {
+  color: #0f172a;
+  font-weight: 700;
+}
+.dark .cash-store-section-total b {
+  color: #f8fafc;
+}
+
+
 
