@@ -12,6 +12,7 @@ import {
 import { useManagement } from "@/contexts/ManagementContext";
 import { useUnit } from "@/contexts/UnitContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { normalizeRole } from "@/components/layout/managementNavigation";
 import { currency, dateToday, RecordData, str } from "@/domain/management/model";
 import { commitRecords, saveManagement } from "@/services/managementService";
 import { db } from "@/lib/firebase";
@@ -706,9 +707,9 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
   const today = dateToday();
   const closings = data.cashClosings.filter(row => !row.archived).sort((a, b) => str(b, "date").localeCompare(str(a, "date")));
   const userUnit = userProfile?.unitId;
-  const roleStr = String(userProfile?.role || "");
-  const isOperator = roleStr === "operator" || roleStr === "operador" || roleStr === "caixa";
-  const isManager = roleStr === "manager" || roleStr === "gerente";
+  const normRole = normalizeRole(userProfile?.role);
+  const isOperator = normRole === "operator";
+  const isManager = normRole === "manager";
   const isScopedStoreUser = (isOperator || isManager) && Boolean(userUnit && userUnit !== "all");
 
   const availableUnits = useMemo(() => {

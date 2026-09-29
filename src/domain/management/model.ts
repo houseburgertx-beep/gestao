@@ -328,7 +328,7 @@ export const DEFINITIONS: Record<string, Definition> = {
         "Financiamento",
         "Transferência interna",
       ], false),
-      opt("status", "Status", ["Pendente", "Agendado"]),
+      opt("status", "Status", ["Pendente", "Agendado", "Pago", "Liquidado", "Cancelado"]),
       f("installments", "Quantidade de parcelas", "number", false, {
         hint: "Valor informado é o total, dividido entre as parcelas.",
       }),
@@ -628,7 +628,7 @@ export const DEFINITIONS: Record<string, Definition> = {
       f("invoiceDifference", "Diferença das notas", "money"),
       f("pixRequestsJson", "Solicitações PIX", "text", false),
       f("attachmentsJson", "Comprovantes no Drive", "text", false),
-      opt("status", "Situação", ["Rascunho", "Aguardando conferência", "Conferido", "Com divergência"]),
+      opt("status", "Situação", ["Rascunho", "Aguardando conferência", "Conferido", "Com divergência", "Devolvido ao operador", "Devolvido"]),
       f("notes", "Ocorrências e observações", "textarea", false),
     ],
   },

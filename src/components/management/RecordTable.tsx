@@ -58,6 +58,7 @@ import {
   nameFileForDrive,
   uploadFileToDrive,
 } from "@/services/driveService";
+import { normalizeRole } from "@/components/layout/managementNavigation";
 import { backupPayablesSpreadsheet } from "@/services/payablesBackupService";
 import { addNotificationToFirestore } from "@/services/firestoreService";
 import { parseDebtDocument, parseEmployeeDocument } from "@/domain/management/documentParsing";
@@ -159,11 +160,12 @@ export function RecordTable({
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [copiedPixKey, setCopiedPixKey] = useState<string | null>(null);
   const def = {...DEFINITIONS[kind],label:kind === "revenues" ? "Lançamentos manuais de faturamento" : DEFINITIONS[kind].label};
+  const normRole = normalizeRole(userProfile?.role);
   const canWrite =
-    userProfile?.role === "admin" ||
-    userProfile?.role === "accountant" ||
-    (userProfile?.role === "manager" && kind === "actions") ||
-    (userProfile?.role === "operator" && kind === "cashClosings");
+    normRole === "admin" ||
+    normRole === "accountant" ||
+    (normRole === "manager" && kind === "actions") ||
+    (normRole === "operator" && kind === "cashClosings");
   useEffect(() => {
     if (!["payables", "suppliers", "cashClosings", "cashConferences"].includes(kind)) return;
     const open = () => {

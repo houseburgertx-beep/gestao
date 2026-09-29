@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import {navigationForRole} from "./managementNavigation";
+import {navigationForRole, normalizeRole} from "./managementNavigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -117,7 +117,7 @@ export function Sidebar() {
                 {userProfile?.displayName || user?.email || "Usuário"}
               </span>
               <span className="text-[10px] text-[#77729d]">
-                {userProfile?.role === "admin" ? "Diretoria & Gestão" : userProfile?.role === "accountant" ? "Financeiro" : userProfile?.role === "manager" ? "Gerente da unidade" : userProfile?.role === "operator" ? "Operador de caixa" : "Acesso Firebase"}
+                {normalizeRole(userProfile?.role) === "admin" ? "Diretoria & Gestão" : normalizeRole(userProfile?.role) === "accountant" ? "Financeiro" : normalizeRole(userProfile?.role) === "manager" ? "Gerente da unidade" : "Operador de caixa"}
               </span>
             </div>
           </div>
