@@ -2,13 +2,13 @@
   "name": "HOUSE 190 — Painel Integrado",
   "short_name": "House 190",
   "description": "Painel de gestão integrada das operações e unidades da House 190",
-  "start_url": "/gestao/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#fafafa",
   "theme_color": "#09090b",
   "icons": [
     {
-      "src": "/gestao/icon.svg",
+      "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
