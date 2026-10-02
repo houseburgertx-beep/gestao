@@ -200,7 +200,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
               <button
                 onClick={() => setIsUserManagementOpen(true)}
                 title="Gerenciar Usuários"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-purple-700 dark:hover:text-purple-300 transition"
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-purple-700 dark:hover:text-purple-300 transition"
               >
                 <Users className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
                 <span className="hidden sm:inline font-semibold">Usuários</span>

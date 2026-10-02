@@ -29,6 +29,7 @@ import {
   FolderLock,
   FileBarChart,
   ShieldCheck,
+  LogOut,
 } from "lucide-react";
 
 function ProtectedShell({
@@ -132,21 +133,72 @@ function ProtectedShell({
             subtitle="Navegue entre as áreas de gestão"
             width="sm"
           >
-            <div className="space-y-1 -mx-2">
-              {menuItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-md text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+            <div className="flex flex-col h-full -mx-2">
+              {/* User Profile Card */}
+              {user && (
+                <div className="p-3 mb-3 rounded-xl bg-gradient-to-br from-indigo-50/80 to-purple-50/80 dark:from-zinc-800/80 dark:to-zinc-800/40 border border-indigo-100 dark:border-zinc-700/60 flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-[#554abc] to-[#7163dc] text-white flex items-center justify-center font-bold text-sm shadow-sm shrink-0">
+                    {userProfile?.displayName ? userProfile.displayName.substring(0, 2).toUpperCase() : "US"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate">
+                      {userProfile?.displayName || user.email || "Usuário Conectado"}
+                    </p>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 capitalize">
+                      {effectiveRole === "operator" ? "Operador de Caixa" : effectiveRole === "manager" ? "Gerente de Loja" : effectiveRole === "accountant" ? "Financeiro" : "Diretoria"}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Module Links */}
+              <div className="space-y-1 flex-1">
+                <p className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider px-3 mb-2">
+                  Áreas Disponíveis
+                </p>
+                {menuItems.map((item) => {
+                  const Icon = item.icon;
+                  const current = normalizePath(pathname);
+                  const isCurrentActive = item.href === "/" ? current === "/" : current.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors ${
+                        isCurrentActive
+                          ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"
+                          : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className={`h-4 w-4 ${isCurrentActive ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-400"}`} />
+                        <span>{item.title}</span>
+                      </div>
+                      {isCurrentActive && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* Bottom Logout Button */}
+              {user && (
+                <div className="pt-4 mt-4 border-t border-zinc-200 dark:border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      logout();
+                    }}
+                    className="flex items-center justify-center gap-2 w-full py-2.5 px-3 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/70 dark:text-rose-400 rounded-xl transition"
                   >
-                    <Icon className="h-4 w-4 text-zinc-400" />
-                    <span>{item.title}</span>
-                  </Link>
-                );
-              })}
+                    <LogOut className="h-4 w-4" />
+                    <span>Sair da conta</span>
+                  </button>
+                </div>
+              )}
             </div>
           </Drawer>
     </UnitProvider></ManagementProvider>
