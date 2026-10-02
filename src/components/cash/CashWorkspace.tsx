@@ -1907,7 +1907,7 @@ function ClosingModal({
             } else if (s.id === 4) {
               const countAtt = existingAttachments.length + newFiles.length;
               if (countAtt > 0) {
-                tabBadge = <span className="closing-tab-badge !bg-purple-100 !text-purple-800">{countAtt}/5</span>;
+                tabBadge = <span className="closing-tab-badge !bg-purple-100 !text-purple-800">{countAtt}/{MAX_CLOSING_ATTACHMENTS}</span>;
               }
             }
 
@@ -2755,7 +2755,7 @@ function ClosingModal({
                     </div>
                   )}
 
-                  {existingAttachments.length + newFiles.length < 5 && (
+                  {existingAttachments.length + newFiles.length < MAX_CLOSING_ATTACHMENTS && (
                     <div className="flex items-center gap-2 pt-1">
                       <label className="flex-1 employee-file-upload cursor-pointer justify-center text-xs py-2.5">
                         <Camera size={15} />
