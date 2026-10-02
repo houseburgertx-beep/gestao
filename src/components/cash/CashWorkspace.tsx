@@ -30,7 +30,7 @@ import { validate, settlement } from "@/domain/management/operations";
 import { outstanding } from "@/domain/management/engine";
 import "@/components/management/management.css";
 
-const MAX_CLOSING_ATTACHMENTS = 15;
+const MAX_CLOSING_ATTACHMENTS = 20;
 
 const safeUUID = () =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
