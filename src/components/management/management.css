@@ -10176,5 +10176,312 @@
   color: #f8fafc;
 }
 
+/* ==========================================================================
+/* Base footer actions layout for desktop */
+.closing-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.closing-footer-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ==========================================================================
+   FECHAMENTO DE CAIXA – RESPONSIVIDADE MOBILE
+   ========================================================================== */
+
+/* Tablets e telas médias */
+@media (max-width: 880px) {
+  .closing-modal-container {
+    width: calc(100vw - 16px);
+    max-height: 96vh;
+    border-radius: 16px;
+  }
+  .mg-modal-shade:has(.closing-modal-container) {
+    padding: 8px;
+  }
+  .closing-modal-body {
+    padding: 16px 16px;
+  }
+  .closing-meta-bar {
+    padding: 8px 16px;
+    gap: 8px;
+  }
+  .closing-steps-nav {
+    padding: 8px 16px;
+    gap: 4px;
+  }
+  .closing-step-tab {
+    padding: 6px 10px;
+    font-size: 11px;
+    gap: 5px;
+  }
+  .closing-footer-sticky {
+    padding: 10px 16px;
+    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .closing-footer-sticky > .verdict-semaphore-wrap {
+    justify-content: center;
+  }
+  .closing-footer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+  }
+  .closing-executive-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Celulares – modal fullscreen e layout empilhado */
+@media (max-width: 640px) {
+  .mg-modal-shade:has(.closing-modal-container) {
+    padding: 0;
+    align-items: stretch;
+  }
+  .closing-modal-container {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  /* Header compacto */
+  .closing-modal-header {
+    padding: 10px 14px;
+  }
+  .closing-modal-header h2 {
+    font-size: 14px;
+  }
+  .closing-modal-header p {
+    font-size: 11px;
+  }
+
+  /* Meta bar empilhada */
+  .closing-meta-bar {
+    padding: 8px 12px;
+    gap: 6px;
+  }
+  .closing-meta-item {
+    font-size: 10px;
+    gap: 4px;
+  }
+  .closing-meta-item > span {
+    font-size: 9px;
+  }
+  .closing-meta-item select,
+  .closing-meta-item input {
+    height: 26px;
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  /* Step tabs – compactos e scrolláveis com toque suave */
+  .closing-steps-nav {
+    padding: 6px 8px;
+    gap: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .closing-steps-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .closing-step-tab {
+    padding: 5px 8px;
+    font-size: 11px;
+    gap: 4px;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+  .closing-step-tab .step-number {
+    width: 16px;
+    height: 16px;
+    font-size: 9px;
+  }
+
+  /* Body com padding menor e scroll suave */
+  .closing-modal-body {
+    padding: 12px 12px;
+    gap: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Footer empilhado verticalmente com safe-area iOS */
+  .closing-footer-sticky {
+    padding: 8px 12px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    gap: 6px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* Verdict / semáforo compacto ocupando 100% de largura */
+  .verdict-semaphore-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    width: 100%;
+  }
+  .verdict-banner {
+    width: 100%;
+    justify-content: center;
+    padding: 5px 10px;
+    font-size: 11px;
+    gap: 6px;
+    border-radius: 8px;
+    box-sizing: border-box;
+  }
+  .verdict-mini-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    width: 100%;
+  }
+  .verdict-mini-stat {
+    padding: 3px 2px;
+    text-align: center;
+    border-radius: 6px;
+    min-width: 0;
+  }
+  .verdict-mini-stat span {
+    font-size: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+  .verdict-mini-stat strong {
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+
+  /* Ações do Footer no mobile: Botão primário full width em cima, secundários embaixo */
+  .closing-footer-actions {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 6px;
+  }
+  .closing-footer-primary-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 10px 14px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    border-radius: 10px !important;
+    order: 1;
+  }
+  .closing-footer-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: stretch;
+    gap: 6px;
+    width: 100%;
+    order: 2;
+  }
+  .closing-footer-secondary > button {
+    flex: 1 1 0px !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+    padding: 7px 6px !important;
+    font-size: 11px !important;
+    border-radius: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Panels e cards responsivos */
+  .closing-col-panel {
+    padding: 12px;
+    border-radius: 12px;
+  }
+  .closing-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .thematic-card {
+    padding: 10px 12px;
+    border-radius: 10px;
+  }
+  .closing-executive-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .closing-executive-summary {
+    padding: 12px 14px;
+    border-radius: 12px;
+  }
+  .closing-executive-item {
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+
+  /* Section lead compacto */
+  .closing-section-lead h3 {
+    font-size: 13px;
+  }
+  .closing-section-lead p {
+    font-size: 11px;
+  }
+
+  /* Shift pills */
+  .shift-pills-wrap {
+    gap: 4px;
+  }
+  .shift-pill-btn {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+
+  /* Notice banners com margens menores */
+  .closing-modal-container > .mx-6 {
+    margin-left: 12px !important;
+    margin-right: 12px !important;
+  }
+}
+
+/* iPhone SE e telas muito pequenas (≤375px) */
+@media (max-width: 375px) {
+  .closing-meta-bar {
+    padding: 6px 8px;
+  }
+  .closing-modal-body {
+    padding: 8px 8px;
+  }
+  .closing-footer-sticky {
+    padding: 6px 8px;
+  }
+  .closing-step-tab {
+    font-size: 9px;
+    padding: 4px 5px;
+  }
+  .verdict-banner {
+    font-size: 10px;
+    padding: 4px 6px;
+  }
+  .closing-footer-primary-btn {
+    font-size: 11px !important;
+    padding: 8px 10px !important;
+  }
+  .closing-footer-secondary > button {
+    font-size: 10px !important;
+    padding: 6px 4px !important;
+  }
+}
 
 
