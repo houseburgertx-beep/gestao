@@ -1743,9 +1743,9 @@ function ClosingModal({
         <header className="closing-modal-header">
           <div>
             <h2>{initialClosing ? "Reabertura de Fechamento" : "Fechamento de Caixa"}</h2>
-            <p>{initialClosing ? "Ajuste os valores deste turno e reenvie para a conferência financeira." : "Conferência simplificada e intuitiva para o operador de loja."}</p>
+            <p className="hidden sm:block">{initialClosing ? "Ajuste os valores deste turno e reenvie para a conferência financeira." : "Conferência simplificada e intuitiva para o operador de loja."}</p>
           </div>
-          <button type="button" className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition" onClick={onClose}>
+          <button type="button" className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition" onClick={onClose} aria-label="Fechar">
             <X size={20} />
           </button>
         </header>
@@ -1802,72 +1802,78 @@ function ClosingModal({
 
         {/* Identification Meta Bar */}
         <div className="closing-meta-bar">
-          <div className="closing-meta-item">
-            <Store size={15} />
-            <select
-              value={unit}
-              disabled={allowedUnit !== "all"}
-              onChange={e => {
-                setUnit(e.target.value);
-                setMachines({});
-              }}
-            >
-              <option value="">Selecione a loja</option>
-              {data.units.filter(u => !u.archived && (allowedUnit === "all" || u.id === allowedUnit)).map(u => (
-                <option key={u.id} value={u.id}>{str(u, "name")}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="closing-meta-item">
-            <span>Data:</span>
-            <input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              required
-            />
-            {date !== dateToday() && (
-              <button
-                type="button"
-                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 py-0.5 px-2 rounded-md bg-indigo-50 dark:bg-indigo-950/60 transition"
-                onClick={() => setDate(dateToday())}
-                title="Definir data para hoje"
+          <div className="closing-meta-row-primary">
+            {/* 1. Loja */}
+            <div className="closing-meta-input-group closing-meta-store" title="Unidade / Loja">
+              <Store size={14} className="closing-meta-icon" />
+              <select
+                value={unit}
+                disabled={allowedUnit !== "all"}
+                onChange={e => {
+                  setUnit(e.target.value);
+                  setMachines({});
+                }}
               >
-                Hoje
-              </button>
-            )}
-          </div>
+                <option value="">Selecione a loja</option>
+                {data.units.filter(u => !u.archived && (allowedUnit === "all" || u.id === allowedUnit)).map(u => (
+                  <option key={u.id} value={u.id}>{str(u, "name")}</option>
+                ))}
+              </select>
+            </div>
 
-          <div className="closing-meta-item">
-            <Users size={14} className="text-zinc-400" />
-            <span>Operador:</span>
-            <input
-              type="text"
-              placeholder="Nome do operador"
-              value={operatorName}
-              onChange={e => setOperatorName(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="closing-meta-item">
-            <span>Turno:</span>
-            <div className="shift-pills-wrap">
-              {[
-                { id: "Único", label: "⭐ Único" },
-                { id: "Almoço", label: "☀️ Almoço" },
-                { id: "Jantar", label: "🌙 Jantar" }
-              ].map(s => (
+            {/* 2. Data */}
+            <div className="closing-meta-input-group closing-meta-date" title="Data do turno">
+              <Calendar size={14} className="closing-meta-icon" />
+              <input
+                type="date"
+                value={date}
+                onChange={e => setDate(e.target.value)}
+                required
+              />
+              {date !== dateToday() && (
                 <button
-                  key={s.id}
                   type="button"
-                  className={`shift-pill-btn ${shift === s.id ? "active" : ""}`}
-                  onClick={() => setShift(s.id)}
+                  className="closing-meta-today-btn"
+                  onClick={() => setDate(dateToday())}
+                  title="Definir data para hoje"
                 >
-                  {s.label}
+                  Hoje
                 </button>
-              ))}
+              )}
+            </div>
+          </div>
+
+          <div className="closing-meta-row-secondary">
+            {/* 3. Operador */}
+            <div className="closing-meta-input-group closing-meta-operator" title="Nome do operador">
+              <Users size={14} className="closing-meta-icon" />
+              <input
+                type="text"
+                placeholder="Operador"
+                value={operatorName}
+                onChange={e => setOperatorName(e.target.value)}
+                required
+              />
+            </div>
+
+            {/* 4. Turno */}
+            <div className="closing-meta-shift-wrap">
+              <div className="shift-pills-wrap">
+                {[
+                  { id: "Único", label: "⭐ Único" },
+                  { id: "Almoço", label: "☀️ Almoço" },
+                  { id: "Jantar", label: "🌙 Jantar" }
+                ].map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={`shift-pill-btn ${shift === s.id ? "active" : ""}`}
+                    onClick={() => setShift(s.id)}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

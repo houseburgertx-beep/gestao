@@ -6577,38 +6577,95 @@
 .closing-meta-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   padding: 10px 22px;
   background: #f8fafc;
   border-bottom: 1px solid #f1f5f9;
 }
 
-.closing-meta-item {
+.closing-meta-row-primary,
+.closing-meta-row-secondary {
+  display: contents;
+}
+
+.closing-meta-input-group {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #475569;
-}
-
-.closing-meta-item select,
-.closing-meta-item input {
-  height: 28px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
+  gap: 8px;
   background: #ffffff;
-  font-size: 11px;
-  font-weight: 600;
-  color: #1e293b;
-  outline: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 0 10px;
+  height: 34px;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
 }
 
-.closing-meta-item select:focus,
-.closing-meta-item input:focus {
+.closing-meta-input-group:focus-within {
   border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+}
+
+.dark .closing-meta-input-group {
+  background: #181b24;
+  border-color: #333846;
+}
+
+.dark .closing-meta-input-group:focus-within {
+  border-color: #818cf8;
+}
+
+.closing-meta-icon {
+  color: #6366f1;
+  flex-shrink: 0;
+}
+
+.dark .closing-meta-icon {
+  color: #a5b4fc;
+}
+
+.closing-meta-input-group select,
+.closing-meta-input-group input {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  height: 100% !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #1e293b !important;
+  outline: none !important;
+  box-shadow: none !important;
+  width: 100%;
+  min-width: 0;
+}
+
+.dark .closing-meta-input-group select,
+.dark .closing-meta-input-group input {
+  color: #f1f5f9 !important;
+}
+
+.closing-meta-today-btn {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6366f1;
+  background: #eef2ff;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: 4px;
+  transition: background 0.15s;
+}
+
+.closing-meta-today-btn:hover {
+  background: #e0e7ff;
+}
+
+.dark .closing-meta-today-btn {
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.2);
 }
 
 .closing-steps-nav {
@@ -10261,29 +10318,61 @@
     padding: 10px 14px;
   }
   .closing-modal-header h2 {
-    font-size: 14px;
-  }
-  .closing-modal-header p {
-    font-size: 11px;
+    font-size: 15px;
+    font-weight: 800;
   }
 
-  /* Meta bar empilhada */
+  /* Meta bar empilhada em 2 linhas limpas e balanceadas */
   .closing-meta-bar {
-    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
     gap: 6px;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
   }
-  .closing-meta-item {
+
+  .closing-meta-row-primary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .closing-meta-row-secondary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .closing-meta-store {
+    flex: 1 1 0%;
+    min-width: 0;
+  }
+
+  .closing-meta-date {
+    flex: 0 0 145px;
+    width: 145px;
+  }
+
+  .closing-meta-operator {
+    flex: 1 1 0%;
+    min-width: 0;
+  }
+
+  .closing-meta-shift-wrap {
+    flex: 0 0 auto;
+  }
+
+  .shift-pills-wrap {
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .shift-pill-btn {
+    padding: 0 7px;
     font-size: 10px;
-    gap: 4px;
-  }
-  .closing-meta-item > span {
-    font-size: 9px;
-  }
-  .closing-meta-item select,
-  .closing-meta-item input {
-    height: 26px;
-    font-size: 10px;
-    padding: 2px 6px;
   }
 
   /* Step tabs – compactos e scrolláveis com toque suave */
@@ -10459,6 +10548,19 @@
 @media (max-width: 375px) {
   .closing-meta-bar {
     padding: 6px 8px;
+    gap: 5px;
+  }
+  .closing-meta-row-primary,
+  .closing-meta-row-secondary {
+    gap: 5px;
+  }
+  .closing-meta-date {
+    flex: 0 0 130px;
+    width: 130px;
+  }
+  .shift-pill-btn {
+    padding: 0 5px;
+    font-size: 9.5px;
   }
   .closing-modal-body {
     padding: 8px 8px;
