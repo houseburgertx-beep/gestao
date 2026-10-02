@@ -1730,10 +1730,10 @@ function ClosingModal({
   };
 
   const stepsList = [
-    { id: 1 as const, title: "1. Fechamento Lado a Lado", icon: Sliders },
-    { id: 2 as const, title: "2. Motoboys & Notas Fiscais", icon: Bike },
-    { id: 3 as const, title: "3. Solicitações de PIX", icon: Zap },
-    { id: 4 as const, title: "4. Comprovantes & Observações", icon: Sparkles },
+    { id: 1 as const, title: "1. Fechamento Lado a Lado", shortTitle: "Lado a Lado", icon: Sliders },
+    { id: 2 as const, title: "2. Motoboys & Notas Fiscais", shortTitle: "Motoboys", icon: Bike },
+    { id: 3 as const, title: "3. Solicitações de PIX", shortTitle: "PIX", icon: Zap },
+    { id: 4 as const, title: "4. Comprovantes & Observações", shortTitle: "Comprovantes", icon: Sparkles },
   ];
 
   return (
@@ -1914,7 +1914,8 @@ function ClosingModal({
               >
                 <span className="step-number">{isPast ? <Check size={11} /> : s.id}</span>
                 <Icon size={15} />
-                <span>{s.title}</span>
+                <span className="hidden sm:inline">{s.title}</span>
+                <span className="sm:hidden">{s.shortTitle}</span>
                 {tabBadge}
               </button>
             );
@@ -2965,29 +2966,31 @@ function ClosingModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {!initialClosing && (
-              <button
-                type="button"
-                className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition flex items-center gap-1.5"
-                onClick={handleSaveDraft}
-                title="Salvar rascunho neste navegador para não perder nenhuma informação"
-              >
-                <Bookmark size={13} /> {draftSavedMsg || "Salvar Rascunho"}
+          <div className="closing-footer-actions">
+            <div className="closing-footer-secondary">
+              {!initialClosing && (
+                <button
+                  type="button"
+                  className="px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition flex items-center justify-center gap-1.5"
+                  onClick={handleSaveDraft}
+                  title="Salvar rascunho neste navegador para não perder nenhuma informação"
+                >
+                  <Bookmark size={13} /> <span className="truncate">{draftSavedMsg || "Salvar Rascunho"}</span>
+                </button>
+              )}
+              <button type="button" className="mg-button secondary" onClick={onClose} disabled={busy}>
+                Cancelar
               </button>
-            )}
-            <button type="button" className="mg-button secondary" onClick={onClose} disabled={busy}>
-              Cancelar
-            </button>
-            {activeStep > 1 && (
-              <button type="button" className="mg-button secondary" onClick={() => setActiveStep((activeStep - 1) as any)}>
-                <ArrowLeft size={15} /> Voltar
-              </button>
-            )}
+              {activeStep > 1 && (
+                <button type="button" className="mg-button secondary" onClick={() => setActiveStep((activeStep - 1) as any)}>
+                  <ArrowLeft size={15} /> <span>Voltar</span>
+                </button>
+              )}
+            </div>
             {activeStep < 4 ? (
               <button
                 type="button"
-                className="mg-button"
+                className="mg-button closing-footer-primary-btn"
                 onClick={() => setActiveStep((activeStep + 1) as any)}
               >
                 <span>Avançar: {stepsList.find(s => s.id === activeStep + 1)?.title.replace(/^\d+\.\s*/, "")}</span>
@@ -2996,7 +2999,7 @@ function ClosingModal({
             ) : (
               <button
                 type="button"
-                className="mg-button"
+                className="mg-button closing-footer-primary-btn"
                 disabled={busy || !unit}
                 onClick={handleSubmit}
               >
