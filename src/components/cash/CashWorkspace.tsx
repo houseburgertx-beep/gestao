@@ -28,6 +28,7 @@ import {
 } from "@/services/driveService";
 import { validate, settlement } from "@/domain/management/operations";
 import { outstanding } from "@/domain/management/engine";
+import { fetchTakeatIssuedInvoicesSummary, TakeatFiscalIssuedSummary } from "@/services/takeatService";
 import "@/components/management/management.css";
 
 const MAX_CLOSING_ATTACHMENTS = 20;
@@ -1274,6 +1275,34 @@ function ClosingModal({
   const [ifoodAudit, setIfoodAudit] = useState(() => initialClosing ? toMoneyInput(initialClosing.ifoodAudit) : draft?.ifoodAudit || "");
   const [fiscalMachines, setFiscalMachines] = useState(() => initialClosing ? toMoneyInput(initialClosing.fiscalMachines) : draft?.fiscalMachines || "");
   const [invoiceIssued, setInvoiceIssued] = useState(() => initialClosing ? toMoneyInput(initialClosing.invoiceIssued) : draft?.invoiceIssued || "");
+  const [takeatFiscalLoading, setTakeatFiscalLoading] = useState(false);
+  const [takeatFiscalData, setTakeatFiscalData] = useState<TakeatFiscalIssuedSummary | null>(null);
+  const [takeatFiscalError, setTakeatFiscalError] = useState<string | null>(null);
+
+  const handleSyncTakeatFiscal = async (forceApply: boolean = false) => {
+    if (!unit || unit === "all" || unit === "central" || !date) return;
+    setTakeatFiscalLoading(true);
+    setTakeatFiscalError(null);
+    try {
+      const summary = await fetchTakeatIssuedInvoicesSummary(unit as any, date);
+      setTakeatFiscalData(summary);
+      if (forceApply || !invoiceIssued || Number(invoiceIssued) === 0) {
+        setInvoiceIssued(toMoneyInput(Math.round(summary.totalIssued * 100)));
+      }
+    } catch (err: any) {
+      console.warn("[Takeat Fiscal] Erro ao sincronizar:", err);
+      setTakeatFiscalError(err?.message || "Erro ao consultar Takeat");
+    } finally {
+      setTakeatFiscalLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!initialClosing && unit && unit !== "all" && unit !== "central" && date) {
+      handleSyncTakeatFiscal(false);
+    }
+  }, [unit, date, initialClosing]);
+
   const [notes, setNotes] = useState(() => initialClosing ? str(initialClosing, "notes") : draft?.notes || "");
   const [existingAttachments, setExistingAttachments] = useState<CashAttachment[]>(() =>
     initialClosing ? parseAttachments(initialClosing) : []
@@ -2572,7 +2601,19 @@ function ClosingModal({
                       </div>
                     </div>
                     <div>
-                      <label className="text-[10px] font-semibold text-zinc-500 block mb-1">Emitidas</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-semibold text-zinc-500 block">Emitidas</label>
+                        <button
+                          type="button"
+                          onClick={() => handleSyncTakeatFiscal(true)}
+                          disabled={takeatFiscalLoading}
+                          title="Puxar valor emitido e cupons da Takeat para esta loja e data"
+                          className="inline-flex items-center gap-1 text-[10px] text-purple-600 hover:text-purple-700 dark:text-purple-400 font-medium transition-colors disabled:opacity-50"
+                        >
+                          <RotateCw size={10} className={takeatFiscalLoading ? "animate-spin" : ""} />
+                          {takeatFiscalLoading ? "Puxando..." : "Puxar Takeat"}
+                        </button>
+                      </div>
                       <div className="closing-input-wrapper">
                         <span className="prefix">R$</span>
                         <input
@@ -2586,6 +2627,26 @@ function ClosingModal({
                       </div>
                     </div>
                   </div>
+
+                  {/* Informações detalhadas da Takeat */}
+                  {takeatFiscalData && (
+                    <div className="flex items-center justify-between text-[11px] bg-purple-50/80 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 px-3 py-2 rounded-xl border border-purple-200/70 dark:border-purple-800/40">
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <CheckCircle2 size={13} className="text-purple-600 dark:text-purple-400" />
+                        Takeat Oficial: <b>{brl(Math.round(takeatFiscalData.totalIssued * 100))}</b>
+                      </span>
+                      <span className="text-[10px] opacity-85 font-medium">
+                        {takeatFiscalData.count} {takeatFiscalData.count === 1 ? "cupom emitido" : "cupons emitidos"}
+                      </span>
+                    </div>
+                  )}
+
+                  {takeatFiscalError && (
+                    <div className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1.5 px-1">
+                      <AlertCircle size={12} /> {takeatFiscalError}
+                    </div>
+                  )}
+
                   <div className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 pt-1 border-t border-zinc-200 dark:border-zinc-800">
                     Diferença Fiscal (Base − Emitidas): <b>{brl(cInvoiceDiff)}</b>
                   </div>

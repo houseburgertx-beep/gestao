@@ -114,3 +114,22 @@ export interface ReceivedNfe {
   syncedAt?: string;
 }
 
+export interface TakeatFiscalIssuedItem {
+  numero: string;
+  total: number;
+  issuedAt: string;
+  htmlUrl?: string;
+  xmlUrl?: string;
+}
+
+export interface TakeatFiscalIssuedSummary {
+  unitId: Exclude<UnitId, "all">;
+  date: string; // YYYY-MM-DD
+  count: number;
+  totalIssued: number; // Valor total emitido correspondente ao relatório do PDV
+  nfceTotalPrice: number; // Soma de nfce.total_price
+  methods: Record<string, number>;
+  invoices: TakeatFiscalIssuedItem[];
+  syncedAt: string;
+}
+
