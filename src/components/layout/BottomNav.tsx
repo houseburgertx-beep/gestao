@@ -27,7 +27,7 @@ export function BottomNav({ onOpenMobileMenu }: { onOpenMobileMenu: () => void }
     .map((item) => ({ ...item, label: item.title }));
 
   return (
-    <div className="lg:hidden fixed bottom-0 inset-x-0 h-14 bg-white/95 backdrop-blur border-t border-zinc-200 z-30 px-3 flex items-center justify-around dark:bg-zinc-950/95 dark:border-zinc-800">
+    <div className="lg:hidden fixed bottom-0 inset-x-0 h-14 pb-[env(safe-area-inset-bottom,0px)] bg-white/95 backdrop-blur border-t border-zinc-200 z-30 px-3 flex items-center justify-around dark:bg-zinc-950/95 dark:border-zinc-800 box-content">
       {items.map((item) => {
         const Icon = item.icon;
         const current = (pathname || "").replace(/^\/gestao/, "") || "/";
