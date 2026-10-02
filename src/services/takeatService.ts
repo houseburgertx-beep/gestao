@@ -1381,64 +1381,63 @@ export async function fetchTakeatCashierSummary(
   } catch {}
 
   // ── 3. Decide qual summary buscar ───────────────────────
+  // Estratégia: para o fechamento de caixa sempre preferimos o caixa FECHADO
+  // na data solicitada (que é o turno que terminou). Só usamos o caixa atualmente
+  // aberto como fallback se não existir nenhum caixa fechado para aquela data.
   let summaryData: any;
 
-  if (isOpen && openingId && dateStr === todayBahia) {
-    // Caixa aberto hoje → dados em tempo real
+  // Sempre busca o histórico de auditorias para encontrar caixas fechados na data
+  const targetDate = new Date(`${dateStr}T12:00:00-03:00`);
+  const auditStart = new Date(targetDate.getTime() - 5 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .substring(0, 10);
+  const auditEnd = new Date(targetDate.getTime() + 2 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .substring(0, 10);
+
+  let auditList: TakeatCashierAuditItem[] = [];
+  try {
+    const auditRaw = await doFetch(
+      `/restaurants/cashier-audit?start_date=${auditStart}&end_date=${auditEnd}`
+    );
+    if (Array.isArray(auditRaw)) auditList = auditRaw;
+  } catch {}
+
+  // Encontra o caixa cujo fechamento (closed_at) pertence ao dia alvo no fuso Bahia
+  const closedMatch = auditList.find(a => {
+    if (!a.closed_at) return false;
+    const closedDay = new Date(a.closed_at).toLocaleDateString("en-CA", {
+      timeZone: "America/Bahia",
+    });
+    return closedDay === dateStr;
+  });
+
+  // Fallback secundário: caixa cuja abertura pertence ao dia alvo
+  const openedMatch = auditList.find(a => {
+    if (!a.opened_at) return false;
+    const openedDay = new Date(a.opened_at).toLocaleDateString("en-CA", {
+      timeZone: "America/Bahia",
+    });
+    return openedDay === dateStr;
+  });
+
+  const chosenAudit = closedMatch || openedMatch;
+
+  if (chosenAudit) {
+    // Caixa fechado encontrado no histórico → usa o summary pelo ID
+    summaryData = await doFetch(
+      `/restaurants/cashier-opening-event/summary/${chosenAudit.cashier_opening_id}`
+    );
+    isOpen = false;
+  } else if (isOpen && openingId && dateStr === todayBahia) {
+    // Nenhum caixa fechado encontrado, mas há um caixa aberto agora → usa em tempo real
     summaryData = await doFetch("/restaurants/cashier-opening-event/summary/null");
     isOpen = true;
   } else {
-    // Data passada ou caixa fechado → busca no histórico de auditorias
-
-    // Janela de busca: 5 dias antes até 2 dias depois da data alvo (cobre turno que passa a meia-noite)
-    const targetDate = new Date(`${dateStr}T12:00:00-03:00`);
-    const startDate = new Date(targetDate.getTime() - 5 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .substring(0, 10);
-    const endDate = new Date(targetDate.getTime() + 2 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .substring(0, 10);
-
-    const auditList: TakeatCashierAuditItem[] = await doFetch(
-      `/restaurants/cashier-audit?start_date=${startDate}&end_date=${endDate}`
+    throw new Error(
+      `Nenhum caixa encontrado para a data ${dateStr} na unidade "${unitId}". ` +
+      `Verifique se o turno foi aberto no PDV Takeat nessa data.`
     );
-
-    if (!Array.isArray(auditList) || auditList.length === 0) {
-      throw new Error(
-        `Nenhum caixa encontrado na Takeat para a unidade "${unitId}" na data ${dateStr}.`
-      );
-    }
-
-    // Encontra o caixa cujo fechamento (closed_at) pertence ao dia alvo no fuso Bahia
-    const match = auditList.find(a => {
-      if (!a.closed_at) return false;
-      const closedDay = new Date(a.closed_at).toLocaleDateString("en-CA", {
-        timeZone: "America/Bahia",
-      });
-      return closedDay === dateStr;
-    });
-
-    // Fallback: caixa cuja abertura pertence ao dia alvo
-    const fallback = auditList.find(a => {
-      if (!a.opened_at) return false;
-      const openedDay = new Date(a.opened_at).toLocaleDateString("en-CA", {
-        timeZone: "America/Bahia",
-      });
-      return openedDay === dateStr;
-    });
-
-    const chosen = match || fallback;
-    if (!chosen) {
-      throw new Error(
-        `Nenhum caixa encontrado para a data ${dateStr} na unidade "${unitId}". ` +
-        `Foram encontrados ${auditList.length} caixa(s) em datas próximas.`
-      );
-    }
-
-    summaryData = await doFetch(
-      `/restaurants/cashier-opening-event/summary/${chosen.cashier_opening_id}`
-    );
-    isOpen = false;
   }
 
   // ── 4. Extrai e valida a resposta ────────────────────────
