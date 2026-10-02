@@ -28,7 +28,12 @@ import {
 } from "@/services/driveService";
 import { validate, settlement } from "@/domain/management/operations";
 import { outstanding } from "@/domain/management/engine";
-import { fetchTakeatIssuedInvoicesSummary, TakeatFiscalIssuedSummary } from "@/services/takeatService";
+import {
+  fetchTakeatIssuedInvoicesSummary,
+  fetchTakeatCashierSummary,
+  TakeatFiscalIssuedSummary,
+  TakeatCashierSummary,
+} from "@/services/takeatService";
 import "@/components/management/management.css";
 
 const MAX_CLOSING_ATTACHMENTS = 20;
@@ -1303,6 +1308,63 @@ function ClosingModal({
     }
   }, [unit, date, initialClosing]);
 
+  // ── Caixa PDV Takeat: estados e auto-preenchimento ──────────────────────
+  const [takeatCashierLoading, setTakeatCashierLoading] = useState(false);
+  const [takeatCashierData, setTakeatCashierData] = useState<TakeatCashierSummary | null>(null);
+  const [takeatCashierError, setTakeatCashierError] = useState<string | null>(null);
+
+  /**
+   * Busca os dados do caixa no PDV Takeat e preenche os campos do formulário.
+   * @param forceApply  Se true, sobrescreve campos mesmo que já tenham valor.
+   */
+  const handleSyncTakeatCashier = async (forceApply: boolean = false) => {
+    if (!unit || unit === "all" || unit === "central" || !date) return;
+    setTakeatCashierLoading(true);
+    setTakeatCashierError(null);
+    try {
+      const summary = await fetchTakeatCashierSummary(unit as any, date);
+      setTakeatCashierData(summary);
+
+      const { mapped } = summary;
+      const shouldFill = (current: string) => forceApply || !current || Number(current) === 0;
+
+      // Etapa 1: Vendas PDV
+      if (shouldFill(systemCash))         setSystemCash(toMoneyInput(Math.round(mapped.systemCash * 100)));
+      if (shouldFill(systemCredit))       setSystemCredit(toMoneyInput(Math.round(mapped.systemCredit * 100)));
+      if (shouldFill(systemDebit))        setSystemDebit(toMoneyInput(Math.round(mapped.systemDebit * 100)));
+      if (shouldFill(systemPix))          setSystemPix(toMoneyInput(Math.round(mapped.systemPix * 100)));
+      if (shouldFill(systemServiceFee))   setSystemServiceFee(toMoneyInput(Math.round(mapped.systemServiceFee * 100)));
+      if (shouldFill(systemIfoodOnline))  setSystemIfoodOnline(toMoneyInput(Math.round(mapped.systemIfoodOnline * 100)));
+      if (shouldFill(systemIfoodVoucher)) setSystemIfoodVoucher(toMoneyInput(Math.round(mapped.systemIfoodVoucher * 100)));
+      if (shouldFill(systemTerm))         setSystemTerm(toMoneyInput(Math.round(mapped.systemTerm * 100)));
+      if (shouldFill(systemClub))         setSystemClub(toMoneyInput(Math.round(mapped.systemClub * 100)));
+
+      // Expande "Outros canais" automaticamente se há valores iFood/Prazo/Clube
+      if (mapped.systemIfoodOnline > 0 || mapped.systemIfoodVoucher > 0 ||
+          mapped.systemTerm > 0 || mapped.systemClub > 0) {
+        setShowOtherChannels(true);
+      }
+
+      // Etapa 1 (coluna Balcão): Fundo de caixa, Suprimentos, Sangria
+      if (shouldFill(openingAmount))  setOpeningAmount(toMoneyInput(Math.round(mapped.openingAmount * 100)));
+      if (shouldFill(cashIn))         setCashIn(toMoneyInput(Math.round(mapped.cashIn * 100)));
+      if (shouldFill(sangriaAmount))  setSangriaAmount(toMoneyInput(Math.round(mapped.sangriaAmount * 100)));
+
+    } catch (err: any) {
+      console.warn("[Takeat Caixa] Erro ao sincronizar:", err);
+      setTakeatCashierError(err?.message || "Erro ao buscar caixa do Takeat");
+    } finally {
+      setTakeatCashierLoading(false);
+    }
+  };
+
+  // Auto-sincroniza o caixa ao abrir um novo fechamento (não edição)
+  useEffect(() => {
+    if (!initialClosing && unit && unit !== "all" && unit !== "central" && date) {
+      handleSyncTakeatCashier(false);
+    }
+  }, [unit, date, initialClosing]);
+
   const [notes, setNotes] = useState(() => initialClosing ? str(initialClosing, "notes") : draft?.notes || "");
   const [existingAttachments, setExistingAttachments] = useState<CashAttachment[]>(() =>
     initialClosing ? parseAttachments(initialClosing) : []
@@ -1962,6 +2024,54 @@ function ClosingModal({
           {/* STEP 1: FECHAMENTO LADO A LADO (SPLIT-SCREEN + CARDS COLORIDOS) */}
           {activeStep === 1 && (
             <div className="space-y-4">
+              {/* Banner de Importação do Caixa Takeat */}
+              {(takeatCashierLoading || takeatCashierData || takeatCashierError) && (
+                <div className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-xs font-medium border
+                  ${takeatCashierLoading
+                    ? "bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-700 dark:text-indigo-300"
+                    : takeatCashierError
+                    ? "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-700 dark:text-rose-300"
+                    : "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-700 dark:text-emerald-300"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {takeatCashierLoading ? (
+                      <>
+                        <svg className="animate-spin shrink-0 h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                        <span>Importando dados do caixa Takeat…</span>
+                      </>
+                    ) : takeatCashierError ? (
+                      <>
+                        <span className="shrink-0">⚠️</span>
+                        <span className="truncate">{takeatCashierError}</span>
+                      </>
+                    ) : takeatCashierData ? (
+                      <>
+                        <span className="shrink-0">✅</span>
+                        <span>
+                          Caixa Takeat importado
+                          {takeatCashierData.operatorOpen && ` · aberto por ${takeatCashierData.operatorOpen}`}
+                          {takeatCashierData.operatorClose && ` · fechado por ${takeatCashierData.operatorClose}`}
+                          {takeatCashierData.isOpen && " · 🔴 caixa ainda aberto"}
+                        </span>
+                      </>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={takeatCashierLoading}
+                    onClick={() => handleSyncTakeatCashier(true)}
+                    className="shrink-0 rounded-lg px-2.5 py-1 bg-white/70 dark:bg-zinc-800/70 border border-current/20 hover:bg-white dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    title="Reimportar dados do caixa Takeat (sobrescreve todos os campos)"
+                  >
+                    {takeatCashierLoading ? "…" : "↻ Reimportar"}
+                  </button>
+                </div>
+              )}
+
               <div className="closing-split-grid">
                 {/* Coluna 1: O QUE O SISTEMA DIZ (PDV) */}
                 <div className="closing-col-panel">

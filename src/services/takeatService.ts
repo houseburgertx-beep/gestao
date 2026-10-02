@@ -9,8 +9,19 @@ import {
   ReceivedNfeItem,
   TakeatFiscalIssuedSummary,
   TakeatFiscalIssuedItem,
+  TakeatCashierSummary,
+  TakeatCashierAuditItem,
+  TakeatCashierPayment,
+  TakeatCashierOpening,
+  TakeatCashierTotals,
 } from "@/types/takeat";
-export type { BrandId, TakeatFiscalIssuedSummary, TakeatFiscalIssuedItem };
+export type {
+  BrandId,
+  TakeatFiscalIssuedSummary,
+  TakeatFiscalIssuedItem,
+  TakeatCashierSummary,
+  TakeatCashierAuditItem,
+};
 import { UnitId } from "@/types";
 import { getDefaultTakeatCredentials } from "@/config/takeatCredentials";
 
@@ -1247,4 +1258,271 @@ export async function fetchTakeatIssuedInvoicesSummary(
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FECHAMENTO DE CAIXA — fetchTakeatCashierSummary
+// ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Mapa de normalização de nomes de método de pagamento do Takeat.
+ * Chaves são substrings case-insensitive do campo `description` que a API retorna.
+ */
+const TAKEAT_PAYMENT_MAP: Array<{
+  match: string | string[];
+  field: keyof TakeatCashierSummary["mapped"];
+}> = [
+  { match: "dinheiro",                               field: "systemCash" },
+  { match: ["credito", "crédito", "credit"],         field: "systemCredit" },
+  { match: ["debito", "débito", "debit"],             field: "systemDebit" },
+  { match: "pix",                                    field: "systemPix" },
+  { match: ["pagamento online ifood", "online ifood"], field: "systemIfoodOnline" },
+  { match: ["cupom ifood", "ifood voucher"],          field: "systemIfoodVoucher" },
+  { match: ["prazo", "faturado", "conven"],           field: "systemTerm" },
+  { match: ["resgate clube", "cashback takeat", "clube"], field: "systemClub" },
+  { match: ["taxa de servico", "taxa de serviço", "service fee", "gorjeta"], field: "systemServiceFee" },
+];
+
+/**
+ * Identifica a qual campo mapeado pertence um payment_method description.
+ * Retorna null se não for reconhecido (ex: Alelo, PicPay, etc.).
+ */
+function mapPaymentDescription(desc: string): keyof TakeatCashierSummary["mapped"] | null {
+  const lower = desc.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  for (const rule of TAKEAT_PAYMENT_MAP) {
+    const matchers = Array.isArray(rule.match) ? rule.match : [rule.match];
+    if (matchers.some(m => lower.includes(m.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")))) {
+      return rule.field;
+    }
+  }
+  return null;
+}
+
+/**
+ * Busca os dados do caixa do PDV Takeat para uma unidade e data específica.
+ *
+ * Estratégia:
+ * 1. Obtém token via credenciais da unidade.
+ * 2. Verifica se há caixa aberto (/cashier-opening-verify).
+ * 3. Se caixa aberto E a data for hoje → usa /summary/null (dados em tempo real).
+ * 4. Para datas passadas ou caixa já fechado → consulta /cashier-audit para encontrar
+ *    o cashier_opening_id correto, depois busca /summary/:id.
+ * 5. Agrupa automatic_deposits por método e popula os campos `mapped`.
+ *
+ * @param unitId  ID da unidade ("teixeira", "eunapolis", "foodpark")
+ * @param dateStr Data no formato YYYY-MM-DD (Bahia / UTC-3)
+ */
+export async function fetchTakeatCashierSummary(
+  unitId: Exclude<UnitId, "all" | "central">,
+  dateStr: string
+): Promise<TakeatCashierSummary> {
+  const creds = getDefaultTakeatCredentials(unitId);
+  if (!creds) {
+    throw new Error(`Nenhuma credencial configurada para a unidade "${unitId}".`);
+  }
+
+  // ── 1. Autenticação ──────────────────────────────────────
+  let token = sanitizeToken(creds.token);
+  // Captura email/password em variáveis locais para que o closure doFetch não
+  // precise referenciar `creds` (que é TakeatCredentials | null pré-guard).
+  const credsEmail = creds.email;
+  const credsPassword = creds.password;
+
+  if (!token && credsEmail && credsPassword) {
+    const authResult = await authenticateTakeat(credsEmail, credsPassword);
+    token = authResult.token;
+  }
+  if (!token) {
+    throw new Error(`Não foi possível autenticar na Takeat para a unidade "${unitId}".`);
+  }
+
+  const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+  const BASE = "https://backend-pdv-2.takeat.app";
+
+  /**
+   * Helper: faz fetch com fallback para cluster antigo e retry em 401.
+   */
+  async function doFetch(path: string): Promise<any> {
+    const primaryUrl = `${BASE}${path}`;
+    const fallbackUrl = `https://backend-pdv.takeat.app${path}`;
+
+    for (const url of [primaryUrl, fallbackUrl]) {
+      let res = await fetch(url, { headers });
+
+      // Retry 401 com novo token
+      if (res.status === 401 && credsEmail && credsPassword) {
+        try {
+          const authResult = await authenticateTakeat(credsEmail, credsPassword);
+          token = authResult.token;
+          headers.Authorization = `Bearer ${token}`;
+          res = await fetch(url, { headers });
+        } catch {}
+      }
+
+      if (res.ok) {
+        return res.json();
+      }
+    }
+    throw new Error(`Falha ao consultar ${path} para unidade "${unitId}".`);
+  }
+
+  // ── 2. Verifica se há caixa aberto agora ────────────────
+  const todayBahia = new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Bahia",
+  }); // YYYY-MM-DD no fuso de Bahia
+
+  let openingId: number | null = null;
+  let isOpen = false;
+
+  try {
+    const verifyData = await doFetch("/restaurants/cashier-opening-verify");
+    if (verifyData?.id) {
+      openingId = verifyData.id as number;
+      isOpen = true;
+    }
+  } catch {}
+
+  // ── 3. Decide qual summary buscar ───────────────────────
+  let summaryData: any;
+
+  if (isOpen && openingId && dateStr === todayBahia) {
+    // Caixa aberto hoje → dados em tempo real
+    summaryData = await doFetch("/restaurants/cashier-opening-event/summary/null");
+    isOpen = true;
+  } else {
+    // Data passada ou caixa fechado → busca no histórico de auditorias
+
+    // Janela de busca: 5 dias antes até 2 dias depois da data alvo (cobre turno que passa a meia-noite)
+    const targetDate = new Date(`${dateStr}T12:00:00-03:00`);
+    const startDate = new Date(targetDate.getTime() - 5 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .substring(0, 10);
+    const endDate = new Date(targetDate.getTime() + 2 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .substring(0, 10);
+
+    const auditList: TakeatCashierAuditItem[] = await doFetch(
+      `/restaurants/cashier-audit?start_date=${startDate}&end_date=${endDate}`
+    );
+
+    if (!Array.isArray(auditList) || auditList.length === 0) {
+      throw new Error(
+        `Nenhum caixa encontrado na Takeat para a unidade "${unitId}" na data ${dateStr}.`
+      );
+    }
+
+    // Encontra o caixa cujo fechamento (closed_at) pertence ao dia alvo no fuso Bahia
+    const match = auditList.find(a => {
+      if (!a.closed_at) return false;
+      const closedDay = new Date(a.closed_at).toLocaleDateString("en-CA", {
+        timeZone: "America/Bahia",
+      });
+      return closedDay === dateStr;
+    });
+
+    // Fallback: caixa cuja abertura pertence ao dia alvo
+    const fallback = auditList.find(a => {
+      if (!a.opened_at) return false;
+      const openedDay = new Date(a.opened_at).toLocaleDateString("en-CA", {
+        timeZone: "America/Bahia",
+      });
+      return openedDay === dateStr;
+    });
+
+    const chosen = match || fallback;
+    if (!chosen) {
+      throw new Error(
+        `Nenhum caixa encontrado para a data ${dateStr} na unidade "${unitId}". ` +
+        `Foram encontrados ${auditList.length} caixa(s) em datas próximas.`
+      );
+    }
+
+    summaryData = await doFetch(
+      `/restaurants/cashier-opening-event/summary/${chosen.cashier_opening_id}`
+    );
+    isOpen = false;
+  }
+
+  // ── 4. Extrai e valida a resposta ────────────────────────
+  if (!summaryData || !summaryData.opening) {
+    throw new Error(`Resposta inválida da Takeat para o caixa de "${unitId}" em ${dateStr}.`);
+  }
+
+  const opening: TakeatCashierOpening = summaryData.opening;
+  const totals: TakeatCashierTotals = summaryData.totals || {
+    automatic_deposit: "0.00",
+    manual_deposit: "0.00",
+    manual_withdrawal: "0.00",
+    to_receive: 0,
+  };
+  const automaticDeposits: TakeatCashierPayment[] = Array.isArray(summaryData.automatic_deposits)
+    ? summaryData.automatic_deposits
+    : [];
+  const manualDeposits: TakeatCashierPayment[] = Array.isArray(summaryData.manual_deposits)
+    ? summaryData.manual_deposits
+    : [];
+  const manualWithdrawals: TakeatCashierPayment[] = Array.isArray(summaryData.manual_withdrawals)
+    ? summaryData.manual_withdrawals
+    : [];
+
+  // ── 5. Mapeia pagamentos para campos do sistema ──────────
+  const mapped: TakeatCashierSummary["mapped"] = {
+    openingAmount: parseBRLNumber(opening.initial_value),
+    systemCash: 0,
+    systemCredit: 0,
+    systemDebit: 0,
+    systemPix: 0,
+    systemIfoodOnline: 0,
+    systemIfoodVoucher: 0,
+    systemTerm: 0,
+    systemClub: 0,
+    systemServiceFee: 0,
+    cashIn: 0,
+    sangriaAmount: 0,
+    totalVendas: parseBRLNumber(totals.automatic_deposit),
+  };
+
+  // Agrupa deposits automáticos por método
+  for (const deposit of automaticDeposits) {
+    const field = mapPaymentDescription(deposit.description);
+    if (field && field in mapped) {
+      (mapped as any)[field] = Math.round(
+        (((mapped as any)[field] as number) + (deposit.value || 0)) * 100
+      ) / 100;
+    }
+  }
+
+  // Suprimentos (entradas manuais de dinheiro)
+  for (const dep of manualDeposits) {
+    mapped.cashIn = Math.round((mapped.cashIn + (dep.value || 0)) * 100) / 100;
+  }
+
+  // Sangrias (retiradas manuais de dinheiro)
+  for (const wit of manualWithdrawals) {
+    mapped.sangriaAmount = Math.round((mapped.sangriaAmount + (wit.value || 0)) * 100) / 100;
+  }
+
+  // Fallback: se total mapeado de sangrias está zerado mas totals.manual_withdrawal tem valor
+  if (mapped.sangriaAmount === 0 && parseBRLNumber(totals.manual_withdrawal) > 0) {
+    mapped.sangriaAmount = parseBRLNumber(totals.manual_withdrawal);
+  }
+
+  // Fallback: se suprimentos zerado mas totals.manual_deposit tem valor
+  if (mapped.cashIn === 0 && parseBRLNumber(totals.manual_deposit) > 0) {
+    mapped.cashIn = parseBRLNumber(totals.manual_deposit);
+  }
+
+  return {
+    unitId,
+    date: dateStr,
+    cashierOpeningId: opening.id,
+    opening,
+    totals,
+    payments: automaticDeposits,
+    manualDeposits,
+    manualWithdrawals,
+    mapped,
+    operatorOpen: opening.user_open?.name,
+    operatorClose: opening.user_close?.name || undefined,
+    isOpen,
+    syncedAt: new Date().toISOString(),
+  };
+}

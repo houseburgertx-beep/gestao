@@ -133,3 +133,95 @@ export interface TakeatFiscalIssuedSummary {
   syncedAt: string;
 }
 
+// ─────────────────────────────────────────────────────────
+// Fechamento de Caixa Takeat PDV
+// Endpoints: /restaurants/cashier-opening-event/summary/:id
+//            /restaurants/cashier-audit
+//            /restaurants/cashier-opening-verify
+// ─────────────────────────────────────────────────────────
+
+/** Cada linha de automatic_deposits, manual_deposits ou manual_withdrawals */
+export interface TakeatCashierPayment {
+  description: string;       // "Dinheiro", "CARTAO DE CREDITO", "PIX", etc.
+  value: number;
+  payment_method_id: number;
+  is_manual: boolean;
+  payment_id?: number;
+  createdAt?: string;
+}
+
+/** Dados de abertura / fechamento do caixa */
+export interface TakeatCashierOpening {
+  id: number;
+  initial_value: string;   // fundo de caixa (Troco Inicial / Abertura)
+  final_value: string;
+  total_value: string;
+  opened_at: string;
+  closed_at: string | null;
+  restaurant_id?: number;
+  user_open?: { name: string };
+  user_close?: { name: string } | null;
+}
+
+/** Totais devolvidos pelo summary endpoint */
+export interface TakeatCashierTotals {
+  automatic_deposit: string; // total de vendas registradas no PDV
+  manual_deposit: string;    // suprimentos (entradas manuais)
+  manual_withdrawal: string; // sangrias (retiradas manuais)
+  to_receive: number;        // a receber
+}
+
+/**
+ * Item da lista de histórico de caixas fechados.
+ * GET /restaurants/cashier-audit?start_date=...&end_date=...
+ */
+export interface TakeatCashierAuditItem {
+  id: number;
+  cashier_opening_id: number;
+  annotation?: string;
+  total_value: string;
+  total_system_value: string;
+  total_audited_value: string;
+  manual_withdrawal: string;
+  opened_at: string;
+  closed_at: string;
+  restaurant_id?: number;
+  user_open?: { name: string };
+  user_close?: { name: string } | null;
+}
+
+/**
+ * Resultado final do caixa Takeat, pronto para uso no ClosingModal.
+ * Inclui os dados brutos da API e os campos `mapped` já calculados
+ * para preencher diretamente os inputs do formulário de fechamento.
+ */
+export interface TakeatCashierSummary {
+  unitId: Exclude<UnitId, "all">;
+  date: string; // YYYY-MM-DD (dia do fechamento buscado)
+  cashierOpeningId: number;
+  opening: TakeatCashierOpening;
+  totals: TakeatCashierTotals;
+  payments: TakeatCashierPayment[];        // automatic_deposits
+  manualDeposits: TakeatCashierPayment[];  // suprimentos
+  manualWithdrawals: TakeatCashierPayment[]; // sangrias
+  /** Campos mapeados prontos para setar diretamente nos inputs (em reais, float) */
+  mapped: {
+    openingAmount: number;
+    systemCash: number;
+    systemCredit: number;
+    systemDebit: number;
+    systemPix: number;
+    systemIfoodOnline: number;
+    systemIfoodVoucher: number;
+    systemTerm: number;
+    systemClub: number;
+    systemServiceFee: number;
+    cashIn: number;        // total suprimentos (entradas manuais)
+    sangriaAmount: number; // total sangrias (retiradas manuais)
+    totalVendas: number;   // total automatic_deposit
+  };
+  operatorOpen?: string;
+  operatorClose?: string;
+  isOpen: boolean; // true = caixa ainda aberto no momento da busca
+  syncedAt: string;
+}
