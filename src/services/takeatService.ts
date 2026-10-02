@@ -7,9 +7,12 @@ import {
   BrandId,
   ReceivedNfe,
   ReceivedNfeItem,
+  TakeatFiscalIssuedSummary,
+  TakeatFiscalIssuedItem,
 } from "@/types/takeat";
-export type { BrandId };
+export type { BrandId, TakeatFiscalIssuedSummary, TakeatFiscalIssuedItem };
 import { UnitId } from "@/types";
+import { getDefaultTakeatCredentials } from "@/config/takeatCredentials";
 
 const TAKEAT_CONFIG = {
   REPORTS_URL: "https://backend-pdv-2.takeat.app/restaurants/v2/reports/general-cards",
@@ -1120,6 +1123,128 @@ export async function fetchTakeatReceivedNfes(
 
   console.warn(`[Takeat NF-e] Nenhuma nota encontrada para ${credentials.unitId}: ${lastError}`);
   return [];
+}
+
+/**
+ * Consulta a emissão oficial de cupons fiscais (NFC-e) na Takeat para uma unidade e data (America/Bahia).
+ * Retorna a quantidade de cupons, o valor total emitido (igual ao relatório do PDV), e a lista de cupons.
+ */
+export async function fetchTakeatIssuedInvoicesSummary(
+  unitId: Exclude<UnitId, "all">,
+  dateStr: string, // YYYY-MM-DD
+  customToken?: string
+): Promise<TakeatFiscalIssuedSummary> {
+  const creds = getDefaultTakeatCredentials(unitId);
+  if (!creds) {
+    throw new Error(`Credenciais padrão não configuradas para a unidade ${unitId}.`);
+  }
+
+  let token = sanitizeToken(customToken || creds.token);
+  if (!token && creds.email && creds.password) {
+    const authRes = await authenticateTakeat(creds.email, creds.password);
+    token = authRes.token;
+  }
+
+  if (!token) {
+    throw new Error(`Não foi possível autenticar a unidade ${unitId} na Takeat.`);
+  }
+
+  // Parse YYYY-MM-DD
+  const [y, m, d] = dateStr.split("-").map(Number);
+  // Janela de busca para cobrir comandas abertas na véspera e finalizadas com NFC-e no dia alvo
+  const prevDate = new Date(Date.UTC(y, m - 1, d - 1, 12, 0, 0));
+  const nextDate = new Date(Date.UTC(y, m - 1, d + 1, 6, 0, 0));
+  const fetchStart = prevDate.toISOString();
+  const fetchEnd = nextDate.toISOString();
+
+  const url = `https://public-api.takeat.app/v1/table-sessions?start_date=${encodeURIComponent(fetchStart)}&end_date=${encodeURIComponent(fetchEnd)}`;
+
+  let res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
+
+  // Se token expirou (401), renova e tenta de novo
+  if (res.status === 401 && creds.email && creds.password) {
+    const authRes = await authenticateTakeat(creds.email, creds.password);
+    token = authRes.token;
+    res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
+  }
+
+  if (!res.ok) {
+    throw new Error(`Erro ao consultar sessões da Takeat: HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  if (!Array.isArray(data)) {
+    throw new Error("Resposta inesperada da Takeat ao listar sessões.");
+  }
+
+  let count = 0;
+  let nfceTotalPrice = 0;
+  let totalPayments = 0;
+  const methods: Record<string, number> = {};
+  const invoices: TakeatFiscalIssuedItem[] = [];
+
+  for (const s of data) {
+    if (s.nfce && s.nfce.status === "autorizado") {
+      const nfceDate = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Bahia",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(s.nfce.created_at));
+
+      if (nfceDate === dateStr) {
+        count++;
+        const pTotal = parseFloat(s.nfce.total_price || 0) || 0;
+        nfceTotalPrice += pTotal;
+
+        let sessionPaymentsTotal = 0;
+        if (Array.isArray(s.payments) && s.payments.length > 0) {
+          for (const p of s.payments) {
+            const mName = p.payment_method?.name || p.channel || "Outro";
+            const val = parseFloat(p.payment_value || 0) || 0;
+            methods[mName] = Math.round(((methods[mName] || 0) + val) * 100) / 100;
+            sessionPaymentsTotal += val;
+          }
+        } else {
+          sessionPaymentsTotal = pTotal;
+        }
+
+        totalPayments += sessionPaymentsTotal;
+
+        invoices.push({
+          numero: String(s.nfce.numero || "S/N"),
+          total: pTotal,
+          issuedAt: s.nfce.created_at,
+          htmlUrl: s.nfce.nfce_html,
+          xmlUrl: s.nfce.nfce_xml,
+        });
+      }
+    }
+  }
+
+  const totalIssued = Math.round(totalPayments * 100) / 100;
+  nfceTotalPrice = Math.round(nfceTotalPrice * 100) / 100;
+
+  return {
+    unitId,
+    date: dateStr,
+    count,
+    totalIssued,
+    nfceTotalPrice,
+    methods,
+    invoices,
+    syncedAt: new Date().toISOString(),
+  };
 }
 
 
