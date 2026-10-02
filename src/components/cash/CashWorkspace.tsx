@@ -2024,53 +2024,62 @@ function ClosingModal({
           {/* STEP 1: FECHAMENTO LADO A LADO (SPLIT-SCREEN + CARDS COLORIDOS) */}
           {activeStep === 1 && (
             <div className="space-y-4">
-              {/* Banner de Importação do Caixa Takeat */}
-              {(takeatCashierLoading || takeatCashierData || takeatCashierError) && (
-                <div className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-xs font-medium border
-                  ${takeatCashierLoading
-                    ? "bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-950/40 dark:border-indigo-700 dark:text-indigo-300"
-                    : takeatCashierError
-                    ? "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:border-rose-700 dark:text-rose-300"
-                    : "bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-700 dark:text-emerald-300"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {takeatCashierLoading ? (
-                      <>
-                        <svg className="animate-spin shrink-0 h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                        </svg>
-                        <span>Importando dados do caixa Takeat…</span>
-                      </>
-                    ) : takeatCashierError ? (
-                      <>
-                        <span className="shrink-0">⚠️</span>
-                        <span className="truncate">{takeatCashierError}</span>
-                      </>
-                    ) : takeatCashierData ? (
-                      <>
-                        <span className="shrink-0">✅</span>
-                        <span>
-                          Caixa Takeat importado
-                          {takeatCashierData.operatorOpen && ` · aberto por ${takeatCashierData.operatorOpen}`}
-                          {takeatCashierData.operatorClose && ` · fechado por ${takeatCashierData.operatorClose}`}
-                          {takeatCashierData.isOpen && " · 🔴 caixa ainda aberto"}
-                        </span>
-                      </>
-                    ) : null}
+              {/* Integração PDV Takeat - Barra de Ação Sempre Visível */}
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl p-3 bg-gradient-to-r from-indigo-50/90 via-purple-50/70 to-indigo-50/90 dark:from-indigo-950/40 dark:via-purple-950/30 dark:to-indigo-950/40 border border-indigo-200 dark:border-indigo-800 shadow-sm">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-sm tracking-wider">
+                    TK
                   </div>
-                  <button
-                    type="button"
-                    disabled={takeatCashierLoading}
-                    onClick={() => handleSyncTakeatCashier(true)}
-                    className="shrink-0 rounded-lg px-2.5 py-1 bg-white/70 dark:bg-zinc-800/70 border border-current/20 hover:bg-white dark:hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                    title="Reimportar dados do caixa Takeat (sobrescreve todos os campos)"
-                  >
-                    {takeatCashierLoading ? "…" : "↻ Reimportar"}
-                  </button>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-xs text-indigo-950 dark:text-indigo-200">
+                        Integração PDV Takeat
+                      </span>
+                      {takeatCashierData ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                          ✓ Sincronizado ({takeatCashierData.operatorClose ? `Fechado por ${takeatCashierData.operatorClose}` : takeatCashierData.operatorOpen ? `Aberto por ${takeatCashierData.operatorOpen}` : "Conectado"})
+                        </span>
+                      ) : takeatCashierLoading ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 animate-pulse">
+                          Consultando PDV...
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-[11px] text-zinc-600 dark:text-zinc-400 mt-0.5">
+                      {takeatCashierError ? (
+                        <span className="text-rose-600 font-medium">{takeatCashierError}</span>
+                      ) : takeatCashierData ? (
+                        <span>Total Vendas: <b>{brl(takeatCashierData.mapped.totalVendas)}</b> · Fundo: <b>{brl(takeatCashierData.mapped.openingAmount)}</b> · Sangria: <b>{brl(takeatCashierData.mapped.sangriaAmount)}</b></span>
+                      ) : (
+                        "Importe automaticamente vendas, dinheiro, cartões, PIX, iFood e sangrias direto do caixa Takeat."
+                      )}
+                    </p>
+                  </div>
                 </div>
-              )}
+
+                <button
+                  type="button"
+                  disabled={takeatCashierLoading || !unit || unit === "all"}
+                  onClick={() => handleSyncTakeatCashier(true)}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-sm transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                  title="Importar ou reimportar dados do caixa Takeat da data selecionada"
+                >
+                  {takeatCashierLoading ? (
+                    <>
+                      <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                      <span>Importando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw size={13} />
+                      <span>{takeatCashierData ? "Reimportar Caixa Takeat" : "Puxar Caixa Takeat"}</span>
+                    </>
+                  )}
+                </button>
+              </div>
 
               <div className="closing-split-grid">
                 {/* Coluna 1: O QUE O SISTEMA DIZ (PDV) */}
