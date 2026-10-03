@@ -2024,75 +2024,67 @@ function ClosingModal({
           {/* STEP 1: FECHAMENTO LADO A LADO (SPLIT-SCREEN + CARDS COLORIDOS) */}
           {activeStep === 1 && (
             <div className="space-y-4">
-              {/* Integração PDV Takeat - Barra de Ação Sempre Visível */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl p-3 bg-gradient-to-r from-indigo-50/90 via-purple-50/70 to-indigo-50/90 dark:from-indigo-950/40 dark:via-purple-950/30 dark:to-indigo-950/40 border border-indigo-200 dark:border-indigo-800 shadow-sm">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-sm tracking-wider">
-                    TK
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-xs text-indigo-950 dark:text-indigo-200">
-                        Integração PDV Takeat
-                      </span>
-                      {takeatCashierData ? (
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                          takeatCashierData.isOpen
-                            ? "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-700"
-                            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700"
-                        }`}>
-                          {takeatCashierData.isOpen ? "🔴 Caixa Aberto (Tempo Real)" : "✓ Caixa Fechado"} #{takeatCashierData.cashierOpeningId} (Aberto {takeatCashierData.openedAtFormatted || "—"}{takeatCashierData.operatorOpen ? ` por ${takeatCashierData.operatorOpen}` : ""})
-                        </span>
-                      ) : takeatCashierLoading ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 animate-pulse">
-                          Consultando PDV...
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="text-[11px] text-zinc-600 dark:text-zinc-400 mt-0.5">
-                      {takeatCashierError ? (
-                        <span className="text-rose-600 font-medium">{takeatCashierError}</span>
-                      ) : takeatCashierData ? (
-                        <span>
-                          {takeatCashierData.isOpen ? "Vendas até agora: " : "Vendas PDV: "}<b>{brl(takeatCashierData.mapped.totalVendas * 100)}</b> · Fundo: <b>{brl(takeatCashierData.mapped.openingAmount * 100)}</b> · Sangria: <b>{brl(takeatCashierData.mapped.sangriaAmount * 100)}</b>
-                          {takeatCashierData.isOpen ? (
-                            <span className="text-amber-700 dark:text-amber-300 font-semibold text-[10px] ml-1.5">
-                              (Turno em andamento)
-                            </span>
-                          ) : takeatCashierData.closedAtFormatted ? (
-                            <span className="text-zinc-500 text-[10px] ml-1.5">
-                              (Fechado {takeatCashierData.closedAtFormatted}{takeatCashierData.operatorClose ? ` por ${takeatCashierData.operatorClose}` : ""})
-                            </span>
-                          ) : null}
-                        </span>
+              {/* Takeat PDV Minimal Strip */}
+              <div className="flex flex-wrap items-center justify-between gap-2.5 px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800 text-xs">
+                <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
+                  <div className="flex items-center gap-1.5 font-semibold text-zinc-900 dark:text-zinc-100 shrink-0">
+                    <span className="relative flex h-2 w-2">
+                      {takeatCashierData?.isOpen ? (
+                        <>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </>
                       ) : (
-                        "Importe automaticamente vendas, dinheiro, cartões, PIX, iFood e sangrias direto do caixa Takeat."
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-zinc-400"></span>
                       )}
-                    </p>
+                    </span>
+                    <span className="text-[12px] tracking-tight">Takeat PDV</span>
                   </div>
+
+                  <span className="text-zinc-300 dark:text-zinc-700 hidden sm:inline">|</span>
+
+                  {takeatCashierError ? (
+                    <span className="text-rose-600 dark:text-rose-400 font-medium text-[11px] truncate">
+                      {takeatCashierError}
+                    </span>
+                  ) : takeatCashierData ? (
+                    <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400 flex-wrap text-[11px]">
+                      <span>
+                        {takeatCashierData.isOpen ? "Ao vivo" : "Fechado"}: <b className="text-zinc-900 dark:text-zinc-100 font-semibold">{brl(takeatCashierData.mapped.totalVendas * 100)}</b>
+                      </span>
+                      <span className="text-zinc-300 dark:text-zinc-700">·</span>
+                      <span>Fundo: <b className="text-zinc-900 dark:text-zinc-100 font-medium">{brl(takeatCashierData.mapped.openingAmount * 100)}</b></span>
+                      {takeatCashierData.mapped.sangriaAmount > 0 && (
+                        <>
+                          <span className="text-zinc-300 dark:text-zinc-700">·</span>
+                          <span>Sangria: <b className="text-zinc-900 dark:text-zinc-100 font-medium">{brl(takeatCashierData.mapped.sangriaAmount * 100)}</b></span>
+                        </>
+                      )}
+                      {(takeatCashierData.operatorClose || takeatCashierData.operatorOpen) && (
+                        <>
+                          <span className="text-zinc-300 dark:text-zinc-700">·</span>
+                          <span className="text-zinc-400 text-[10px]">
+                            {takeatCashierData.operatorClose ? `por ${takeatCashierData.operatorClose}` : `aberto por ${takeatCashierData.operatorOpen}`}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-zinc-400 text-[11px]">
+                      Sincronize vendas, cartões, PIX e gaveta do PDV
+                    </span>
+                  )}
                 </div>
 
                 <button
                   type="button"
                   disabled={takeatCashierLoading || !unit || unit === "all"}
                   onClick={() => handleSyncTakeatCashier(true)}
-                  className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-sm transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-                  title="Importar ou reimportar dados do caixa Takeat da data selecionada"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700/70 transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs shrink-0"
+                  title="Atualizar dados do caixa Takeat"
                 >
-                  {takeatCashierLoading ? (
-                    <>
-                      <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                      </svg>
-                      <span>Importando...</span>
-                    </>
-                  ) : (
-                    <>
-                      <RotateCcw size={13} />
-                      <span>{takeatCashierData ? "Reimportar Caixa Takeat" : "Puxar Caixa Takeat"}</span>
-                    </>
-                  )}
+                  <RotateCcw size={11} className={takeatCashierLoading ? "animate-spin text-indigo-600" : "text-zinc-500"} />
+                  <span>{takeatCashierLoading ? "Buscando..." : takeatCashierData ? "Atualizar" : "Puxar PDV"}</span>
                 </button>
               </div>
 
