@@ -1381,14 +1381,20 @@ export async function fetchTakeatCashierSummary(
   } catch {}
 
   // ── 3. Decide qual summary buscar ───────────────────────
-  // Estratégia: para o fechamento de caixa sempre preferimos o caixa FECHADO
-  // na data solicitada (que é o turno que terminou). Só usamos o caixa atualmente
-  // aberto como fallback se não existir nenhum caixa fechado para aquela data.
+  // Regra Oficial: o turno comercial do restaurante é SEMPRE identificado
+  // pela DATA DE ABERTURA do caixa (opened_at em America/Bahia).
+  // Exemplo: o turno da noite de 01/10 abre às 17:39 de 01/10 e fecha de madrugada
+  // ou no dia seguinte (02/10). Esse fechamento PERTENCE ao dia 01/10.
   let summaryData: any;
 
-  // Sempre busca o histórico de auditorias para encontrar caixas fechados na data
+  function getBahiaDay(iso: string | null | undefined): string {
+    if (!iso) return "";
+    return new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Bahia" });
+  }
+
+  // Busca janela ampla de auditorias (7 dias antes a 2 dias depois)
   const targetDate = new Date(`${dateStr}T12:00:00-03:00`);
-  const auditStart = new Date(targetDate.getTime() - 5 * 24 * 60 * 60 * 1000)
+  const auditStart = new Date(targetDate.getTime() - 7 * 24 * 60 * 60 * 1000)
     .toISOString()
     .substring(0, 10);
   const auditEnd = new Date(targetDate.getTime() + 2 * 24 * 60 * 60 * 1000)
@@ -1403,40 +1409,44 @@ export async function fetchTakeatCashierSummary(
     if (Array.isArray(auditRaw)) auditList = auditRaw;
   } catch {}
 
-  // Encontra o caixa cujo fechamento (closed_at) pertence ao dia alvo no fuso Bahia
-  const closedMatch = auditList.find(a => {
-    if (!a.closed_at) return false;
-    const closedDay = new Date(a.closed_at).toLocaleDateString("en-CA", {
-      timeZone: "America/Bahia",
-    });
-    return closedDay === dateStr;
-  });
+  // 1. Prioridade Máxima: caixas que ABRIRAM na data solicitada (opened_at)
+  const openedMatches = auditList.filter(a => getBahiaDay(a.opened_at) === dateStr);
 
-  // Fallback secundário: caixa cuja abertura pertence ao dia alvo
-  const openedMatch = auditList.find(a => {
-    if (!a.opened_at) return false;
-    const openedDay = new Date(a.opened_at).toLocaleDateString("en-CA", {
-      timeZone: "America/Bahia",
-    });
-    return openedDay === dateStr;
-  });
+  let chosenAudit: TakeatCashierAuditItem | undefined;
 
-  const chosenAudit = closedMatch || openedMatch;
+  if (openedMatches.length > 0) {
+    // Se houver mais de um caixa aberto na data (ex: teste rápido de 1 minuto),
+    // seleciona o turno principal com maior volume de vendas no sistema
+    openedMatches.sort(
+      (a, b) => parseFloat(b.total_system_value || "0") - parseFloat(a.total_system_value || "0")
+    );
+    chosenAudit = openedMatches[0];
+  } else {
+    // Fallback secundário: se nenhum caixa abriu nessa data, verifica por data de fechamento
+    chosenAudit = auditList.find(a => getBahiaDay(a.closed_at) === dateStr);
+  }
 
-  if (chosenAudit) {
-    // Caixa fechado encontrado no histórico → usa o summary pelo ID
+  // Se a data solicitada for hoje (no fuso de Brasília/Bahia) e houver caixa aberto agora
+  if (dateStr === todayBahia && isOpen && openingId) {
+    // Se não há caixa auditado para hoje, ou se o usuário está conferindo o turno ativo aberto hoje
+    if (!chosenAudit) {
+      summaryData = await doFetch("/restaurants/cashier-opening-event/summary/null");
+      isOpen = true;
+    } else {
+      // Já existe um turno fechado de hoje (ex: almoço já auditado), usa o fechado
+      summaryData = await doFetch(
+        `/restaurants/cashier-opening-event/summary/${chosenAudit.cashier_opening_id}`
+      );
+      isOpen = false;
+    }
+  } else if (chosenAudit) {
     summaryData = await doFetch(
       `/restaurants/cashier-opening-event/summary/${chosenAudit.cashier_opening_id}`
     );
     isOpen = false;
-  } else if (isOpen && openingId && dateStr === todayBahia) {
-    // Nenhum caixa fechado encontrado, mas há um caixa aberto agora → usa em tempo real
-    summaryData = await doFetch("/restaurants/cashier-opening-event/summary/null");
-    isOpen = true;
   } else {
     throw new Error(
-      `Nenhum caixa encontrado para a data ${dateStr} na unidade "${unitId}". ` +
-      `Verifique se o turno foi aberto no PDV Takeat nessa data.`
+      `Nenhum caixa do Takeat encontrado que abriu ou operou na data ${dateStr} para "${unitId}".`
     );
   }
 
@@ -1518,6 +1528,26 @@ export async function fetchTakeatCashierSummary(
     mapped.totalVendas = officialSales;
   }
 
+  const openedAtFormatted = opening.opened_at
+    ? new Date(opening.opened_at).toLocaleString("pt-BR", {
+        timeZone: "America/Bahia",
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : undefined;
+
+  const closedAtFormatted = opening.closed_at
+    ? new Date(opening.closed_at).toLocaleString("pt-BR", {
+        timeZone: "America/Bahia",
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : undefined;
+
   return {
     unitId,
     date: dateStr,
@@ -1530,6 +1560,8 @@ export async function fetchTakeatCashierSummary(
     mapped,
     operatorOpen: opening.user_open?.name,
     operatorClose: opening.user_close?.name || undefined,
+    openedAtFormatted,
+    closedAtFormatted,
     isOpen,
     syncedAt: new Date().toISOString(),
   };

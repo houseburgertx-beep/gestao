@@ -222,6 +222,8 @@ export interface TakeatCashierSummary {
   };
   operatorOpen?: string;
   operatorClose?: string;
+  openedAtFormatted?: string;
+  closedAtFormatted?: string;
   isOpen: boolean; // true = caixa ainda aberto no momento da busca
   syncedAt: string;
 }
