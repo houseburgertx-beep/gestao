@@ -1143,7 +1143,8 @@ export async function fetchTakeatReceivedNfes(
 export async function fetchTakeatIssuedInvoicesSummary(
   unitId: Exclude<UnitId, "all">,
   dateStr: string, // YYYY-MM-DD
-  customToken?: string
+  customToken?: string,
+  cashierShift?: { openedAt?: string; closedAt?: string | null }
 ): Promise<TakeatFiscalIssuedSummary> {
   const creds = getDefaultTakeatCredentials(unitId);
   if (!creds) {
@@ -1160,15 +1161,74 @@ export async function fetchTakeatIssuedInvoicesSummary(
     throw new Error(`Não foi possível autenticar a unidade ${unitId} na Takeat.`);
   }
 
-  // Parse YYYY-MM-DD
   const [y, m, d] = dateStr.split("-").map(Number);
-  // Janela de busca para cobrir comandas abertas na véspera e finalizadas com NFC-e no dia alvo
-  const prevDate = new Date(Date.UTC(y, m - 1, d - 1, 12, 0, 0));
-  const nextDate = new Date(Date.UTC(y, m - 1, d + 1, 6, 0, 0));
-  const fetchStart = prevDate.toISOString();
-  const fetchEnd = nextDate.toISOString();
+  const targetDate = new Date(`${dateStr}T12:00:00-03:00`);
 
-  const url = `https://public-api.takeat.app/v1/table-sessions?start_date=${encodeURIComponent(fetchStart)}&end_date=${encodeURIComponent(fetchEnd)}`;
+  let shiftStart: Date;
+  let shiftEnd: Date;
+
+  // 1. Se recebemos o intervalo exato do caixa (abertura e fechamento do turno)
+  if (cashierShift?.openedAt) {
+    shiftStart = new Date(new Date(cashierShift.openedAt).getTime() - 30 * 60 * 1000);
+    shiftEnd = cashierShift.closedAt
+      ? new Date(new Date(cashierShift.closedAt).getTime() + 30 * 60 * 1000)
+      : new Date(Date.now() + 60 * 1000);
+  } else {
+    // 2. Tenta descobrir o caixa correspondente em cashier-audit ou caixa aberto
+    const auditStart = new Date(targetDate.getTime() - 5 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .substring(0, 10);
+    const auditEnd = new Date(targetDate.getTime() + 2 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .substring(0, 10);
+
+    const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+    let auditList: TakeatCashierAuditItem[] = [];
+    try {
+      const aRes = await fetch(
+        `https://backend-pdv-2.takeat.app/restaurants/cashier-audit?start_date=${auditStart}&end_date=${auditEnd}`,
+        { headers }
+      );
+      if (aRes.ok) auditList = await aRes.json();
+    } catch {}
+
+    const getBahiaDay = (iso?: string | null) =>
+      iso ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bahia" }).format(new Date(iso)) : "";
+
+    // Caixas que abriram na data solicitada
+    const openedMatches = auditList.filter((a) => getBahiaDay(a.opened_at) === dateStr);
+    let chosenAudit: TakeatCashierAuditItem | undefined;
+
+    if (openedMatches.length > 0) {
+      openedMatches.sort(
+        (a, b) => parseFloat(b.total_system_value || "0") - parseFloat(a.total_system_value || "0")
+      );
+      chosenAudit = openedMatches[0];
+    } else {
+      // Se não abriu na data, verifica se fechou na data (ex: fechou após a meia-noite)
+      chosenAudit = auditList.find((a) => getBahiaDay(a.closed_at) === dateStr);
+    }
+
+    if (chosenAudit?.opened_at) {
+      shiftStart = new Date(new Date(chosenAudit.opened_at).getTime() - 30 * 60 * 1000);
+      shiftEnd = chosenAudit.closed_at
+        ? new Date(new Date(chosenAudit.closed_at).getTime() + 30 * 60 * 1000)
+        : new Date(Date.now() + 60 * 1000);
+    } else {
+      // 3. Fallback: Janela oficial do dia comercial no restaurante (06:00 de dateStr até 06:00 do dia seguinte)
+      // No fuso da Bahia (UTC-03:00), 06:00 local = 09:00 UTC
+      shiftStart = new Date(Date.UTC(y, m - 1, d, 9, 0, 0, 0));
+      shiftEnd = new Date(Date.UTC(y, m - 1, d + 1, 9, 0, 0, 0));
+    }
+  }
+
+  // Busca ampliada para cobrir todas as sessões e notas fiscais emitidas no turno
+  const fetchStart = new Date(shiftStart.getTime() - 3 * 3600 * 1000).toISOString();
+  const fetchEnd = new Date(shiftEnd.getTime() + 3 * 3600 * 1000).toISOString();
+
+  const url = `https://public-api.takeat.app/v1/table-sessions?start_date=${encodeURIComponent(
+    fetchStart
+  )}&end_date=${encodeURIComponent(fetchEnd)}`;
 
   let res = await fetch(url, {
     headers: {
@@ -1206,14 +1266,19 @@ export async function fetchTakeatIssuedInvoicesSummary(
 
   for (const s of data) {
     if (s.nfce && s.nfce.status === "autorizado") {
+      const nfceTime = new Date(s.nfce.created_at).getTime();
+      const inShiftWindow = nfceTime >= shiftStart.getTime() && nfceTime <= shiftEnd.getTime();
+
+      // Compatibilidade: se por acaso caiu fora da janela do caixa por minutos, mas pertence à mesma data civil
       const nfceDate = new Intl.DateTimeFormat("en-CA", {
         timeZone: "America/Bahia",
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
       }).format(new Date(s.nfce.created_at));
+      const isDateMatch = nfceDate === dateStr;
 
-      if (nfceDate === dateStr) {
+      if (inShiftWindow || isDateMatch) {
         count++;
         const pTotal = parseFloat(s.nfce.total_price || 0) || 0;
         nfceTotalPrice += pTotal;

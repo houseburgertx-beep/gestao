@@ -1189,6 +1189,22 @@ function ClosingModal({
   const [date, setDate] = useState(() => {
     if (activeTargetClosing) return str(activeTargetClosing, "date") || dateToday();
     if (draft?.date) return draft.date;
+    // Se estiver abrindo o fechamento na madrugada (00:00 até 05:59 em America/Bahia),
+    // o turno em fechamento é o da noite de ontem
+    const now = new Date();
+    const bahiaHour = parseInt(
+      new Intl.DateTimeFormat("en-GB", { timeZone: "America/Bahia", hour: "2-digit", hour12: false }).format(now),
+      10
+    );
+    if (bahiaHour < 6) {
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Bahia",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(yesterday);
+    }
     return dateToday();
   });
   const [operatorName, setOperatorName] = useState(() => {
@@ -1284,12 +1300,19 @@ function ClosingModal({
   const [takeatFiscalData, setTakeatFiscalData] = useState<TakeatFiscalIssuedSummary | null>(null);
   const [takeatFiscalError, setTakeatFiscalError] = useState<string | null>(null);
 
-  const handleSyncTakeatFiscal = async (forceApply: boolean = false) => {
+  const handleSyncTakeatFiscal = async (
+    forceApply: boolean = false,
+    shiftInfo?: { openedAt?: string; closedAt?: string | null }
+  ) => {
     if (!unit || unit === "all" || unit === "central" || !date) return;
     setTakeatFiscalLoading(true);
     setTakeatFiscalError(null);
     try {
-      const summary = await fetchTakeatIssuedInvoicesSummary(unit as any, date);
+      const shift = shiftInfo || (takeatCashierData?.opening ? {
+        openedAt: takeatCashierData.opening.opened_at,
+        closedAt: takeatCashierData.opening.closed_at,
+      } : undefined);
+      const summary = await fetchTakeatIssuedInvoicesSummary(unit as any, date, undefined, shift);
       setTakeatFiscalData(summary);
       if (forceApply || !invoiceIssued || Number(invoiceIssued) === 0) {
         setInvoiceIssued(toMoneyInput(Math.round(summary.totalIssued * 100)));
@@ -1301,12 +1324,6 @@ function ClosingModal({
       setTakeatFiscalLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (!initialClosing && unit && unit !== "all" && unit !== "central" && date) {
-      handleSyncTakeatFiscal(false);
-    }
-  }, [unit, date, initialClosing]);
 
   // ── Caixa PDV Takeat: estados e auto-preenchimento ──────────────────────
   const [takeatCashierLoading, setTakeatCashierLoading] = useState(false);
@@ -1350,15 +1367,23 @@ function ClosingModal({
       if (shouldFill(cashIn))         setCashIn(toMoneyInput(Math.round(mapped.cashIn * 100)));
       if (shouldFill(sangriaAmount))  setSangriaAmount(toMoneyInput(Math.round(mapped.sangriaAmount * 100)));
 
+      // Sincroniza simultaneamente a emissão de notas fiscais vinculada ao intervalo deste caixa
+      handleSyncTakeatFiscal(forceApply, {
+        openedAt: summary.opening.opened_at,
+        closedAt: summary.opening.closed_at,
+      });
+
     } catch (err: any) {
       console.warn("[Takeat Caixa] Erro ao sincronizar:", err);
       setTakeatCashierError(err?.message || "Erro ao buscar caixa do Takeat");
+      // Fallback: se o caixa falhar, ainda busca as notas fiscais da data
+      handleSyncTakeatFiscal(forceApply);
     } finally {
       setTakeatCashierLoading(false);
     }
   };
 
-  // Auto-sincroniza o caixa ao abrir um novo fechamento (não edição)
+  // Auto-sincroniza o caixa e emissões fiscais ao abrir um novo fechamento (não edição)
   useEffect(() => {
     if (!initialClosing && unit && unit !== "all" && unit !== "central" && date) {
       handleSyncTakeatCashier(false);
