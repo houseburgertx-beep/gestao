@@ -1,0 +1,42 @@
+{
+  "components/cash/CashWorkspace.tsx -> @/services/payablesBackupService": {
+    "id": 62546,
+    "files": [
+      "static/chunks/2546.df4074917a561d3a.js"
+    ]
+  },
+  "components/cash/CashWorkspace.tsx -> firebase/firestore": {
+    "id": 16534,
+    "files": []
+  },
+  "components/finance/BankWorkspace.tsx -> @/services/driveService": {
+    "id": 71861,
+    "files": []
+  },
+  "contexts/AuthContext.tsx -> firebase/auth": {
+    "id": 49951,
+    "files": []
+  },
+  "services/documentTextReader.ts -> pdfjs-dist": {
+    "id": 66309,
+    "files": [
+      "static/chunks/75666b8d.4f572b954d05ec2e.js"
+    ]
+  },
+  "services/documentTextReader.ts -> tesseract.js": {
+    "id": 282,
+    "files": [
+      "static/chunks/282.6816d4f2ef85ee85.js"
+    ]
+  },
+  "services/managementService.ts -> @/services/sheetsBackupService": {
+    "id": 23582,
+    "files": [
+      "static/chunks/3582.f34192cd7006796b.js"
+    ]
+  },
+  "services/sheetsBackupService.ts -> ../lib/firebase": {
+    "id": 41182,
+    "files": []
+  }
+}
