@@ -2024,21 +2024,21 @@ function ClosingModal({
           {/* STEP 1: FECHAMENTO LADO A LADO (SPLIT-SCREEN + CARDS COLORIDOS) */}
           {activeStep === 1 && (
             <div className="space-y-4">
-              {/* Takeat PDV Integration Card - Balanced & Elegant */}
+              {/* Takeat PDV Integration Card - Mobile First & Responsive */}
               <div className="rounded-xl border border-indigo-100 dark:border-indigo-950/60 bg-gradient-to-r from-indigo-50/40 via-white to-purple-50/20 dark:from-zinc-900 dark:via-zinc-900 dark:to-indigo-950/20 p-3 sm:p-3.5 shadow-xs transition-all">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                  {/* Left: Brand + Status */}
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                      <Receipt size={17} className="text-white" />
+                {/* Header Row: Identity + Live Badge + Action Button */}
+                <div className="flex items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                      <Receipt size={16} className="text-white" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100 tracking-tight">
                           PDV Takeat
                         </span>
                         {takeatCashierData ? (
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                             takeatCashierData.isOpen
                               ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
                               : "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700"
@@ -2049,10 +2049,10 @@ function ClosingModal({
                               )}
                               <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${takeatCashierData.isOpen ? "bg-emerald-500" : "bg-zinc-400"}`}></span>
                             </span>
-                            {takeatCashierData.isOpen ? "Turno Aberto (Ao Vivo)" : "Turno Fechado"}
+                            <span>{takeatCashierData.isOpen ? "Ao Vivo" : "Fechado"}</span>
                           </span>
                         ) : takeatCashierLoading ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 animate-pulse border border-indigo-200 dark:border-indigo-800">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 animate-pulse border border-indigo-200 dark:border-indigo-800">
                             Consultando Takeat...
                           </span>
                         ) : null}
@@ -2060,66 +2060,64 @@ function ClosingModal({
 
                       {/* Subtitle / Details */}
                       {takeatCashierData ? (
-                        <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 flex-wrap">
-                          <span>Caixa #{takeatCashierData.cashierOpeningId}</span>
-                          {takeatCashierData.openedAtFormatted && (
-                            <>
-                              <span>·</span>
-                              <span>Aberto {takeatCashierData.openedAtFormatted}{takeatCashierData.operatorOpen ? ` (${takeatCashierData.operatorOpen})` : ""}</span>
-                            </>
-                          )}
-                          {takeatCashierData.closedAtFormatted && (
-                            <>
-                              <span>·</span>
-                              <span>Fechado {takeatCashierData.closedAtFormatted}{takeatCashierData.operatorClose ? ` (${takeatCashierData.operatorClose})` : ""}</span>
-                            </>
-                          )}
-                        </div>
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
+                          Caixa #{takeatCashierData.cashierOpeningId} · Aberto {takeatCashierData.openedAtFormatted || "—"}{takeatCashierData.operatorOpen ? ` (${takeatCashierData.operatorOpen})` : ""}
+                        </p>
                       ) : (
-                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        <p className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate mt-0.5">
                           {takeatCashierError ? (
                             <span className="text-rose-600 font-medium">{takeatCashierError}</span>
                           ) : (
-                            "Sincronização automática de vendas, cartões, PIX e gaveta"
+                            "Sincronização em tempo real de vendas e gaveta"
                           )}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  {/* Right: Metrics Chips + Action Button */}
-                  <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
-                    {takeatCashierData && (
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <div className="px-2.5 py-1 rounded-lg bg-white/90 dark:bg-zinc-800/90 border border-zinc-200/80 dark:border-zinc-700/80 text-right shadow-2xs">
-                          <div className="text-[9px] uppercase tracking-wider text-zinc-400 font-bold">Vendas PDV</div>
-                          <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100">{brl(takeatCashierData.mapped.totalVendas * 100)}</div>
+                  {/* Sync Button */}
+                  <button
+                    type="button"
+                    disabled={takeatCashierLoading || !unit || unit === "all"}
+                    onClick={() => handleSyncTakeatCashier(true)}
+                    className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 border border-indigo-200/80 dark:border-indigo-800 rounded-lg transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs shrink-0"
+                    title="Sincronizar dados do PDV Takeat"
+                  >
+                    <RotateCcw size={12} className={takeatCashierLoading ? "animate-spin text-indigo-600" : "text-indigo-600 dark:text-indigo-400"} />
+                    <span className="hidden xs:inline sm:inline">{takeatCashierLoading ? "Sincronizando..." : takeatCashierData ? "Atualizar PDV" : "Puxar Caixa"}</span>
+                    <span className="xs:hidden sm:hidden">{takeatCashierLoading ? "..." : "Atualizar"}</span>
+                  </button>
+                </div>
+
+                {/* Metrics Grid Row: Full-width responsive columns */}
+                {takeatCashierData && (
+                  <div className={`grid gap-2 mt-2.5 pt-2.5 border-t border-indigo-100/70 dark:border-indigo-950/50 ${
+                    takeatCashierData.mapped.sangriaAmount > 0 ? "grid-cols-3" : "grid-cols-2"
+                  }`}>
+                    <div className="px-3 py-1.5 rounded-lg bg-white/95 dark:bg-zinc-800/90 border border-zinc-200/80 dark:border-zinc-700/80 shadow-2xs">
+                      <div className="text-[9px] uppercase tracking-wider text-zinc-400 font-bold">Vendas PDV</div>
+                      <div className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                        {brl(takeatCashierData.mapped.totalVendas * 100)}
+                      </div>
+                    </div>
+
+                    <div className="px-3 py-1.5 rounded-lg bg-white/95 dark:bg-zinc-800/90 border border-zinc-200/80 dark:border-zinc-700/80 shadow-2xs">
+                      <div className="text-[9px] uppercase tracking-wider text-zinc-400 font-bold">Fundo Inicial</div>
+                      <div className="text-xs sm:text-sm font-bold text-zinc-800 dark:text-zinc-200 truncate">
+                        {brl(takeatCashierData.mapped.openingAmount * 100)}
+                      </div>
+                    </div>
+
+                    {takeatCashierData.mapped.sangriaAmount > 0 && (
+                      <div className="px-3 py-1.5 rounded-lg bg-white/95 dark:bg-zinc-800/90 border border-zinc-200/80 dark:border-zinc-700/80 shadow-2xs">
+                        <div className="text-[9px] uppercase tracking-wider text-zinc-400 font-bold">Sangria</div>
+                        <div className="text-xs sm:text-sm font-bold text-rose-600 dark:text-rose-400 truncate">
+                          {brl(takeatCashierData.mapped.sangriaAmount * 100)}
                         </div>
-                        <div className="px-2.5 py-1 rounded-lg bg-white/90 dark:bg-zinc-800/90 border border-zinc-200/80 dark:border-zinc-700/80 text-right shadow-2xs">
-                          <div className="text-[9px] uppercase tracking-wider text-zinc-400 font-bold">Fundo</div>
-                          <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">{brl(takeatCashierData.mapped.openingAmount * 100)}</div>
-                        </div>
-                        {takeatCashierData.mapped.sangriaAmount > 0 && (
-                          <div className="px-2.5 py-1 rounded-lg bg-white/90 dark:bg-zinc-800/90 border border-zinc-200/80 dark:border-zinc-700/80 text-right shadow-2xs">
-                            <div className="text-[9px] uppercase tracking-wider text-zinc-400 font-bold">Sangria</div>
-                            <div className="text-xs font-semibold text-rose-600 dark:text-rose-400">{brl(takeatCashierData.mapped.sangriaAmount * 100)}</div>
-                          </div>
-                        )}
                       </div>
                     )}
-
-                    <button
-                      type="button"
-                      disabled={takeatCashierLoading || !unit || unit === "all"}
-                      onClick={() => handleSyncTakeatCashier(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800 rounded-lg transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs shrink-0"
-                      title="Sincronizar dados do PDV Takeat"
-                    >
-                      <RotateCcw size={12} className={takeatCashierLoading ? "animate-spin text-indigo-600" : "text-indigo-600 dark:text-indigo-400"} />
-                      <span>{takeatCashierLoading ? "Sincronizando..." : takeatCashierData ? "Atualizar PDV" : "Puxar Caixa"}</span>
-                    </button>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="closing-split-grid">
