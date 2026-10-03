@@ -33,10 +33,6 @@ export function IfoodWorkspace() {
   const activeUnitId: IfoodUnitId =
     currentUnit === "all" ? "teixeira" : (currentUnit as IfoodUnitId);
 
-  const [activeTab, setActiveTab] = useState<
-    "auth" | "merchant" | "orders" | "financial" | "catalog" | "shipping" | "reviews" | "explorer"
-  >("orders");
-
   const [credentials, setCredentials] = useState<IfoodCredentials>(() =>
     loadIfoodCredentials(activeUnitId)
   );
@@ -44,6 +40,12 @@ export function IfoodWorkspace() {
   const [tokenState, setTokenState] = useState<IfoodTokenState>(() =>
     IfoodService.getTokenState(activeUnitId)
   );
+
+  const isConnected = tokenState.status === "connected" && Boolean(credentials.isConfigured);
+
+  const [activeTab, setActiveTab] = useState<
+    "auth" | "merchant" | "orders" | "financial" | "catalog" | "shipping" | "reviews" | "explorer"
+  >(() => (credentials.isConfigured ? "orders" : "auth"));
 
   useEffect(() => {
     setCredentials(loadIfoodCredentials(activeUnitId));
@@ -75,8 +77,6 @@ const TABS: TabItem[] = [
   { id: "auth", label: "Conexão & OAuth", icon: ShieldCheck },
   { id: "explorer", label: "API Explorer", icon: Terminal },
 ];
-
-  const isConnected = tokenState.status === "connected";
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-20">
@@ -130,6 +130,24 @@ const TABS: TabItem[] = [
           </div>
         </div>
       </div>
+
+      {/* Alert se não configurado */}
+      {!isConnected && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3 text-xs text-amber-800 dark:text-amber-300">
+          <AlertCircle className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+          <div className="flex-1 space-y-1">
+            <span className="font-bold text-sm block text-amber-900 dark:text-amber-200">
+              Modo Demonstração Ativo (Dados Fictícios)
+            </span>
+            <p className="text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+              Como as chaves oficiais da sua loja do iFood (Client ID e Client Secret) ainda não foram informadas, o sistema está exibindo produtos, pedidos e faturamento fictícios de exemplo.
+            </p>
+            <p className="text-[11px] font-semibold text-amber-900 dark:text-amber-100 pt-0.5">
+              👉 Para carregar o cardápio real da sua loja, pedidos ao vivo e faturamento oficial, insira as chaves na aba <strong>Conexão & OAuth</strong> ou me envie aqui no chat!
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Tabs Navigation */}
       <div className="border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-1 overflow-x-auto pb-px">
