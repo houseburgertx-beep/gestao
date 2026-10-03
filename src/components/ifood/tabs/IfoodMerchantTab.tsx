@@ -34,7 +34,7 @@ export function IfoodMerchantTab({ unitId, credentials }: Props) {
     try {
       const data = await IfoodService.getMerchantDetails(unitId, merchantId);
       setMerchant(data);
-      if (data.preparationTimeMinutes) {
+      if (data?.preparationTimeMinutes) {
         setPrepTime(data.preparationTimeMinutes);
       }
     } catch (err) {
@@ -105,7 +105,7 @@ export function IfoodMerchantTab({ unitId, credentials }: Props) {
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-base">
-                  {merchant?.name || "Carregando Loja..."}
+                  {merchant?.name || "Loja iFood Não Conectada"}
                 </h3>
                 <span
                   className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
@@ -113,19 +113,19 @@ export function IfoodMerchantTab({ unitId, credentials }: Props) {
                       ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
                       : merchant?.status === "PAUSED"
                       ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                      : "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                      : "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"
                   }`}
                 >
                   {merchant?.status === "AVAILABLE"
                     ? "Aberta / Recebendo Pedidos"
                     : merchant?.status === "PAUSED"
                     ? "Pausada Temporariamente"
-                    : "Fechada"}
+                    : merchant ? "Fechada" : "Desconectada"}
                 </span>
               </div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 mt-1">
                 <MapPin className="w-3.5 h-3.5" />
-                {merchant?.address?.formattedAddress || "Endereço não configurado"}
+                {merchant?.address?.formattedAddress || "Conecte sua conta do iFood para carregar os dados reais da sua unidade."}
               </p>
             </div>
           </div>
