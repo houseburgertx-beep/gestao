@@ -2036,8 +2036,12 @@ function ClosingModal({
                         Integração PDV Takeat
                       </span>
                       {takeatCashierData ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
-                          ✓ Caixa #{takeatCashierData.cashierOpeningId} (Aberto {takeatCashierData.openedAtFormatted || "—"}{takeatCashierData.operatorOpen ? ` por ${takeatCashierData.operatorOpen}` : ""})
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          takeatCashierData.isOpen
+                            ? "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-700"
+                            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700"
+                        }`}>
+                          {takeatCashierData.isOpen ? "🔴 Caixa Aberto (Tempo Real)" : "✓ Caixa Fechado"} #{takeatCashierData.cashierOpeningId} (Aberto {takeatCashierData.openedAtFormatted || "—"}{takeatCashierData.operatorOpen ? ` por ${takeatCashierData.operatorOpen}` : ""})
                         </span>
                       ) : takeatCashierLoading ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 animate-pulse">
@@ -2050,12 +2054,16 @@ function ClosingModal({
                         <span className="text-rose-600 font-medium">{takeatCashierError}</span>
                       ) : takeatCashierData ? (
                         <span>
-                          Vendas PDV: <b>{brl(takeatCashierData.mapped.totalVendas * 100)}</b> · Fundo: <b>{brl(takeatCashierData.mapped.openingAmount * 100)}</b> · Sangria: <b>{brl(takeatCashierData.mapped.sangriaAmount * 100)}</b>
-                          {takeatCashierData.closedAtFormatted && (
+                          {takeatCashierData.isOpen ? "Vendas até agora: " : "Vendas PDV: "}<b>{brl(takeatCashierData.mapped.totalVendas * 100)}</b> · Fundo: <b>{brl(takeatCashierData.mapped.openingAmount * 100)}</b> · Sangria: <b>{brl(takeatCashierData.mapped.sangriaAmount * 100)}</b>
+                          {takeatCashierData.isOpen ? (
+                            <span className="text-amber-700 dark:text-amber-300 font-semibold text-[10px] ml-1.5">
+                              (Turno em andamento)
+                            </span>
+                          ) : takeatCashierData.closedAtFormatted ? (
                             <span className="text-zinc-500 text-[10px] ml-1.5">
                               (Fechado {takeatCashierData.closedAtFormatted}{takeatCashierData.operatorClose ? ` por ${takeatCashierData.operatorClose}` : ""})
                             </span>
-                          )}
+                          ) : null}
                         </span>
                       ) : (
                         "Importe automaticamente vendas, dinheiro, cartões, PIX, iFood e sangrias direto do caixa Takeat."

@@ -1426,24 +1426,22 @@ export async function fetchTakeatCashierSummary(
     chosenAudit = auditList.find(a => getBahiaDay(a.closed_at) === dateStr);
   }
 
-  // Se a data solicitada for hoje (no fuso de Brasília/Bahia) e houver caixa aberto agora
+  // Se a data solicitada for HOJE e houver caixa aberto agora no PDV Takeat:
+  // SEMPRE puxa os dados ATUAIS em TEMPO REAL do caixa aberto (/summary/null).
   if (dateStr === todayBahia && isOpen && openingId) {
-    // Se não há caixa auditado para hoje, ou se o usuário está conferindo o turno ativo aberto hoje
-    if (!chosenAudit) {
-      summaryData = await doFetch("/restaurants/cashier-opening-event/summary/null");
-      isOpen = true;
-    } else {
-      // Já existe um turno fechado de hoje (ex: almoço já auditado), usa o fechado
-      summaryData = await doFetch(
-        `/restaurants/cashier-opening-event/summary/${chosenAudit.cashier_opening_id}`
-      );
-      isOpen = false;
-    }
+    summaryData = await doFetch("/restaurants/cashier-opening-event/summary/null");
+    isOpen = true;
   } else if (chosenAudit) {
+    // Para datas anteriores ou quando o caixa já foi fechado:
+    // busca os dados oficiais do caixa fechado
     summaryData = await doFetch(
       `/restaurants/cashier-opening-event/summary/${chosenAudit.cashier_opening_id}`
     );
     isOpen = false;
+  } else if (isOpen && openingId) {
+    // Fallback: se houver caixa aberto agora, usa ele
+    summaryData = await doFetch("/restaurants/cashier-opening-event/summary/null");
+    isOpen = true;
   } else {
     throw new Error(
       `Nenhum caixa do Takeat encontrado que abriu ou operou na data ${dateStr} para "${unitId}".`
