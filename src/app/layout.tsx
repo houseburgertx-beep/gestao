@@ -215,6 +215,10 @@ export default function RootLayout({
       <head>
         <title>HOUSE 190 — Painel de Gestão Integrada</title>
         <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+        />
+        <meta
           name="description"
           content="Central de comando empresarial e gestão integrada da House 190"
         />
