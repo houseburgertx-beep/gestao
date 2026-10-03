@@ -1365,7 +1365,20 @@ function ClosingModal({
       // Etapa 1 (coluna Balcão): Fundo de caixa, Suprimentos, Sangria
       if (shouldFill(openingAmount))  setOpeningAmount(toMoneyInput(Math.round(mapped.openingAmount * 100)));
       if (shouldFill(cashIn))         setCashIn(toMoneyInput(Math.round(mapped.cashIn * 100)));
-      if (shouldFill(sangriaAmount))  setSangriaAmount(toMoneyInput(Math.round(mapped.sangriaAmount * 100)));
+      if (shouldFill(sangriaAmount))  setSangriaAmount(mapped.sangriaAmount > 0 ? toMoneyInput(Math.round(mapped.sangriaAmount * 100)) : "");
+
+      // Saídas da Gaveta (despesas pagas em dinheiro no turno: motoboy, freelancer, suprimentos/compras)
+      if (mapped.outflows && mapped.outflows.length > 0) {
+        const canFillOutflows = forceApply || outflows.length === 0 || outflows.every(o => !o.name.trim() && (!o.amount || Number(o.amount) === 0));
+        if (canFillOutflows) {
+          setOutflows(mapped.outflows.map(o => ({
+            id: safeUUID(),
+            name: o.name,
+            amount: o.amount.toFixed(2),
+          })));
+          setShowOutflowsAccordion(true);
+        }
+      }
 
       // Sincroniza simultaneamente a emissão de notas fiscais vinculada ao intervalo deste caixa
       handleSyncTakeatFiscal(forceApply, {
@@ -2117,7 +2130,11 @@ function ClosingModal({
                 {/* Metrics Grid Row: Full-width responsive columns */}
                 {takeatCashierData && (
                   <div className={`grid gap-2 mt-2.5 pt-2.5 border-t border-indigo-100/70 dark:border-indigo-950/50 ${
-                    takeatCashierData.mapped.sangriaAmount > 0 ? "grid-cols-3" : "grid-cols-2"
+                    takeatCashierData.mapped.totalOutflows > 0 && takeatCashierData.mapped.sangriaAmount > 0
+                      ? "grid-cols-2 sm:grid-cols-4"
+                      : takeatCashierData.mapped.totalOutflows > 0 || takeatCashierData.mapped.sangriaAmount > 0
+                      ? "grid-cols-3"
+                      : "grid-cols-2"
                   }`}>
                     <div className="px-3 py-1.5 rounded-lg bg-white/95 dark:bg-zinc-800/90 border border-zinc-200/80 dark:border-zinc-700/80 shadow-2xs">
                       <div className="text-[9px] uppercase tracking-wider text-zinc-400 font-bold">Vendas PDV</div>
@@ -2132,6 +2149,17 @@ function ClosingModal({
                         {brl(takeatCashierData.mapped.openingAmount * 100)}
                       </div>
                     </div>
+
+                    {takeatCashierData.mapped.totalOutflows > 0 && (
+                      <div className="px-3 py-1.5 rounded-lg bg-white/95 dark:bg-zinc-800/90 border border-amber-200/80 dark:border-amber-700/80 shadow-2xs">
+                        <div className="text-[9px] uppercase tracking-wider text-amber-600 dark:text-amber-400 font-bold">
+                          Saídas ({takeatCashierData.mapped.outflows.length})
+                        </div>
+                        <div className="text-xs sm:text-sm font-bold text-amber-700 dark:text-amber-300 truncate">
+                          {brl(takeatCashierData.mapped.totalOutflows * 100)}
+                        </div>
+                      </div>
+                    )}
 
                     {takeatCashierData.mapped.sangriaAmount > 0 && (
                       <div className="px-3 py-1.5 rounded-lg bg-white/95 dark:bg-zinc-800/90 border border-zinc-200/80 dark:border-zinc-700/80 shadow-2xs">
@@ -2471,13 +2499,32 @@ function ClosingModal({
                         <div className="modern-collapsible-body">
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] text-zinc-400">Despesas pagas em espécie</span>
-                            <button
-                              type="button"
-                              className="cash-add text-xs py-1 px-2.5"
-                              onClick={() => setOutflows(rows => [...rows, { id: safeUUID(), name: "", amount: "" }])}
-                            >
-                              + Adicionar saída
-                            </button>
+                            <div className="flex items-center gap-2">
+                              {takeatCashierData?.mapped?.outflows && takeatCashierData.mapped.outflows.length > 0 && (
+                                <button
+                                  type="button"
+                                  className="text-xs py-1 px-2.5 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg font-medium transition"
+                                  onClick={() => {
+                                    setOutflows(takeatCashierData.mapped.outflows.map(o => ({
+                                      id: safeUUID(),
+                                      name: o.name,
+                                      amount: o.amount.toFixed(2),
+                                    })));
+                                    setShowOutflowsAccordion(true);
+                                  }}
+                                  title="Recarregar despesas identificadas no caixa Takeat"
+                                >
+                                  Puxar do Takeat ({takeatCashierData.mapped.outflows.length})
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="cash-add text-xs py-1 px-2.5"
+                                onClick={() => setOutflows(rows => [...rows, { id: safeUUID(), name: "", amount: "" }])}
+                              >
+                                + Adicionar saída
+                              </button>
+                            </div>
                           </div>
                           {outflows.length > 0 ? (
                             outflows.map((row, idx) => (

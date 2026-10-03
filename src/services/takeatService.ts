@@ -14,6 +14,7 @@ import {
   TakeatCashierPayment,
   TakeatCashierOpening,
   TakeatCashierTotals,
+  TakeatCashierOutflowItem,
 } from "@/types/takeat";
 export type {
   BrandId,
@@ -21,6 +22,7 @@ export type {
   TakeatFiscalIssuedItem,
   TakeatCashierSummary,
   TakeatCashierAuditItem,
+  TakeatCashierOutflowItem,
 };
 import { UnitId } from "@/types";
 import { getDefaultTakeatCredentials } from "@/config/takeatCredentials";
@@ -1549,6 +1551,8 @@ export async function fetchTakeatCashierSummary(
     systemServiceFee: 0,
     cashIn: 0,
     sangriaAmount: 0,
+    totalOutflows: 0,
+    outflows: [],
     totalVendas: parseBRLNumber(totals.automatic_deposit),
   };
 
@@ -1569,17 +1573,40 @@ export async function fetchTakeatCashierSummary(
     mapped.cashIn = Math.round((mapped.cashIn + val) * 100) / 100;
   }
 
-  // Sangrias (retiradas manuais de dinheiro)
-  for (const wit of manualWithdrawals) {
-    const val = parseBRLNumber(wit.value);
-    mapped.sangriaAmount = Math.round((mapped.sangriaAmount + val) * 100) / 100;
+  // Helper para verificar se a retirada manual foi explicitamente uma sangria de transferência para cofre/banco
+  function isExplicitSangria(description?: string): boolean {
+    if (!description) return false;
+    const desc = description.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    // Apenas se for explicitamente sangria ou recolhimento para cofre/malote/banco
+    const sangriaKeywords = ["sangria", "cofre", "malote", "deposito", "recolhimento"];
+    return sangriaKeywords.some((k) => desc.includes(k));
   }
 
-  // Totais consolidados oficiais do Takeat
-  const officialWithdrawal = parseBRLNumber(totals.manual_withdrawal);
-  if (officialWithdrawal > 0) {
-    mapped.sangriaAmount = officialWithdrawal;
+  // Processa retiradas manuais da gaveta separando em Sangria legítima vs Saídas (despesas pagas em dinheiro vivo)
+  const outflowsList: TakeatCashierOutflowItem[] = [];
+  let explicitSangriaTotal = 0;
+  let outflowsTotal = 0;
+
+  for (const wit of manualWithdrawals) {
+    const val = parseBRLNumber(wit.value);
+    if (val <= 0) continue;
+    const rawDesc = String(wit.description || "").trim();
+
+    if (isExplicitSangria(rawDesc)) {
+      explicitSangriaTotal = Math.round((explicitSangriaTotal + val) * 100) / 100;
+    } else {
+      outflowsTotal = Math.round((outflowsTotal + val) * 100) / 100;
+      outflowsList.push({
+        id: wit.id ? String(wit.id) : undefined,
+        name: rawDesc || "Saída da Gaveta",
+        amount: val,
+      });
+    }
   }
+
+  mapped.sangriaAmount = explicitSangriaTotal;
+  mapped.totalOutflows = outflowsTotal;
+  mapped.outflows = outflowsList;
 
   const officialDeposit = parseBRLNumber(totals.manual_deposit);
   if (officialDeposit > 0) {

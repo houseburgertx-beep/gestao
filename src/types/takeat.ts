@@ -142,6 +142,7 @@ export interface TakeatFiscalIssuedSummary {
 
 /** Cada linha de automatic_deposits, manual_deposits ou manual_withdrawals */
 export interface TakeatCashierPayment {
+  id?: number | string;
   description: string;       // "Dinheiro", "CARTAO DE CREDITO", "PIX", etc.
   value: number;
   payment_method_id: number;
@@ -195,6 +196,12 @@ export interface TakeatCashierAuditItem {
  * Inclui os dados brutos da API e os campos `mapped` já calculados
  * para preencher diretamente os inputs do formulário de fechamento.
  */
+export interface TakeatCashierOutflowItem {
+  id?: string;
+  name: string;
+  amount: number;
+}
+
 export interface TakeatCashierSummary {
   unitId: Exclude<UnitId, "all">;
   date: string; // YYYY-MM-DD (dia do fechamento buscado)
@@ -203,7 +210,7 @@ export interface TakeatCashierSummary {
   totals: TakeatCashierTotals;
   payments: TakeatCashierPayment[];        // automatic_deposits
   manualDeposits: TakeatCashierPayment[];  // suprimentos
-  manualWithdrawals: TakeatCashierPayment[]; // sangrias
+  manualWithdrawals: TakeatCashierPayment[]; // retiradas brutas registradas no PDV
   /** Campos mapeados prontos para setar diretamente nos inputs (em reais, float) */
   mapped: {
     openingAmount: number;
@@ -217,7 +224,9 @@ export interface TakeatCashierSummary {
     systemClub: number;
     systemServiceFee: number;
     cashIn: number;        // total suprimentos (entradas manuais)
-    sangriaAmount: number; // total sangrias (retiradas manuais)
+    sangriaAmount: number; // sangria legítima (envio cofre/banco/malote)
+    totalOutflows: number; // total de saídas da gaveta (despesas operacionais)
+    outflows: TakeatCashierOutflowItem[]; // lista de saídas com nome e valor
     totalVendas: number;   // total automatic_deposit
   };
   operatorOpen?: string;
