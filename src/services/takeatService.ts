@@ -1483,30 +1483,39 @@ export async function fetchTakeatCashierSummary(
   for (const deposit of automaticDeposits) {
     const field = mapPaymentDescription(deposit.description);
     if (field && field in mapped) {
+      const val = parseBRLNumber(deposit.value);
       (mapped as any)[field] = Math.round(
-        (((mapped as any)[field] as number) + (deposit.value || 0)) * 100
+        (((mapped as any)[field] as number) + val) * 100
       ) / 100;
     }
   }
 
   // Suprimentos (entradas manuais de dinheiro)
   for (const dep of manualDeposits) {
-    mapped.cashIn = Math.round((mapped.cashIn + (dep.value || 0)) * 100) / 100;
+    const val = parseBRLNumber(dep.value);
+    mapped.cashIn = Math.round((mapped.cashIn + val) * 100) / 100;
   }
 
   // Sangrias (retiradas manuais de dinheiro)
   for (const wit of manualWithdrawals) {
-    mapped.sangriaAmount = Math.round((mapped.sangriaAmount + (wit.value || 0)) * 100) / 100;
+    const val = parseBRLNumber(wit.value);
+    mapped.sangriaAmount = Math.round((mapped.sangriaAmount + val) * 100) / 100;
   }
 
-  // Fallback: se total mapeado de sangrias está zerado mas totals.manual_withdrawal tem valor
-  if (mapped.sangriaAmount === 0 && parseBRLNumber(totals.manual_withdrawal) > 0) {
-    mapped.sangriaAmount = parseBRLNumber(totals.manual_withdrawal);
+  // Totais consolidados oficiais do Takeat
+  const officialWithdrawal = parseBRLNumber(totals.manual_withdrawal);
+  if (officialWithdrawal > 0) {
+    mapped.sangriaAmount = officialWithdrawal;
   }
 
-  // Fallback: se suprimentos zerado mas totals.manual_deposit tem valor
-  if (mapped.cashIn === 0 && parseBRLNumber(totals.manual_deposit) > 0) {
-    mapped.cashIn = parseBRLNumber(totals.manual_deposit);
+  const officialDeposit = parseBRLNumber(totals.manual_deposit);
+  if (officialDeposit > 0) {
+    mapped.cashIn = officialDeposit;
+  }
+
+  const officialSales = parseBRLNumber(totals.automatic_deposit);
+  if (officialSales > 0) {
+    mapped.totalVendas = officialSales;
   }
 
   return {

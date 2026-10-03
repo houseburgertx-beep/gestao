@@ -2049,7 +2049,7 @@ function ClosingModal({
                       {takeatCashierError ? (
                         <span className="text-rose-600 font-medium">{takeatCashierError}</span>
                       ) : takeatCashierData ? (
-                        <span>Total Vendas: <b>{brl(takeatCashierData.mapped.totalVendas)}</b> · Fundo: <b>{brl(takeatCashierData.mapped.openingAmount)}</b> · Sangria: <b>{brl(takeatCashierData.mapped.sangriaAmount)}</b></span>
+                        <span>Total Vendas: <b>{brl(takeatCashierData.mapped.totalVendas * 100)}</b> · Fundo: <b>{brl(takeatCashierData.mapped.openingAmount * 100)}</b> · Sangria: <b>{brl(takeatCashierData.mapped.sangriaAmount * 100)}</b></span>
                       ) : (
                         "Importe automaticamente vendas, dinheiro, cartões, PIX, iFood e sangrias direto do caixa Takeat."
                       )}
