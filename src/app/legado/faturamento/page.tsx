@@ -566,18 +566,18 @@ export default function FaturamentoPage() {
 
   return (
     <div className="space-y-6 max-w-full overflow-x-hidden">
-      {/* Header Executivo & Clean */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-zinc-200/70 pb-4 dark:border-zinc-800">
+      {/* 1. Header Executivo & Minimalista */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-zinc-200/70 pb-5 dark:border-zinc-800">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
               Vendas & Faturamento
             </h1>
             <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
                 isCurrentConnected
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800/40"
-                  : "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800/40"
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60"
+                  : "bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60"
               }`}
             >
               <span
@@ -585,13 +585,13 @@ export default function FaturamentoPage() {
                   isCurrentConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
                 }`}
               />
-              {isCurrentConnected ? "Takeat Integrada" : "Takeat Pendente"}
+              {isCurrentConnected ? "Takeat Conectada" : "Takeat Pendente"}
             </span>
           </div>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
             {isScopedStoreUser
-              ? `Vendas oficiais apuradas da unidade ${UNIT_LABELS[activeStoreTab] || activeStoreTab} no PDV Takeat`
-              : "Vendas oficiais apuradas por loja individual e marcas no PDV Takeat"}
+              ? `Vendas apuradas da unidade ${UNIT_LABELS[activeStoreTab] || activeStoreTab} no PDV Takeat`
+              : "Visão consolidada e por unidade com faturamento oficial auditado no Takeat"}
           </p>
         </div>
 
@@ -602,7 +602,7 @@ export default function FaturamentoPage() {
             <button
               type="button"
               onClick={() => setViewMode("daily")}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
                 viewMode === "daily"
                   ? "bg-white text-zinc-900 shadow-2xs dark:bg-zinc-800 dark:text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
@@ -613,7 +613,7 @@ export default function FaturamentoPage() {
             <button
               type="button"
               onClick={() => setViewMode("monthly")}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
                 viewMode === "monthly"
                   ? "bg-white text-zinc-900 shadow-2xs dark:bg-zinc-800 dark:text-zinc-100"
                   : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
@@ -623,7 +623,7 @@ export default function FaturamentoPage() {
             </button>
           </div>
 
-          {/* Seletores de Data Minimalistas */}
+          {/* Seletores de Data */}
           {viewMode === "daily" ? (
             <div className="flex items-center gap-1 bg-white border border-zinc-200 rounded-lg p-1 dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
               <button
@@ -688,7 +688,7 @@ export default function FaturamentoPage() {
             </div>
           )}
 
-          {/* Botão de Sincronizar Vendas */}
+          {/* Sincronizar */}
           <Button
             size="sm"
             onClick={() => handleSyncTakeat()}
@@ -700,7 +700,7 @@ export default function FaturamentoPage() {
             <span>{viewMode === "monthly" ? "Sincronizar Mês" : "Sincronizar Dia"}</span>
           </Button>
 
-          {/* Botão de Configurações (apenas Administrador e Financeiro) */}
+          {/* Configurações */}
           {isFinanceOrAdmin && (
             <Button
               variant="outline"
@@ -715,145 +715,103 @@ export default function FaturamentoPage() {
         </div>
       </div>
 
-      {/* 1. SELETOR DE LOJAS INDIVIDUAIS (APENAS DIRETORIA E FINANCEIRO) */}
+      {/* 2. Barra de Seleção de Loja e Marca (Unificada e Limpa) */}
       {!isScopedStoreUser && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-zinc-200/60 dark:border-zinc-800">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveStoreTab("teixeira");
-              setSelectedBrandView("consolidated");
-              setCurrentUnit("teixeira");
-            }}
-            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ${
-              activeStoreTab === "teixeira"
-                ? "bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900"
-                : "bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200/80 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800"
-            }`}
-          >
-            <Building2 className="h-4 w-4" />
-            <span>House 190 Teixeira (TX)</span>
-            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-white/20 dark:bg-zinc-800">
-              {formatCurrency(storeData.teixeira.consolidated.totalRevenue)}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveStoreTab("eunapolis");
-              setSelectedBrandView("consolidated");
-              setCurrentUnit("eunapolis");
-            }}
-            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ${
-              activeStoreTab === "eunapolis"
-                ? "bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900"
-                : "bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200/80 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800"
-            }`}
-          >
-            <Building2 className="h-4 w-4" />
-            <span>House 190 Eunápolis</span>
-            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-white/20 dark:bg-zinc-800">
-              {formatCurrency(storeData.eunapolis.consolidated.totalRevenue)}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveStoreTab("foodpark");
-              setCurrentUnit("foodpark");
-            }}
-            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ${
-              activeStoreTab === "foodpark"
-                ? "bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900"
-                : "bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200/80 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800"
-            }`}
-          >
-            <Store className="h-4 w-4" />
-            <span>House Foodpark</span>
-            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-white/20 dark:bg-zinc-800">
-              {formatCurrency(storeData.foodpark.totalRevenue)}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveStoreTab("all");
-              setCurrentUnit("all");
-            }}
-            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ml-auto ${
-              activeStoreTab === "all"
-                ? "bg-violet-600 text-white shadow-sm"
-                : "bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200/80 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-800"
-            }`}
-          >
-            <Layers className="h-4 w-4" />
-            <span>Todas as Lojas (Consolidado)</span>
-          </button>
-        </div>
-      )}
-
-      {/* 2. SUB-ABAS DE MARCA (APENAS PARA TEIXEIRA OU EUNÁPOLIS) */}
-      {(activeStoreTab === "teixeira" || activeStoreTab === "eunapolis") && (
-        <div className="bg-zinc-50 dark:bg-zinc-900/60 p-3 rounded-xl border border-zinc-200/80 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 mr-1">
-              Visualizar em {activeStoreTab === "teixeira" ? "Teixeira" : "Eunápolis"}:
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedBrandView("consolidated")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                selectedBrandView === "consolidated"
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs"
-                  : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 border border-zinc-200 dark:border-zinc-700"
-              }`}
-            >
-              <span>📋 Consolidado (House + Bruttus)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedBrandView("house")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                selectedBrandView === "house"
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs"
-                  : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 border border-zinc-200 dark:border-zinc-700"
-              }`}
-            >
-              <span>🏠 House 190</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedBrandView("bruttus")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                selectedBrandView === "bruttus"
-                  ? "bg-amber-600 text-white shadow-2xs"
-                  : "bg-white dark:bg-zinc-800 text-amber-700 dark:text-amber-400 hover:bg-amber-50 border border-amber-200 dark:border-amber-800/60"
-              }`}
-            >
-              <span>🍔 Bruttus Burger</span>
-            </button>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-zinc-50/70 p-2.5 rounded-xl border border-zinc-200/80 dark:bg-zinc-900/40 dark:border-zinc-800">
+          {/* Lojas */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            {[
+              { id: "teixeira", label: "House 190 Teixeira", total: storeData.teixeira.consolidated.totalRevenue },
+              { id: "eunapolis", label: "House 190 Eunápolis", total: storeData.eunapolis.consolidated.totalRevenue },
+              { id: "foodpark", label: "Foodpark", total: storeData.foodpark.totalRevenue },
+              {
+                id: "all",
+                label: "Todas as Lojas",
+                total:
+                  storeData.teixeira.consolidated.totalRevenue +
+                  storeData.eunapolis.consolidated.totalRevenue +
+                  storeData.foodpark.totalRevenue,
+              },
+            ].map((tab) => {
+              const isActive = activeStoreTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveStoreTab(tab.id as any);
+                    setSelectedBrandView("consolidated");
+                    setCurrentUnit(tab.id as any);
+                  }}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ${
+                    isActive
+                      ? "bg-zinc-900 text-white shadow-2xs dark:bg-zinc-100 dark:text-zinc-900"
+                      : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/50 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800/60"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-medium ${
+                      isActive
+                        ? "bg-white/20 text-white dark:bg-zinc-900/20 dark:text-zinc-900"
+                        : "bg-zinc-200/70 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                    }`}
+                  >
+                    {formatCurrency(tab.total)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-            <span>Operação atual:</span>
-            <strong className="text-zinc-900 dark:text-zinc-100">
-              {selectedBrandView === "consolidated"
-                ? `Total Oficial ${activeStoreTab === "teixeira" ? "Teixeira" : "Eunápolis"}`
-                : selectedBrandView === "house"
-                ? `Vendas House 190 ${activeStoreTab === "teixeira" ? "TX" : "Eunápolis"}`
-                : `Vendas Bruttus Burger ${activeStoreTab === "teixeira" ? "TX" : "Eunápolis"}`}
-            </strong>
-          </div>
+          {/* Subfiltro de Marca (apenas quando Teixeira ou Eunápolis estiver ativo) */}
+          {(activeStoreTab === "teixeira" || activeStoreTab === "eunapolis") && (
+            <div className="flex items-center gap-1 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-zinc-200/60 dark:border-zinc-800">
+              <span className="text-[11px] font-medium text-zinc-400 mr-1 hidden sm:inline">Marca:</span>
+              <div className="inline-flex rounded-lg border border-zinc-200/80 bg-white p-0.5 dark:border-zinc-700/80 dark:bg-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setSelectedBrandView("consolidated")}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                    selectedBrandView === "consolidated"
+                      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs"
+                      : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                  }`}
+                >
+                  Consolidado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBrandView("house")}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                    selectedBrandView === "house"
+                      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs"
+                      : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                  }`}
+                >
+                  House 190
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBrandView("bruttus")}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                    selectedBrandView === "bruttus"
+                      ? "bg-amber-600 text-white shadow-2xs"
+                      : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                  }`}
+                >
+                  Bruttus Burger
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Alerta de Feedback */}
       {syncMessage && (
         <div
-          className={`p-3.5 rounded-lg text-xs flex items-center justify-between gap-3 border transition-all ${
+          className={`p-3.5 rounded-xl text-xs flex items-center justify-between gap-3 border transition-all ${
             syncMessage.type === "success"
               ? "bg-emerald-50/70 border-emerald-200 text-emerald-900 dark:bg-emerald-950/20 dark:border-emerald-900/40 dark:text-emerald-300"
               : "bg-rose-50/70 border-rose-200 text-rose-900 dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-300"
@@ -877,355 +835,239 @@ export default function FaturamentoPage() {
         </div>
       )}
 
-      {/* 3. CARDS DE DESTAQUE LADO A LADO DAS MARCAS (TEIXEIRA E EUNÁPOLIS) */}
-      {(activeStoreTab === "teixeira" || activeStoreTab === "eunapolis") && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Card House 190 */}
-          {(() => {
-            const hData =
-              activeStoreTab === "teixeira"
-                ? storeData.teixeira.house
-                : storeData.eunapolis.house;
-            const cData =
-              activeStoreTab === "teixeira"
-                ? storeData.teixeira.consolidated
-                : storeData.eunapolis.consolidated;
-            const pct = cData.totalRevenue > 0 ? (hData.totalRevenue / cData.totalRevenue) * 100 : 100;
-            return (
-              <div
-                onClick={() => setSelectedBrandView("house")}
-                className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                  selectedBrandView === "house"
-                    ? "bg-white dark:bg-zinc-900 border-zinc-900 ring-2 ring-zinc-900/10 dark:border-zinc-100"
-                    : "bg-white dark:bg-zinc-900 border-zinc-200/80 hover:border-zinc-300 dark:border-zinc-800"
-                } shadow-2xs`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
-                    🏠 House 190 {activeStoreTab === "teixeira" ? "TX" : "Eunápolis"}
-                  </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                    Marca Principal
-                  </span>
-                </div>
-                <div className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 font-mono dark:text-zinc-50">
-                  {formatCurrency(hData.totalRevenue)}
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-1 pt-2 border-t border-zinc-100 dark:border-zinc-800 text-[11px]">
-                  <div>
-                    <span className="text-zinc-400 block">Salão</span>
-                    <strong className="font-mono text-zinc-800 dark:text-zinc-200">
-                      {formatCurrency(hData.salao)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block">Delivery</span>
-                    <strong className="font-mono text-zinc-800 dark:text-zinc-200">
-                      {formatCurrency(hData.delivery)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block">iFood</span>
-                    <strong className="font-mono text-zinc-800 dark:text-zinc-200">
-                      {formatCurrency(hData.ifood)}
-                    </strong>
-                  </div>
-                </div>
-                <div className="mt-2 text-[10px] text-zinc-500 flex justify-between">
-                  <span>Participação na filial:</span>
-                  <span className="font-bold text-zinc-700 dark:text-zinc-300">{formatPercent(pct)}</span>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Card Bruttus Burger */}
-          {(() => {
-            const bData =
-              activeStoreTab === "teixeira"
-                ? storeData.teixeira.bruttus
-                : storeData.eunapolis.bruttus;
-            const cData =
-              activeStoreTab === "teixeira"
-                ? storeData.teixeira.consolidated
-                : storeData.eunapolis.consolidated;
-            const pct = cData.totalRevenue > 0 ? (bData.totalRevenue / cData.totalRevenue) * 100 : 0;
-            return (
-              <div
-                onClick={() => setSelectedBrandView("bruttus")}
-                className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                  selectedBrandView === "bruttus"
-                    ? "bg-amber-50/50 dark:bg-amber-950/20 border-amber-500 ring-2 ring-amber-500/20"
-                    : "bg-white dark:bg-zinc-900 border-zinc-200/80 hover:border-amber-300 dark:border-zinc-800"
-                } shadow-2xs`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
-                    🍔 Bruttus Burger {activeStoreTab === "teixeira" ? "TX" : "Eunápolis"}
-                  </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                    Dark Kitchen (2ª Marca)
-                  </span>
-                </div>
-                <div className="mt-2 text-2xl font-bold tracking-tight text-amber-600 font-mono dark:text-amber-400">
-                  {formatCurrency(bData.totalRevenue)}
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-1 pt-2 border-t border-zinc-100 dark:border-zinc-800 text-[11px]">
-                  <div>
-                    <span className="text-zinc-400 block">Salão</span>
-                    <strong className="font-mono text-zinc-800 dark:text-zinc-200">
-                      {formatCurrency(bData.salao)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block">Delivery</span>
-                    <strong className="font-mono text-zinc-800 dark:text-zinc-200">
-                      {formatCurrency(bData.delivery)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block">iFood</span>
-                    <strong className="font-mono text-zinc-800 dark:text-zinc-200">
-                      {formatCurrency(bData.ifood)}
-                    </strong>
-                  </div>
-                </div>
-                <div className="mt-2 text-[10px] text-zinc-500 flex justify-between">
-                  <span>Participação na filial:</span>
-                  <span className="font-bold text-amber-700 dark:text-amber-400">{formatPercent(pct)}</span>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Card Consolidado (House + Bruttus) */}
-          {(() => {
-            const cData =
-              activeStoreTab === "teixeira"
-                ? storeData.teixeira.consolidated
-                : storeData.eunapolis.consolidated;
-            return (
-              <div
-                onClick={() => setSelectedBrandView("consolidated")}
-                className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                  selectedBrandView === "consolidated"
-                    ? "bg-violet-50/50 dark:bg-violet-950/20 border-violet-600 ring-2 ring-violet-500/20"
-                    : "bg-white dark:bg-zinc-900 border-zinc-200/80 hover:border-violet-300 dark:border-zinc-800"
-                } shadow-2xs`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider">
-                    📋 Consolidado {activeStoreTab === "teixeira" ? "Teixeira" : "Eunápolis"}
-                  </span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-800 dark:bg-violet-950/60 dark:text-violet-300">
-                    Soma das 2 Marcas
-                  </span>
-                </div>
-                <div className="mt-2 text-2xl font-bold tracking-tight text-violet-700 font-mono dark:text-violet-300">
-                  {formatCurrency(cData.totalRevenue)}
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-1 pt-2 border-t border-zinc-100 dark:border-zinc-800 text-[11px]">
-                  <div>
-                    <span className="text-zinc-400 block">Salão</span>
-                    <strong className="font-mono text-zinc-800 dark:text-zinc-200">
-                      {formatCurrency(cData.salao)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block">Delivery</span>
-                    <strong className="font-mono text-zinc-800 dark:text-zinc-200">
-                      {formatCurrency(cData.delivery)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-zinc-400 block">iFood</span>
-                    <strong className="font-mono text-zinc-800 dark:text-zinc-200">
-                      {formatCurrency(cData.ifood)}
-                    </strong>
-                  </div>
-                </div>
-                <div className="mt-2 text-[10px] text-zinc-500 flex justify-between">
-                  <span>Total oficial Takeat:</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">100% Integrado</span>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* 4. VISÃO DE TODAS AS LOJAS (QUANDO ABA "ALL" ESTIVER ATIVA) */}
+      {/* 3. Visão Rápida por Unidade (apenas quando na aba Consolidado Geral) */}
       {activeStoreTab === "all" && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="p-4 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
-            <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
               Teixeira de Freitas
             </span>
-            <div className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-50 mt-1">
+            <div className="text-xl font-bold font-mono text-zinc-900 dark:text-zinc-50 mt-1">
               {formatCurrency(storeData.teixeira.consolidated.totalRevenue)}
             </div>
-            <span className="text-[11px] text-zinc-500 mt-1 block">House + Bruttus TX</span>
+            <span className="text-[11px] text-zinc-400 mt-0.5 block">House + Bruttus TX</span>
           </div>
 
           <div className="p-4 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
-            <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
               Eunápolis
             </span>
-            <div className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-50 mt-1">
+            <div className="text-xl font-bold font-mono text-zinc-900 dark:text-zinc-50 mt-1">
               {formatCurrency(storeData.eunapolis.consolidated.totalRevenue)}
             </div>
-            <span className="text-[11px] text-zinc-500 mt-1 block">House + Bruttus EUN</span>
+            <span className="text-[11px] text-zinc-400 mt-0.5 block">House + Bruttus EUN</span>
           </div>
 
           <div className="p-4 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
-            <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
               House Foodpark
             </span>
-            <div className="text-2xl font-bold font-mono text-zinc-900 dark:text-zinc-50 mt-1">
+            <div className="text-xl font-bold font-mono text-zinc-900 dark:text-zinc-50 mt-1">
               {formatCurrency(storeData.foodpark.totalRevenue)}
             </div>
-            <span className="text-[11px] text-zinc-500 mt-1 block">Operação Foodpark</span>
-          </div>
-
-          <div className="p-4 rounded-xl border border-violet-300 bg-violet-50/50 dark:bg-violet-950/20 dark:border-violet-900 shadow-2xs">
-            <span className="text-xs font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wider block">
-              Total Geral do Grupo
-            </span>
-            <div className="text-2xl font-bold font-mono text-violet-800 dark:text-violet-200 mt-1">
-              {formatCurrency(
-                storeData.teixeira.consolidated.totalRevenue +
-                  storeData.eunapolis.consolidated.totalRevenue +
-                  storeData.foodpark.totalRevenue
-              )}
-            </div>
-            <span className="text-[11px] text-violet-600 dark:text-violet-400 mt-1 block">Soma de todas as lojas</span>
+            <span className="text-[11px] text-zinc-400 mt-0.5 block">Operação Foodpark</span>
           </div>
         </div>
       )}
 
-      {/* 5. CARDS DE CANAIS (SALÃO, DELIVERY, IFOOD) */}
+      {/* 4. CARDS DEFINITIVOS DE FATURAMENTO & CANAIS (Sem duplicações) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Faturamento do Período */}
-        <div className="p-4 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-              {viewMode === "daily" ? "Faturamento do Dia" : "Faturamento do Mês"}
-            </span>
-            <div className="h-7 w-7 rounded-lg bg-zinc-100 flex items-center justify-center text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-              <DollarSign className="h-4 w-4" />
+        {/* Card Hero: Faturamento Total */}
+        <div className="p-5 rounded-2xl border border-zinc-900/10 bg-gradient-to-br from-zinc-900 to-zinc-800 text-white shadow-sm dark:border-zinc-700 dark:from-zinc-900 dark:to-zinc-950 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+                {viewMode === "daily" ? "Faturamento do Dia" : "Faturamento do Mês"}
+              </span>
+              <div className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-white">
+                <DollarSign className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-3 text-3xl font-bold tracking-tight font-mono">
+              {formatCurrency(totalGeral)}
             </div>
           </div>
-          <div className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 font-mono dark:text-zinc-50">
-            {formatCurrency(totalGeral)}
-          </div>
-          <div className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
-            <span>Data:</span>
-            <span className="font-medium text-zinc-800 dark:text-zinc-200">
+          <div className="mt-4 flex items-center justify-between text-xs text-zinc-300 border-t border-white/10 pt-3">
+            <span className="truncate max-w-[65%]">
+              {activeStoreTab === "all"
+                ? "Todas as Lojas"
+                : `${UNIT_LABELS[activeStoreTab]?.split(" ")[2] || activeStoreTab} ${
+                    selectedBrandView === "house"
+                      ? "• House"
+                      : selectedBrandView === "bruttus"
+                      ? "• Bruttus"
+                      : ""
+                  }`}
+            </span>
+            <span className="font-mono text-zinc-400 text-[11px] shrink-0">
               {viewMode === "daily" ? formatDate(selectedDate) : selectedMonth}
             </span>
           </div>
         </div>
 
         {/* Salão & Balcão */}
-        <div className="p-4 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-              Salão & Balcão
-            </span>
-            <div className="h-7 w-7 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
-              <Store className="h-4 w-4" />
+        <div className="p-5 rounded-2xl border border-zinc-200/80 bg-white shadow-2xs dark:bg-zinc-900 dark:border-zinc-800 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
+                Salão & Balcão
+              </span>
+              <div className="h-8 w-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center dark:bg-blue-950/50 dark:text-blue-400">
+                <Store className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-3 text-2xl font-bold tracking-tight font-mono text-zinc-900 dark:text-zinc-50">
+              {formatCurrency(totalSalao)}
             </div>
           </div>
-          <div className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 font-mono dark:text-zinc-50">
-            {formatCurrency(totalSalao)}
-          </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
-            <span>Participação</span>
-            <span className="font-semibold text-blue-600 dark:text-blue-400">{formatPercent(pctSalao)}</span>
+          <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+            <div className="flex items-center justify-between text-xs mb-1.5">
+              <span className="text-zinc-500 dark:text-zinc-400">Participação</span>
+              <span className="font-bold text-blue-600 dark:text-blue-400">{formatPercent(pctSalao)}</span>
+            </div>
+            <div className="h-1.5 w-full bg-zinc-100 rounded-full overflow-hidden dark:bg-zinc-800">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(pctSalao, 100)}%` }}
+              />
+            </div>
           </div>
         </div>
 
         {/* Delivery Próprio */}
-        <div className="p-4 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-              Delivery Próprio
-            </span>
-            <div className="h-7 w-7 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
-              <Truck className="h-4 w-4" />
+        <div className="p-5 rounded-2xl border border-zinc-200/80 bg-white shadow-2xs dark:bg-zinc-900 dark:border-zinc-800 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
+                Delivery Próprio
+              </span>
+              <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center dark:bg-amber-950/50 dark:text-amber-400">
+                <Truck className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-3 text-2xl font-bold tracking-tight font-mono text-zinc-900 dark:text-zinc-50">
+              {formatCurrency(totalDelivery)}
             </div>
           </div>
-          <div className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 font-mono dark:text-zinc-50">
-            {formatCurrency(totalDelivery)}
-          </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
-            <span>Participação</span>
-            <span className="font-semibold text-amber-600 dark:text-amber-400">{formatPercent(pctDelivery)}</span>
+          <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+            <div className="flex items-center justify-between text-xs mb-1.5">
+              <span className="text-zinc-500 dark:text-zinc-400">Participação</span>
+              <span className="font-bold text-amber-600 dark:text-amber-400">{formatPercent(pctDelivery)}</span>
+            </div>
+            <div className="h-1.5 w-full bg-zinc-100 rounded-full overflow-hidden dark:bg-zinc-800">
+              <div
+                className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(pctDelivery, 100)}%` }}
+              />
+            </div>
           </div>
         </div>
 
         {/* iFood Oficial */}
-        <div className="p-4 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-              iFood Oficial
-            </span>
-            <div className="h-7 w-7 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
-              <ShoppingBag className="h-4 w-4" />
+        <div className="p-5 rounded-2xl border border-zinc-200/80 bg-white shadow-2xs dark:bg-zinc-900 dark:border-zinc-800 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
+                iFood Oficial
+              </span>
+              <div className="h-8 w-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center dark:bg-rose-950/50 dark:text-rose-400">
+                <ShoppingBag className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-3 text-2xl font-bold tracking-tight font-mono text-zinc-900 dark:text-zinc-50">
+              {formatCurrency(totalIfood)}
             </div>
           </div>
-          <div className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 font-mono dark:text-zinc-50">
-            {formatCurrency(totalIfood)}
-          </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
-            <span>Participação</span>
-            <span className="font-semibold text-rose-600 dark:text-rose-400">{formatPercent(pctIfood)}</span>
+          <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+            <div className="flex items-center justify-between text-xs mb-1.5">
+              <span className="text-zinc-500 dark:text-zinc-400">Participação</span>
+              <span className="font-bold text-rose-600 dark:text-rose-400">{formatPercent(pctIfood)}</span>
+            </div>
+            <div className="h-1.5 w-full bg-zinc-100 rounded-full overflow-hidden dark:bg-zinc-800">
+              <div
+                className="h-full bg-rose-500 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(pctIfood, 100)}%` }}
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 6. METAS DO MÊS */}
-      <section className="rounded-xl border border-violet-200/70 bg-gradient-to-r from-violet-50 to-white p-4 shadow-2xs dark:border-violet-900/50 dark:from-violet-950/20 dark:to-zinc-900">
-        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-xs font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">
-              Meta do Mês — {activeStoreTab === "all" ? "Todas as Lojas" : UNIT_LABELS[activeStoreTab]}
-            </h2>
-            <p className="mt-0.5 text-[11px] text-zinc-500">
-              Acompanhamento de vendas em relação à meta cadastrada
-            </p>
+      {/* 5. METAS DO MÊS (Apenas se houver meta configurada, sem caixas com "DADO PENDENTE") */}
+      {Boolean(goals.goal.value && goals.goal.value > 0) ? (
+        <section className="rounded-2xl border border-violet-200/70 bg-gradient-to-r from-violet-50/60 to-white p-5 shadow-2xs dark:border-violet-900/40 dark:from-violet-950/20 dark:to-zinc-900">
+          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">
+                  Meta do Mês — {activeStoreTab === "all" ? "Todas as Lojas" : UNIT_LABELS[activeStoreTab]}
+                </h2>
+                {goals.goalPct.value !== null && (
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      goals.goalPct.value >= 100
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+                        : goals.goalPct.value >= 80
+                        ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                        : "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300"
+                    }`}
+                  >
+                    {goals.goalPct.value >= 100
+                      ? "Meta atingida"
+                      : goals.goalPct.value >= 80
+                      ? "Meta próxima"
+                      : "Meta em atenção"}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-[11px] text-zinc-500">
+                Acompanhamento oficial de vendas apuradas em relação à meta cadastrada
+              </p>
+            </div>
           </div>
-          {goals.goalPct.value !== null && (
-            <span
-              className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                goals.goalPct.value >= 100
-                  ? "bg-emerald-100 text-emerald-700"
-                  : goals.goalPct.value >= 80
-                  ? "bg-amber-100 text-amber-700"
-                  : "bg-rose-100 text-rose-700"
-              }`}
-            >
-              {goals.goalPct.value >= 100 ? "Meta atingida" : goals.goalPct.value >= 80 ? "Meta próxima" : "Meta em atenção"}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            {[
+              ["Meta", formatManagedCurrency(goals.goal.value)],
+              ["Realizado", formatManagedCurrency(goals.gross.value)],
+              ["Atingimento", formatManagedPercent(goals.goalPct.value)],
+              ["Falta vender", formatManagedCurrency(goals.remaining.value)],
+              ["Projeção", formatManagedCurrency(goals.projection.value)],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-xl border border-zinc-200/60 bg-white/90 p-3.5 shadow-2xs dark:border-zinc-800 dark:bg-zinc-900/90"
+              >
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                  {label}
+                </span>
+                <strong className="mt-1 block text-base font-bold font-mono text-zinc-900 dark:text-zinc-50">
+                  {value}
+                </strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : viewMode === "monthly" ? (
+        <div className="flex items-center justify-between p-3.5 rounded-xl border border-dashed border-zinc-200 bg-zinc-50/50 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-400">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-violet-500" />
+            <span>
+              Nenhuma meta mensal de vendas cadastrada para{" "}
+              {activeStoreTab === "all" ? "o grupo" : UNIT_LABELS[activeStoreTab]}.
             </span>
+          </div>
+          {isFinanceOrAdmin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsQuickCreateOpen(true)}
+              className="text-xs text-violet-600 hover:text-violet-700 hover:bg-violet-50 dark:text-violet-400"
+            >
+              Definir Meta
+            </Button>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          {[
-            ["Meta", formatManagedCurrency(goals.goal.value)],
-            ["Realizado", formatManagedCurrency(goals.gross.value)],
-            ["Atingimento", formatManagedPercent(goals.goalPct.value)],
-            ["Falta vender", formatManagedCurrency(goals.remaining.value)],
-            ["Projeção", formatManagedCurrency(goals.projection.value)],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-white/80 bg-white/85 p-3 dark:border-zinc-800 dark:bg-zinc-900/85">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">{label}</span>
-              <strong className={`mt-1 block text-base tabular-nums ${value === "DADO PENDENTE" ? "text-xs text-amber-700" : "text-zinc-900 dark:text-zinc-50"}`}>
-                {value}
-              </strong>
-            </div>
-          ))}
-        </div>
-      </section>
+      ) : null}
 
       {/* 7. GRÁFICO & MIX DE CANAIS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1429,40 +1271,59 @@ export default function FaturamentoPage() {
                       <span className="text-[10px] text-emerald-600 font-medium">Takeat</span>
                     </td>
                   </tr>
-                  <tr className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30">
-                    <td className="py-3 px-4 font-medium text-amber-700 dark:text-amber-400">Bruttus Burger TX</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                        🍔 Dark Kitchen
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.bruttus.salao)}</td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.bruttus.delivery)}</td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.bruttus.ifood)}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
-                      {formatCurrency(storeData.teixeira.bruttus.totalRevenue)}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="text-[10px] text-emerald-600 font-medium">Takeat</span>
-                    </td>
-                  </tr>
-                  <tr className="bg-violet-50/40 dark:bg-violet-950/20 font-semibold border-t-2 border-violet-200 dark:border-violet-900">
-                    <td className="py-3 px-4 text-violet-900 dark:text-violet-200 font-bold">
+                  {/* Bruttus Burger TX */}
+                  {storeData.teixeira.bruttus.totalRevenue > 0 ? (
+                    <tr className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30">
+                      <td className="py-3 px-4 font-medium text-amber-700 dark:text-amber-400">Bruttus Burger TX</td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                          🍔 Dark Kitchen
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.bruttus.salao)}</td>
+                      <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.bruttus.delivery)}</td>
+                      <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.bruttus.ifood)}</td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
+                        {formatCurrency(storeData.teixeira.bruttus.totalRevenue)}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="text-[10px] text-emerald-600 font-medium">Takeat</span>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 text-zinc-400">
+                      <td className="py-3 px-4 font-medium text-zinc-500 dark:text-zinc-400">Bruttus Burger TX</td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                          Dark Kitchen
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-zinc-400">{formatCurrency(0)}</td>
+                      <td className="py-3 px-4 text-right font-mono text-zinc-400">{formatCurrency(0)}</td>
+                      <td className="py-3 px-4 text-right font-mono text-zinc-400">{formatCurrency(0)}</td>
+                      <td className="py-3 px-4 text-right font-mono text-zinc-400 font-medium">{formatCurrency(0)}</td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="text-[10px] text-zinc-400">Sem vendas</span>
+                      </td>
+                    </tr>
+                  )}
+                  <tr className="bg-zinc-100/70 dark:bg-zinc-800/60 font-semibold border-t border-zinc-200 dark:border-zinc-700">
+                    <td className="py-3 px-4 text-zinc-900 dark:text-zinc-100 font-bold">
                       Teixeira de Freitas (Consolidado)
                     </td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300">
-                        Soma das 2 Marcas
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-200/80 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200">
+                        Total da Filial
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.consolidated.salao)}</td>
                     <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.consolidated.delivery)}</td>
                     <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.consolidated.ifood)}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-violet-800 dark:text-violet-200">
+                    <td className="py-3 px-4 text-right font-mono font-bold text-zinc-900 dark:text-zinc-50">
                       {formatCurrency(storeData.teixeira.consolidated.totalRevenue)}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className="text-[10px] text-violet-700 dark:text-violet-300 font-bold">Total Oficial</span>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Oficial</span>
                     </td>
                   </tr>
                 </>
@@ -1485,40 +1346,59 @@ export default function FaturamentoPage() {
                       <span className="text-[10px] text-emerald-600 font-medium">Takeat</span>
                     </td>
                   </tr>
-                  <tr className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30">
-                    <td className="py-3 px-4 font-medium text-amber-700 dark:text-amber-400">Bruttus Burger EUN</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                        🍔 Dark Kitchen
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.bruttus.salao)}</td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.bruttus.delivery)}</td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.bruttus.ifood)}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
-                      {formatCurrency(storeData.eunapolis.bruttus.totalRevenue)}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span className="text-[10px] text-emerald-600 font-medium">Takeat</span>
-                    </td>
-                  </tr>
-                  <tr className="bg-violet-50/40 dark:bg-violet-950/20 font-semibold border-t-2 border-violet-200 dark:border-violet-900">
-                    <td className="py-3 px-4 text-violet-900 dark:text-violet-200 font-bold">
+                  {/* Bruttus Burger EUN */}
+                  {storeData.eunapolis.bruttus.totalRevenue > 0 ? (
+                    <tr className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30">
+                      <td className="py-3 px-4 font-medium text-amber-700 dark:text-amber-400">Bruttus Burger EUN</td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                          🍔 Dark Kitchen
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.bruttus.salao)}</td>
+                      <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.bruttus.delivery)}</td>
+                      <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.bruttus.ifood)}</td>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
+                        {formatCurrency(storeData.eunapolis.bruttus.totalRevenue)}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="text-[10px] text-emerald-600 font-medium">Takeat</span>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 text-zinc-400">
+                      <td className="py-3 px-4 font-medium text-zinc-500 dark:text-zinc-400">Bruttus Burger EUN</td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                          Dark Kitchen
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-zinc-400">{formatCurrency(0)}</td>
+                      <td className="py-3 px-4 text-right font-mono text-zinc-400">{formatCurrency(0)}</td>
+                      <td className="py-3 px-4 text-right font-mono text-zinc-400">{formatCurrency(0)}</td>
+                      <td className="py-3 px-4 text-right font-mono text-zinc-400 font-medium">{formatCurrency(0)}</td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="text-[10px] text-zinc-400">Sem vendas</span>
+                      </td>
+                    </tr>
+                  )}
+                  <tr className="bg-zinc-100/70 dark:bg-zinc-800/60 font-semibold border-t border-zinc-200 dark:border-zinc-700">
+                    <td className="py-3 px-4 text-zinc-900 dark:text-zinc-100 font-bold">
                       Eunápolis (Consolidado)
                     </td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300">
-                        Soma das 2 Marcas
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-200/80 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200">
+                        Total da Filial
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.consolidated.salao)}</td>
                     <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.consolidated.delivery)}</td>
                     <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.consolidated.ifood)}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-violet-800 dark:text-violet-200">
+                    <td className="py-3 px-4 text-right font-mono font-bold text-zinc-900 dark:text-zinc-50">
                       {formatCurrency(storeData.eunapolis.consolidated.totalRevenue)}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className="text-[10px] text-violet-700 dark:text-violet-300 font-bold">Total Oficial</span>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Oficial</span>
                     </td>
                   </tr>
                 </>
