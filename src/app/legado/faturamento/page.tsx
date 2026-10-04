@@ -18,6 +18,7 @@ import {
   Percent,
   Layers,
   Sparkles,
+  Flame,
 } from "lucide-react";
 import { useManagement } from "@/contexts/ManagementContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -392,6 +393,63 @@ export default function FaturamentoPage() {
       return storeData.foodpark;
     }
 
+    // Quando visualizando "Todas as Lojas"
+    if (selectedBrandView === "house") {
+      const salao =
+        storeData.teixeira.house.salao +
+        storeData.eunapolis.house.salao +
+        storeData.foodpark.salao;
+      const delivery =
+        storeData.teixeira.house.delivery +
+        storeData.eunapolis.house.delivery +
+        storeData.foodpark.delivery;
+      const ifood =
+        storeData.teixeira.house.ifood +
+        storeData.eunapolis.house.ifood +
+        storeData.foodpark.ifood;
+      return {
+        id: "all-house",
+        unitId: "all" as any,
+        brand: "house" as BrandId,
+        date: viewMode === "daily" ? selectedDate : selectedMonth,
+        salao,
+        delivery,
+        ifood,
+        totalRevenue:
+          storeData.teixeira.house.totalRevenue +
+          storeData.eunapolis.house.totalRevenue +
+          storeData.foodpark.totalRevenue,
+        source: "takeat" as const,
+        syncedAt: new Date().toISOString(),
+      } as TakeatRevenueRecord;
+    }
+
+    if (selectedBrandView === "bruttus") {
+      const salao =
+        storeData.teixeira.bruttus.salao +
+        storeData.eunapolis.bruttus.salao;
+      const delivery =
+        storeData.teixeira.bruttus.delivery +
+        storeData.eunapolis.bruttus.delivery;
+      const ifood =
+        storeData.teixeira.bruttus.ifood +
+        storeData.eunapolis.bruttus.ifood;
+      return {
+        id: "all-bruttus",
+        unitId: "all" as any,
+        brand: "bruttus" as BrandId,
+        date: viewMode === "daily" ? selectedDate : selectedMonth,
+        salao,
+        delivery,
+        ifood,
+        totalRevenue:
+          storeData.teixeira.bruttus.totalRevenue +
+          storeData.eunapolis.bruttus.totalRevenue,
+        source: "takeat" as const,
+        syncedAt: new Date().toISOString(),
+      } as TakeatRevenueRecord;
+    }
+
     const tx = storeData.teixeira.consolidated.totalRevenue;
     const eun = storeData.eunapolis.consolidated.totalRevenue;
     const fp = storeData.foodpark.totalRevenue;
@@ -422,6 +480,68 @@ export default function FaturamentoPage() {
       syncedAt: new Date().toISOString(),
     } as TakeatRevenueRecord;
   }, [activeStoreTab, selectedBrandView, storeData, viewMode, selectedDate, selectedMonth]);
+
+  // Métricas comparativas de Marcas (House vs Bruttus Dark Kitchen)
+  const brandMetrics = useMemo(() => {
+    let houseRev = 0;
+    let bruttusRev = 0;
+    let bruttusDelivery = 0;
+    let bruttusIfood = 0;
+    let totalRev = 0;
+
+    if (activeStoreTab === "teixeira") {
+      houseRev = storeData.teixeira.house.totalRevenue;
+      bruttusRev = storeData.teixeira.bruttus.totalRevenue;
+      bruttusDelivery = storeData.teixeira.bruttus.delivery;
+      bruttusIfood = storeData.teixeira.bruttus.ifood;
+      totalRev = storeData.teixeira.consolidated.totalRevenue;
+    } else if (activeStoreTab === "eunapolis") {
+      houseRev = storeData.eunapolis.house.totalRevenue;
+      bruttusRev = storeData.eunapolis.bruttus.totalRevenue;
+      bruttusDelivery = storeData.eunapolis.bruttus.delivery;
+      bruttusIfood = storeData.eunapolis.bruttus.ifood;
+      totalRev = storeData.eunapolis.consolidated.totalRevenue;
+    } else if (activeStoreTab === "foodpark") {
+      houseRev = storeData.foodpark.totalRevenue;
+      bruttusRev = 0;
+      bruttusDelivery = 0;
+      bruttusIfood = 0;
+      totalRev = storeData.foodpark.totalRevenue;
+    } else {
+      houseRev =
+        storeData.teixeira.house.totalRevenue +
+        storeData.eunapolis.house.totalRevenue +
+        storeData.foodpark.totalRevenue;
+      bruttusRev =
+        storeData.teixeira.bruttus.totalRevenue +
+        storeData.eunapolis.bruttus.totalRevenue;
+      bruttusDelivery =
+        storeData.teixeira.bruttus.delivery +
+        storeData.eunapolis.bruttus.delivery;
+      bruttusIfood =
+        storeData.teixeira.bruttus.ifood +
+        storeData.eunapolis.bruttus.ifood;
+      totalRev = houseRev + bruttusRev;
+    }
+
+    const housePct = totalRev > 0 ? (houseRev / totalRev) * 100 : 0;
+    const bruttusPct = totalRev > 0 ? (bruttusRev / totalRev) * 100 : 0;
+
+    return {
+      houseRev,
+      bruttusRev,
+      bruttusDelivery,
+      bruttusIfood,
+      totalRev,
+      housePct,
+      bruttusPct,
+      hasBruttus:
+        bruttusRev > 0 ||
+        (activeStoreTab !== "foodpark" &&
+          (storeData.teixeira.bruttus.totalRevenue > 0 ||
+            storeData.eunapolis.bruttus.totalRevenue > 0)),
+    };
+  }, [activeStoreTab, storeData]);
 
   // Cálculos de Representatividade
   const totalGeral = activeDisplay.totalRevenue;
@@ -765,44 +885,48 @@ export default function FaturamentoPage() {
           </div>
 
           {/* Subfiltro de Marca */}
-          {(activeStoreTab === "teixeira" || activeStoreTab === "eunapolis") && (
+          {(activeStoreTab === "teixeira" || activeStoreTab === "eunapolis" || activeStoreTab === "all") && (
             <div className="flex items-center gap-1.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200/70 dark:border-zinc-800">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mr-1 hidden sm:inline">
                 Marca:
               </span>
-              <div className="inline-flex rounded-xl border border-slate-200/90 bg-slate-50 p-1 dark:border-zinc-700/80 dark:bg-zinc-800/80">
+              <div className="inline-flex rounded-xl border border-slate-200/90 bg-slate-50 p-1 dark:border-zinc-700/80 dark:bg-zinc-800/80 gap-1">
                 <button
                   type="button"
                   onClick={() => setSelectedBrandView("consolidated")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                     selectedBrandView === "consolidated"
                       ? "bg-white text-slate-900 shadow-xs font-bold dark:bg-zinc-800 dark:text-zinc-100"
                       : "text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-200"
                   }`}
                 >
-                  Consolidado
+                  <span>Consolidado</span>
+                  <span className="text-[10px] font-mono opacity-80">({formatCurrency(brandMetrics.totalRev)})</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedBrandView("house")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                     selectedBrandView === "house"
                       ? "bg-white text-slate-900 shadow-xs font-bold dark:bg-zinc-800 dark:text-zinc-100"
                       : "text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-200"
                   }`}
                 >
-                  House 190
+                  <span>House 190</span>
+                  <span className="text-[10px] font-mono opacity-80">({formatCurrency(brandMetrics.houseRev)})</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedBrandView("bruttus")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                     selectedBrandView === "bruttus"
-                      ? "bg-amber-600 text-white shadow-xs font-bold"
-                      : "text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                      ? "bg-amber-600 text-white shadow-xs"
+                      : "bg-amber-50 text-amber-900 border border-amber-200/80 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/80"
                   }`}
                 >
-                  Bruttus Burger
+                  <Flame className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <span>Bruttus Burger</span>
+                  <span className="text-[10px] font-mono font-bold">({formatCurrency(brandMetrics.bruttusRev)})</span>
                 </button>
               </div>
             </div>
@@ -839,7 +963,7 @@ export default function FaturamentoPage() {
 
       {/* 3. Visão Rápida por Unidade (apenas quando na aba Consolidado Geral) */}
       {activeStoreTab === "all" && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="p-4 rounded-xl border border-slate-200/90 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
               Teixeira de Freitas
@@ -847,7 +971,10 @@ export default function FaturamentoPage() {
             <div className="text-xl font-bold font-mono text-slate-900 dark:text-zinc-50 mt-1">
               {formatCurrency(storeData.teixeira.consolidated.totalRevenue)}
             </div>
-            <span className="text-[11px] text-slate-500 mt-0.5 block">House + Bruttus TX</span>
+            <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
+              <span>🏠 {formatCurrency(storeData.teixeira.house.totalRevenue)}</span>
+              <span className="font-semibold text-amber-700 dark:text-amber-400">🍔 {formatCurrency(storeData.teixeira.bruttus.totalRevenue)}</span>
+            </div>
           </div>
 
           <div className="p-4 rounded-xl border border-slate-200/90 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
@@ -857,7 +984,10 @@ export default function FaturamentoPage() {
             <div className="text-xl font-bold font-mono text-slate-900 dark:text-zinc-50 mt-1">
               {formatCurrency(storeData.eunapolis.consolidated.totalRevenue)}
             </div>
-            <span className="text-[11px] text-slate-500 mt-0.5 block">House + Bruttus EUN</span>
+            <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
+              <span>🏠 {formatCurrency(storeData.eunapolis.house.totalRevenue)}</span>
+              <span className="font-semibold text-amber-700 dark:text-amber-400">🍔 {formatCurrency(storeData.eunapolis.bruttus.totalRevenue)}</span>
+            </div>
           </div>
 
           <div className="p-4 rounded-xl border border-slate-200/90 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
@@ -867,7 +997,24 @@ export default function FaturamentoPage() {
             <div className="text-xl font-bold font-mono text-slate-900 dark:text-zinc-50 mt-1">
               {formatCurrency(storeData.foodpark.totalRevenue)}
             </div>
-            <span className="text-[11px] text-slate-500 mt-0.5 block">Operação Foodpark</span>
+            <span className="text-[11px] text-slate-500 mt-1 block">Operação Foodpark</span>
+          </div>
+
+          <div className="p-4 rounded-xl border border-amber-300/80 bg-amber-50/70 dark:bg-amber-950/20 dark:border-amber-800/60 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider block">
+                Total Bruttus DK
+              </span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-200">
+                🍔 2ª Marca
+              </span>
+            </div>
+            <div className="text-xl font-black font-mono text-amber-950 dark:text-amber-100 mt-1">
+              {formatCurrency(brandMetrics.bruttusRev)}
+            </div>
+            <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-400 mt-1 block">
+              TX + EUN (100% Dark Kitchen)
+            </span>
           </div>
         </div>
       )}
@@ -892,6 +1039,40 @@ export default function FaturamentoPage() {
             <div className="mt-3 text-3xl font-extrabold tracking-tight font-mono text-slate-900 dark:text-zinc-50">
               {formatCurrency(totalGeral)}
             </div>
+
+            {brandMetrics.hasBruttus && selectedBrandView === "consolidated" && (
+              <div className="mt-3.5 pt-3 border-t border-emerald-100/90 dark:border-zinc-800/80 grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-white/90 dark:bg-zinc-800/70 p-2 rounded-xl border border-slate-200/60 dark:border-zinc-700/60 shadow-2xs">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400 mb-0.5">
+                    <span className="font-semibold">🏠 House</span>
+                    <span className="font-mono font-bold text-slate-700 dark:text-zinc-200">{formatPercent(brandMetrics.housePct)}</span>
+                  </div>
+                  <div className="font-mono font-bold text-slate-900 dark:text-zinc-100 text-xs">
+                    {formatCurrency(brandMetrics.houseRev)}
+                  </div>
+                </div>
+
+                <div className="bg-amber-50/90 dark:bg-amber-950/40 p-2 rounded-xl border border-amber-200/90 dark:border-amber-800/60 shadow-2xs">
+                  <div className="flex items-center justify-between text-[11px] text-amber-900 dark:text-amber-300 mb-0.5">
+                    <span className="font-bold flex items-center gap-1">
+                      <Flame className="h-3 w-3 text-amber-500 shrink-0" />
+                      Bruttus DK
+                    </span>
+                    <span className="font-mono font-bold text-amber-800 dark:text-amber-200">{formatPercent(brandMetrics.bruttusPct)}</span>
+                  </div>
+                  <div className="font-mono font-black text-amber-950 dark:text-amber-100 text-xs">
+                    {formatCurrency(brandMetrics.bruttusRev)}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {selectedBrandView === "bruttus" && (
+              <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100/90 text-amber-900 font-semibold text-xs border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+                <Flame className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                <span>100% Dark Kitchen • Delivery Próprio & iFood</span>
+              </div>
+            )}
           </div>
           <div className="mt-4 pt-3 border-t border-emerald-100/80 dark:border-emerald-900/40 flex items-center justify-between text-xs text-slate-600 dark:text-zinc-400">
             <span className="font-semibold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5 truncate max-w-[65%]">
@@ -1008,6 +1189,113 @@ export default function FaturamentoPage() {
           </div>
         </div>
       </div>
+
+      {/* 4.1 DESTAQUE EXECUTIVO DA 2ª MARCA — BRUTTUS BURGER (DARK KITCHEN) */}
+      {brandMetrics.hasBruttus && (
+        <div className="p-5 md:p-6 rounded-2xl bg-gradient-to-br from-amber-500/10 via-amber-50/50 to-orange-50/30 border-2 border-amber-300/80 shadow-xs dark:from-amber-950/30 dark:via-zinc-900 dark:to-zinc-900 dark:border-amber-800/60 transition-all">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-amber-200/70 dark:border-amber-900/40">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs shadow-amber-500/30 shrink-0">
+                <Flame className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm md:text-base font-bold text-amber-950 dark:text-amber-100">
+                    Operação 2ª Marca — Bruttus Burger
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-200/80 text-amber-950 border border-amber-300 dark:bg-amber-900/60 dark:text-amber-200 dark:border-amber-700">
+                    🍔 100% Dark Kitchen
+                  </span>
+                </div>
+                <p className="text-xs text-amber-850/80 dark:text-amber-300/80 mt-0.5">
+                  Faturamento auditado no PDV Takeat • Operação enxuta sem custo de salão físico (vendas exclusivas Delivery e iFood)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-center">
+              <button
+                type="button"
+                onClick={() => setSelectedBrandView(selectedBrandView === "bruttus" ? "consolidated" : "bruttus")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  selectedBrandView === "bruttus"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : "bg-white text-amber-900 border border-amber-300 hover:bg-amber-100/70 dark:bg-zinc-800 dark:text-amber-200 dark:border-amber-700"
+                }`}
+              >
+                <span>{selectedBrandView === "bruttus" ? "Voltar ao Consolidado" : "Isolar Bruttus Burger"}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-4">
+            {/* Total Bruttus */}
+            <div className="p-3.5 rounded-xl bg-white/95 border border-amber-200/90 shadow-2xs dark:bg-zinc-900/80 dark:border-zinc-800">
+              <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider block">
+                Faturamento Bruttus
+              </span>
+              <div className="text-2xl font-black font-mono text-amber-950 dark:text-amber-100 mt-1">
+                {formatCurrency(brandMetrics.bruttusRev)}
+              </div>
+              <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 mt-0.5 block">
+                Representa {formatPercent(brandMetrics.bruttusPct)} da receita total
+              </span>
+            </div>
+
+            {/* Delivery Próprio */}
+            <div className="p-3.5 rounded-xl bg-white/95 border border-amber-200/90 shadow-2xs dark:bg-zinc-900/80 dark:border-zinc-800">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Delivery Próprio
+                </span>
+                <Truck className="h-3.5 w-3.5 text-amber-600" />
+              </div>
+              <div className="text-xl font-bold font-mono text-slate-900 dark:text-zinc-50 mt-1">
+                {formatCurrency(brandMetrics.bruttusDelivery)}
+              </div>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">
+                {brandMetrics.bruttusRev > 0
+                  ? `${formatPercent((brandMetrics.bruttusDelivery / brandMetrics.bruttusRev) * 100)} das vendas Bruttus`
+                  : "0%"}
+              </span>
+            </div>
+
+            {/* iFood */}
+            <div className="p-3.5 rounded-xl bg-white/95 border border-amber-200/90 shadow-2xs dark:bg-zinc-900/80 dark:border-zinc-800">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Canal iFood
+                </span>
+                <ShoppingBag className="h-3.5 w-3.5 text-red-500" />
+              </div>
+              <div className="text-xl font-bold font-mono text-slate-900 dark:text-zinc-50 mt-1">
+                {formatCurrency(brandMetrics.bruttusIfood)}
+              </div>
+              <span className="text-[11px] text-slate-500 mt-0.5 block">
+                {brandMetrics.bruttusRev > 0
+                  ? `${formatPercent((brandMetrics.bruttusIfood / brandMetrics.bruttusRev) * 100)} das vendas Bruttus`
+                  : "0%"}
+              </span>
+            </div>
+
+            {/* Salão Físico */}
+            <div className="p-3.5 rounded-xl bg-white/95 border border-amber-200/90 shadow-2xs dark:bg-zinc-900/80 dark:border-zinc-800">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Salão Físico
+                </span>
+                <Store className="h-3.5 w-3.5 text-slate-400" />
+              </div>
+              <div className="text-xl font-bold font-mono text-slate-400 dark:text-zinc-500 mt-1">
+                {formatCurrency(0)}
+              </div>
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5 block">
+                100% Dark Kitchen (Sem custo de salão)
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 5. METAS DO MÊS (Apenas se houver meta configurada, sem caixas com "DADO PENDENTE") */}
       {Boolean(goals.goal.value && goals.goal.value > 0) ? (
@@ -1305,21 +1593,26 @@ export default function FaturamentoPage() {
                   </tr>
                   {/* Bruttus Burger TX */}
                   {storeData.teixeira.bruttus.totalRevenue > 0 ? (
-                    <tr className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30">
-                      <td className="py-3 px-4 font-medium text-amber-700 dark:text-amber-400">Bruttus Burger TX</td>
+                    <tr className="bg-amber-50/70 border-l-4 border-l-amber-500 hover:bg-amber-100/60 dark:bg-amber-950/20 dark:border-l-amber-400 transition-colors">
+                      <td className="py-3 px-4 font-bold text-amber-950 dark:text-amber-200">
+                        <div className="flex items-center gap-1.5">
+                          <Flame className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                          <span>Bruttus Burger TX</span>
+                        </div>
+                      </td>
                       <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                          🍔 Dark Kitchen
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200/80 text-amber-950 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300/80">
+                          🍔 100% Dark Kitchen
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.bruttus.salao)}</td>
-                      <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.bruttus.delivery)}</td>
-                      <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.bruttus.ifood)}</td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
+                      <td className="py-3 px-4 text-right font-mono text-slate-400">{formatCurrency(storeData.teixeira.bruttus.salao)}</td>
+                      <td className="py-3 px-4 text-right font-mono font-medium text-amber-950 dark:text-amber-200">{formatCurrency(storeData.teixeira.bruttus.delivery)}</td>
+                      <td className="py-3 px-4 text-right font-mono font-medium text-amber-950 dark:text-amber-200">{formatCurrency(storeData.teixeira.bruttus.ifood)}</td>
+                      <td className="py-3 px-4 text-right font-mono font-black text-amber-900 dark:text-amber-300 text-sm">
                         {formatCurrency(storeData.teixeira.bruttus.totalRevenue)}
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <span className="text-[10px] text-emerald-600 font-medium">Takeat</span>
+                        <span className="text-[10px] text-amber-800 dark:text-amber-300 font-bold bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">Takeat (DK)</span>
                       </td>
                     </tr>
                   ) : (
@@ -1380,21 +1673,26 @@ export default function FaturamentoPage() {
                   </tr>
                   {/* Bruttus Burger EUN */}
                   {storeData.eunapolis.bruttus.totalRevenue > 0 ? (
-                    <tr className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30">
-                      <td className="py-3 px-4 font-medium text-amber-700 dark:text-amber-400">Bruttus Burger EUN</td>
+                    <tr className="bg-amber-50/70 border-l-4 border-l-amber-500 hover:bg-amber-100/60 dark:bg-amber-950/20 dark:border-l-amber-400 transition-colors">
+                      <td className="py-3 px-4 font-bold text-amber-950 dark:text-amber-200">
+                        <div className="flex items-center gap-1.5">
+                          <Flame className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                          <span>Bruttus Burger EUN</span>
+                        </div>
+                      </td>
                       <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                          🍔 Dark Kitchen
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200/80 text-amber-950 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300/80">
+                          🍔 100% Dark Kitchen
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.bruttus.salao)}</td>
-                      <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.bruttus.delivery)}</td>
-                      <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.bruttus.ifood)}</td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
+                      <td className="py-3 px-4 text-right font-mono text-slate-400">{formatCurrency(storeData.eunapolis.bruttus.salao)}</td>
+                      <td className="py-3 px-4 text-right font-mono font-medium text-amber-950 dark:text-amber-200">{formatCurrency(storeData.eunapolis.bruttus.delivery)}</td>
+                      <td className="py-3 px-4 text-right font-mono font-medium text-amber-950 dark:text-amber-200">{formatCurrency(storeData.eunapolis.bruttus.ifood)}</td>
+                      <td className="py-3 px-4 text-right font-mono font-black text-amber-900 dark:text-amber-300 text-sm">
                         {formatCurrency(storeData.eunapolis.bruttus.totalRevenue)}
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <span className="text-[10px] text-emerald-600 font-medium">Takeat</span>
+                        <span className="text-[10px] text-amber-800 dark:text-amber-300 font-bold bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">Takeat (DK)</span>
                       </td>
                     </tr>
                   ) : (
@@ -1505,6 +1803,93 @@ export default function FaturamentoPage() {
                       <span className="text-[10px] text-emerald-600 font-medium">Takeat</span>
                     </td>
                   </tr>
+                  {/* Subtotal House 190 */}
+                  <tr className="bg-slate-50/70 dark:bg-zinc-800/40 border-t border-slate-200 dark:border-zinc-700">
+                    <td className="py-3 px-4 font-bold text-slate-800 dark:text-zinc-200">
+                      Subtotal — House 190 (Todas as Casas)
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-800 dark:bg-zinc-700 dark:text-zinc-200">
+                        🏠 Marca Principal
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-zinc-300">
+                      {formatCurrency(
+                        storeData.teixeira.house.salao +
+                          storeData.eunapolis.house.salao +
+                          storeData.foodpark.salao
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-zinc-300">
+                      {formatCurrency(
+                        storeData.teixeira.house.delivery +
+                          storeData.eunapolis.house.delivery +
+                          storeData.foodpark.delivery
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-zinc-300">
+                      {formatCurrency(
+                        storeData.teixeira.house.ifood +
+                          storeData.eunapolis.house.ifood +
+                          storeData.foodpark.ifood
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-zinc-100">
+                      {formatCurrency(
+                        storeData.teixeira.house.totalRevenue +
+                          storeData.eunapolis.house.totalRevenue +
+                          storeData.foodpark.totalRevenue
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <span className="text-[10px] text-slate-500 font-semibold">Consolidado</span>
+                    </td>
+                  </tr>
+
+                  {/* Subtotal Bruttus Burger DK */}
+                  {(storeData.teixeira.bruttus.totalRevenue > 0 || storeData.eunapolis.bruttus.totalRevenue > 0) && (
+                    <tr className="bg-amber-50/70 border-l-4 border-l-amber-500 hover:bg-amber-100/60 dark:bg-amber-950/20 dark:border-l-amber-400 transition-colors">
+                      <td className="py-3 px-4 font-bold text-amber-950 dark:text-amber-200">
+                        <div className="flex items-center gap-1.5">
+                          <Flame className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                          <span>Subtotal — Bruttus Burger (Rede DK)</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-200/80 text-amber-950 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300/80">
+                          🍔 100% Dark Kitchen
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono text-slate-400">
+                        {formatCurrency(
+                          storeData.teixeira.bruttus.salao +
+                            storeData.eunapolis.bruttus.salao
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-medium text-amber-950 dark:text-amber-200">
+                        {formatCurrency(
+                          storeData.teixeira.bruttus.delivery +
+                            storeData.eunapolis.bruttus.delivery
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-medium text-amber-950 dark:text-amber-200">
+                        {formatCurrency(
+                          storeData.teixeira.bruttus.ifood +
+                            storeData.eunapolis.bruttus.ifood
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-black text-amber-900 dark:text-amber-300 text-sm">
+                        {formatCurrency(
+                          storeData.teixeira.bruttus.totalRevenue +
+                            storeData.eunapolis.bruttus.totalRevenue
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="text-[10px] text-amber-800 dark:text-amber-300 font-bold bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">Rede DK</span>
+                      </td>
+                    </tr>
+                  )}
+
                   <tr className="bg-emerald-50/70 dark:bg-emerald-950/20 font-semibold border-t-2 border-emerald-200 dark:border-emerald-800/80">
                     <td className="py-3 px-4 text-emerald-950 dark:text-emerald-100 font-bold">
                       Total Consolidado Geral
