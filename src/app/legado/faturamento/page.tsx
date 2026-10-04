@@ -598,14 +598,14 @@ export default function FaturamentoPage() {
         {/* Controles de Período & Sincronização */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Alternador Diário / Mensal */}
-          <div className="inline-flex rounded-lg border border-zinc-200 bg-zinc-100 p-0.5 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="inline-flex rounded-xl border border-zinc-200/90 bg-zinc-100/90 p-1 dark:border-zinc-800 dark:bg-zinc-900 shadow-2xs">
             <button
               type="button"
               onClick={() => setViewMode("daily")}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                 viewMode === "daily"
-                  ? "bg-white text-zinc-900 shadow-2xs dark:bg-zinc-800 dark:text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                  ? "bg-white text-violet-700 shadow-xs dark:bg-zinc-800 dark:text-violet-300 font-bold"
+                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
               }`}
             >
               Diário
@@ -613,10 +613,10 @@ export default function FaturamentoPage() {
             <button
               type="button"
               onClick={() => setViewMode("monthly")}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                 viewMode === "monthly"
-                  ? "bg-white text-zinc-900 shadow-2xs dark:bg-zinc-800 dark:text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                  ? "bg-white text-violet-700 shadow-xs dark:bg-zinc-800 dark:text-violet-300 font-bold"
+                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
               }`}
             >
               Mensal
@@ -625,13 +625,13 @@ export default function FaturamentoPage() {
 
           {/* Seletores de Data */}
           {viewMode === "daily" ? (
-            <div className="flex items-center gap-1 bg-white border border-zinc-200 rounded-lg p-1 dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
+            <div className="flex items-center gap-1.5 bg-white border border-zinc-200/90 rounded-xl p-1 dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
               <button
                 type="button"
                 onClick={() => setSelectedDate(getTodayBahiaDate())}
-                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
                   selectedDate === getTodayBahiaDate()
-                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    ? "bg-violet-600 text-white shadow-xs"
                     : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 }`}
               >
@@ -640,9 +640,9 @@ export default function FaturamentoPage() {
               <button
                 type="button"
                 onClick={() => setSelectedDate(getYesterdayBahiaDate())}
-                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
                   selectedDate === getYesterdayBahiaDate()
-                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    ? "bg-violet-600 text-white shadow-xs"
                     : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 }`}
               >
@@ -652,17 +652,17 @@ export default function FaturamentoPage() {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="h-7 px-2 text-xs bg-transparent border-0 text-zinc-800 font-mono focus:outline-none dark:text-zinc-200 cursor-pointer"
+                className="h-7 px-2 text-xs bg-transparent border-0 text-zinc-800 font-mono font-medium focus:outline-none dark:text-zinc-200 cursor-pointer"
               />
             </div>
           ) : (
-            <div className="flex items-center gap-1 bg-white border border-zinc-200 rounded-lg p-1 dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
+            <div className="flex items-center gap-1.5 bg-white border border-zinc-200/90 rounded-xl p-1 dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
               <button
                 type="button"
                 onClick={() => setSelectedMonth(getCurrentBahiaMonth())}
-                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
                   selectedMonth === getCurrentBahiaMonth()
-                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    ? "bg-violet-600 text-white shadow-xs"
                     : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 }`}
               >
@@ -671,9 +671,9 @@ export default function FaturamentoPage() {
               <button
                 type="button"
                 onClick={() => setSelectedMonth(getPreviousBahiaMonth())}
-                className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
                   selectedMonth === getPreviousBahiaMonth()
-                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                    ? "bg-violet-600 text-white shadow-xs"
                     : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 }`}
               >
@@ -683,7 +683,7 @@ export default function FaturamentoPage() {
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="h-7 px-2 text-xs bg-transparent border-0 text-zinc-800 font-mono focus:outline-none dark:text-zinc-200 cursor-pointer"
+                className="h-7 px-2 text-xs bg-transparent border-0 text-zinc-800 font-mono font-medium focus:outline-none dark:text-zinc-200 cursor-pointer"
               />
             </div>
           )}
@@ -694,7 +694,7 @@ export default function FaturamentoPage() {
             onClick={() => handleSyncTakeat()}
             disabled={syncing}
             isLoading={syncing}
-            className="bg-zinc-900 text-white hover:bg-zinc-800 gap-1.5 shadow-2xs dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+            className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white gap-2 shadow-sm shadow-violet-500/25 border-0 font-medium px-4"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
             <span>{viewMode === "monthly" ? "Sincronizar Mês" : "Sincronizar Dia"}</span>
@@ -707,7 +707,7 @@ export default function FaturamentoPage() {
               size="sm"
               onClick={() => handleOpenCredsModal()}
               title="Configurar conexões Takeat"
-              className="gap-1.5 text-zinc-600 hover:text-zinc-900 border-zinc-200 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+              className="gap-1.5 text-zinc-600 hover:text-violet-700 hover:border-violet-300 border-zinc-200 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
             >
               <Settings2 className="h-3.5 w-3.5" />
             </Button>
@@ -715,11 +715,11 @@ export default function FaturamentoPage() {
         </div>
       </div>
 
-      {/* 2. Barra de Seleção de Loja e Marca (Unificada e Limpa) */}
+      {/* 2. Barra de Seleção de Loja e Marca (Vibrante e Executiva) */}
       {!isScopedStoreUser && (
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-zinc-50/70 p-2.5 rounded-xl border border-zinc-200/80 dark:bg-zinc-900/40 dark:border-zinc-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-zinc-200/80 shadow-2xs dark:bg-zinc-900/60 dark:border-zinc-800">
           {/* Lojas */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
             {[
               { id: "teixeira", label: "House 190 Teixeira", total: storeData.teixeira.consolidated.totalRevenue },
               { id: "eunapolis", label: "House 190 Eunápolis", total: storeData.eunapolis.consolidated.totalRevenue },
@@ -743,18 +743,18 @@ export default function FaturamentoPage() {
                     setSelectedBrandView("consolidated");
                     setCurrentUnit(tab.id as any);
                   }}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 shrink-0 ${
+                  className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2.5 shrink-0 ${
                     isActive
-                      ? "bg-zinc-900 text-white shadow-2xs dark:bg-zinc-100 dark:text-zinc-900"
-                      : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-200/50 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800/60"
+                      ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-sm shadow-violet-500/25 font-bold"
+                      : "bg-zinc-50 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200/70 dark:bg-zinc-800/60 dark:text-zinc-300 dark:border-zinc-700/80"
                   }`}
                 >
                   <span>{tab.label}</span>
                   <span
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-medium ${
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
                       isActive
-                        ? "bg-white/20 text-white dark:bg-zinc-900/20 dark:text-zinc-900"
-                        : "bg-zinc-200/70 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                        ? "bg-white/25 text-white"
+                        : "bg-white text-zinc-700 border border-zinc-200/60 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-700"
                     }`}
                   >
                     {formatCurrency(tab.total)}
@@ -764,18 +764,20 @@ export default function FaturamentoPage() {
             })}
           </div>
 
-          {/* Subfiltro de Marca (apenas quando Teixeira ou Eunápolis estiver ativo) */}
+          {/* Subfiltro de Marca */}
           {(activeStoreTab === "teixeira" || activeStoreTab === "eunapolis") && (
-            <div className="flex items-center gap-1 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-zinc-200/60 dark:border-zinc-800">
-              <span className="text-[11px] font-medium text-zinc-400 mr-1 hidden sm:inline">Marca:</span>
-              <div className="inline-flex rounded-lg border border-zinc-200/80 bg-white p-0.5 dark:border-zinc-700/80 dark:bg-zinc-800">
+            <div className="flex items-center gap-1.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-zinc-200/60 dark:border-zinc-800">
+              <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mr-1 hidden sm:inline">
+                Marca:
+              </span>
+              <div className="inline-flex rounded-xl border border-zinc-200/90 bg-zinc-50 p-1 dark:border-zinc-700/80 dark:bg-zinc-800/80">
                 <button
                   type="button"
                   onClick={() => setSelectedBrandView("consolidated")}
-                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     selectedBrandView === "consolidated"
-                      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs"
-                      : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                      ? "bg-violet-600 text-white shadow-xs font-bold"
+                      : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
                   }`}
                 >
                   Consolidado
@@ -783,10 +785,10 @@ export default function FaturamentoPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedBrandView("house")}
-                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     selectedBrandView === "house"
-                      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-2xs"
-                      : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                      ? "bg-violet-600 text-white shadow-xs font-bold"
+                      : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
                   }`}
                 >
                   House 190
@@ -794,10 +796,10 @@ export default function FaturamentoPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedBrandView("bruttus")}
-                  className={`px-2.5 py-1 rounded text-xs font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     selectedBrandView === "bruttus"
-                      ? "bg-amber-600 text-white shadow-2xs"
-                      : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                      ? "bg-amber-600 text-white shadow-xs font-bold"
+                      : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
                   }`}
                 >
                   Bruttus Burger
@@ -870,25 +872,26 @@ export default function FaturamentoPage() {
         </div>
       )}
 
-      {/* 4. CARDS DEFINITIVOS DE FATURAMENTO & CANAIS (Sem duplicações) */}
+      {/* 4. CARDS DEFINITIVOS DE FATURAMENTO & CANAIS (Vibrante & Executivo) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card Hero: Faturamento Total */}
-        <div className="p-5 rounded-2xl border border-zinc-900/10 bg-gradient-to-br from-zinc-900 to-zinc-800 text-white shadow-sm dark:border-zinc-700 dark:from-zinc-900 dark:to-zinc-950 flex flex-col justify-between">
-          <div>
+        {/* Card Hero: Faturamento Total com Gradiente Violeta Executivo */}
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-violet-600 via-indigo-600 to-purple-800 text-white shadow-lg shadow-indigo-500/15 border border-indigo-400/20 relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute -top-12 -right-12 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="relative z-10">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+              <span className="text-xs font-semibold text-violet-100 uppercase tracking-wider">
                 {viewMode === "daily" ? "Faturamento do Dia" : "Faturamento do Mês"}
               </span>
-              <div className="h-8 w-8 rounded-xl bg-white/10 flex items-center justify-center text-white">
+              <div className="h-8 w-8 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white shadow-xs">
                 <DollarSign className="h-4 w-4" />
               </div>
             </div>
-            <div className="mt-3 text-3xl font-bold tracking-tight font-mono">
+            <div className="mt-3 text-3xl font-extrabold tracking-tight font-mono text-white">
               {formatCurrency(totalGeral)}
             </div>
           </div>
-          <div className="mt-4 flex items-center justify-between text-xs text-zinc-300 border-t border-white/10 pt-3">
-            <span className="truncate max-w-[65%]">
+          <div className="relative z-10 mt-4 flex items-center justify-between text-xs text-violet-100 border-t border-white/15 pt-3">
+            <span className="truncate max-w-[65%] font-medium">
               {activeStoreTab === "all"
                 ? "Todas as Lojas"
                 : `${UNIT_LABELS[activeStoreTab]?.split(" ")[2] || activeStoreTab} ${
@@ -899,35 +902,37 @@ export default function FaturamentoPage() {
                       : ""
                   }`}
             </span>
-            <span className="font-mono text-zinc-400 text-[11px] shrink-0">
+            <span className="font-mono text-violet-200 text-[11px] shrink-0 font-medium">
               {viewMode === "daily" ? formatDate(selectedDate) : selectedMonth}
             </span>
           </div>
         </div>
 
         {/* Salão & Balcão */}
-        <div className="p-5 rounded-2xl border border-zinc-200/80 bg-white shadow-2xs dark:bg-zinc-900 dark:border-zinc-800 flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-white to-blue-50/40 border border-blue-200/70 shadow-xs hover:shadow-sm transition-all dark:from-zinc-900 dark:to-blue-950/20 dark:border-blue-900/40 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
+              <span className="text-xs font-bold text-blue-700 uppercase tracking-wider dark:text-blue-300">
                 Salão & Balcão
               </span>
-              <div className="h-8 w-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center dark:bg-blue-950/50 dark:text-blue-400">
+              <div className="h-8 w-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shadow-2xs dark:bg-blue-950/60 dark:text-blue-400">
                 <Store className="h-4 w-4" />
               </div>
             </div>
-            <div className="mt-3 text-2xl font-bold tracking-tight font-mono text-zinc-900 dark:text-zinc-50">
+            <div className="mt-3 text-2xl font-extrabold tracking-tight font-mono text-zinc-900 dark:text-zinc-50">
               {formatCurrency(totalSalao)}
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <div className="mt-4 pt-3 border-t border-blue-100 dark:border-blue-950/50">
             <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="text-zinc-500 dark:text-zinc-400">Participação</span>
-              <span className="font-bold text-blue-600 dark:text-blue-400">{formatPercent(pctSalao)}</span>
+              <span className="text-zinc-500 font-medium dark:text-zinc-400">Participação</span>
+              <span className="font-bold text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full bg-blue-100/70 dark:bg-blue-950/80 text-[11px]">
+                {formatPercent(pctSalao)}
+              </span>
             </div>
-            <div className="h-1.5 w-full bg-zinc-100 rounded-full overflow-hidden dark:bg-zinc-800">
+            <div className="h-2 w-full bg-blue-100/70 rounded-full overflow-hidden dark:bg-zinc-800">
               <div
-                className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(pctSalao, 100)}%` }}
               />
             </div>
@@ -935,28 +940,30 @@ export default function FaturamentoPage() {
         </div>
 
         {/* Delivery Próprio */}
-        <div className="p-5 rounded-2xl border border-zinc-200/80 bg-white shadow-2xs dark:bg-zinc-900 dark:border-zinc-800 flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-white to-amber-50/40 border border-amber-200/70 shadow-xs hover:shadow-sm transition-all dark:from-zinc-900 dark:to-amber-950/20 dark:border-amber-900/40 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
+              <span className="text-xs font-bold text-amber-700 uppercase tracking-wider dark:text-amber-300">
                 Delivery Próprio
               </span>
-              <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center dark:bg-amber-950/50 dark:text-amber-400">
+              <div className="h-8 w-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shadow-2xs dark:bg-amber-950/60 dark:text-amber-400">
                 <Truck className="h-4 w-4" />
               </div>
             </div>
-            <div className="mt-3 text-2xl font-bold tracking-tight font-mono text-zinc-900 dark:text-zinc-50">
+            <div className="mt-3 text-2xl font-extrabold tracking-tight font-mono text-zinc-900 dark:text-zinc-50">
               {formatCurrency(totalDelivery)}
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <div className="mt-4 pt-3 border-t border-amber-100 dark:border-amber-950/50">
             <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="text-zinc-500 dark:text-zinc-400">Participação</span>
-              <span className="font-bold text-amber-600 dark:text-amber-400">{formatPercent(pctDelivery)}</span>
+              <span className="text-zinc-500 font-medium dark:text-zinc-400">Participação</span>
+              <span className="font-bold text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full bg-amber-100/70 dark:bg-amber-950/80 text-[11px]">
+                {formatPercent(pctDelivery)}
+              </span>
             </div>
-            <div className="h-1.5 w-full bg-zinc-100 rounded-full overflow-hidden dark:bg-zinc-800">
+            <div className="h-2 w-full bg-amber-100/70 rounded-full overflow-hidden dark:bg-zinc-800">
               <div
-                className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(pctDelivery, 100)}%` }}
               />
             </div>
@@ -964,28 +971,30 @@ export default function FaturamentoPage() {
         </div>
 
         {/* iFood Oficial */}
-        <div className="p-5 rounded-2xl border border-zinc-200/80 bg-white shadow-2xs dark:bg-zinc-900 dark:border-zinc-800 flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-white to-rose-50/40 border border-rose-200/70 shadow-xs hover:shadow-sm transition-all dark:from-zinc-900 dark:to-rose-950/20 dark:border-rose-900/40 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
+              <span className="text-xs font-bold text-rose-700 uppercase tracking-wider dark:text-rose-300">
                 iFood Oficial
               </span>
-              <div className="h-8 w-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center dark:bg-rose-950/50 dark:text-rose-400">
+              <div className="h-8 w-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shadow-2xs dark:bg-rose-950/60 dark:text-rose-400">
                 <ShoppingBag className="h-4 w-4" />
               </div>
             </div>
-            <div className="mt-3 text-2xl font-bold tracking-tight font-mono text-zinc-900 dark:text-zinc-50">
+            <div className="mt-3 text-2xl font-extrabold tracking-tight font-mono text-zinc-900 dark:text-zinc-50">
               {formatCurrency(totalIfood)}
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <div className="mt-4 pt-3 border-t border-rose-100 dark:border-rose-950/50">
             <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="text-zinc-500 dark:text-zinc-400">Participação</span>
-              <span className="font-bold text-rose-600 dark:text-rose-400">{formatPercent(pctIfood)}</span>
+              <span className="text-zinc-500 font-medium dark:text-zinc-400">Participação</span>
+              <span className="font-bold text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded-full bg-rose-100/70 dark:bg-rose-950/80 text-[11px]">
+                {formatPercent(pctIfood)}
+              </span>
             </div>
-            <div className="h-1.5 w-full bg-zinc-100 rounded-full overflow-hidden dark:bg-zinc-800">
+            <div className="h-2 w-full bg-rose-100/70 rounded-full overflow-hidden dark:bg-zinc-800">
               <div
-                className="h-full bg-rose-500 rounded-full transition-all duration-500"
+                className="h-full bg-gradient-to-r from-rose-500 to-pink-500 rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(pctIfood, 100)}%` }}
               />
             </div>
@@ -1088,7 +1097,13 @@ export default function FaturamentoPage() {
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888820" />
+                  <defs>
+                    <linearGradient id="barGradientViolet" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.95} />
+                      <stop offset="100%" stopColor="#6366f1" stopOpacity={0.7} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888815" />
                   <XAxis dataKey="label" stroke="#88888880" fontSize={11} tickLine={false} axisLine={false} />
                   <YAxis
                     stroke="#88888880"
@@ -1101,11 +1116,11 @@ export default function FaturamentoPage() {
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         return (
-                          <div className="rounded-lg border border-zinc-200 bg-white p-2.5 shadow-md text-xs dark:bg-zinc-900 dark:border-zinc-800">
-                            <span className="font-medium text-zinc-700 dark:text-zinc-200 block mb-1">
+                          <div className="rounded-xl border border-violet-100 bg-white p-3 shadow-lg text-xs dark:bg-zinc-900 dark:border-zinc-800">
+                            <span className="font-medium text-zinc-500 dark:text-zinc-400 block mb-1">
                               {payload[0].payload.label}
                             </span>
-                            <span className="font-mono font-bold text-zinc-900 dark:text-zinc-50">
+                            <span className="font-mono font-bold text-violet-700 dark:text-violet-300 text-sm">
                               {formatCurrency(Number(payload[0].value) || 0)}
                             </span>
                           </div>
@@ -1114,13 +1129,13 @@ export default function FaturamentoPage() {
                       return null;
                     }}
                   />
-                  <Bar dataKey="total" radius={[4, 4, 0, 0]} fill="#18181b" />
+                  <Bar dataKey="total" radius={[6, 6, 0, 0]} fill="url(#barGradientViolet)" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           ) : (
             <div className="h-64 flex flex-col items-center justify-center text-center p-6 border border-dashed border-zinc-200 rounded-lg dark:border-zinc-800">
-              <RefreshCw className="h-8 w-8 text-zinc-300 dark:text-zinc-700 mb-2 animate-pulse" />
+              <RefreshCw className="h-8 w-8 text-violet-300 dark:text-violet-700 mb-2 animate-pulse" />
               <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
                 Nenhum faturamento registrado para este período
               </p>
@@ -1129,7 +1144,7 @@ export default function FaturamentoPage() {
                 variant="outline"
                 onClick={() => handleSyncTakeat()}
                 disabled={syncing}
-                className="mt-3 text-xs"
+                className="mt-3 text-xs text-violet-700 border-violet-200 hover:bg-violet-50"
               >
                 Sincronizar Takeat
               </Button>
@@ -1138,7 +1153,7 @@ export default function FaturamentoPage() {
         </div>
 
         {/* Mix de Canais */}
-        <div className="p-5 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs space-y-4">
+        <div className="p-5 rounded-2xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs space-y-4">
           <div>
             <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
               Mix de Canais de Venda
@@ -1160,13 +1175,16 @@ export default function FaturamentoPage() {
                   <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
                     {formatCurrency(totalSalao)}
                   </span>
-                  <span className="text-[10px] text-zinc-400 ml-1.5 font-mono">
+                  <span className="text-[10px] text-blue-600 font-semibold ml-1.5 font-mono">
                     ({formatPercent(pctSalao)})
                   </span>
                 </div>
               </div>
-              <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden dark:bg-zinc-800">
-                <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${pctSalao}%` }} />
+              <div className="h-2 w-full bg-blue-100/60 rounded-full overflow-hidden dark:bg-zinc-800">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(pctSalao, 100)}%` }}
+                />
               </div>
             </div>
 
@@ -1181,13 +1199,16 @@ export default function FaturamentoPage() {
                   <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
                     {formatCurrency(totalDelivery)}
                   </span>
-                  <span className="text-[10px] text-zinc-400 ml-1.5 font-mono">
+                  <span className="text-[10px] text-amber-600 font-semibold ml-1.5 font-mono">
                     ({formatPercent(pctDelivery)})
                   </span>
                 </div>
               </div>
-              <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden dark:bg-zinc-800">
-                <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${pctDelivery}%` }} />
+              <div className="h-2 w-full bg-amber-100/60 rounded-full overflow-hidden dark:bg-zinc-800">
+                <div
+                  className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(pctDelivery, 100)}%` }}
+                />
               </div>
             </div>
 
@@ -1202,19 +1223,23 @@ export default function FaturamentoPage() {
                   <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
                     {formatCurrency(totalIfood)}
                   </span>
-                  <span className="text-[10px] text-zinc-400 ml-1.5 font-mono">
+                  <span className="text-[10px] text-rose-600 font-semibold ml-1.5 font-mono">
                     ({formatPercent(pctIfood)})
                   </span>
                 </div>
               </div>
-              <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden dark:bg-zinc-800">
-                <div className="h-full bg-rose-500 rounded-full transition-all duration-500" style={{ width: `${pctIfood}%` }} />
+              <div className="h-2 w-full bg-rose-100/60 rounded-full overflow-hidden dark:bg-zinc-800">
+                <div
+                  className="h-full bg-gradient-to-r from-rose-500 to-pink-500 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(pctIfood, 100)}%` }}
+                />
               </div>
             </div>
           </div>
 
-          <div className="p-3 bg-zinc-50 rounded-lg border border-zinc-100 dark:bg-zinc-800/40 dark:border-zinc-800 text-[11px] text-zinc-500 mt-4">
-            Valores oficiais extraídos da Takeat com centavos auditados em tempo real.
+          <div className="p-3 bg-violet-50/50 rounded-xl border border-violet-100 text-[11px] text-violet-800 dark:bg-zinc-800/40 dark:border-zinc-800 dark:text-violet-300 mt-4 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 shrink-0 text-violet-500" />
+            <span>Valores oficiais extraídos da Takeat com centavos auditados em tempo real.</span>
           </div>
         </div>
       </div>
@@ -1307,19 +1332,19 @@ export default function FaturamentoPage() {
                       </td>
                     </tr>
                   )}
-                  <tr className="bg-zinc-100/70 dark:bg-zinc-800/60 font-semibold border-t border-zinc-200 dark:border-zinc-700">
-                    <td className="py-3 px-4 text-zinc-900 dark:text-zinc-100 font-bold">
+                  <tr className="bg-violet-50/60 dark:bg-violet-950/20 font-semibold border-t border-violet-200 dark:border-violet-800">
+                    <td className="py-3 px-4 text-violet-950 dark:text-violet-100 font-bold">
                       Teixeira de Freitas (Consolidado)
                     </td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-200/80 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-800 dark:bg-violet-900/60 dark:text-violet-200">
                         Total da Filial
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.consolidated.salao)}</td>
                     <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.consolidated.delivery)}</td>
                     <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.consolidated.ifood)}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-zinc-900 dark:text-zinc-50">
+                    <td className="py-3 px-4 text-right font-mono font-bold text-violet-900 dark:text-violet-200">
                       {formatCurrency(storeData.teixeira.consolidated.totalRevenue)}
                     </td>
                     <td className="py-3 px-4 text-center">
@@ -1382,19 +1407,19 @@ export default function FaturamentoPage() {
                       </td>
                     </tr>
                   )}
-                  <tr className="bg-zinc-100/70 dark:bg-zinc-800/60 font-semibold border-t border-zinc-200 dark:border-zinc-700">
-                    <td className="py-3 px-4 text-zinc-900 dark:text-zinc-100 font-bold">
+                  <tr className="bg-violet-50/60 dark:bg-violet-950/20 font-semibold border-t border-violet-200 dark:border-violet-800">
+                    <td className="py-3 px-4 text-violet-950 dark:text-violet-100 font-bold">
                       Eunápolis (Consolidado)
                     </td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-200/80 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-200">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-800 dark:bg-violet-900/60 dark:text-violet-200">
                         Total da Filial
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.consolidated.salao)}</td>
                     <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.consolidated.delivery)}</td>
                     <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.consolidated.ifood)}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-zinc-900 dark:text-zinc-50">
+                    <td className="py-3 px-4 text-right font-mono font-bold text-violet-900 dark:text-violet-200">
                       {formatCurrency(storeData.eunapolis.consolidated.totalRevenue)}
                     </td>
                     <td className="py-3 px-4 text-center">
