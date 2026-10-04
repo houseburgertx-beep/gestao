@@ -598,14 +598,14 @@ export default function FaturamentoPage() {
         {/* Controles de Período & Sincronização */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Alternador Diário / Mensal */}
-          <div className="inline-flex rounded-xl border border-zinc-200/90 bg-zinc-100/90 p-1 dark:border-zinc-800 dark:bg-zinc-900 shadow-2xs">
+          <div className="inline-flex rounded-xl border border-slate-200/90 bg-slate-100 p-1 dark:border-zinc-800 dark:bg-zinc-900 shadow-2xs">
             <button
               type="button"
               onClick={() => setViewMode("daily")}
               className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                 viewMode === "daily"
-                  ? "bg-white text-violet-700 shadow-xs dark:bg-zinc-800 dark:text-violet-300 font-bold"
-                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                  ? "bg-white text-slate-900 shadow-xs dark:bg-zinc-800 dark:text-zinc-100 font-bold"
+                  : "text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-200"
               }`}
             >
               Diário
@@ -615,8 +615,8 @@ export default function FaturamentoPage() {
               onClick={() => setViewMode("monthly")}
               className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                 viewMode === "monthly"
-                  ? "bg-white text-violet-700 shadow-xs dark:bg-zinc-800 dark:text-violet-300 font-bold"
-                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                  ? "bg-white text-slate-900 shadow-xs dark:bg-zinc-800 dark:text-zinc-100 font-bold"
+                  : "text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-200"
               }`}
             >
               Mensal
@@ -625,14 +625,14 @@ export default function FaturamentoPage() {
 
           {/* Seletores de Data */}
           {viewMode === "daily" ? (
-            <div className="flex items-center gap-1.5 bg-white border border-zinc-200/90 rounded-xl p-1 dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200/90 rounded-xl p-1 dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
               <button
                 type="button"
                 onClick={() => setSelectedDate(getTodayBahiaDate())}
                 className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
                   selectedDate === getTodayBahiaDate()
-                    ? "bg-violet-600 text-white shadow-xs"
-                    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 }`}
               >
                 Hoje
@@ -642,8 +642,8 @@ export default function FaturamentoPage() {
                 onClick={() => setSelectedDate(getYesterdayBahiaDate())}
                 className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
                   selectedDate === getYesterdayBahiaDate()
-                    ? "bg-violet-600 text-white shadow-xs"
-                    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 }`}
               >
                 Ontem
@@ -652,18 +652,18 @@ export default function FaturamentoPage() {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="h-7 px-2 text-xs bg-transparent border-0 text-zinc-800 font-mono font-medium focus:outline-none dark:text-zinc-200 cursor-pointer"
+                className="h-7 px-2 text-xs bg-transparent border-0 text-slate-800 font-mono font-medium focus:outline-none dark:text-zinc-200 cursor-pointer"
               />
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 bg-white border border-zinc-200/90 rounded-xl p-1 dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200/90 rounded-xl p-1 dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
               <button
                 type="button"
                 onClick={() => setSelectedMonth(getCurrentBahiaMonth())}
                 className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
                   selectedMonth === getCurrentBahiaMonth()
-                    ? "bg-violet-600 text-white shadow-xs"
-                    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 }`}
               >
                 Este Mês
@@ -673,8 +673,8 @@ export default function FaturamentoPage() {
                 onClick={() => setSelectedMonth(getPreviousBahiaMonth())}
                 className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
                   selectedMonth === getPreviousBahiaMonth()
-                    ? "bg-violet-600 text-white shadow-xs"
-                    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 }`}
               >
                 Mês Anterior
@@ -683,7 +683,7 @@ export default function FaturamentoPage() {
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="h-7 px-2 text-xs bg-transparent border-0 text-zinc-800 font-mono font-medium focus:outline-none dark:text-zinc-200 cursor-pointer"
+                className="h-7 px-2 text-xs bg-transparent border-0 text-slate-800 font-mono font-medium focus:outline-none dark:text-zinc-200 cursor-pointer"
               />
             </div>
           )}
@@ -694,7 +694,7 @@ export default function FaturamentoPage() {
             onClick={() => handleSyncTakeat()}
             disabled={syncing}
             isLoading={syncing}
-            className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white gap-2 shadow-sm shadow-violet-500/25 border-0 font-medium px-4"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-xs shadow-emerald-600/20 border-0 font-medium px-4 rounded-xl"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
             <span>{viewMode === "monthly" ? "Sincronizar Mês" : "Sincronizar Dia"}</span>
@@ -707,7 +707,7 @@ export default function FaturamentoPage() {
               size="sm"
               onClick={() => handleOpenCredsModal()}
               title="Configurar conexões Takeat"
-              className="gap-1.5 text-zinc-600 hover:text-violet-700 hover:border-violet-300 border-zinc-200 dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+              className="gap-1.5 text-slate-600 hover:text-emerald-700 hover:border-emerald-300 border-slate-200 rounded-xl dark:border-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
             >
               <Settings2 className="h-3.5 w-3.5" />
             </Button>
@@ -715,9 +715,9 @@ export default function FaturamentoPage() {
         </div>
       </div>
 
-      {/* 2. Barra de Seleção de Loja e Marca (Vibrante e Executiva) */}
+      {/* 2. Barra de Seleção de Loja e Marca (Padrão Fintech Executivo) */}
       {!isScopedStoreUser && (
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-zinc-200/80 shadow-2xs dark:bg-zinc-900/60 dark:border-zinc-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs dark:bg-zinc-900/60 dark:border-zinc-800">
           {/* Lojas */}
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
             {[
@@ -745,16 +745,16 @@ export default function FaturamentoPage() {
                   }}
                   className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2.5 shrink-0 ${
                     isActive
-                      ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-sm shadow-violet-500/25 font-bold"
-                      : "bg-zinc-50 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200/70 dark:bg-zinc-800/60 dark:text-zinc-300 dark:border-zinc-700/80"
+                      ? "bg-emerald-600 text-white shadow-xs shadow-emerald-600/20 font-bold"
+                      : "bg-slate-50 text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-200/80 dark:bg-zinc-800/60 dark:text-zinc-300 dark:border-zinc-700/80"
                   }`}
                 >
                   <span>{tab.label}</span>
                   <span
                     className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
                       isActive
-                        ? "bg-white/25 text-white"
-                        : "bg-white text-zinc-700 border border-zinc-200/60 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-700"
+                        ? "bg-white/20 text-white"
+                        : "bg-white text-slate-700 border border-slate-200/80 dark:bg-zinc-900 dark:text-zinc-300 dark:border-zinc-700"
                     }`}
                   >
                     {formatCurrency(tab.total)}
@@ -766,18 +766,18 @@ export default function FaturamentoPage() {
 
           {/* Subfiltro de Marca */}
           {(activeStoreTab === "teixeira" || activeStoreTab === "eunapolis") && (
-            <div className="flex items-center gap-1.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-zinc-200/60 dark:border-zinc-800">
-              <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mr-1 hidden sm:inline">
+            <div className="flex items-center gap-1.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200/70 dark:border-zinc-800">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mr-1 hidden sm:inline">
                 Marca:
               </span>
-              <div className="inline-flex rounded-xl border border-zinc-200/90 bg-zinc-50 p-1 dark:border-zinc-700/80 dark:bg-zinc-800/80">
+              <div className="inline-flex rounded-xl border border-slate-200/90 bg-slate-50 p-1 dark:border-zinc-700/80 dark:bg-zinc-800/80">
                 <button
                   type="button"
                   onClick={() => setSelectedBrandView("consolidated")}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     selectedBrandView === "consolidated"
-                      ? "bg-violet-600 text-white shadow-xs font-bold"
-                      : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                      ? "bg-white text-slate-900 shadow-xs font-bold dark:bg-zinc-800 dark:text-zinc-100"
+                      : "text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-200"
                   }`}
                 >
                   Consolidado
@@ -787,8 +787,8 @@ export default function FaturamentoPage() {
                   onClick={() => setSelectedBrandView("house")}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     selectedBrandView === "house"
-                      ? "bg-violet-600 text-white shadow-xs font-bold"
-                      : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                      ? "bg-white text-slate-900 shadow-xs font-bold dark:bg-zinc-800 dark:text-zinc-100"
+                      : "text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-200"
                   }`}
                 >
                   House 190
@@ -799,7 +799,7 @@ export default function FaturamentoPage() {
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     selectedBrandView === "bruttus"
                       ? "bg-amber-600 text-white shadow-xs font-bold"
-                      : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+                      : "text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-zinc-200"
                   }`}
                 >
                   Bruttus Burger
@@ -815,8 +815,8 @@ export default function FaturamentoPage() {
         <div
           className={`p-3.5 rounded-xl text-xs flex items-center justify-between gap-3 border transition-all ${
             syncMessage.type === "success"
-              ? "bg-emerald-50/70 border-emerald-200 text-emerald-900 dark:bg-emerald-950/20 dark:border-emerald-900/40 dark:text-emerald-300"
-              : "bg-rose-50/70 border-rose-200 text-rose-900 dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-300"
+              ? "bg-emerald-50/80 border-emerald-200 text-emerald-900 dark:bg-emerald-950/20 dark:border-emerald-900/40 dark:text-emerald-300"
+              : "bg-rose-50/80 border-rose-200 text-rose-900 dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-300"
           }`}
         >
           <div className="flex items-center gap-2">
@@ -830,7 +830,7 @@ export default function FaturamentoPage() {
           <button
             type="button"
             onClick={() => setSyncMessage(null)}
-            className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+            className="text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200"
           >
             <X className="h-4 w-4" />
           </button>
@@ -840,58 +840,62 @@ export default function FaturamentoPage() {
       {/* 3. Visão Rápida por Unidade (apenas quando na aba Consolidado Geral) */}
       {activeStoreTab === "all" && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-4 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
-            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
+          <div className="p-4 rounded-xl border border-slate-200/90 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
               Teixeira de Freitas
             </span>
-            <div className="text-xl font-bold font-mono text-zinc-900 dark:text-zinc-50 mt-1">
+            <div className="text-xl font-bold font-mono text-slate-900 dark:text-zinc-50 mt-1">
               {formatCurrency(storeData.teixeira.consolidated.totalRevenue)}
             </div>
-            <span className="text-[11px] text-zinc-400 mt-0.5 block">House + Bruttus TX</span>
+            <span className="text-[11px] text-slate-500 mt-0.5 block">House + Bruttus TX</span>
           </div>
 
-          <div className="p-4 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
-            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
+          <div className="p-4 rounded-xl border border-slate-200/90 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
               Eunápolis
             </span>
-            <div className="text-xl font-bold font-mono text-zinc-900 dark:text-zinc-50 mt-1">
+            <div className="text-xl font-bold font-mono text-slate-900 dark:text-zinc-50 mt-1">
               {formatCurrency(storeData.eunapolis.consolidated.totalRevenue)}
             </div>
-            <span className="text-[11px] text-zinc-400 mt-0.5 block">House + Bruttus EUN</span>
+            <span className="text-[11px] text-slate-500 mt-0.5 block">House + Bruttus EUN</span>
           </div>
 
-          <div className="p-4 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
-            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
+          <div className="p-4 rounded-xl border border-slate-200/90 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
               House Foodpark
             </span>
-            <div className="text-xl font-bold font-mono text-zinc-900 dark:text-zinc-50 mt-1">
+            <div className="text-xl font-bold font-mono text-slate-900 dark:text-zinc-50 mt-1">
               {formatCurrency(storeData.foodpark.totalRevenue)}
             </div>
-            <span className="text-[11px] text-zinc-400 mt-0.5 block">Operação Foodpark</span>
+            <span className="text-[11px] text-slate-500 mt-0.5 block">Operação Foodpark</span>
           </div>
         </div>
       )}
 
-      {/* 4. CARDS DEFINITIVOS DE FATURAMENTO & CANAIS (Vibrante & Executivo) */}
+      {/* 4. CARDS DEFINITIVOS DE FATURAMENTO & CANAIS (Estilo Fintech Executivo) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card Hero: Faturamento Total com Gradiente Violeta Executivo */}
-        <div className="p-5 rounded-2xl bg-gradient-to-br from-violet-600 via-indigo-600 to-purple-800 text-white shadow-lg shadow-indigo-500/15 border border-indigo-400/20 relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute -top-12 -right-12 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="relative z-10">
+        {/* Card Hero: Faturamento Total - Clean Fintech com Destaque Emerald */}
+        <div className="p-6 rounded-2xl bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/40 border-2 border-emerald-500/30 shadow-xs hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between dark:from-zinc-900 dark:via-zinc-900 dark:to-emerald-950/20 dark:border-emerald-800/40">
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600" />
+          <div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-violet-100 uppercase tracking-wider">
-                {viewMode === "daily" ? "Faturamento do Dia" : "Faturamento do Mês"}
-              </span>
-              <div className="h-8 w-8 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white shadow-xs">
-                <DollarSign className="h-4 w-4" />
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider dark:text-emerald-300">
+                  {viewMode === "daily" ? "Faturamento do Dia" : "Faturamento do Mês"}
+                </span>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shadow-2xs dark:bg-emerald-950/60 dark:text-emerald-300">
+                <DollarSign className="h-5 w-5" />
               </div>
             </div>
-            <div className="mt-3 text-3xl font-extrabold tracking-tight font-mono text-white">
+            <div className="mt-3 text-3xl font-extrabold tracking-tight font-mono text-slate-900 dark:text-zinc-50">
               {formatCurrency(totalGeral)}
             </div>
           </div>
-          <div className="relative z-10 mt-4 flex items-center justify-between text-xs text-violet-100 border-t border-white/15 pt-3">
-            <span className="truncate max-w-[65%] font-medium">
+          <div className="mt-4 pt-3 border-t border-emerald-100/80 dark:border-emerald-900/40 flex items-center justify-between text-xs text-slate-600 dark:text-zinc-400">
+            <span className="font-semibold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5 truncate max-w-[65%]">
+              <Building2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
               {activeStoreTab === "all"
                 ? "Todas as Lojas"
                 : `${UNIT_LABELS[activeStoreTab]?.split(" ")[2] || activeStoreTab} ${
@@ -902,37 +906,38 @@ export default function FaturamentoPage() {
                       : ""
                   }`}
             </span>
-            <span className="font-mono text-violet-200 text-[11px] shrink-0 font-medium">
+            <span className="font-mono text-slate-500 font-medium bg-white px-2 py-0.5 rounded-md border border-emerald-100 text-[11px] shrink-0 dark:bg-zinc-800 dark:border-emerald-900/40 dark:text-zinc-300">
               {viewMode === "daily" ? formatDate(selectedDate) : selectedMonth}
             </span>
           </div>
         </div>
 
         {/* Salão & Balcão */}
-        <div className="p-5 rounded-2xl bg-gradient-to-br from-white to-blue-50/40 border border-blue-200/70 shadow-xs hover:shadow-sm transition-all dark:from-zinc-900 dark:to-blue-950/20 dark:border-blue-900/40 flex flex-col justify-between">
+        <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-50/50 via-white to-sky-50/30 border border-blue-200/80 shadow-xs hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden dark:from-zinc-900 dark:to-blue-950/20 dark:border-blue-900/40">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500" />
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-blue-700 uppercase tracking-wider dark:text-blue-300">
+              <span className="text-xs font-bold text-blue-800 uppercase tracking-wider dark:text-blue-300">
                 Salão & Balcão
               </span>
-              <div className="h-8 w-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shadow-2xs dark:bg-blue-950/60 dark:text-blue-400">
+              <div className="h-9 w-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shadow-2xs dark:bg-blue-950/60 dark:text-blue-300">
                 <Store className="h-4 w-4" />
               </div>
             </div>
-            <div className="mt-3 text-2xl font-extrabold tracking-tight font-mono text-zinc-900 dark:text-zinc-50">
+            <div className="mt-3 text-2xl font-extrabold tracking-tight font-mono text-slate-900 dark:text-zinc-50">
               {formatCurrency(totalSalao)}
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-blue-100 dark:border-blue-950/50">
+          <div className="mt-4 pt-3 border-t border-blue-100 dark:border-blue-900/30">
             <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="text-zinc-500 font-medium dark:text-zinc-400">Participação</span>
-              <span className="font-bold text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full bg-blue-100/70 dark:bg-blue-950/80 text-[11px]">
+              <span className="text-slate-500 font-medium dark:text-zinc-400">Participação</span>
+              <span className="font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full text-xs font-mono dark:bg-blue-950/80 dark:text-blue-300">
                 {formatPercent(pctSalao)}
               </span>
             </div>
             <div className="h-2 w-full bg-blue-100/70 rounded-full overflow-hidden dark:bg-zinc-800">
               <div
-                className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
+                className="h-full bg-blue-500 rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(pctSalao, 100)}%` }}
               />
             </div>
@@ -940,30 +945,31 @@ export default function FaturamentoPage() {
         </div>
 
         {/* Delivery Próprio */}
-        <div className="p-5 rounded-2xl bg-gradient-to-br from-white to-amber-50/40 border border-amber-200/70 shadow-xs hover:shadow-sm transition-all dark:from-zinc-900 dark:to-amber-950/20 dark:border-amber-900/40 flex flex-col justify-between">
+        <div className="p-6 rounded-2xl bg-gradient-to-br from-amber-50/50 via-white to-orange-50/30 border border-amber-200/80 shadow-xs hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden dark:from-zinc-900 dark:to-amber-950/20 dark:border-amber-900/40">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-700 uppercase tracking-wider dark:text-amber-300">
+              <span className="text-xs font-bold text-amber-800 uppercase tracking-wider dark:text-amber-300">
                 Delivery Próprio
               </span>
-              <div className="h-8 w-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shadow-2xs dark:bg-amber-950/60 dark:text-amber-400">
+              <div className="h-9 w-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shadow-2xs dark:bg-amber-950/60 dark:text-amber-300">
                 <Truck className="h-4 w-4" />
               </div>
             </div>
-            <div className="mt-3 text-2xl font-extrabold tracking-tight font-mono text-zinc-900 dark:text-zinc-50">
+            <div className="mt-3 text-2xl font-extrabold tracking-tight font-mono text-slate-900 dark:text-zinc-50">
               {formatCurrency(totalDelivery)}
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-amber-100 dark:border-amber-950/50">
+          <div className="mt-4 pt-3 border-t border-amber-100 dark:border-amber-900/30">
             <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="text-zinc-500 font-medium dark:text-zinc-400">Participação</span>
-              <span className="font-bold text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full bg-amber-100/70 dark:bg-amber-950/80 text-[11px]">
+              <span className="text-slate-500 font-medium dark:text-zinc-400">Participação</span>
+              <span className="font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full text-xs font-mono dark:bg-amber-950/80 dark:text-amber-300">
                 {formatPercent(pctDelivery)}
               </span>
             </div>
             <div className="h-2 w-full bg-amber-100/70 rounded-full overflow-hidden dark:bg-zinc-800">
               <div
-                className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all duration-500"
+                className="h-full bg-amber-500 rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(pctDelivery, 100)}%` }}
               />
             </div>
@@ -971,30 +977,31 @@ export default function FaturamentoPage() {
         </div>
 
         {/* iFood Oficial */}
-        <div className="p-5 rounded-2xl bg-gradient-to-br from-white to-rose-50/40 border border-rose-200/70 shadow-xs hover:shadow-sm transition-all dark:from-zinc-900 dark:to-rose-950/20 dark:border-rose-900/40 flex flex-col justify-between">
+        <div className="p-6 rounded-2xl bg-gradient-to-br from-rose-50/50 via-white to-red-50/30 border border-rose-200/80 shadow-xs hover:shadow-md transition-all flex flex-col justify-between relative overflow-hidden dark:from-zinc-900 dark:to-rose-950/20 dark:border-rose-900/40">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-rose-500" />
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-rose-700 uppercase tracking-wider dark:text-rose-300">
+              <span className="text-xs font-bold text-rose-800 uppercase tracking-wider dark:text-rose-300">
                 iFood Oficial
               </span>
-              <div className="h-8 w-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shadow-2xs dark:bg-rose-950/60 dark:text-rose-400">
+              <div className="h-9 w-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shadow-2xs dark:bg-rose-950/60 dark:text-rose-300">
                 <ShoppingBag className="h-4 w-4" />
               </div>
             </div>
-            <div className="mt-3 text-2xl font-extrabold tracking-tight font-mono text-zinc-900 dark:text-zinc-50">
+            <div className="mt-3 text-2xl font-extrabold tracking-tight font-mono text-slate-900 dark:text-zinc-50">
               {formatCurrency(totalIfood)}
             </div>
           </div>
-          <div className="mt-4 pt-3 border-t border-rose-100 dark:border-rose-950/50">
+          <div className="mt-4 pt-3 border-t border-rose-100 dark:border-rose-900/30">
             <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="text-zinc-500 font-medium dark:text-zinc-400">Participação</span>
-              <span className="font-bold text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded-full bg-rose-100/70 dark:bg-rose-950/80 text-[11px]">
+              <span className="text-slate-500 font-medium dark:text-zinc-400">Participação</span>
+              <span className="font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-full text-xs font-mono dark:bg-rose-950/80 dark:text-rose-300">
                 {formatPercent(pctIfood)}
               </span>
             </div>
             <div className="h-2 w-full bg-rose-100/70 rounded-full overflow-hidden dark:bg-zinc-800">
               <div
-                className="h-full bg-gradient-to-r from-rose-500 to-pink-500 rounded-full transition-all duration-500"
+                className="h-full bg-rose-500 rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(pctIfood, 100)}%` }}
               />
             </div>
@@ -1004,16 +1011,16 @@ export default function FaturamentoPage() {
 
       {/* 5. METAS DO MÊS (Apenas se houver meta configurada, sem caixas com "DADO PENDENTE") */}
       {Boolean(goals.goal.value && goals.goal.value > 0) ? (
-        <section className="rounded-2xl border border-violet-200/70 bg-gradient-to-r from-violet-50/60 to-white p-5 shadow-2xs dark:border-violet-900/40 dark:from-violet-950/20 dark:to-zinc-900">
+        <section className="rounded-2xl border border-emerald-200/80 bg-gradient-to-r from-emerald-50/40 to-white p-5 shadow-2xs dark:border-emerald-900/40 dark:from-emerald-950/20 dark:to-zinc-900">
           <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-violet-700 dark:text-violet-300">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
                   Meta do Mês — {activeStoreTab === "all" ? "Todas as Lojas" : UNIT_LABELS[activeStoreTab]}
                 </h2>
                 {goals.goalPct.value !== null && (
                   <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
                       goals.goalPct.value >= 100
                         ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
                         : goals.goalPct.value >= 80
@@ -1029,7 +1036,7 @@ export default function FaturamentoPage() {
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 text-[11px] text-zinc-500">
+              <p className="mt-0.5 text-[11px] text-slate-500">
                 Acompanhamento oficial de vendas apuradas em relação à meta cadastrada
               </p>
             </div>
@@ -1044,12 +1051,12 @@ export default function FaturamentoPage() {
             ].map(([label, value]) => (
               <div
                 key={label}
-                className="rounded-xl border border-zinc-200/60 bg-white/90 p-3.5 shadow-2xs dark:border-zinc-800 dark:bg-zinc-900/90"
+                className="rounded-xl border border-slate-200/80 bg-white/90 p-3.5 shadow-2xs dark:border-zinc-800 dark:bg-zinc-900/90"
               >
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   {label}
                 </span>
-                <strong className="mt-1 block text-base font-bold font-mono text-zinc-900 dark:text-zinc-50">
+                <strong className="mt-1 block text-base font-bold font-mono text-slate-900 dark:text-zinc-50">
                   {value}
                 </strong>
               </div>
@@ -1057,9 +1064,9 @@ export default function FaturamentoPage() {
           </div>
         </section>
       ) : viewMode === "monthly" ? (
-        <div className="flex items-center justify-between p-3.5 rounded-xl border border-dashed border-zinc-200 bg-zinc-50/50 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-400">
+        <div className="flex items-center justify-between p-3.5 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 text-xs text-slate-500 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-400">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-violet-500" />
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
             <span>
               Nenhuma meta mensal de vendas cadastrada para{" "}
               {activeStoreTab === "all" ? "o grupo" : UNIT_LABELS[activeStoreTab]}.
@@ -1070,7 +1077,7 @@ export default function FaturamentoPage() {
               variant="ghost"
               size="sm"
               onClick={() => setIsQuickCreateOpen(true)}
-              className="text-xs text-violet-600 hover:text-violet-700 hover:bg-violet-50 dark:text-violet-400"
+              className="text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
             >
               Definir Meta
             </Button>
@@ -1078,17 +1085,17 @@ export default function FaturamentoPage() {
         </div>
       ) : null}
 
-      {/* 7. GRÁFICO & MIX DE CANAIS */}
+      {/* 6. GRÁFICO & MIX DE CANAIS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Gráfico */}
-        <div className="lg:col-span-2 p-5 rounded-xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs space-y-4">
+        <div className="lg:col-span-2 p-5 rounded-2xl border border-slate-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs space-y-4">
           <div>
-            <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
               {activeStoreTab === "all"
                 ? "Comparativo entre Filiais"
                 : `Evolução de Vendas — ${UNIT_LABELS[activeStoreTab] || activeStoreTab}`}
             </h2>
-            <p className="text-[11px] text-zinc-500 mt-0.5">
+            <p className="text-[11px] text-slate-500 mt-0.5">
               Dados oficiais integrados diretamente da API Takeat
             </p>
           </div>
@@ -1098,15 +1105,15 @@ export default function FaturamentoPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="barGradientViolet" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.95} />
-                      <stop offset="100%" stopColor="#6366f1" stopOpacity={0.7} />
+                    <linearGradient id="barGradientEmerald" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#059669" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.4} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#88888815" />
-                  <XAxis dataKey="label" stroke="#88888880" fontSize={11} tickLine={false} axisLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="label" stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
                   <YAxis
-                    stroke="#88888880"
+                    stroke="#94a3b8"
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
@@ -1116,11 +1123,11 @@ export default function FaturamentoPage() {
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         return (
-                          <div className="rounded-xl border border-violet-100 bg-white p-3 shadow-lg text-xs dark:bg-zinc-900 dark:border-zinc-800">
-                            <span className="font-medium text-zinc-500 dark:text-zinc-400 block mb-1">
+                          <div className="rounded-xl border border-emerald-100 bg-white p-3 shadow-lg text-xs dark:bg-zinc-900 dark:border-zinc-800">
+                            <span className="font-medium text-slate-500 dark:text-zinc-400 block mb-1">
                               {payload[0].payload.label}
                             </span>
-                            <span className="font-mono font-bold text-violet-700 dark:text-violet-300 text-sm">
+                            <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300 text-sm">
                               {formatCurrency(Number(payload[0].value) || 0)}
                             </span>
                           </div>
@@ -1129,14 +1136,14 @@ export default function FaturamentoPage() {
                       return null;
                     }}
                   />
-                  <Bar dataKey="total" radius={[6, 6, 0, 0]} fill="url(#barGradientViolet)" />
+                  <Bar dataKey="total" radius={[6, 6, 0, 0]} fill="url(#barGradientEmerald)" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <div className="h-64 flex flex-col items-center justify-center text-center p-6 border border-dashed border-zinc-200 rounded-lg dark:border-zinc-800">
-              <RefreshCw className="h-8 w-8 text-violet-300 dark:text-violet-700 mb-2 animate-pulse" />
-              <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            <div className="h-64 flex flex-col items-center justify-center text-center p-6 border border-dashed border-slate-200 rounded-lg dark:border-zinc-800">
+              <RefreshCw className="h-8 w-8 text-emerald-300 dark:text-emerald-700 mb-2 animate-pulse" />
+              <p className="text-xs font-medium text-slate-600 dark:text-zinc-400">
                 Nenhum faturamento registrado para este período
               </p>
               <Button
@@ -1144,7 +1151,7 @@ export default function FaturamentoPage() {
                 variant="outline"
                 onClick={() => handleSyncTakeat()}
                 disabled={syncing}
-                className="mt-3 text-xs text-violet-700 border-violet-200 hover:bg-violet-50"
+                className="mt-3 text-xs text-emerald-700 border-emerald-200 hover:bg-emerald-50"
               >
                 Sincronizar Takeat
               </Button>
@@ -1153,12 +1160,12 @@ export default function FaturamentoPage() {
         </div>
 
         {/* Mix de Canais */}
-        <div className="p-5 rounded-2xl border border-zinc-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs space-y-4">
+        <div className="p-5 rounded-2xl border border-slate-200/80 bg-white dark:bg-zinc-900 dark:border-zinc-800 shadow-2xs space-y-4">
           <div>
-            <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
               Mix de Canais de Venda
             </h2>
-            <p className="text-[11px] text-zinc-500 mt-0.5">
+            <p className="text-[11px] text-slate-500 mt-0.5">
               Participação por canal de atendimento
             </p>
           </div>
@@ -1167,12 +1174,12 @@ export default function FaturamentoPage() {
             {/* Salão */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+                <span className="font-medium text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
                   <Store className="h-3.5 w-3.5 text-blue-500" />
                   Salão & Balcão
                 </span>
                 <div className="text-right">
-                  <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+                  <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">
                     {formatCurrency(totalSalao)}
                   </span>
                   <span className="text-[10px] text-blue-600 font-semibold ml-1.5 font-mono">
@@ -1182,7 +1189,7 @@ export default function FaturamentoPage() {
               </div>
               <div className="h-2 w-full bg-blue-100/60 rounded-full overflow-hidden dark:bg-zinc-800">
                 <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
+                  className="h-full bg-blue-500 rounded-full transition-all duration-500"
                   style={{ width: `${Math.min(pctSalao, 100)}%` }}
                 />
               </div>
@@ -1191,12 +1198,12 @@ export default function FaturamentoPage() {
             {/* Delivery */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+                <span className="font-medium text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
                   <Truck className="h-3.5 w-3.5 text-amber-500" />
                   Delivery Próprio
                 </span>
                 <div className="text-right">
-                  <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+                  <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">
                     {formatCurrency(totalDelivery)}
                   </span>
                   <span className="text-[10px] text-amber-600 font-semibold ml-1.5 font-mono">
@@ -1206,7 +1213,7 @@ export default function FaturamentoPage() {
               </div>
               <div className="h-2 w-full bg-amber-100/60 rounded-full overflow-hidden dark:bg-zinc-800">
                 <div
-                  className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all duration-500"
+                  className="h-full bg-amber-500 rounded-full transition-all duration-500"
                   style={{ width: `${Math.min(pctDelivery, 100)}%` }}
                 />
               </div>
@@ -1215,12 +1222,12 @@ export default function FaturamentoPage() {
             {/* iFood */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5">
+                <span className="font-medium text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
                   <ShoppingBag className="h-3.5 w-3.5 text-rose-500" />
                   iFood
                 </span>
                 <div className="text-right">
-                  <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+                  <span className="font-mono font-semibold text-slate-900 dark:text-zinc-100">
                     {formatCurrency(totalIfood)}
                   </span>
                   <span className="text-[10px] text-rose-600 font-semibold ml-1.5 font-mono">
@@ -1230,15 +1237,15 @@ export default function FaturamentoPage() {
               </div>
               <div className="h-2 w-full bg-rose-100/60 rounded-full overflow-hidden dark:bg-zinc-800">
                 <div
-                  className="h-full bg-gradient-to-r from-rose-500 to-pink-500 rounded-full transition-all duration-500"
+                  className="h-full bg-rose-500 rounded-full transition-all duration-500"
                   style={{ width: `${Math.min(pctIfood, 100)}%` }}
                 />
               </div>
             </div>
           </div>
 
-          <div className="p-3 bg-violet-50/50 rounded-xl border border-violet-100 text-[11px] text-violet-800 dark:bg-zinc-800/40 dark:border-zinc-800 dark:text-violet-300 mt-4 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 shrink-0 text-violet-500" />
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70 text-[11px] text-slate-600 dark:bg-zinc-800/40 dark:border-zinc-800 dark:text-zinc-400 mt-4 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
             <span>Valores oficiais extraídos da Takeat com centavos auditados em tempo real.</span>
           </div>
         </div>
@@ -1332,19 +1339,19 @@ export default function FaturamentoPage() {
                       </td>
                     </tr>
                   )}
-                  <tr className="bg-violet-50/60 dark:bg-violet-950/20 font-semibold border-t border-violet-200 dark:border-violet-800">
-                    <td className="py-3 px-4 text-violet-950 dark:text-violet-100 font-bold">
+                  <tr className="bg-emerald-50/60 dark:bg-emerald-950/20 font-semibold border-t border-emerald-200/80 dark:border-emerald-800/60">
+                    <td className="py-3 px-4 text-emerald-950 dark:text-emerald-100 font-bold">
                       Teixeira de Freitas (Consolidado)
                     </td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-800 dark:bg-violet-900/60 dark:text-violet-200">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
                         Total da Filial
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.consolidated.salao)}</td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.consolidated.delivery)}</td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.teixeira.consolidated.ifood)}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-violet-900 dark:text-violet-200">
+                    <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-zinc-300">{formatCurrency(storeData.teixeira.consolidated.salao)}</td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-zinc-300">{formatCurrency(storeData.teixeira.consolidated.delivery)}</td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-zinc-300">{formatCurrency(storeData.teixeira.consolidated.ifood)}</td>
+                    <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400">
                       {formatCurrency(storeData.teixeira.consolidated.totalRevenue)}
                     </td>
                     <td className="py-3 px-4 text-center">
@@ -1407,19 +1414,19 @@ export default function FaturamentoPage() {
                       </td>
                     </tr>
                   )}
-                  <tr className="bg-violet-50/60 dark:bg-violet-950/20 font-semibold border-t border-violet-200 dark:border-violet-800">
-                    <td className="py-3 px-4 text-violet-950 dark:text-violet-100 font-bold">
+                  <tr className="bg-emerald-50/60 dark:bg-emerald-950/20 font-semibold border-t border-emerald-200/80 dark:border-emerald-800/60">
+                    <td className="py-3 px-4 text-emerald-950 dark:text-emerald-100 font-bold">
                       Eunápolis (Consolidado)
                     </td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-800 dark:bg-violet-900/60 dark:text-violet-200">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
                         Total da Filial
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.consolidated.salao)}</td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.consolidated.delivery)}</td>
-                    <td className="py-3 px-4 text-right font-mono">{formatCurrency(storeData.eunapolis.consolidated.ifood)}</td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-violet-900 dark:text-violet-200">
+                    <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-zinc-300">{formatCurrency(storeData.eunapolis.consolidated.salao)}</td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-zinc-300">{formatCurrency(storeData.eunapolis.consolidated.delivery)}</td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-zinc-300">{formatCurrency(storeData.eunapolis.consolidated.ifood)}</td>
+                    <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400">
                       {formatCurrency(storeData.eunapolis.consolidated.totalRevenue)}
                     </td>
                     <td className="py-3 px-4 text-center">
@@ -1498,37 +1505,37 @@ export default function FaturamentoPage() {
                       <span className="text-[10px] text-emerald-600 font-medium">Takeat</span>
                     </td>
                   </tr>
-                  <tr className="bg-violet-50/40 dark:bg-violet-950/20 font-semibold border-t-2 border-violet-200 dark:border-violet-900">
-                    <td className="py-3 px-4 text-violet-900 dark:text-violet-200 font-bold">
+                  <tr className="bg-emerald-50/70 dark:bg-emerald-950/20 font-semibold border-t-2 border-emerald-200 dark:border-emerald-800/80">
+                    <td className="py-3 px-4 text-emerald-950 dark:text-emerald-100 font-bold">
                       Total Consolidado Geral
                     </td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                         Todas as Filiais
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-right font-mono">
+                    <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-zinc-200">
                       {formatCurrency(
                         storeData.teixeira.consolidated.salao +
                           storeData.eunapolis.consolidated.salao +
                           storeData.foodpark.salao
                       )}
                     </td>
-                    <td className="py-3 px-4 text-right font-mono">
+                    <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-zinc-200">
                       {formatCurrency(
                         storeData.teixeira.consolidated.delivery +
                           storeData.eunapolis.consolidated.delivery +
                           storeData.foodpark.delivery
                       )}
                     </td>
-                    <td className="py-3 px-4 text-right font-mono">
+                    <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-zinc-200">
                       {formatCurrency(
                         storeData.teixeira.consolidated.ifood +
                           storeData.eunapolis.consolidated.ifood +
                           storeData.foodpark.ifood
                       )}
                     </td>
-                    <td className="py-3 px-4 text-right font-mono font-bold text-violet-800 dark:text-violet-200">
+                    <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700 dark:text-emerald-300">
                       {formatCurrency(
                         storeData.teixeira.consolidated.totalRevenue +
                           storeData.eunapolis.consolidated.totalRevenue +
@@ -1536,7 +1543,7 @@ export default function FaturamentoPage() {
                       )}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className="text-[10px] text-violet-700 dark:text-violet-300 font-bold">Grupo House</span>
+                      <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold">Grupo House</span>
                     </td>
                   </tr>
                 </>
@@ -1675,7 +1682,7 @@ export default function FaturamentoPage() {
                 type="submit"
                 size="sm"
                 isLoading={isAuthenticating}
-                className="bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-900"
+                className="bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs shadow-emerald-600/20"
               >
                 {isAuthenticating ? "Conectando..." : "Conectar e Sincronizar"}
               </Button>
