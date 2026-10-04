@@ -233,17 +233,27 @@ export default function FaturamentoPage() {
     }
   };
 
-  // Auto-sync na troca de data se a loja ativa estiver com R$ 0,00 ou sem dados
+  // Auto-sync na troca de data se a loja ativa estiver com R$ 0,00 ou sem a separação de marcas Dark Kitchen
   useEffect(() => {
     if (activeStoreTab === "all") return;
     const targetPeriod = viewMode === "daily" ? selectedDate : selectedMonth;
     const hasData = takeatRevenues.some(
       (r) => r.unitId === activeStoreTab && r.date.startsWith(targetPeriod) && r.totalRevenue > 0
     );
-    if (!hasData && !syncing) {
+    // Para Teixeira e Eunápolis, verifica se a separação de marca da Bruttus já foi computada
+    const hasBruttusRecord =
+      (activeStoreTab !== "teixeira" && activeStoreTab !== "eunapolis") ||
+      takeatRevenues.some(
+        (r) =>
+          r.unitId === activeStoreTab &&
+          r.date.startsWith(targetPeriod) &&
+          (r.operationKey === `${activeStoreTab}_bruttus` || r.brand === "bruttus")
+      );
+
+    if ((!hasData || !hasBruttusRecord) && !syncing) {
       void handleSyncTakeat(activeStoreTab);
     }
-  }, [selectedDate, selectedMonth, viewMode, activeStoreTab]);
+  }, [selectedDate, selectedMonth, viewMode, activeStoreTab, takeatRevenues]);
 
   // Registros da data ou mês selecionado
   const periodRecords = useMemo(() => {

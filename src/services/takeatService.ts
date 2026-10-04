@@ -839,17 +839,23 @@ const KNOWN_BRUTTUS_PRODUCT_IDS: Record<string, number[]> = {
     2916776, 2916778, 2916780, 2916782, 2916785, 2916786, 2916788,
   ],
   eunapolis: [
-    2948112, 2948113, 2948114, 2948115, 2948116, 2948117, 2948118, 2948119, 2948120,
+    2928542, 2928543, 2928544, 2928545, 2928546, 2928547, 2947724, 3117468,
+    2931023, 3117519, 2928548, 2928549, 3115218, 2928550, 2928551, 2928552,
+    2928553, 2931295, 2963655,
   ],
 };
 
 const BRUTTUS_NAME_KEYWORDS = [
   "x-tudo",
+  "xtudo",
   "x-bacon",
+  "xbacon",
   "x- bacon",
   "x-burger",
+  "xburger",
   "x - frango",
   "x-frango",
+  "xfrango",
   "bruttus",
   "brutus",
 ];
@@ -902,22 +908,67 @@ export async function fetchTakeatOrdersSummary(
     } catch {}
 
     // 2. Consulta sessões de mesa/delivery finalizadas
-    // Expande 6 horas após endDate para cobrir caixas fechados após a meia-noite
-    const expandedEnd = new Date(new Date(endDateUtc).getTime() + 6 * 3600 * 1000).toISOString();
-    const sessionsUrl = `https://public-api.takeat.app/v1/table-sessions?start_date=${encodeURIComponent(
-      startDateUtc
-    )}&end_date=${encodeURIComponent(expandedEnd)}`;
+    // A API Takeat impõe limite estrito: "O intervalo máximo de consulta é de 3 dias."
+    // Por isso fatiamos o intervalo em janelas de até 2 dias (48h)
+    const startTime = new Date(startDateUtc).getTime();
+    const expandedEndTime = new Date(endDateUtc).getTime() + 6 * 3600 * 1000;
+    const TWO_DAYS_MS = 2 * 24 * 3600 * 1000;
 
-    const sRes = await fetch(sessionsUrl, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    });
+    const timeSlices: { start: string; end: string }[] = [];
+    let cur = startTime;
+    while (cur < expandedEndTime) {
+      const next = Math.min(cur + TWO_DAYS_MS, expandedEndTime);
+      timeSlices.push({
+        start: new Date(cur).toISOString(),
+        end: new Date(next).toISOString(),
+      });
+      cur = next;
+    }
 
-    if (!sRes.ok) return null;
-    const sessions = await sRes.json();
-    if (!Array.isArray(sessions) || sessions.length === 0) return null;
+    const allSessions: any[] = [];
+    const seenSessionIds = new Set<string | number>();
+
+    for (const slice of timeSlices) {
+      const sessionsUrl = `https://public-api.takeat.app/v1/table-sessions?start_date=${encodeURIComponent(
+        slice.start
+      )}&end_date=${encodeURIComponent(slice.end)}`;
+
+      let sRes = await fetch(sessionsUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+
+      // Se der 401 e tivermos usuário e senha, tenta renovar token
+      if (sRes.status === 401 && credentials.email && credentials.password) {
+        try {
+          const auth = await authenticateTakeat(credentials.email, credentials.password);
+          token = auth.token;
+          sRes = await fetch(sessionsUrl, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+          });
+        } catch {}
+      }
+
+      if (sRes.ok) {
+        const chunk = await sRes.json();
+        if (Array.isArray(chunk)) {
+          for (const s of chunk) {
+            const id = s.id || s.session_id;
+            if (id && seenSessionIds.has(id)) continue;
+            if (id) seenSessionIds.add(id);
+            allSessions.push(s);
+          }
+        }
+      }
+    }
+
+    if (allSessions.length === 0) return null;
+    const sessions = allSessions;
 
     let houseTotal = 0;
     let houseCount = 0;
@@ -965,9 +1016,12 @@ export async function fetchTakeatOrdersSummary(
             const itemVal =
               parseFloat(item.total_service_price || item.total_price || item.price || "0") || 0;
 
+            const cleanPName = pName.replace(/[\s-]/g, "");
             const isBruttusItem =
               bruttusProductIds.has(pId) ||
-              BRUTTUS_NAME_KEYWORDS.some((kw) => pName.includes(kw));
+              BRUTTUS_NAME_KEYWORDS.some(
+                (kw) => pName.includes(kw) || cleanPName.includes(kw.replace(/[\s-]/g, ""))
+              );
 
             if (isBruttusItem) {
               sessionBruttusVal += itemVal;

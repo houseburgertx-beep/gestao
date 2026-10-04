@@ -851,13 +851,17 @@ class DataStore {
     const stored = all[keyOrUnitId] || all[keyOrUnitId.split("_")[0]];
     const defaultCreds = getDefaultTakeatCredentials(keyOrUnitId);
 
-    // 1. Se houver credencial salva no localStorage com email válido
+    // 1. Se houver credencial salva no localStorage com email ou token válido
     if (stored && (stored.token || (stored.email && stored.password))) {
       const token = sanitizeToken(stored.token);
-      if (token && token.startsWith("tk_")) {
-        return { ...stored, token: undefined };
-      }
-      return { ...stored, credentialKey: stored.credentialKey || keyOrUnitId, token: token || undefined };
+      return {
+        ...defaultCreds,
+        ...stored,
+        email: stored.email || defaultCreds?.email || "",
+        password: stored.password || defaultCreds?.password || undefined,
+        credentialKey: stored.credentialKey || keyOrUnitId,
+        token: token && !token.startsWith("tk_") ? token : undefined,
+      };
     }
 
     // 2. Fallback para as credenciais padrão do repositório/ambiente (GitHub / .env)
@@ -1059,6 +1063,7 @@ class DataStore {
         range.startDate,
         range.endDate,
         (newToken) => {
+          creds.token = newToken;
           this.saveTakeatCredentials({ ...creds, token: newToken });
         }
       );
