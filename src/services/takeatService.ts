@@ -820,59 +820,196 @@ export interface BrandOrdersSummary {
   bruttusShare: number;
   houseCount: number;
   bruttusCount: number;
+  houseDelivery: number;
+  bruttusDelivery: number;
+  houseIfood: number;
+  bruttusIfood: number;
+  houseSalao: number;
+  bruttusSalao: number;
 }
 
+const BRUTTUS_BRAND_IDS: Record<string, number> = {
+  teixeira: 34303,
+  eunapolis: 35070,
+};
+
+const KNOWN_BRUTTUS_PRODUCT_IDS: Record<string, number[]> = {
+  teixeira: [
+    2931011, 2916637, 2916644, 2916752, 2916768, 2916772, 2947729,
+    2916776, 2916778, 2916780, 2916782, 2916785, 2916786, 2916788,
+  ],
+  eunapolis: [
+    2948112, 2948113, 2948114, 2948115, 2948116, 2948117, 2948118, 2948119, 2948120,
+  ],
+};
+
+const BRUTTUS_NAME_KEYWORDS = [
+  "x-tudo",
+  "x-bacon",
+  "x- bacon",
+  "x-burger",
+  "x - frango",
+  "x-frango",
+  "bruttus",
+  "brutus",
+];
+
 /**
- * Consulta os pedidos da Takeat para calcular o faturamento real separado de cada marca (House vs Bruttus).
+ * Consulta as sessões oficiais e o catálogo de produtos da Takeat
+ * para calcular a divisão exata de faturamento da Dark Kitchen (Bruttus Burger) vs House 190.
  */
 export async function fetchTakeatOrdersSummary(
   credentials: TakeatCredentials,
   startDateUtc: string,
   endDateUtc: string
 ): Promise<BrandOrdersSummary | null> {
-  const token = sanitizeToken(credentials.token);
+  const unitId = credentials.unitId;
+  const brandId = BRUTTUS_BRAND_IDS[unitId];
+  if (!brandId) return null;
+
+  let token = sanitizeToken(credentials.token);
+  if (!token && credentials.email && credentials.password) {
+    try {
+      const auth = await authenticateTakeat(credentials.email, credentials.password);
+      token = auth.token;
+    } catch {}
+  }
   if (!token) return null;
 
   try {
-    const url = `https://backend-pdv-2.takeat.app/restaurants/orders?start_date=${encodeURIComponent(
-      startDateUtc
-    )}&end_date=${encodeURIComponent(endDateUtc)}`;
+    // 1. Identifica produtos da Bruttus Burger pelo brand_id oficial
+    const bruttusProductIds = new Set<number>(KNOWN_BRUTTUS_PRODUCT_IDS[unitId] || []);
+    try {
+      const prodRes = await fetch(
+        `https://backend-pdv-2.takeat.app/restaurants/products?brand_id=${brandId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+      if (prodRes.ok) {
+        const cats = await prodRes.json();
+        if (Array.isArray(cats)) {
+          for (const c of cats) {
+            for (const p of c.products || []) {
+              if (p && p.id) bruttusProductIds.add(Number(p.id));
+            }
+          }
+        }
+      }
+    } catch {}
 
-    const res = await fetch(url, {
+    // 2. Consulta sessões de mesa/delivery finalizadas
+    // Expande 6 horas após endDate para cobrir caixas fechados após a meia-noite
+    const expandedEnd = new Date(new Date(endDateUtc).getTime() + 6 * 3600 * 1000).toISOString();
+    const sessionsUrl = `https://public-api.takeat.app/v1/table-sessions?start_date=${encodeURIComponent(
+      startDateUtc
+    )}&end_date=${encodeURIComponent(expandedEnd)}`;
+
+    const sRes = await fetch(sessionsUrl, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
       },
     });
 
-    if (!res.ok) return null;
-    const orders = await res.json();
-    if (!Array.isArray(orders) || orders.length === 0) return null;
+    if (!sRes.ok) return null;
+    const sessions = await sRes.json();
+    if (!Array.isArray(sessions) || sessions.length === 0) return null;
 
     let houseTotal = 0;
-    let bruttusTotal = 0;
     let houseCount = 0;
+    let houseSalao = 0;
+    let houseDelivery = 0;
+    let houseIfood = 0;
+
+    let bruttusTotal = 0;
     let bruttusCount = 0;
+    let bruttusSalao = 0;
+    let bruttusDelivery = 0;
+    let bruttusIfood = 0;
 
-    for (const o of orders) {
-      const val = parseFloat(o.bill?.total_price || o.basket?.total_price || 0) || 0;
-      let brandId: number | null = null;
-      if (o.payments && Array.isArray(o.payments) && o.payments.length > 0) {
-        brandId = o.payments[0].brand_id || null;
-      }
-      const str = JSON.stringify(o).toLowerCase();
-      const isBruttus =
-        brandId === 34303 ||
-        brandId === 35070 ||
-        str.includes("bruttus") ||
-        str.includes("brutus");
+    for (const s of sessions) {
+      if (s.status === "canceled") continue;
 
-      if (isBruttus) {
-        bruttusTotal += val;
-        bruttusCount++;
+      let sessionVal = 0;
+      if (s.payments && Array.isArray(s.payments) && s.payments.length > 0) {
+        sessionVal = s.payments.reduce(
+          (sum: number, p: any) => sum + (parseFloat(p.payment_value || "0") || 0),
+          0
+        );
       } else {
-        houseTotal += val;
+        sessionVal = parseFloat(s.total_delivery_price || s.total_price || "0") || 0;
+      }
+
+      if (sessionVal <= 0) continue;
+
+      const channel = (s.sales_channel || "").toUpperCase();
+      const isDelivery = Boolean(s.is_delivery);
+      const isIfood = channel.includes("IFOOD");
+      const isDirectDelivery = isDelivery && !isIfood;
+
+      let sessionBruttusVal = 0;
+      let sessionHouseVal = 0;
+
+      const bills = s.bills || [];
+      for (const b of bills) {
+        for (const ob of b.order_baskets || []) {
+          if (ob.order_status === "canceled") continue;
+          for (const item of ob.orders || []) {
+            if (item.canceled_at) continue;
+            const pId = Number(item.product?.id || 0);
+            const pName = (item.product?.name || "").toLowerCase();
+            const itemVal =
+              parseFloat(item.total_service_price || item.total_price || item.price || "0") || 0;
+
+            const isBruttusItem =
+              bruttusProductIds.has(pId) ||
+              BRUTTUS_NAME_KEYWORDS.some((kw) => pName.includes(kw));
+
+            if (isBruttusItem) {
+              sessionBruttusVal += itemVal;
+            } else {
+              sessionHouseVal += itemVal;
+            }
+          }
+        }
+      }
+
+      if (sessionBruttusVal > 0 && sessionHouseVal === 0) {
+        // Pedido 100% Bruttus Burger (Dark Kitchen)
+        bruttusTotal += sessionVal;
+        bruttusCount++;
+        if (isIfood) bruttusIfood += sessionVal;
+        else if (isDirectDelivery) bruttusDelivery += sessionVal;
+        else bruttusSalao += sessionVal;
+      } else if (sessionBruttusVal === 0) {
+        // Pedido 100% House 190
+        houseTotal += sessionVal;
         houseCount++;
+        if (isIfood) houseIfood += sessionVal;
+        else if (isDirectDelivery) houseDelivery += sessionVal;
+        else houseSalao += sessionVal;
+      } else {
+        // Pedido misto: rateio proporcional exato
+        const sumItems = sessionBruttusVal + sessionHouseVal;
+        const bRatio = sumItems > 0 ? sessionBruttusVal / sumItems : 0.5;
+        const bVal = sessionVal * bRatio;
+        const hVal = sessionVal - bVal;
+
+        bruttusTotal += bVal;
+        bruttusCount++;
+        if (isIfood) bruttusIfood += bVal;
+        else if (isDirectDelivery) bruttusDelivery += bVal;
+        else bruttusSalao += bVal;
+
+        houseTotal += hVal;
+        houseCount++;
+        if (isIfood) houseIfood += hVal;
+        else if (isDirectDelivery) houseDelivery += hVal;
+        else houseSalao += hVal;
       }
     }
 
@@ -881,12 +1018,18 @@ export async function fetchTakeatOrdersSummary(
     const bruttusShare = total > 0 ? bruttusTotal / total : 0;
 
     return {
-      houseTotal,
-      bruttusTotal,
+      houseTotal: Math.round(houseTotal * 100) / 100,
+      bruttusTotal: Math.round(bruttusTotal * 100) / 100,
       houseShare,
       bruttusShare,
       houseCount,
       bruttusCount,
+      houseDelivery: Math.round(houseDelivery * 100) / 100,
+      bruttusDelivery: Math.round(bruttusDelivery * 100) / 100,
+      houseIfood: Math.round(houseIfood * 100) / 100,
+      bruttusIfood: Math.round(bruttusIfood * 100) / 100,
+      houseSalao: Math.round(houseSalao * 100) / 100,
+      bruttusSalao: Math.round(bruttusSalao * 100) / 100,
     };
   } catch {
     return null;
@@ -932,17 +1075,35 @@ export function createBrandSeparatedRecords(
     return { consolidated, house: houseOnly };
   }
 
-  // Divisão para Teixeira e Eunápolis
+  // Divisão para Teixeira e Eunápolis (Dark Kitchen)
   const hasBruttusSales = ordersSummary && ordersSummary.bruttusTotal > 0;
-  const bShare = hasBruttusSales ? ordersSummary.bruttusShare : 0;
 
-  // Bruttus opera via Delivery e iFood (dark kitchen)
-  const bruttusDelivery = Math.round(consolidated.delivery * bShare * 100) / 100;
-  const bruttusIfood = Math.round(consolidated.ifood * bShare * 100) / 100;
-  const bruttusSalao = 0; // Salão físico é 100% House 190
-  const bruttusTotal = Math.round((bruttusDelivery + bruttusIfood) * 100) / 100;
+  let bruttusDelivery = 0;
+  let bruttusIfood = 0;
+  let bruttusSalao = 0; // Bruttus é 100% Dark Kitchen, salão físico é 100% House 190
+  let bruttusTotal = 0;
 
-  // House 190 fica com todo o salão + a diferença exata de delivery e ifood
+  if (hasBruttusSales) {
+    const totalOrderDelivery =
+      (ordersSummary.houseDelivery || 0) + (ordersSummary.bruttusDelivery || 0);
+    const bDeliveryShare =
+      totalOrderDelivery > 0
+        ? (ordersSummary.bruttusDelivery || 0) / totalOrderDelivery
+        : ordersSummary.bruttusShare;
+
+    const totalOrderIfood =
+      (ordersSummary.houseIfood || 0) + (ordersSummary.bruttusIfood || 0);
+    const bIfoodShare =
+      totalOrderIfood > 0
+        ? (ordersSummary.bruttusIfood || 0) / totalOrderIfood
+        : ordersSummary.bruttusShare;
+
+    bruttusDelivery = Math.round(consolidated.delivery * bDeliveryShare * 100) / 100;
+    bruttusIfood = Math.round(consolidated.ifood * bIfoodShare * 100) / 100;
+    bruttusTotal = Math.round((bruttusDelivery + bruttusIfood) * 100) / 100;
+  }
+
+  // House 190 fica com 100% do salão + a diferença exata auditada de delivery e ifood
   const houseSalao = consolidated.salao;
   const houseDelivery = Math.round((consolidated.delivery - bruttusDelivery) * 100) / 100;
   const houseIfood = Math.round((consolidated.ifood - bruttusIfood) * 100) / 100;
