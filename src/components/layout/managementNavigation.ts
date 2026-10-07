@@ -1,7 +1,8 @@
-import { TrendingUp, Users, ReceiptText, Truck, Columns3, FolderLock, Landmark, ClipboardCheck, BadgeCheck, FileText, Bike, Wallet, Utensils } from "lucide-react";
+import { TrendingUp, Users, ReceiptText, Truck, Columns3, FolderLock, Landmark, ClipboardCheck, BadgeCheck, FileText, Bike, Wallet, Utensils, Percent } from "lucide-react";
 export const MANAGEMENT_NAV = [
   { title: "Contas a pagar", href: "/", icon: ReceiptText, roles: ["admin","accountant"] },
   { title: "Fluxo de caixa", href: "/fluxo-de-caixa", icon: Wallet, roles: ["admin","accountant"] },
+  { title: "CMV", href: "/cmv", icon: Percent, roles: ["admin","accountant","manager"] },
   { title: "NF Recebidas", href: "/nfe-recebida", icon: FileText, roles: ["admin","accountant"] },
   { title: "Bancos", href: "/bancos", icon: Landmark, roles: ["admin","accountant"] },
   { title: "iFood", href: "/ifood", icon: Utensils, roles: ["admin","accountant","manager"] },
@@ -52,6 +53,7 @@ export function roleCanAccess(role: string | undefined, pathname?: string | null
       path.startsWith("/fechamento-caixa") ||
       path.startsWith("/auditoria-caixa") ||
       path.startsWith("/faturamento") ||
+      path.startsWith("/cmv") ||
       path.startsWith("/tarefas") ||
       path.startsWith("/ifood") ||
       path.startsWith("/integracoes/takeat")
