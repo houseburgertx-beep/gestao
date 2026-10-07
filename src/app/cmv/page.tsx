@@ -7,71 +7,18 @@ import {
   Copy,
   Check,
   TrendingDown,
-  TrendingUp,
   Wine,
   Package,
   Beef,
   Factory,
   Building2,
   AlertTriangle,
-  ArrowRight,
-  Filter,
-  CheckCircle2,
-  ExternalLink,
-  DollarSign,
   ChevronDown,
+  Edit3,
+  RotateCcw,
 } from "lucide-react";
 import { useUnit } from "@/contexts/UnitContext";
-
-interface CostCenterData {
-  label: string;
-  total: number;
-  percent: number;
-  items: Array<{
-    id: number;
-    description: string;
-    value: number;
-    dueDate: string;
-    category: string;
-    provider: string;
-    paid: boolean;
-    storeName: string;
-  }>;
-}
-
-interface StoreResult {
-  storeId: string;
-  storeName: string;
-  faturamento: number;
-  totalInsumos: number;
-  cmvPercent: number;
-  costCenters: {
-    bebida: CostCenterData;
-    embalagem: CostCenterData;
-    mPrima: CostCenterData;
-    cProducao: CostCenterData;
-  };
-  items: any[];
-}
-
-interface CmvApiResponse {
-  success: boolean;
-  period: { startDate: string; endDate: string };
-  unitId: string;
-  isConsolidated: boolean;
-  summary: {
-    faturamento: number;
-    totalInsumos: number;
-    cmvPercent: number;
-    costCenters: {
-      bebida: CostCenterData;
-      embalagem: CostCenterData;
-      mPrima: CostCenterData;
-      cProducao: CostCenterData;
-    };
-  };
-  stores: StoreResult[];
-}
+import { fetchCmvData, CmvApiResponse } from "@/services/cmvService";
 
 const STORE_TABS = [
   { id: "all", label: "Todas as Lojas (Consolidado)" },
@@ -86,17 +33,20 @@ export default function CmvPage() {
   const { currentUnit } = useUnit();
 
   // Estados de Período
-  const hoje = useMemo(() => new Date(), []);
   const [startDate, setStartDate] = useState(() => {
-    // Início da semana atual (ou dia 1 do mês)
     const d = new Date();
     d.setDate(d.getDate() - 6);
     return d.toISOString().split("T")[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [dateType, setDateType] = useState<"due_date" | "competence_date">("due_date");
 
   // Loja selecionada
   const [selectedUnit, setSelectedUnit] = useState<string>("eunapolis");
+
+  // Ajuste manual de Faturamento (opcional para 100% exatidão com o caixa fechado)
+  const [manualFaturamento, setManualFaturamento] = useState<string>("");
+  const [isEditingFat, setIsEditingFat] = useState(false);
 
   // Dados da API
   const [data, setData] = useState<CmvApiResponse | null>(null);
@@ -121,12 +71,11 @@ export default function CmvPage() {
   }, [currentUnit]);
 
   // Função para buscar dados
-  const fetchData = async () => {
+  const loadData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const { fetchCmvData } = await import("@/services/cmvService");
-      const json = await fetchCmvData(startDate, endDate, selectedUnit);
+      const json = await fetchCmvData(startDate, endDate, selectedUnit, dateType);
       setData(json);
     } catch (err: any) {
       console.error("Erro ao buscar CMV:", err);
@@ -137,8 +86,11 @@ export default function CmvPage() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, [startDate, endDate, selectedUnit]);
+    loadData();
+    // Limpar faturamento manual ao mudar parâmetros de consulta
+    setManualFaturamento("");
+    setIsEditingFat(false);
+  }, [startDate, endDate, selectedUnit, dateType]);
 
   // Presets rápidos de data
   const handlePreset = (type: "estaSemana" | "semanaPassada" | "esteMes" | "mesPassado") => {
@@ -146,7 +98,7 @@ export default function CmvPage() {
     if (type === "estaSemana") {
       const start = new Date(now);
       const day = start.getDay();
-      const diff = start.getDate() - day + (day === 0 ? -6 : 1); // Segunda-feira
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1);
       start.setDate(diff);
       setStartDate(start.toISOString().split("T")[0]);
       setEndDate(now.toISOString().split("T")[0]);
@@ -182,9 +134,28 @@ export default function CmvPage() {
 
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return "";
-    const [y, m, d] = dateStr.split("-");
-    return `${d}/${m}`;
+    const parts = dateStr.split("-");
+    if (parts.length >= 3) {
+      return `${parts[2]}/${parts[1]}`;
+    }
+    return dateStr;
   };
+
+  // Faturamento efetivo (usando manual se o usuário tiver preenchido)
+  const effectiveFaturamento = useMemo(() => {
+    if (manualFaturamento && !isNaN(parseFloat(manualFaturamento))) {
+      return parseFloat(manualFaturamento);
+    }
+    return data?.summary.faturamento || 0;
+  }, [manualFaturamento, data]);
+
+  // CMV recalculado sobre o faturamento efetivo
+  const effectiveCmvPercent = useMemo(() => {
+    if (!data) return 0;
+    const totalInsumos = data.summary.totalInsumos;
+    if (effectiveFaturamento <= 0) return 0;
+    return Math.round((totalInsumos / effectiveFaturamento) * 10000) / 100;
+  }, [data, effectiveFaturamento]);
 
   // Copiar formato WhatsApp
   const handleCopyWhatsApp = () => {
@@ -195,7 +166,7 @@ export default function CmvPage() {
     const dFim = formatDateDisplay(endDate);
     const s = data.summary;
 
-    const text = `*RELATÓRIO CMV*\n(${storeName})\n*${dIni} - ${dFim}*\n\n*CMV ${formatPercent(s.cmvPercent)}:*\nBebida - ${formatBRL(s.costCenters.bebida.total)}\nEmbalagem - ${formatBRL(s.costCenters.embalagem.total)}\nM Prima - ${formatBRL(s.costCenters.mPrima.total)}\nC Produção - ${formatBRL(s.costCenters.cProducao.total)}\n*Total - ${formatBRL(s.totalInsumos)}*\n\n*Faturamento - ${formatBRL(s.faturamento)}*`;
+    const text = `*RELATÓRIO CMV*\n(${storeName})\n*${dIni} - ${dFim}*\n\n*CMV ${formatPercent(effectiveCmvPercent)}:*\nBebida - ${formatBRL(s.costCenters.bebida.total)}\nEmbalagem - ${formatBRL(s.costCenters.embalagem.total)}\nM Prima - ${formatBRL(s.costCenters.mPrima.total)}\nC Produção - ${formatBRL(s.costCenters.cProducao.total)}\n*Total - ${formatBRL(s.totalInsumos)}*\n\n*Faturamento - ${formatBRL(effectiveFaturamento)}*`;
 
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -248,7 +219,7 @@ export default function CmvPage() {
                 CMV · Custo de Mercadoria Vendida
               </h1>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Cálculo oficial de insumos sobre faturamento direto da Takeat (Bebida, Embalagem, M. Prima e C. Produção)
+                Cálculo de 100% exatidão sobre os 4 centros de insumos da Takeat (Bebida, Embalagem, M. Prima e C. Produção)
               </p>
             </div>
           </div>
@@ -257,12 +228,12 @@ export default function CmvPage() {
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
           <button
-            onClick={fetchData}
+            onClick={loadData}
             disabled={loading}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors shadow-sm disabled:opacity-50"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-            Atualizar
+            Recalcular
           </button>
 
           <button
@@ -285,10 +256,10 @@ export default function CmvPage() {
         </div>
       </div>
 
-      {/* Control Bar: Seletor de Loja + Seletor de Período */}
+      {/* Control Bar: Seletor de Loja + Seletor de Período + Regime de Data */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 p-3.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
         {/* Seletor de Loja */}
-        <div className="lg:col-span-5 flex flex-col justify-center">
+        <div className="lg:col-span-4 flex flex-col justify-center">
           <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5 flex items-center gap-1.5">
             <Building2 className="h-3.5 w-3.5 text-zinc-400" />
             Unidade
@@ -310,33 +281,33 @@ export default function CmvPage() {
         </div>
 
         {/* Presets Rápidos de Data */}
-        <div className="lg:col-span-4 flex flex-col justify-center">
+        <div className="lg:col-span-3 flex flex-col justify-center">
           <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5 flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5 text-zinc-400" />
-            Atalhos de Período
+            Período Rápido
           </label>
           <div className="flex items-center gap-1">
             <button
               onClick={() => handlePreset("estaSemana")}
-              className="flex-1 py-1.5 px-2 rounded-md text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
+              className="flex-1 py-1.5 px-1.5 rounded-md text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
             >
               Esta sem.
             </button>
             <button
               onClick={() => handlePreset("semanaPassada")}
-              className="flex-1 py-1.5 px-2 rounded-md text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
+              className="flex-1 py-1.5 px-1.5 rounded-md text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
             >
               Sem. ant.
             </button>
             <button
               onClick={() => handlePreset("esteMes")}
-              className="flex-1 py-1.5 px-2 rounded-md text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
+              className="flex-1 py-1.5 px-1.5 rounded-md text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
             >
               Mês atual
             </button>
             <button
               onClick={() => handlePreset("mesPassado")}
-              className="flex-1 py-1.5 px-2 rounded-md text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
+              className="flex-1 py-1.5 px-1.5 rounded-md text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
             >
               Mês ant.
             </button>
@@ -367,6 +338,21 @@ export default function CmvPage() {
               className="w-full h-9 px-2 text-xs rounded-lg bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#6658d3]"
             />
           </div>
+        </div>
+
+        {/* Regime de Data (Vencimento vs Competência) */}
+        <div className="lg:col-span-2 flex flex-col justify-center">
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1 block">
+            Regime
+          </label>
+          <select
+            value={dateType}
+            onChange={(e) => setDateType(e.target.value as any)}
+            className="w-full h-9 px-2 rounded-lg text-[11px] font-medium bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#6658d3]"
+          >
+            <option value="due_date">Vencimento</option>
+            <option value="competence_date">Competência</option>
+          </select>
         </div>
       </div>
 
@@ -400,19 +386,19 @@ export default function CmvPage() {
                 </span>
                 <span
                   className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    getCmvStatus(data.summary.cmvPercent).color
+                    getCmvStatus(effectiveCmvPercent).color
                   }`}
                 >
-                  {getCmvStatus(data.summary.cmvPercent).label}
+                  {getCmvStatus(effectiveCmvPercent).label}
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl lg:text-4xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
-                  {formatPercent(data.summary.cmvPercent)}
+                  {formatPercent(effectiveCmvPercent)}
                 </span>
               </div>
               <p className="text-[11px] text-zinc-500 mt-2">
-                Impacto total dos 4 centros de insumos sobre a venda líquida do período.
+                Impacto exato dos 4 centros de insumos sobre o faturamento do período.
               </p>
               <div className="absolute right-0 bottom-0 translate-x-2 translate-y-2 opacity-5 pointer-events-none">
                 <TrendingDown className="w-24 h-24 text-zinc-900 dark:text-white" />
@@ -432,16 +418,62 @@ export default function CmvPage() {
               </p>
             </div>
 
-            {/* Card 3: Faturamento */}
+            {/* Card 3: Faturamento (com ajuste opcional para 100% de exatidão) */}
             <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 block mb-2">
-                Faturamento Oficial (Takeat)
-              </span>
-              <div className="text-3xl lg:text-4xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight text-emerald-600 dark:text-emerald-400">
-                {formatBRL(data.summary.faturamento)}
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  Faturamento da Loja
+                </span>
+                {!isEditingFat ? (
+                  <button
+                    onClick={() => {
+                      setManualFaturamento(String(data.summary.faturamento));
+                      setIsEditingFat(true);
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] text-[#6658d3] hover:underline font-medium"
+                    title="Ajustar faturamento manualmente se necessário"
+                  >
+                    <Edit3 className="h-3 w-3" />
+                    <span>Ajustar</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setManualFaturamento("");
+                      setIsEditingFat(false);
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-600 font-medium"
+                    title="Restaurar valor oficial automático"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    <span>Restaurar</span>
+                  </button>
+                )}
               </div>
+
+              {!isEditingFat ? (
+                <div className="text-3xl lg:text-4xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight text-emerald-600 dark:text-emerald-400">
+                  {formatBRL(effectiveFaturamento)}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-xl font-bold text-zinc-400">R$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={manualFaturamento}
+                    onChange={(e) => setManualFaturamento(e.target.value)}
+                    className="w-full text-2xl font-bold px-2 py-1 rounded bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#6658d3]"
+                    placeholder="Valor exato..."
+                    autoFocus
+                  />
+                </div>
+              )}
+
               <p className="text-[11px] text-zinc-500 mt-2">
-                Total de vendas registradas no período selecionado.
+                {manualFaturamento
+                  ? "⚠️ Valor ajustado manualmente (recalculando CMV instantâneo)."
+                  : "Receita oficial registrada na Takeat."}
               </p>
             </div>
           </div>
@@ -461,7 +493,9 @@ export default function CmvPage() {
                     </span>
                   </div>
                   <span className="text-[11px] font-semibold text-zinc-500">
-                    {formatPercent(data.summary.costCenters.bebida.percent)}
+                    {effectiveFaturamento > 0
+                      ? formatPercent((data.summary.costCenters.bebida.total / effectiveFaturamento) * 100)
+                      : "0,00%"}
                   </span>
                 </div>
                 <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
@@ -472,7 +506,12 @@ export default function CmvPage() {
                 <div
                   className="bg-amber-500 h-full rounded-full"
                   style={{
-                    width: `${Math.min(data.summary.costCenters.bebida.percent, 100)}%`,
+                    width: `${Math.min(
+                      effectiveFaturamento > 0
+                        ? (data.summary.costCenters.bebida.total / effectiveFaturamento) * 100
+                        : 0,
+                      100
+                    )}%`,
                   }}
                 />
               </div>
@@ -491,7 +530,9 @@ export default function CmvPage() {
                     </span>
                   </div>
                   <span className="text-[11px] font-semibold text-zinc-500">
-                    {formatPercent(data.summary.costCenters.embalagem.percent)}
+                    {effectiveFaturamento > 0
+                      ? formatPercent((data.summary.costCenters.embalagem.total / effectiveFaturamento) * 100)
+                      : "0,00%"}
                   </span>
                 </div>
                 <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
@@ -502,7 +543,12 @@ export default function CmvPage() {
                 <div
                   className="bg-blue-500 h-full rounded-full"
                   style={{
-                    width: `${Math.min(data.summary.costCenters.embalagem.percent, 100)}%`,
+                    width: `${Math.min(
+                      effectiveFaturamento > 0
+                        ? (data.summary.costCenters.embalagem.total / effectiveFaturamento) * 100
+                        : 0,
+                      100
+                    )}%`,
                   }}
                 />
               </div>
@@ -521,7 +567,9 @@ export default function CmvPage() {
                     </span>
                   </div>
                   <span className="text-[11px] font-semibold text-zinc-500">
-                    {formatPercent(data.summary.costCenters.mPrima.percent)}
+                    {effectiveFaturamento > 0
+                      ? formatPercent((data.summary.costCenters.mPrima.total / effectiveFaturamento) * 100)
+                      : "0,00%"}
                   </span>
                 </div>
                 <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
@@ -532,7 +580,12 @@ export default function CmvPage() {
                 <div
                   className="bg-red-500 h-full rounded-full"
                   style={{
-                    width: `${Math.min(data.summary.costCenters.mPrima.percent, 100)}%`,
+                    width: `${Math.min(
+                      effectiveFaturamento > 0
+                        ? (data.summary.costCenters.mPrima.total / effectiveFaturamento) * 100
+                        : 0,
+                      100
+                    )}%`,
                   }}
                 />
               </div>
@@ -551,7 +604,9 @@ export default function CmvPage() {
                     </span>
                   </div>
                   <span className="text-[11px] font-semibold text-zinc-500">
-                    {formatPercent(data.summary.costCenters.cProducao.percent)}
+                    {effectiveFaturamento > 0
+                      ? formatPercent((data.summary.costCenters.cProducao.total / effectiveFaturamento) * 100)
+                      : "0,00%"}
                   </span>
                 </div>
                 <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
@@ -562,7 +617,12 @@ export default function CmvPage() {
                 <div
                   className="bg-purple-500 h-full rounded-full"
                   style={{
-                    width: `${Math.min(data.summary.costCenters.cProducao.percent, 100)}%`,
+                    width: `${Math.min(
+                      effectiveFaturamento > 0
+                        ? (data.summary.costCenters.cProducao.total / effectiveFaturamento) * 100
+                        : 0,
+                      100
+                    )}%`,
                   }}
                 />
               </div>
@@ -669,7 +729,7 @@ export default function CmvPage() {
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="border-b border-zinc-200 dark:border-zinc-800 text-[11px] font-semibold text-zinc-500">
-                      <th className="py-2.5 px-3">Vencimento</th>
+                      <th className="py-2.5 px-3">Data</th>
                       <th className="py-2.5 px-3">Descrição</th>
                       <th className="py-2.5 px-3">Centro de Custo</th>
                       <th className="py-2.5 px-3">Fornecedor</th>
@@ -681,7 +741,7 @@ export default function CmvPage() {
                     {allFilteredItems.map((item, idx) => (
                       <tr key={`${item.id}-${idx}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
                         <td className="py-2.5 px-3 text-zinc-500">
-                          {item.dueDate ? formatDateDisplay(item.dueDate) : "-"}
+                          {formatDateDisplay(dateType === "competence_date" ? item.competenceDate : item.dueDate)}
                         </td>
                         <td className="py-2.5 px-3 font-medium text-zinc-900 dark:text-zinc-100 max-w-[250px] truncate">
                           {item.description}

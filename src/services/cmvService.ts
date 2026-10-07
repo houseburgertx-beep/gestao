@@ -7,6 +7,7 @@ export interface CostCenterData {
     description: string;
     value: number;
     dueDate: string;
+    competenceDate: string;
     category: string;
     provider: string;
     paid: boolean;
@@ -33,6 +34,7 @@ export interface StoreResult {
 export interface CmvApiResponse {
   success: boolean;
   period: { startDate: string; endDate: string };
+  dateType: "due_date" | "competence_date";
   unitId: string;
   isConsolidated: boolean;
   summary: {
@@ -65,7 +67,6 @@ export async function getTakeatAccessToken(): Promise<string> {
     return cachedToken.token;
   }
 
-  // Tenta do localStorage se estiver no navegador
   if (typeof window !== "undefined") {
     try {
       const saved = localStorage.getItem("takeat_access_token");
@@ -115,24 +116,127 @@ export async function getTakeatAccessToken(): Promise<string> {
   return data.access_token;
 }
 
+/**
+ * Classifica uma categoria nos 4 centros de custo de CMV
+ * com mapeamento exaustivo de todas as variações encontradas na Takeat.
+ */
+function classifyCostCenter(rawCategory: string): "bebida" | "embalagem" | "mPrima" | "cProducao" | null {
+  if (!rawCategory) return null;
+  const cat = rawCategory.toLowerCase().trim();
+
+  // SUCO é explicitamente excluído do CMV
+  if (cat.includes("suco")) return null;
+
+  // 1. BEBIDA
+  if (
+    cat.includes("insumos: bebida") ||
+    cat.includes("refrigerante: bebida") ||
+    cat.includes("produtos para revendas: refrigerantes") ||
+    cat === "bebida" ||
+    cat === "bebidas"
+  ) {
+    return "bebida";
+  }
+
+  // 2. EMBALAGEM
+  if (
+    cat.includes("embalagem") ||
+    cat.includes("embalagens") ||
+    cat.includes("fornecedores: embalagens")
+  ) {
+    return "embalagem";
+  }
+
+  // 3. CENTRAL DE PRODUÇÃO
+  if (
+    cat.includes("central de produção") ||
+    cat.includes("central de producao") ||
+    cat.includes("c produção") ||
+    cat.includes("c producao")
+  ) {
+    return "cProducao";
+  }
+
+  // 4. MATÉRIA PRIMA (inclui matérias-primas e insumos alimentares diretos)
+  if (
+    cat.includes("matéria prima") ||
+    cat.includes("materia prima") ||
+    cat.includes("fornecedores: materia prima") ||
+    cat.includes("fornecedores: carne") ||
+    cat.includes("fornecedores: bacon") ||
+    cat.includes("fornecedores: batata") ||
+    cat.includes("fornecedores: frango") ||
+    cat.includes("fornecedores: queijo") ||
+    cat.includes("insumos: carnes") ||
+    cat.includes("insumos: congelados") ||
+    cat.includes("frango: congelados") ||
+    cat.includes("keijo: congelados")
+  ) {
+    return "mPrima";
+  }
+
+  return null;
+}
+
+import { store as managementStore } from "@/services/store";
+
+/**
+ * Divide intervalos longos em fatias de até 80 dias para não estourar
+ * a limitação de 92 dias imposta pela Takeat API (max_interval_limit).
+ */
+function splitDateInterval(startStr: string, endStr: string, maxDays = 80): Array<{ start: string; end: string }> {
+  const dStart = new Date(startStr + "T00:00:00");
+  const dEnd = new Date(endStr + "T00:00:00");
+  if (isNaN(dStart.getTime()) || isNaN(dEnd.getTime()) || dStart > dEnd) {
+    return [{ start: startStr, end: endStr }];
+  }
+
+  const diffDays = Math.ceil((dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays <= maxDays) {
+    return [{ start: startStr, end: endStr }];
+  }
+
+  const slices: Array<{ start: string; end: string }> = [];
+  let curStart = new Date(dStart);
+
+  while (curStart <= dEnd) {
+    let curEnd = new Date(curStart);
+    curEnd.setDate(curEnd.getDate() + maxDays - 1);
+    if (curEnd > dEnd) {
+      curEnd = new Date(dEnd);
+    }
+
+    slices.push({
+      start: curStart.toISOString().split("T")[0],
+      end: curEnd.toISOString().split("T")[0],
+    });
+
+    curStart = new Date(curEnd);
+    curStart.setDate(curStart.getDate() + 1);
+  }
+
+  return slices;
+}
+
 export async function fetchCmvData(
   startDate: string,
   endDate: string,
-  unitParam: string = "all"
+  unitParam: string = "all",
+  dateType: "due_date" | "competence_date" = "due_date"
 ): Promise<CmvApiResponse> {
   const token = await getTakeatAccessToken();
 
-  let targetStores: Array<{ id: string; name: string }> = [];
+  let targetStores: Array<{ id: string; name: string; slugKey?: string }> = [];
 
   const normUnit = unitParam.toLowerCase();
   if (normUnit === "all") {
-    targetStores = Object.values(TAKEAT_STORES);
+    targetStores = Object.entries(TAKEAT_STORES).map(([slug, s]) => ({ ...s, slugKey: slug }));
   } else if (TAKEAT_STORES[normUnit]) {
-    targetStores = [TAKEAT_STORES[normUnit]];
+    targetStores = [{ ...TAKEAT_STORES[normUnit], slugKey: normUnit }];
   } else {
-    const storeById = Object.values(TAKEAT_STORES).find((s) => s.id === unitParam);
+    const storeById = Object.entries(TAKEAT_STORES).find(([, s]) => s.id === unitParam);
     if (storeById) {
-      targetStores = [storeById];
+      targetStores = [{ ...storeById[1], slugKey: storeById[0] }];
     } else {
       targetStores = [{ id: unitParam, name: `Loja ${unitParam}` }];
     }
@@ -148,31 +252,10 @@ export async function fetchCmvData(
     cProducao: { label: "C Produção", total: 0, percent: 0, items: [] as any[] },
   };
 
+  const slices = splitDateInterval(startDate, endDate, 80);
+
   for (const store of targetStores) {
-    // 1. Obter Faturamento
-    const revenueParams = new URLSearchParams({
-      restaurant_id: store.id,
-      start_date: startDate,
-      end_date: endDate,
-      is_earning: "true",
-    });
-
-    const revRes = await fetch(
-      `https://public-api.takeat.app/v1/financial/cash-flows?${revenueParams.toString()}`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
     let storeRevenue = 0;
-    if (revRes.ok) {
-      const revData = await revRes.json();
-      storeRevenue = parseFloat(revData.totals?.total_earnings || "0");
-    }
-
-    globalFaturamento += storeRevenue;
-
-    // 2. Obter Despesas dos Centros de Custo de CMV
-    let offset = 0;
-    const limit = 100;
     const storeItems: any[] = [];
 
     const storeCostCenters = {
@@ -182,66 +265,90 @@ export async function fetchCmvData(
       cProducao: { label: "C Produção", total: 0, percent: 0, items: [] as any[] },
     };
 
-    while (true) {
-      const expParams = new URLSearchParams({
+    // Percorre cada fatia de data (para suportar períodos arbitrários sem limite de 92 dias)
+    for (const slice of slices) {
+      // 1. Obter Faturamento oficial registrado na Takeat
+      const revenueParams = new URLSearchParams({
         restaurant_id: store.id,
-        start_date: startDate,
-        end_date: endDate,
-        is_earning: "false",
-        offset: offset.toString(),
+        start_date: slice.start,
+        end_date: slice.end,
+        is_earning: "true",
+        date_type: dateType,
       });
 
-      const expRes = await fetch(
-        `https://public-api.takeat.app/v1/financial/cash-flows?${expParams.toString()}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      try {
+        const revRes = await fetch(
+          `https://public-api.takeat.app/v1/financial/cash-flows?${revenueParams.toString()}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
 
-      if (!expRes.ok) break;
+        if (revRes.ok) {
+          const revData = await revRes.json();
+          storeRevenue += parseFloat(revData.totals?.total_earnings || "0");
+        }
+      } catch (e) {
+        console.warn(`Aviso ao consultar receita loja ${store.name} fatia ${slice.start}:`, e);
+      }
+
+      // 2. Obter Despesas com paginação completa
+      let offset = 0;
+      const limit = 100;
+
+      while (true) {
+        const expParams = new URLSearchParams({
+          restaurant_id: store.id,
+          start_date: slice.start,
+          end_date: slice.end,
+          is_earning: "false",
+          date_type: dateType,
+          offset: offset.toString(),
+        });
+
+        const expRes = await fetch(
+          `https://public-api.takeat.app/v1/financial/cash-flows?${expParams.toString()}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (!expRes.ok) break;
 
       const expData = await expRes.json();
       const flows: any[] = expData.cash_flows || [];
 
       for (const item of flows) {
-        const cat = (item.category || "").toLowerCase();
-        const val = parseFloat(item.value || "0");
-        if (isNaN(val) || val <= 0) continue;
+        // Se houver itens filhos (nota fiscal composta), inspeciona os filhos
+        const hasChildren = Array.isArray(item.items) && item.items.length > 0;
+        const targetList = hasChildren ? item.items : [item];
 
-        // Suco explicitamente excluído
-        if (cat.includes("suco")) continue;
+        for (const target of targetList) {
+          const val = parseFloat(target.value || "0");
+          if (isNaN(val) || val <= 0) continue;
 
-        let matchedKey: "bebida" | "embalagem" | "mPrima" | "cProducao" | null = null;
+          const rawCategory = target.category || item.category || "";
+          const matchedKey = classifyCostCenter(rawCategory);
 
-        if (cat.includes("bebida")) {
-          matchedKey = "bebida";
-        } else if (cat.includes("embalagem")) {
-          matchedKey = "embalagem";
-        } else if (cat.includes("matéria prima") || cat.includes("materia prima")) {
-          matchedKey = "mPrima";
-        } else if (cat.includes("central de produção") || cat.includes("central de producao")) {
-          matchedKey = "cProducao";
-        }
+          if (matchedKey) {
+            const formattedItem = {
+              id: target.id || item.id,
+              storeId: store.id,
+              storeName: store.name,
+              description: target.description || item.description || "Sem descrição",
+              value: val,
+              dueDate: target.due_date || item.due_date || "",
+              competenceDate: target.competence_date || item.competence_date || "",
+              category: rawCategory,
+              provider: target.provider_name || item.provider_name || (target.provider?.name ?? item.provider?.name ?? ""),
+              paid: Boolean(target.paid !== undefined ? target.paid : item.paid),
+              costCenterKey: matchedKey,
+            };
 
-        if (matchedKey) {
-          const formattedItem = {
-            id: item.id,
-            storeId: store.id,
-            storeName: store.name,
-            description: item.description,
-            value: val,
-            dueDate: item.due_date,
-            category: item.category,
-            provider: item.provider_name || (item.provider?.name ?? ""),
-            paid: item.paid,
-            costCenterKey: matchedKey,
-          };
+            storeCostCenters[matchedKey].total += val;
+            storeCostCenters[matchedKey].items.push(formattedItem);
 
-          storeCostCenters[matchedKey].total += val;
-          storeCostCenters[matchedKey].items.push(formattedItem);
+            globalCostCenters[matchedKey].total += val;
+            globalCostCenters[matchedKey].items.push(formattedItem);
 
-          globalCostCenters[matchedKey].total += val;
-          globalCostCenters[matchedKey].items.push(formattedItem);
-
-          storeItems.push(formattedItem);
+            storeItems.push(formattedItem);
+          }
         }
       }
 
@@ -249,23 +356,41 @@ export async function fetchCmvData(
       if (remaining <= 0 || flows.length === 0) break;
       offset += limit;
     }
+  }
 
-    const storeTotalInsumos =
-      storeCostCenters.bebida.total +
-      storeCostCenters.embalagem.total +
-      storeCostCenters.mPrima.total +
-      storeCostCenters.cProducao.total;
+  // Fallback: se storeRevenue for 0 e houver faturamento local registrado no store.ts, utiliza
+  if (storeRevenue === 0 && typeof window !== "undefined") {
+    try {
+      const localRevenues = managementStore.getRevenues();
+      const matched = localRevenues.filter((r) => {
+        const matchUnit = r.unitId === store.id || (store.slugKey && r.unitId === store.slugKey);
+        return matchUnit && r.date >= startDate && r.date <= endDate;
+      });
+      const localSum = matched.reduce((acc, cur) => acc + (cur.netRevenue || cur.grossRevenue || 0), 0);
+      if (localSum > 0) {
+        storeRevenue = localSum;
+      }
+    } catch {}
+  }
 
-    const storeCmvPercent =
-      storeRevenue > 0 ? (storeTotalInsumos / storeRevenue) * 100 : 0;
+  globalFaturamento += storeRevenue;
 
-    storeResults.push({
-      storeId: store.id,
-      storeName: store.name,
-      faturamento: storeRevenue,
-      totalInsumos: storeTotalInsumos,
-      cmvPercent: Math.round(storeCmvPercent * 100) / 100,
-      costCenters: {
+  const storeTotalInsumos =
+    storeCostCenters.bebida.total +
+    storeCostCenters.embalagem.total +
+    storeCostCenters.mPrima.total +
+    storeCostCenters.cProducao.total;
+
+  const storeCmvPercent =
+    storeRevenue > 0 ? (storeTotalInsumos / storeRevenue) * 100 : 0;
+
+  storeResults.push({
+    storeId: store.id,
+    storeName: store.name,
+    faturamento: storeRevenue,
+    totalInsumos: storeTotalInsumos,
+    cmvPercent: Math.round(storeCmvPercent * 100) / 100,
+    costCenters: {
         bebida: {
           ...storeCostCenters.bebida,
           percent: storeRevenue > 0 ? (storeCostCenters.bebida.total / storeRevenue) * 100 : 0,
@@ -299,6 +424,7 @@ export async function fetchCmvData(
   return {
     success: true,
     period: { startDate, endDate },
+    dateType,
     unitId: unitParam,
     isConsolidated: targetStores.length > 1,
     summary: {
