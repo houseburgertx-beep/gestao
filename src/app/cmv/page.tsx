@@ -14,6 +14,7 @@ import {
   Building2,
   AlertTriangle,
   ChevronDown,
+  ChevronUp,
   Edit3,
   RotateCcw,
   CupSoda,
@@ -26,6 +27,7 @@ import {
   Eye,
   Info,
   X,
+  Settings2,
 } from "lucide-react";
 import { useUnit } from "@/contexts/UnitContext";
 import {
@@ -33,6 +35,8 @@ import {
   CmvApiResponse,
   CostCenterKey,
   CostCenterItem,
+  CostCenterSubcategory,
+  computeSubcategories,
 } from "@/services/cmvService";
 
 const STORE_TABS = [
@@ -118,6 +122,14 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
   },
 ];
 
+interface DetailTarget {
+  type: "center" | "subcategory";
+  key: string;
+  label: string;
+  badgeBg?: string;
+  icon?: React.ElementType;
+}
+
 export default function CmvPage() {
   const { currentUnit } = useUnit();
 
@@ -133,7 +145,7 @@ export default function CmvPage() {
   // Loja selecionada
   const [selectedUnit, setSelectedUnit] = useState<string>("eunapolis");
 
-  // Centros de custo que fazem parte da soma (Checkboxes)
+  // Centros de custo principais que fazem parte da soma (Checkboxes)
   const [activeCenters, setActiveCenters] = useState<Record<CostCenterKey, boolean>>({
     cProducao: true,
     mPrima: true,
@@ -143,8 +155,12 @@ export default function CmvPage() {
     outros: false,
   });
 
-  // Estado para o modal do olhinho minimalista (composição detalhada de saídas até o total)
-  const [selectedCenterDetail, setSelectedCenterDetail] = useState<CostCenterKey | null>(null);
+  // Subcategorias específicas de Outras Despesas selecionadas individualmente
+  const [selectedOutrosSubcategories, setSelectedOutrosSubcategories] = useState<Record<string, boolean>>({});
+  const [showOutrosBreakdown, setShowOutrosBreakdown] = useState(false);
+
+  // Alvo do modal do olhinho minimalista (Centro ou Subcategoria)
+  const [selectedDetailTarget, setSelectedDetailTarget] = useState<DetailTarget | null>(null);
 
   // Ajuste manual de Faturamento
   const [manualFaturamento, setManualFaturamento] = useState<string>("");
@@ -157,7 +173,7 @@ export default function CmvPage() {
 
   // Filtros na tabela de auditoria
   const [searchTerm, setSearchTerm] = useState("");
-  const [tableFilter, setTableFilter] = useState<string>("all_entries"); // "all_entries" | "selected_cmv" | CostCenterKey
+  const [tableFilter, setTableFilter] = useState<string>("all_entries");
   const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "pending">("all");
 
   // Botão de Copiar WhatsApp
@@ -193,6 +209,7 @@ export default function CmvPage() {
     // Limpar faturamento manual ao mudar parâmetros de consulta
     setManualFaturamento("");
     setIsEditingFat(false);
+    setSelectedOutrosSubcategories({});
   }, [startDate, endDate, selectedUnit, dateType]);
 
   // Presets rápidos de data
@@ -244,7 +261,36 @@ export default function CmvPage() {
     return dateStr;
   };
 
-  // Faturamento efetivo (usando manual se o usuário tiver preenchido)
+  // Subcategorias disponíveis de Outras Despesas
+  const outrosSubcategories: CostCenterSubcategory[] = useMemo(() => {
+    if (!data) return [];
+    if (data.isConsolidated) {
+      const allOutrosItems: CostCenterItem[] = [];
+      data.stores.forEach((st) => {
+        if (st.costCenters.outros?.items) {
+          allOutrosItems.push(...st.costCenters.outros.items);
+        }
+      });
+      return computeSubcategories(allOutrosItems);
+    }
+    return data.summary.costCenters.outros?.subcategories || [];
+  }, [data]);
+
+  // Total das Outras Despesas selecionadas individualmente
+  const selectedOutrosSum = useMemo(() => {
+    return outrosSubcategories.reduce((acc, sub) => {
+      if (selectedOutrosSubcategories[sub.rawCategory]) {
+        return acc + sub.total;
+      }
+      return acc;
+    }, 0);
+  }, [outrosSubcategories, selectedOutrosSubcategories]);
+
+  const countSelectedOutros = useMemo(() => {
+    return outrosSubcategories.filter((s) => selectedOutrosSubcategories[s.rawCategory]).length;
+  }, [outrosSubcategories, selectedOutrosSubcategories]);
+
+  // Faturamento efetivo
   const effectiveFaturamento = useMemo(() => {
     if (manualFaturamento && !isNaN(parseFloat(manualFaturamento))) {
       return parseFloat(manualFaturamento);
@@ -252,15 +298,20 @@ export default function CmvPage() {
     return data?.summary.faturamento || 0;
   }, [manualFaturamento, data]);
 
-  // Soma dos Centros de Custo SELECIONADOS pelo usuário
+  // Soma dos Custos SELECIONADOS pelo usuário
   const selectedCostSum = useMemo(() => {
     if (!data) return 0;
-    return Object.entries(activeCenters).reduce((sum, [k, isActive]) => {
-      if (!isActive) return sum;
-      const center = data.summary.costCenters[k as CostCenterKey];
-      return sum + (center?.total || 0);
-    }, 0);
-  }, [data, activeCenters]);
+    let sum = 0;
+    // Soma os 5 centros principais se ativos
+    (["cProducao", "mPrima", "embalagem", "bebida", "suco"] as CostCenterKey[]).forEach((k) => {
+      if (activeCenters[k]) {
+        sum += data.summary.costCenters[k]?.total || 0;
+      }
+    });
+    // Soma as subcategorias específicas de Outras Despesas selecionadas
+    sum += selectedOutrosSum;
+    return sum;
+  }, [data, activeCenters, selectedOutrosSum]);
 
   // CMV recalculado sobre o faturamento efetivo e centros selecionados
   const effectiveCmvPercent = useMemo(() => {
@@ -270,45 +321,47 @@ export default function CmvPage() {
 
   // Nomes dos centros ativos para exibição
   const activeCenterLabels = useMemo(() => {
-    return COST_CENTERS_CONFIG.filter((cfg) => activeCenters[cfg.key]).map(
-      (cfg) => cfg.label
-    );
-  }, [activeCenters]);
+    const list = COST_CENTERS_CONFIG.filter(
+      (cfg) => cfg.key !== "outros" && activeCenters[cfg.key]
+    ).map((cfg) => cfg.label);
 
-  // Configuração e lista de saídas do centro clicado no olhinho
-  const detailCenterConfig = useMemo(() => {
-    return COST_CENTERS_CONFIG.find((c) => c.key === selectedCenterDetail);
-  }, [selectedCenterDetail]);
-
-  const detailItems = useMemo(() => {
-    if (!data || !selectedCenterDetail) return [];
-    if (data.isConsolidated) {
-      const list: CostCenterItem[] = [];
-      data.stores.forEach((st) => {
-        const c = st.costCenters[selectedCenterDetail];
-        if (c?.items) list.push(...c.items);
-      });
-      return list;
+    if (countSelectedOutros > 0) {
+      const names = outrosSubcategories
+        .filter((s) => selectedOutrosSubcategories[s.rawCategory])
+        .map((s) => s.label);
+      list.push(...names);
     }
-    return data.summary.costCenters[selectedCenterDetail]?.items || [];
-  }, [data, selectedCenterDetail]);
+    return list;
+  }, [activeCenters, countSelectedOutros, outrosSubcategories, selectedOutrosSubcategories]);
 
-  // Calcula o valor acumulado passo a passo até chegar no total do centro
-  const { detailItemsWithCumulative, detailTotalVal } = useMemo(() => {
-    let run = 0;
-    const list = detailItems.map((item) => {
-      run += item.value;
-      return {
-        ...item,
-        cumulative: run,
-      };
-    });
-    return { detailItemsWithCumulative: list, detailTotalVal: run };
-  }, [detailItems]);
-
-  // Alternar centro de custo na soma
+  // Alternar centro de custo principal na soma
   const toggleCenter = (key: CostCenterKey) => {
+    if (key === "outros") {
+      // Se clicar no card de Outras Despesas, abre/alterna o desdobramento
+      setShowOutrosBreakdown((prev) => !prev);
+      return;
+    }
     setActiveCenters((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Alternar subcategoria individual de Outras Despesas
+  const toggleOutrosSubcategory = (rawCategory: string) => {
+    setSelectedOutrosSubcategories((prev) => ({
+      ...prev,
+      [rawCategory]: !prev[rawCategory],
+    }));
+  };
+
+  const selectAllOutros = () => {
+    const next: Record<string, boolean> = {};
+    outrosSubcategories.forEach((s) => {
+      next[s.rawCategory] = true;
+    });
+    setSelectedOutrosSubcategories(next);
+  };
+
+  const deselectAllOutros = () => {
+    setSelectedOutrosSubcategories({});
   };
 
   // Restaurar padrão (4 centros oficiais: Bebida, Embalagem, M. Prima, C. Produção)
@@ -321,9 +374,11 @@ export default function CmvPage() {
       suco: false,
       outros: false,
     });
+    setSelectedOutrosSubcategories({});
+    setShowOutrosBreakdown(false);
   };
 
-  // Selecionar todos os centros
+  // Selecionar todos os centros e todas as outras despesas
   const selectAllCenters = () => {
     setActiveCenters({
       cProducao: true,
@@ -333,9 +388,53 @@ export default function CmvPage() {
       suco: true,
       outros: true,
     });
+    selectAllOutros();
   };
 
-  // Copiar formato WhatsApp com base nos centros selecionados
+  // Configuração e itens detalhados do alvo clicado no olhinho (centro ou subcategoria)
+  const detailItems = useMemo(() => {
+    if (!data || !selectedDetailTarget) return [];
+    let baseList: CostCenterItem[] = [];
+
+    if (data.isConsolidated) {
+      data.stores.forEach((st) => {
+        if (selectedDetailTarget.type === "center") {
+          const c = st.costCenters[selectedDetailTarget.key as CostCenterKey];
+          if (c?.items) baseList.push(...c.items);
+        } else {
+          // É subcategoria: filtra por item.category
+          if (st.items) {
+            const matched = st.items.filter((it) => it.category === selectedDetailTarget.key);
+            baseList.push(...matched);
+          }
+        }
+      });
+    } else {
+      if (selectedDetailTarget.type === "center") {
+        baseList = data.summary.costCenters[selectedDetailTarget.key as CostCenterKey]?.items || [];
+      } else {
+        const allItems = data.stores[0]?.items || [];
+        baseList = allItems.filter((it) => it.category === selectedDetailTarget.key);
+      }
+    }
+
+    return baseList;
+  }, [data, selectedDetailTarget]);
+
+  // Calcula o acumulado passo a passo até chegar no total
+  const { detailItemsWithCumulative, detailTotalVal } = useMemo(() => {
+    let run = 0;
+    const list = detailItems.map((item) => {
+      run += item.value;
+      return {
+        ...item,
+        cumulative: run,
+      };
+    });
+    return { detailItemsWithCumulative: list, detailTotalVal: run };
+  }, [detailItems]);
+
+  // Copiar formato WhatsApp com os centros e subcategorias selecionados
   const handleCopyWhatsApp = () => {
     if (!data) return;
     const storeName =
@@ -346,7 +445,14 @@ export default function CmvPage() {
 
     const centerLines: string[] = [];
     COST_CENTERS_CONFIG.forEach((cfg) => {
-      if (activeCenters[cfg.key]) {
+      if (cfg.key === "outros") {
+        // Se for outros, inclui apenas as subcategorias que foram marcadas individualmente!
+        outrosSubcategories.forEach((sub) => {
+          if (selectedOutrosSubcategories[sub.rawCategory]) {
+            centerLines.push(`${sub.label} - ${formatBRL(sub.total)}`);
+          }
+        });
+      } else if (activeCenters[cfg.key]) {
         const val = s.costCenters[cfg.key]?.total || 0;
         centerLines.push(`${cfg.label} - ${formatBRL(val)}`);
       }
@@ -408,12 +514,19 @@ export default function CmvPage() {
     }
 
     return items.filter((it) => {
-      // Filtro de centro de custo
+      // Filtro de centro de custo / subcategoria
       let matchCenter = true;
       if (tableFilter === "all_entries") {
-        matchCenter = true; // Mostra literalmente tudo
+        matchCenter = true;
       } else if (tableFilter === "selected_cmv") {
-        matchCenter = Boolean(activeCenters[it.costCenterKey]);
+        if (it.costCenterKey === "outros") {
+          matchCenter = Boolean(selectedOutrosSubcategories[it.category]);
+        } else {
+          matchCenter = Boolean(activeCenters[it.costCenterKey]);
+        }
+      } else if (tableFilter.startsWith("sub:")) {
+        const raw = tableFilter.replace("sub:", "");
+        matchCenter = it.category === raw;
       } else {
         matchCenter = it.costCenterKey === tableFilter;
       }
@@ -434,7 +547,7 @@ export default function CmvPage() {
 
       return matchCenter && matchStatus && matchSearch;
     });
-  }, [data, tableFilter, statusFilter, searchTerm, activeCenters]);
+  }, [data, tableFilter, statusFilter, searchTerm, activeCenters, selectedOutrosSubcategories]);
 
   // Total dos itens atualmente visíveis na tabela
   const tableFilteredTotal = useMemo(() => {
@@ -455,7 +568,7 @@ export default function CmvPage() {
                 CMV · Custo de Mercadoria Vendida
               </h1>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Auditoria 100% precisa com controle de centros na soma e visualização total de despesas.
+                Auditoria 100% precisa com controle granular de centros e desdobramento de despesas.
               </p>
             </div>
           </div>
@@ -613,15 +726,15 @@ export default function CmvPage() {
       {data && (
         <>
           {/* BARRA DE SELEÇÃO DE CENTROS DE CUSTO NA SOMA */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
+          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-[#6658d3]" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
                   Centros de Custo Incluídos na Soma do CMV
                 </h3>
                 <span className="text-[11px] text-zinc-500 font-medium">
-                  ({activeCenterLabels.length} de {COST_CENTERS_CONFIG.length} ativos)
+                  ({activeCenterLabels.length} ativos)
                 </span>
               </div>
               <div className="flex items-center gap-2 text-xs">
@@ -641,58 +754,176 @@ export default function CmvPage() {
               </div>
             </div>
 
-            {/* Checkbox Chips interativos */}
+            {/* Checkbox Chips principais */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
               {COST_CENTERS_CONFIG.map((cfg) => {
-                const isActive = activeCenters[cfg.key];
+                const isOutros = cfg.key === "outros";
+                const isActive = isOutros ? countSelectedOutros > 0 : activeCenters[cfg.key];
                 const centerData = data.summary.costCenters[cfg.key];
+                const displayedVal = isOutros ? selectedOutrosSum : centerData?.total || 0;
                 const Icon = cfg.icon;
 
                 return (
-                  <button
+                  <div
                     key={cfg.key}
-                    type="button"
                     onClick={() => toggleCenter(cfg.key)}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border text-left transition-all ${
+                    className={`flex items-center justify-between p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
                       isActive
                         ? `${cfg.borderActive} bg-white dark:bg-zinc-850 shadow-sm`
                         : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/60 opacity-60 hover:opacity-100"
                     }`}
                   >
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <div className={`p-1 rounded-md ${cfg.badgeBg}`}>
+                    <div className="flex items-center gap-2 overflow-hidden flex-1">
+                      <div className={`p-1 rounded-md shrink-0 ${cfg.badgeBg}`}>
                         <Icon className="h-3.5 w-3.5" />
                       </div>
                       <div className="truncate">
                         <span className="text-[11px] font-bold block truncate text-zinc-900 dark:text-zinc-100">
                           {cfg.label}
                         </span>
-                        <span className="text-[10px] text-zinc-500 block">
-                          {formatBRL(centerData?.total || 0)}
+                        <span className="text-[10px] text-zinc-500 block truncate">
+                          {isOutros && countSelectedOutros > 0
+                            ? `${formatBRL(displayedVal)} (${countSelectedOutros})`
+                            : isOutros
+                            ? `R$ 0 (${formatBRL(centerData?.total || 0)})`
+                            : formatBRL(displayedVal)}
                         </span>
                       </div>
                     </div>
+
                     <div className="ml-1 shrink-0 flex items-center gap-1">
+                      {/* Olhinho minimalista */}
                       <span
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedCenterDetail(cfg.key);
+                          setSelectedDetailTarget({
+                            type: "center",
+                            key: cfg.key,
+                            label: cfg.label,
+                            badgeBg: cfg.badgeBg,
+                            icon: cfg.icon,
+                          });
                         }}
                         className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-                        title={`Ver saídas de ${cfg.label}`}
+                        title={`Ver saídas de ${cfg.label} até o valor total`}
                       >
-                        <Eye className="h-3 w-3" />
+                        <Eye className="h-3.5 w-3.5" />
                       </span>
-                      {isActive ? (
+
+                      {/* Ícone de status */}
+                      {isOutros ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowOutrosBreakdown((prev) => !prev);
+                          }}
+                          className="p-0.5 rounded text-zinc-400 hover:text-zinc-700"
+                          title="Desdobrar subcategorias de Outras Despesas"
+                        >
+                          {showOutrosBreakdown ? (
+                            <ChevronUp className="h-3.5 w-3.5 text-[#6658d3]" />
+                          ) : (
+                            <Settings2 className="h-3.5 w-3.5 text-zinc-400" />
+                          )}
+                        </button>
+                      ) : isActive ? (
                         <CheckSquare className="h-4 w-4 text-[#6658d3]" />
                       ) : (
                         <Square className="h-4 w-4 text-zinc-400" />
                       )}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
+
+            {/* PAINEL DE DESDOBRAMENTO ESPECÍFICO DE OUTRAS DESPESAS */}
+            {outrosSubcategories.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Receipt className="h-3.5 w-3.5 text-zinc-500" />
+                    <span className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200">
+                      Desdobramento de Outras Despesas: Escolha literalmente quais entram na soma
+                    </span>
+                    <span className="text-[10px] text-zinc-500 font-medium">
+                      ({countSelectedOutros} de {outrosSubcategories.length} ativas · {formatBRL(selectedOutrosSum)})
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={selectAllOutros}
+                      className="text-[#6658d3] hover:underline font-semibold"
+                    >
+                      Marcar Todas
+                    </button>
+                    <span className="text-zinc-300 dark:text-zinc-700">|</span>
+                    <button
+                      type="button"
+                      onClick={deselectAllOutros}
+                      className="text-zinc-500 hover:underline"
+                    >
+                      Desmarcar Todas
+                    </button>
+                  </div>
+                </div>
+
+                {/* Grid das subcategorias reais (Motoboy, Freelancer, Gás, Limpeza, etc.) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {outrosSubcategories.map((sub) => {
+                    const isChecked = !!selectedOutrosSubcategories[sub.rawCategory];
+
+                    return (
+                      <div
+                        key={sub.rawCategory}
+                        className={`flex items-center justify-between p-2 rounded-xl border text-xs transition-all ${
+                          isChecked
+                            ? "bg-purple-50/60 dark:bg-purple-950/20 border-purple-300 dark:border-purple-800 text-zinc-900 dark:text-zinc-100"
+                            : "bg-zinc-50 dark:bg-zinc-850 border-zinc-200 dark:border-zinc-800 text-zinc-500 opacity-75 hover:opacity-100"
+                        }`}
+                      >
+                        <label className="flex items-center gap-2 cursor-pointer flex-1 truncate mr-1.5">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleOutrosSubcategory(sub.rawCategory)}
+                            className="rounded text-[#6658d3] focus:ring-[#6658d3] h-3.5 w-3.5"
+                          />
+                          <span className="font-semibold truncate text-[11px]" title={sub.rawCategory}>
+                            {sub.label}
+                          </span>
+                        </label>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="font-bold text-[11px] text-zinc-900 dark:text-zinc-100">
+                            {formatBRL(sub.total)}
+                          </span>
+
+                          {/* Olhinho da subcategoria específica! */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedDetailTarget({
+                                type: "subcategory",
+                                key: sub.rawCategory,
+                                label: sub.label,
+                              })
+                            }
+                            className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                            title={`Ver saídas de ${sub.label} até ${formatBRL(sub.total)}`}
+                          >
+                            <Eye className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* CARDS PRINCIPAIS DE KPI */}
@@ -717,7 +948,7 @@ export default function CmvPage() {
                 </span>
               </div>
               <p className="text-[11px] text-zinc-500 mt-2">
-                Calculado sobre os {activeCenterLabels.length} centros de custo selecionados.
+                Calculado sobre os {activeCenterLabels.length} centros e subcategorias selecionados.
               </p>
               <div className="absolute right-0 bottom-0 translate-x-2 translate-y-2 opacity-5 pointer-events-none">
                 <TrendingDown className="w-24 h-24 text-zinc-900 dark:text-white" />
@@ -731,7 +962,7 @@ export default function CmvPage() {
                   Total de Custos Selecionados
                 </span>
                 <span className="text-[10px] text-zinc-400 font-mono">
-                  {activeCenterLabels.length} centros
+                  {activeCenterLabels.length} itens ativos
                 </span>
               </div>
               <div className="text-3xl lg:text-4xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
@@ -805,11 +1036,13 @@ export default function CmvPage() {
           {/* DETALHAMENTO DE TODOS OS CENTROS DE CUSTO */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {COST_CENTERS_CONFIG.map((cfg) => {
-              const isActive = activeCenters[cfg.key];
+              const isOutros = cfg.key === "outros";
+              const isActive = isOutros ? countSelectedOutros > 0 : activeCenters[cfg.key];
               const center = data.summary.costCenters[cfg.key];
               const totalVal = center?.total || 0;
               const countItems = center?.items?.length || 0;
-              const pct = effectiveFaturamento > 0 ? (totalVal / effectiveFaturamento) * 100 : 0;
+              const displayedVal = isOutros && countSelectedOutros > 0 ? selectedOutrosSum : totalVal;
+              const pct = effectiveFaturamento > 0 ? (displayedVal / effectiveFaturamento) * 100 : 0;
               const Icon = cfg.icon;
 
               return (
@@ -832,41 +1065,66 @@ export default function CmvPage() {
                         </span>
                         <span className="text-[10px] text-zinc-400">
                           {countItems} lançamento{countItems === 1 ? "" : "s"}
+                          {isOutros && ` (${outrosSubcategories.length} subcategorias)`}
                         </span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1.5">
+                      {/* Olhinho minimalista */}
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedCenterDetail(cfg.key);
-                        }}
+                        onClick={() =>
+                          setSelectedDetailTarget({
+                            type: "center",
+                            key: cfg.key,
+                            label: cfg.label,
+                            badgeBg: cfg.badgeBg,
+                            icon: cfg.icon,
+                          })
+                        }
                         className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                         title={`Ver saídas de ${cfg.label} até o valor total`}
                       >
                         <Eye className="h-4 w-4" />
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => toggleCenter(cfg.key)}
-                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
-                          isActive
-                            ? "bg-[#6658d3]/10 border-[#6658d3]/30 text-[#6658d3]"
-                            : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-zinc-700"
-                        }`}
-                      >
-                        {isActive ? "✓ Na soma" : "+ Incluir"}
-                      </button>
+                      {isOutros ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowOutrosBreakdown((prev) => !prev)}
+                          className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all flex items-center gap-1"
+                        >
+                          <Settings2 className="h-3 w-3" />
+                          <span>{countSelectedOutros > 0 ? `${countSelectedOutros} ativas` : "Escolher"}</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => toggleCenter(cfg.key)}
+                          className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${
+                            isActive
+                              ? "bg-[#6658d3]/10 border-[#6658d3]/30 text-[#6658d3]"
+                              : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-zinc-700"
+                          }`}
+                        >
+                          {isActive ? "✓ Na soma" : "+ Incluir"}
+                        </button>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex items-baseline justify-between mt-3">
-                    <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                      {formatBRL(totalVal)}
-                    </span>
+                    <div>
+                      <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                        {formatBRL(displayedVal)}
+                      </span>
+                      {isOutros && countSelectedOutros > 0 && (
+                        <span className="text-[10px] text-zinc-400 block">
+                          de {formatBRL(totalVal)} totais
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs font-semibold text-zinc-500">
                       {formatPercent(pct)}
                     </span>
@@ -920,17 +1178,23 @@ export default function CmvPage() {
                       <th className="py-2.5 px-3">Embalagem</th>
                       <th className="py-2.5 px-3">Bebida</th>
                       {activeCenters.suco && <th className="py-2.5 px-3">Suco</th>}
-                      {activeCenters.outros && <th className="py-2.5 px-3">Outros</th>}
+                      {countSelectedOutros > 0 && <th className="py-2.5 px-3">Outras Sel.</th>}
                       <th className="py-2.5 px-3">Total Selecionado</th>
                       <th className="py-2.5 px-3 text-right">CMV (%)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
                     {data.stores.map((st) => {
-                      const storeSum = Object.entries(activeCenters).reduce((sum, [k, isActive]) => {
-                        if (!isActive) return sum;
-                        return sum + (st.costCenters[k as CostCenterKey]?.total || 0);
-                      }, 0);
+                      let storeSum = 0;
+                      (["cProducao", "mPrima", "embalagem", "bebida", "suco"] as CostCenterKey[]).forEach((k) => {
+                        if (activeCenters[k]) {
+                          storeSum += st.costCenters[k]?.total || 0;
+                        }
+                      });
+                      const storeOutrosSel = st.costCenters.outros?.items?.reduce((acc, it) => {
+                        return selectedOutrosSubcategories[it.category] ? acc + it.value : acc;
+                      }, 0) || 0;
+                      storeSum += storeOutrosSel;
                       const storePct = st.faturamento > 0 ? (storeSum / st.faturamento) * 100 : 0;
 
                       return (
@@ -958,9 +1222,9 @@ export default function CmvPage() {
                               {formatBRL(st.costCenters.suco?.total || 0)}
                             </td>
                           )}
-                          {activeCenters.outros && (
+                          {countSelectedOutros > 0 && (
                             <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
-                              {formatBRL(st.costCenters.outros?.total || 0)}
+                              {formatBRL(storeOutrosSel)}
                             </td>
                           )}
                           <td className="py-2.5 px-3 font-semibold text-zinc-900 dark:text-zinc-100">
@@ -1024,6 +1288,11 @@ export default function CmvPage() {
                   <option value="bebida">🍷 Bebida</option>
                   <option value="suco">🥤 Suco</option>
                   <option value="outros">🧾 Outras Despesas (Geral)</option>
+                  {outrosSubcategories.map((sub) => (
+                    <option key={`opt-${sub.rawCategory}`} value={`sub:${sub.rawCategory}`}>
+                      ↳ {sub.label}
+                    </option>
+                  ))}
                 </select>
 
                 {/* Seletor de Status (Pago / A Pagar) */}
@@ -1089,7 +1358,9 @@ export default function CmvPage() {
                                 cfg?.badgeBg || "bg-zinc-100 text-zinc-700"
                               }`}
                             >
-                              {cfg?.label || item.category}
+                              {item.costCenterKey === "outros"
+                                ? item.category.split(":").pop()?.trim() || item.category
+                                : cfg?.label || item.category}
                             </span>
                           </td>
                           <td className="py-2.5 px-3 text-zinc-500 max-w-[180px] truncate" title={item.provider}>
@@ -1118,19 +1389,27 @@ export default function CmvPage() {
         </>
       )}
 
-      {/* MODAL MINIMALISTA DE COMPOSIÇÃO DE SAÍDAS DO CENTRO DE CUSTO */}
-      {selectedCenterDetail && detailCenterConfig && (
+      {/* MODAL MINIMALISTA DE COMPOSIÇÃO DE SAÍDAS DO ALVO (CENTRO OU SUBCATEGORIA) */}
+      {selectedDetailTarget && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
             <div className="p-4 sm:p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${detailCenterConfig.badgeBg}`}>
-                  {React.createElement(detailCenterConfig.icon, { className: "h-5 w-5" })}
+                <div
+                  className={`h-10 w-10 rounded-xl flex items-center justify-center ${
+                    selectedDetailTarget.badgeBg || "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300"
+                  }`}
+                >
+                  {selectedDetailTarget.icon ? (
+                    React.createElement(selectedDetailTarget.icon, { className: "h-5 w-5" })
+                  ) : (
+                    <Receipt className="h-5 w-5" />
+                  )}
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                    Composição de Saídas: {detailCenterConfig.label}
+                    Composição de Saídas: {selectedDetailTarget.label}
                   </h3>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">
                     Soma passo a passo até o valor final de{" "}
@@ -1143,7 +1422,7 @@ export default function CmvPage() {
               </div>
 
               <button
-                onClick={() => setSelectedCenterDetail(null)}
+                onClick={() => setSelectedDetailTarget(null)}
                 className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                 title="Fechar"
               >
@@ -1155,7 +1434,7 @@ export default function CmvPage() {
             <div className="p-4 overflow-y-auto flex-1">
               {detailItemsWithCumulative.length === 0 ? (
                 <div className="text-center py-12 text-zinc-400 text-xs">
-                  Nenhuma saída encontrada neste período para este centro de custo.
+                  Nenhuma saída encontrada neste período para este item.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1220,10 +1499,10 @@ export default function CmvPage() {
             {/* Modal Footer */}
             <div className="p-3.5 bg-zinc-50 dark:bg-zinc-850 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
               <span className="text-[11px] text-zinc-500">
-                Cada saída soma diretamente no valor total do card.
+                Cada saída acumula progressivamente até atingir o total do centro.
               </span>
               <button
-                onClick={() => setSelectedCenterDetail(null)}
+                onClick={() => setSelectedDetailTarget(null)}
                 className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-colors"
               >
                 Fechar

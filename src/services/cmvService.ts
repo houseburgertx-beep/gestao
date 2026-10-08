@@ -22,6 +22,13 @@ export interface CostCenterItem {
   costCenterKey: CostCenterKey;
 }
 
+export interface CostCenterSubcategory {
+  rawCategory: string;
+  label: string;
+  total: number;
+  items: CostCenterItem[];
+}
+
 export interface CostCenterData {
   key: CostCenterKey;
   label: string;
@@ -29,6 +36,7 @@ export interface CostCenterData {
   percent: number;
   isCmvDefault: boolean;
   items: CostCenterItem[];
+  subcategories: CostCenterSubcategory[];
 }
 
 export interface StoreResult {
@@ -258,6 +266,32 @@ function splitDateInterval(startStr: string, endStr: string, maxDays = 80): Arra
   return slices;
 }
 
+export function computeSubcategories(items: CostCenterItem[]): CostCenterSubcategory[] {
+  const map = new Map<string, { label: string; total: number; items: CostCenterItem[] }>();
+  for (const it of items) {
+    const raw = (it.category || "Sem categoria").trim();
+    let clean = raw;
+    if (clean.includes(":")) {
+      const parts = clean.split(":");
+      clean = parts[parts.length - 1].trim();
+    }
+    if (!map.has(raw)) {
+      map.set(raw, { label: clean || raw, total: 0, items: [] });
+    }
+    const entry = map.get(raw)!;
+    entry.total += it.value;
+    entry.items.push(it);
+  }
+  return Array.from(map.entries())
+    .map(([rawCategory, data]) => ({
+      rawCategory,
+      label: data.label,
+      total: Math.round(data.total * 100) / 100,
+      items: data.items,
+    }))
+    .sort((a, b) => b.total - a.total);
+}
+
 export function createEmptyCostCenters(): Record<CostCenterKey, CostCenterData> {
   return {
     bebida: {
@@ -267,6 +301,7 @@ export function createEmptyCostCenters(): Record<CostCenterKey, CostCenterData> 
       percent: 0,
       isCmvDefault: true,
       items: [],
+      subcategories: [],
     },
     embalagem: {
       key: "embalagem",
@@ -275,6 +310,7 @@ export function createEmptyCostCenters(): Record<CostCenterKey, CostCenterData> 
       percent: 0,
       isCmvDefault: true,
       items: [],
+      subcategories: [],
     },
     mPrima: {
       key: "mPrima",
@@ -283,6 +319,7 @@ export function createEmptyCostCenters(): Record<CostCenterKey, CostCenterData> 
       percent: 0,
       isCmvDefault: true,
       items: [],
+      subcategories: [],
     },
     cProducao: {
       key: "cProducao",
@@ -291,6 +328,7 @@ export function createEmptyCostCenters(): Record<CostCenterKey, CostCenterData> 
       percent: 0,
       isCmvDefault: true,
       items: [],
+      subcategories: [],
     },
     suco: {
       key: "suco",
@@ -299,6 +337,7 @@ export function createEmptyCostCenters(): Record<CostCenterKey, CostCenterData> 
       percent: 0,
       isCmvDefault: false,
       items: [],
+      subcategories: [],
     },
     outros: {
       key: "outros",
@@ -307,6 +346,7 @@ export function createEmptyCostCenters(): Record<CostCenterKey, CostCenterData> 
       percent: 0,
       isCmvDefault: false,
       items: [],
+      subcategories: [],
     },
   };
 }
@@ -471,10 +511,11 @@ export async function fetchCmvData(
     const storeCmvPercent =
       storeRevenue > 0 ? (storeTotalInsumos / storeRevenue) * 100 : 0;
 
-    // Atualiza percentuais por centro de custo para a loja
+    // Atualiza percentuais e subcategorias por centro de custo para a loja
     (Object.keys(storeCostCenters) as CostCenterKey[]).forEach((key) => {
       storeCostCenters[key].percent =
         storeRevenue > 0 ? (storeCostCenters[key].total / storeRevenue) * 100 : 0;
+      storeCostCenters[key].subcategories = computeSubcategories(storeCostCenters[key].items);
     });
 
     storeResults.push({
@@ -497,10 +538,11 @@ export async function fetchCmvData(
   const globalCmvPercent =
     globalFaturamento > 0 ? (globalTotalInsumos / globalFaturamento) * 100 : 0;
 
-  // Atualiza percentuais por centro de custo global
+  // Atualiza percentuais e subcategorias por centro de custo global
   (Object.keys(globalCostCenters) as CostCenterKey[]).forEach((key) => {
     globalCostCenters[key].percent =
       globalFaturamento > 0 ? (globalCostCenters[key].total / globalFaturamento) * 100 : 0;
+    globalCostCenters[key].subcategories = computeSubcategories(globalCostCenters[key].items);
   });
 
   return {
