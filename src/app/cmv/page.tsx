@@ -55,10 +55,13 @@ interface CostCenterConfig {
   key: CostCenterKey;
   label: string;
   icon: React.ElementType;
-  color: string;
-  badgeBg: string;
-  borderActive: string;
+  gradientBg: string;
+  cardBorder: string;
+  iconGradient: string;
+  barGradient: string;
   barColor: string;
+  accentColor: string;
+  badgeBg: string;
   defaultIncluded: boolean;
   description: string;
 }
@@ -68,10 +71,13 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "cProducao",
     label: "Central de Produção",
     icon: Factory,
-    color: "text-[#007A74]",
-    badgeBg: "bg-[#00C7BE]/15 text-[#007A74]",
-    borderActive: "border-[#00C7BE]/40 ring-1 ring-[#00C7BE]/20",
+    gradientBg: "linear-gradient(180deg, #EFFBF7 0%, #FFFFFF 70%)",
+    cardBorder: "border-[#00C7BE]/35",
+    iconGradient: "bg-gradient-to-br from-[#00C7BE] to-[#00968F] text-white shadow-[0_4px_14px_rgba(0,199,190,0.35)]",
+    barGradient: "linear-gradient(90deg, #00C7BE, #30B0C7)",
     barColor: "#00C7BE",
+    accentColor: "#00857D",
+    badgeBg: "bg-[#00C7BE]/15 text-[#007A74]",
     defaultIncluded: true,
     description: "Transferências, carnes e pré-preparo da Central",
   },
@@ -79,10 +85,13 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "mPrima",
     label: "Matéria Prima",
     icon: Beef,
-    color: "text-[#3634A3]",
-    badgeBg: "bg-[#5856D6]/15 text-[#3634A3]",
-    borderActive: "border-[#5856D6]/40 ring-1 ring-[#5856D6]/20",
+    gradientBg: "linear-gradient(180deg, #F3F2FD 0%, #FFFFFF 70%)",
+    cardBorder: "border-[#5856D6]/35",
+    iconGradient: "bg-gradient-to-br from-[#5856D6] to-[#423FB8] text-white shadow-[0_4px_14px_rgba(88,86,214,0.35)]",
+    barGradient: "linear-gradient(90deg, #5856D6, #7A79E4)",
     barColor: "#5856D6",
+    accentColor: "#3E3CB0",
+    badgeBg: "bg-[#5856D6]/15 text-[#3634A3]",
     defaultIncluded: true,
     description: "Carnes, queijos, bacon, batatas e hortifruti",
   },
@@ -90,10 +99,13 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "embalagem",
     label: "Embalagem",
     icon: Package,
-    color: "text-[#0071A4]",
-    badgeBg: "bg-[#32ADE6]/15 text-[#0071A4]",
-    borderActive: "border-[#32ADE6]/40 ring-1 ring-[#32ADE6]/20",
+    gradientBg: "linear-gradient(180deg, #F0F9FE 0%, #FFFFFF 70%)",
+    cardBorder: "border-[#32ADE6]/35",
+    iconGradient: "bg-gradient-to-br from-[#32ADE6] to-[#0D87BF] text-white shadow-[0_4px_14px_rgba(50,173,230,0.35)]",
+    barGradient: "linear-gradient(90deg, #32ADE6, #5AC8FA)",
     barColor: "#32ADE6",
+    accentColor: "#007BA8",
+    badgeBg: "bg-[#32ADE6]/15 text-[#0071A4]",
     defaultIncluded: true,
     description: "Caixas, sacolas, copos, potes e descartáveis",
   },
@@ -101,10 +113,13 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "bebida",
     label: "Bebida",
     icon: Wine,
-    color: "text-[#7325A6]",
-    badgeBg: "bg-[#AF52DE]/15 text-[#7325A6]",
-    borderActive: "border-[#AF52DE]/40 ring-1 ring-[#AF52DE]/20",
+    gradientBg: "linear-gradient(180deg, #F8F2FC 0%, #FFFFFF 70%)",
+    cardBorder: "border-[#AF52DE]/35",
+    iconGradient: "bg-gradient-to-br from-[#AF52DE] to-[#8E26BE] text-white shadow-[0_4px_14px_rgba(175,82,222,0.35)]",
+    barGradient: "linear-gradient(90deg, #AF52DE, #BF5AF2)",
     barColor: "#AF52DE",
+    accentColor: "#7D1EA8",
+    badgeBg: "bg-[#AF52DE]/15 text-[#7325A6]",
     defaultIncluded: true,
     description: "Refrigerantes, cervejas, águas e destilados",
   },
@@ -112,10 +127,13 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "suco",
     label: "Suco",
     icon: CupSoda,
-    color: "text-[#B25000]",
-    badgeBg: "bg-[#FF9500]/15 text-[#B25000]",
-    borderActive: "border-[#FF9500]/40 ring-1 ring-[#FF9500]/20",
+    gradientBg: "linear-gradient(180deg, #FFF7ED 0%, #FFFFFF 70%)",
+    cardBorder: "border-[#FF9500]/35",
+    iconGradient: "bg-gradient-to-br from-[#FF9500] to-[#D97706] text-white shadow-[0_4px_14px_rgba(255,149,0,0.35)]",
+    barGradient: "linear-gradient(90deg, #FF9500, #FFB340)",
     barColor: "#FF9500",
+    accentColor: "#B86200",
+    badgeBg: "bg-[#FF9500]/15 text-[#B25000]",
     defaultIncluded: false,
     description: "Polpas, concentrados e sucos (opcional)",
   },
@@ -123,10 +141,13 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "outros",
     label: "Outras Despesas",
     icon: Receipt,
-    color: "text-[#B80F33]",
-    badgeBg: "bg-[#FF2D55]/15 text-[#B80F33]",
-    borderActive: "border-[#FF2D55]/40 ring-1 ring-[#FF2D55]/20",
+    gradientBg: "linear-gradient(180deg, #FFF1F3 0%, #FFFFFF 70%)",
+    cardBorder: "border-[#FF2D55]/35",
+    iconGradient: "bg-gradient-to-br from-[#FF2D55] to-[#D9153C] text-white shadow-[0_4px_14px_rgba(255,45,85,0.35)]",
+    barGradient: "linear-gradient(90deg, #FF2D55, #FF6482)",
     barColor: "#FF2D55",
+    accentColor: "#C20D32",
+    badgeBg: "bg-[#FF2D55]/15 text-[#B80F33]",
     defaultIncluded: false,
     description: "Motoboys, aluguel, luz, taxas e manutenção",
   },
@@ -485,64 +506,64 @@ export default function CmvPage() {
     if (pct === 0)
       return {
         label: "Sem dados",
-        color: "text-[#8E8E93] bg-[#767680]/10 border-black/5",
+        color: "text-[#6B7280] bg-white/80 border-black/10",
       };
     if (pct < 35)
       return {
-        label: "Bom (< 35%)",
-        color: "text-[#248A3D] bg-[#34C759]/15 border-[#34C759]/25",
+        label: "Meta Batida (< 35%)",
+        color: "text-[#0A563C] bg-white/95 border-[#34C759]/40 shadow-xs",
       };
     if (pct <= 40)
       return {
         label: "Atenção (35% - 40%)",
-        color: "text-[#D70015] bg-[#FF3B30]/15 border-[#FF3B30]/25",
+        color: "text-[#881414] bg-white/95 border-[#FF3B30]/40 shadow-xs",
       };
     return {
       label: "Crítico (> 40%)",
-      color: "text-[#D70015] bg-[#FF3B30]/15 border-[#FF3B30]/25",
+      color: "text-[#881414] bg-white/95 border-[#FF3B30]/40 shadow-xs",
     };
   };
 
-  // Tema suave do Card de CMV (Verde suave se < 35%, vermelho suave se >= 35%)
+  // Tema do Card de CMV (Verde suave Apple Health se < 35%, vermelho suave se >= 35%)
   const getCmvCardTheme = (pct: number) => {
     if (pct === 0) {
       return {
-        bg: "#FFFFFF",
-        border: "border-black/[0.04]",
-        numberColor: "text-[#1C1C1E]",
-        labelColor: "text-[#8E8E93]",
-        subColor: "text-[#8E8E93]",
-        badgeBg: "bg-[#767680]/10 text-[#8E8E93] border-black/5",
-        iconCircle: "bg-[#767680]/10 text-[#8E8E93]",
+        bg: "linear-gradient(135deg, #F9FAFB 0%, #FFFFFF 100%)",
+        border: "border-black/[0.08]",
+        numberColor: "text-[#111827]",
+        labelColor: "text-[#6B7280]",
+        subColor: "text-[#9CA3AF]",
+        badgeBg: "bg-white text-[#6B7280] border-black/10 shadow-xs",
+        iconGradient: "bg-gradient-to-br from-[#9CA3AF] to-[#6B7280] text-white shadow-md",
         boxShadow:
-          "0 0 0 1px rgba(0,0,0,0.03), 0 2px 5px rgba(0,0,0,0.02), 0 12px 28px -4px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,1)",
+          "0 1px 3px rgba(0,0,0,0.03), 0 10px 24px -4px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 1)",
       };
     }
     // BOM: Verde suave Apple Health (< 35%)
     if (pct < 35) {
       return {
-        bg: "linear-gradient(180deg, #F0FAF5 0%, #FFFFFF 100%)",
-        border: "border-[#34C759]/30",
-        numberColor: "text-[#248A3D]",
-        labelColor: "text-[#248A3D]",
-        subColor: "text-[#248A3D]/80",
-        badgeBg: "bg-[#34C759]/15 text-[#248A3D] border-[#34C759]/30",
-        iconCircle: "bg-[#34C759]/15 text-[#248A3D]",
+        bg: "linear-gradient(135deg, #E6F8F0 0%, #D8F4E6 50%, #EDF9F3 100%)",
+        border: "border-[#34C759]/40",
+        numberColor: "text-[#0A563C]",
+        labelColor: "text-[#0E6245]",
+        subColor: "text-[#127050]",
+        badgeBg: "bg-white/95 text-[#0A563C] border-[#34C759]/40 shadow-xs",
+        iconGradient: "bg-gradient-to-br from-[#34C759] to-[#248A3D] text-white shadow-[0_4px_14px_rgba(52,199,89,0.4)]",
         boxShadow:
-          "0 0 0 1px rgba(52, 199, 89, 0.2), 0 3px 8px rgba(0,0,0,0.02), 0 14px 28px -4px rgba(52, 199, 89, 0.08), inset 0 1px 0 rgba(255,255,255,1)",
+          "0 1px 3px rgba(0,0,0,0.03), 0 12px 32px -4px rgba(52, 199, 89, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.95)",
       };
     }
     // RUIM: Vermelho suave Apple Health (>= 35%)
     return {
-      bg: "linear-gradient(180deg, #FFF5F5 0%, #FFFFFF 100%)",
-      border: "border-[#FF3B30]/30",
-      numberColor: "text-[#D70015]",
-      labelColor: "text-[#D70015]",
-      subColor: "text-[#D70015]/80",
-      badgeBg: "bg-[#FF3B30]/15 text-[#D70015] border-[#FF3B30]/30",
-      iconCircle: "bg-[#FF3B30]/15 text-[#D70015]",
+      bg: "linear-gradient(135deg, #FDEBEA 0%, #FCDAD8 50%, #FEECEB 100%)",
+      border: "border-[#FF3B30]/40",
+      numberColor: "text-[#881414]",
+      labelColor: "text-[#9B1C1C]",
+      subColor: "text-[#B91C1C]",
+      badgeBg: "bg-white/95 text-[#881414] border-[#FF3B30]/40 shadow-xs",
+      iconGradient: "bg-gradient-to-br from-[#FF3B30] to-[#D70015] text-white shadow-[0_4px_14px_rgba(255,59,48,0.4)]",
       boxShadow:
-        "0 0 0 1px rgba(255, 59, 48, 0.2), 0 3px 8px rgba(0,0,0,0.02), 0 14px 28px -4px rgba(255, 59, 48, 0.08), inset 0 1px 0 rgba(255,255,255,1)",
+        "0 1px 3px rgba(0,0,0,0.03), 0 12px 32px -4px rgba(255, 59, 48, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.95)",
     };
   };
 
@@ -600,49 +621,49 @@ export default function CmvPage() {
   }, [allFilteredItems]);
 
   return (
-    <div className="space-y-6 select-none animate-fadeIn">
+    <div className="max-w-7xl mx-auto space-y-8 select-none animate-fadeIn">
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-black/[0.06]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-black/[0.08]">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-[11px] bg-[#1C1C1E] text-white flex items-center justify-center font-bold text-sm shadow-[0_2px_6px_rgba(0,0,0,0.12)]">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-[12px] bg-gradient-to-br from-[#1C1C1E] to-[#2C2C2E] text-white flex items-center justify-center font-black text-base shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
               %
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-[#1C1C1E]">
+              <h1 className="text-2xl font-black tracking-tight text-[#111827]">
                 CMV · Custo de Mercadoria Vendida
               </h1>
-              <p className="text-xs text-[#8E8E93]">
-                Auditoria 100% precisa com controle granular de centros e desdobramento de despesas.
+              <p className="text-xs text-[#6B7280] font-medium mt-0.5">
+                Auditoria executiva 100% precisa com controle granular de centros e desdobramento de saídas.
               </p>
             </div>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={loadData}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold bg-white hover:bg-[#F2F2F7] text-[#1C1C1E] border border-black/[0.06] shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all active:scale-95 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold bg-white hover:bg-[#F3F4F6] text-[#111827] border border-black/[0.08] shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all active:scale-95 disabled:opacity-50"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 text-[#4B5563] ${loading ? "animate-spin" : ""}`} />
             Recalcular
           </button>
 
           <button
             onClick={handleCopyWhatsApp}
             disabled={!data || loading}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold bg-[#1C1C1E] hover:bg-[#2C2C2E] text-white shadow-[0_2px_8px_rgba(0,0,0,0.12)] active:scale-95 transition-all disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4.5 py-2.5 rounded-full text-xs font-bold bg-[#111827] hover:bg-[#1F2937] text-white shadow-[0_4px_14px_rgba(0,0,0,0.18)] active:scale-95 transition-all disabled:opacity-50"
           >
             {copied ? (
               <>
-                <Check className="h-3.5 w-3.5 text-[#34C759]" />
+                <Check className="h-4 w-4 text-[#34C759]" />
                 <span>Copiado!</span>
               </>
             ) : (
               <>
-                <Copy className="h-3.5 w-3.5" />
+                <Copy className="h-4 w-4" />
                 <span>Copiar WhatsApp</span>
               </>
             )}
@@ -651,18 +672,18 @@ export default function CmvPage() {
       </div>
 
       {/* Apple iOS Control Bar: Seletor de Loja + Seletor de Período + Regime de Data */}
-      <div className="ios-widget p-4 sm:p-5 flex flex-col gap-4">
+      <div className="ios-widget p-6 sm:p-7 rounded-[28px] space-y-5">
         {/* Linha 1: Segmented Control de Unidades */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="space-y-2.5">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#8E8E93] flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5 text-[#8E8E93]" />
-              Unidade
+            <Building2 className="h-4 w-4 text-[#007AFF]" />
+            <span className="text-xs font-bold uppercase tracking-wider text-[#4B5563]">
+              Unidade da Rede
             </span>
           </div>
 
-          {/* Segmented Control Oficial Apple */}
-          <div className="inline-flex p-1 bg-[#767680]/12 rounded-full overflow-x-auto max-w-full gap-1">
+          {/* Segmented Control Oficial Apple com visual tátil */}
+          <div className="bg-[#E2E4EB] p-1.5 rounded-2xl flex flex-wrap gap-1.5 border border-black/[0.04]">
             {STORE_TABS.map((tab) => {
               const isSelected = selectedUnit === tab.id;
               return (
@@ -670,10 +691,10 @@ export default function CmvPage() {
                   key={tab.id}
                   type="button"
                   onClick={() => setSelectedUnit(tab.id)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs transition-all duration-200 whitespace-nowrap ${
+                  className={`px-4 py-2 rounded-xl text-xs transition-all duration-200 whitespace-nowrap ${
                     isSelected
-                      ? "bg-white text-[#1C1C1E] font-bold shadow-[0_2px_6px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)]"
-                      : "text-[#636366] hover:text-[#1C1C1E] font-medium"
+                      ? "bg-white text-[#111827] font-bold shadow-[0_2px_8px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.06)] -translate-y-0.5"
+                      : "text-[#4B5563] hover:text-[#111827] hover:bg-white/60 font-semibold"
                   }`}
                 >
                   {tab.label}
@@ -684,14 +705,14 @@ export default function CmvPage() {
         </div>
 
         {/* Linha 2: Presets Rápidos + Datas Exatas + Regime */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-3 border-t border-black/[0.04] items-center">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-4 border-t border-black/[0.06] items-center">
           {/* Presets Rápidos Segmented Control */}
           <div className="md:col-span-5 flex flex-col gap-1.5">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93] flex items-center gap-1">
-              <Calendar className="h-3 w-3 text-[#8E8E93]" />
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280] flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-[#007AFF]" />
               Período Rápido
             </label>
-            <div className="inline-flex p-1 bg-[#767680]/12 rounded-full gap-1">
+            <div className="bg-[#E2E4EB] p-1.5 rounded-xl flex gap-1 border border-black/[0.04]">
               {[
                 { id: "estaSemana", label: "Esta sem." },
                 { id: "semanaPassada", label: "Sem. ant." },
@@ -702,7 +723,7 @@ export default function CmvPage() {
                   key={preset.id}
                   type="button"
                   onClick={() => handlePreset(preset.id as any)}
-                  className="flex-1 py-1 px-2 rounded-full text-[11px] font-medium text-[#636366] hover:text-[#1C1C1E] hover:bg-white/60 transition-all text-center"
+                  className="flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-[#4B5563] hover:text-[#111827] hover:bg-white/70 transition-all text-center"
                 >
                   {preset.label}
                 </button>
@@ -710,45 +731,51 @@ export default function CmvPage() {
             </div>
           </div>
 
-          {/* Datas Início e Fim */}
-          <div className="md:col-span-4 flex items-center gap-2">
-            <div className="flex-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93] mb-1 block">
+          {/* Datas Início e Fim com input cápsula estilizado */}
+          <div className="md:col-span-4 grid grid-cols-2 gap-2.5">
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280] mb-1.5 block">
                 Início
               </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full h-8 px-3 text-xs rounded-full bg-[#767680]/8 focus:bg-white border border-transparent focus:border-[#007AFF] text-[#1C1C1E] font-medium transition-all"
-              />
+              <div className="flex items-center gap-2 h-10 px-3 rounded-xl bg-white border border-[#D1D5DB] shadow-xs focus-within:ring-2 focus-within:ring-[#007AFF] focus-within:border-[#007AFF] transition-all">
+                <Calendar className="h-3.5 w-3.5 text-[#007AFF] shrink-0" />
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full text-xs font-bold text-[#111827] bg-transparent outline-none cursor-pointer"
+                />
+              </div>
             </div>
-            <div className="flex-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93] mb-1 block">
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280] mb-1.5 block">
                 Fim
               </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full h-8 px-3 text-xs rounded-full bg-[#767680]/8 focus:bg-white border border-transparent focus:border-[#007AFF] text-[#1C1C1E] font-medium transition-all"
-              />
+              <div className="flex items-center gap-2 h-10 px-3 rounded-xl bg-white border border-[#D1D5DB] shadow-xs focus-within:ring-2 focus-within:ring-[#007AFF] focus-within:border-[#007AFF] transition-all">
+                <Calendar className="h-3.5 w-3.5 text-[#007AFF] shrink-0" />
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full text-xs font-bold text-[#111827] bg-transparent outline-none cursor-pointer"
+                />
+              </div>
             </div>
           </div>
 
           {/* Regime Segmented Control */}
           <div className="md:col-span-3 flex flex-col gap-1.5">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93]">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">
               Regime de Data
             </label>
-            <div className="inline-flex p-1 bg-[#767680]/12 rounded-full gap-1">
+            <div className="bg-[#E2E4EB] p-1.5 rounded-xl flex gap-1 border border-black/[0.04]">
               <button
                 type="button"
                 onClick={() => setDateType("due_date")}
-                className={`flex-1 py-1 px-2.5 rounded-full text-[11px] transition-all ${
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
                   dateType === "due_date"
-                    ? "bg-white text-[#1C1C1E] font-bold shadow-[0_2px_6px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)]"
-                    : "text-[#636366] hover:text-[#1C1C1E] font-medium"
+                    ? "bg-white text-[#111827] shadow-[0_2px_6px_rgba(0,0,0,0.12)]"
+                    : "text-[#4B5563] hover:text-[#111827]"
                 }`}
               >
                 Vencimento
@@ -756,10 +783,10 @@ export default function CmvPage() {
               <button
                 type="button"
                 onClick={() => setDateType("competence_date")}
-                className={`flex-1 py-1 px-2.5 rounded-full text-[11px] transition-all ${
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
                   dateType === "competence_date"
-                    ? "bg-white text-[#1C1C1E] font-bold shadow-[0_2px_6px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)]"
-                    : "text-[#636366] hover:text-[#1C1C1E] font-medium"
+                    ? "bg-white text-[#111827] shadow-[0_2px_6px_rgba(0,0,0,0.12)]"
+                    : "text-[#4B5563] hover:text-[#111827]"
                 }`}
               >
                 Competência
@@ -771,18 +798,18 @@ export default function CmvPage() {
 
       {/* Alerta de Erro */}
       {error && (
-        <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 flex items-center gap-3 text-red-700 dark:text-red-400 text-xs">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
-          <span>{error}</span>
+        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 flex items-center gap-3 text-red-700 text-xs shadow-xs">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-red-600" />
+          <span className="font-semibold">{error}</span>
         </div>
       )}
 
       {/* Loading Skeleton */}
       {loading && !data && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="h-32 rounded-xl bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
-          <div className="h-32 rounded-xl bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
-          <div className="h-32 rounded-xl bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="h-44 rounded-[26px] bg-white animate-pulse shadow-sm" />
+          <div className="h-44 rounded-[26px] bg-white animate-pulse shadow-sm" />
+          <div className="h-44 rounded-[26px] bg-white animate-pulse shadow-sm" />
         </div>
       )}
 
@@ -793,85 +820,103 @@ export default function CmvPage() {
           {(() => {
             const cmvTheme = getCmvCardTheme(effectiveCmvPercent);
             return (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5">
-                {/* Card 1: CMV Realizado (Verde suave se bom, vermelho suave se ruim) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {/* Card 1: CMV Realizado (Verde suave Apple se bom <35%, vermelho suave se >=35%) */}
                 <div
-                  className={`p-6 rounded-[26px] border ${cmvTheme.border} transition-transform duration-200 hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between`}
+                  className={`p-7 rounded-[28px] border ${cmvTheme.border} transition-all duration-300 hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between min-h-[195px]`}
                   style={{ background: cmvTheme.bg, boxShadow: cmvTheme.boxShadow }}
                 >
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`h-8 w-8 rounded-[10px] ${cmvTheme.iconCircle} flex items-center justify-center shadow-xs`}>
-                          <TrendingDown className="h-4 w-4" />
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-11 w-11 rounded-[14px] ${cmvTheme.iconGradient} flex items-center justify-center shrink-0`}>
+                          <TrendingDown className="h-5 w-5" />
                         </div>
                         <div>
-                          <span className={`text-[11px] font-semibold uppercase tracking-wider ${cmvTheme.labelColor} block`}>
+                          <span className={`text-xs font-extrabold uppercase tracking-wider ${cmvTheme.labelColor} block`}>
                             CMV Realizado
                           </span>
-                          <span className={`text-[9px] ${cmvTheme.subColor} font-medium`}>Indicador Principal</span>
+                          <span className={`text-[11px] ${cmvTheme.subColor} font-semibold`}>
+                            Meta Máxima: 35%
+                          </span>
                         </div>
                       </div>
-                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${cmvTheme.badgeBg}`}>
+                      <span className={`text-xs font-black px-3 py-1 rounded-full border ${cmvTheme.badgeBg}`}>
                         {getCmvStatus(effectiveCmvPercent).label}
                       </span>
                     </div>
 
                     <div className="flex items-baseline gap-2 my-2">
-                      <span className={`text-4xl lg:text-5xl font-extrabold ${cmvTheme.numberColor} tracking-tight tabular-nums`}>
+                      <span className={`text-5xl lg:text-6xl font-black ${cmvTheme.numberColor} tracking-tight tabular-nums`}>
                         {formatPercent(effectiveCmvPercent)}
                       </span>
                     </div>
                   </div>
 
-                  <p className={`text-[11px] ${cmvTheme.subColor} mt-3 leading-relaxed`}>
+                  <p className={`text-xs ${cmvTheme.subColor} font-medium leading-relaxed pt-2 border-t border-black/[0.05]`}>
                     Calculado sobre os {activeCenterLabels.length} centros e subcategorias selecionados.
                   </p>
                 </div>
 
                 {/* Card 2: Total de Custos Selecionados */}
-                <div className="ios-widget p-6 rounded-[26px] flex flex-col justify-between">
+                <div
+                  className="p-7 rounded-[28px] border border-[#007AFF]/25 transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between min-h-[195px]"
+                  style={{
+                    background: "linear-gradient(135deg, #F5F7FC 0%, #EDF2FA 50%, #F7F9FD 100%)",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.03), 0 12px 30px -4px rgba(0,122,255,0.18), inset 0 1px 0 rgba(255,255,255,0.95)",
+                  }}
+                >
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-8 w-8 rounded-[10px] bg-[#007AFF]/12 text-[#007AFF] flex items-center justify-center">
-                          <DollarSign className="h-4 w-4" />
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="h-11 w-11 rounded-[14px] bg-gradient-to-br from-[#007AFF] to-[#0056B3] text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(0,122,255,0.35)]">
+                          <DollarSign className="h-5 w-5" />
                         </div>
                         <div>
-                          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#8E8E93] block">
+                          <span className="text-xs font-extrabold uppercase tracking-wider text-[#4B6B94] block">
                             Total de Custos
                           </span>
-                          <span className="text-[9px] text-[#8E8E93] font-medium">Soma Ativa</span>
+                          <span className="text-[11px] text-[#6B8BAE] font-semibold">
+                            Soma Ativa
+                          </span>
                         </div>
                       </div>
-                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#767680]/8 text-[#636366] font-semibold border border-black/5">
+                      <span className="text-xs px-3 py-1 rounded-full bg-white/90 text-[#0056B3] font-bold border border-[#007AFF]/30 shadow-xs">
                         {activeCenterLabels.length} itens ativos
                       </span>
                     </div>
 
-                    <div className="text-3xl lg:text-4xl font-extrabold text-[#1C1C1E] tracking-tight tabular-nums my-2">
+                    <div className="text-4xl lg:text-5xl font-black text-[#0F2942] tracking-tight tabular-nums my-2">
                       {formatBRL(selectedCostSum)}
                     </div>
                   </div>
 
-                  <p className="text-[11px] text-[#8E8E93] mt-3 truncate" title={activeCenterLabels.join(" + ")}>
+                  <p className="text-xs text-[#4B6B94] font-medium truncate pt-2 border-t border-black/[0.05]" title={activeCenterLabels.join(" + ")}>
                     {activeCenterLabels.join(" + ") || "Nenhum centro selecionado"}
                   </p>
                 </div>
 
                 {/* Card 3: Faturamento da Loja */}
-                <div className="ios-widget p-6 rounded-[26px] flex flex-col justify-between">
+                <div
+                  className="p-7 rounded-[28px] border border-[#10B981]/25 transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between min-h-[195px]"
+                  style={{
+                    background: "linear-gradient(135deg, #F3FAF6 0%, #E7F6EE 50%, #F4FBF7 100%)",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.03), 0 12px 30px -4px rgba(16,185,129,0.18), inset 0 1px 0 rgba(255,255,255,0.95)",
+                  }}
+                >
                   <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-8 w-8 rounded-[10px] bg-[#34C759]/12 text-[#248A3D] flex items-center justify-center">
-                          <TrendingUp className="h-4 w-4" />
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="h-11 w-11 rounded-[14px] bg-gradient-to-br from-[#10B981] to-[#059669] text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(16,185,129,0.35)]">
+                          <TrendingUp className="h-5 w-5" />
                         </div>
                         <div>
-                          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#8E8E93] block">
+                          <span className="text-xs font-extrabold uppercase tracking-wider text-[#3D7A65] block">
                             Faturamento da Loja
                           </span>
-                          <span className="text-[9px] text-[#8E8E93] font-medium">Receita</span>
+                          <span className="text-[11px] text-[#55927D] font-semibold">
+                            Receita Base
+                          </span>
                         </div>
                       </div>
                       {!isEditingFat ? (
@@ -880,10 +925,10 @@ export default function CmvPage() {
                             setManualFaturamento(String(data.summary.faturamento));
                             setIsEditingFat(true);
                           }}
-                          className="inline-flex items-center gap-1 text-[11px] text-[#007AFF] hover:underline font-semibold"
+                          className="inline-flex items-center gap-1.5 text-xs text-[#065F46] hover:bg-emerald-50 bg-white/90 border border-[#10B981]/30 px-3 py-1 rounded-full font-bold shadow-xs transition-all active:scale-95"
                           title="Ajustar faturamento manualmente"
                         >
-                          <Edit3 className="h-3 w-3" />
+                          <Edit3 className="h-3.5 w-3.5" />
                           <span>Ajustar</span>
                         </button>
                       ) : (
@@ -892,28 +937,28 @@ export default function CmvPage() {
                             setManualFaturamento("");
                             setIsEditingFat(false);
                           }}
-                          className="inline-flex items-center gap-1 text-[11px] text-[#8E8E93] hover:text-[#1C1C1E] font-semibold"
+                          className="inline-flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#111827] bg-white px-3 py-1 rounded-full font-bold shadow-xs transition-all"
                           title="Restaurar valor oficial automático"
                         >
-                          <RotateCcw className="h-3 w-3" />
+                          <RotateCcw className="h-3.5 w-3.5" />
                           <span>Restaurar</span>
                         </button>
                       )}
                     </div>
 
                     {!isEditingFat ? (
-                      <div className="text-3xl lg:text-4xl font-extrabold text-[#1C1C1E] tracking-tight tabular-nums my-2">
+                      <div className="text-4xl lg:text-5xl font-black text-[#064E3B] tracking-tight tabular-nums my-2">
                         {formatBRL(effectiveFaturamento)}
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 my-2">
-                        <span className="text-xl font-bold text-[#8E8E93]">R$</span>
+                        <span className="text-2xl font-black text-[#3D7A65]">R$</span>
                         <input
                           type="number"
                           step="0.01"
                           value={manualFaturamento}
                           onChange={(e) => setManualFaturamento(e.target.value)}
-                          className="w-full text-2xl font-bold px-3 py-1 rounded-full bg-[#767680]/8 border border-transparent focus:border-[#007AFF] focus:bg-white text-[#1C1C1E] focus:outline-none"
+                          className="w-full text-2xl font-black px-4 py-1.5 rounded-xl bg-white border border-[#10B981]/40 text-[#064E3B] shadow-inner focus:outline-none focus:ring-2 focus:ring-[#10B981]"
                           placeholder="Valor exato..."
                           autoFocus
                         />
@@ -921,7 +966,7 @@ export default function CmvPage() {
                     )}
                   </div>
 
-                  <p className="text-[11px] text-[#8E8E93] mt-3">
+                  <p className="text-xs text-[#3D7A65] font-medium pt-2 border-t border-black/[0.05]">
                     {manualFaturamento
                       ? "⚠️ Ajustado manualmente (recalculando CMV em tempo real)."
                       : "Receita oficial registrada na Takeat."}
@@ -932,36 +977,38 @@ export default function CmvPage() {
           })()}
 
           {/* COMPOSIÇÃO UNIFICADA DOS CENTROS DE CUSTO (SEM DUPLICAÇÃO DE DADOS) */}
-          <div className="ios-widget p-6 rounded-[28px] space-y-4">
+          <div className="ios-widget p-7 rounded-[30px] space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-[#1C1C1E]" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1C1C1E]">
-                  Centros de Custo & Composição do CMV
-                </h3>
-                <span className="text-[11px] text-[#8E8E93] font-medium">
-                  ({activeCenterLabels.length} na soma)
-                </span>
+              <div className="flex items-center gap-2.5">
+                <SlidersHorizontal className="h-5 w-5 text-[#007AFF]" />
+                <div>
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#111827]">
+                    Centros de Custo & Composição do CMV
+                  </h3>
+                  <p className="text-xs text-[#6B7280]">
+                    Clique em qualquer card para incluir/remover da soma ou use o olhinho para auditar saídas.
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <button
                   onClick={resetToStandardCmv}
-                  className="px-3 py-1 rounded-full text-[11px] font-semibold text-[#007AFF] bg-[#007AFF]/10 hover:bg-[#007AFF]/20 transition-all"
+                  className="px-3.5 py-1.5 rounded-full text-xs font-bold text-[#007AFF] bg-[#007AFF]/10 hover:bg-[#007AFF]/20 transition-all shadow-xs"
                 >
                   Padrão (4 Centros)
                 </button>
-                <span className="text-black/10">|</span>
+                <span className="text-black/15 font-bold">|</span>
                 <button
                   onClick={selectAllCenters}
-                  className="px-3 py-1 rounded-full text-[11px] font-medium text-[#636366] hover:text-[#1C1C1E] hover:bg-[#767680]/8 transition-all"
+                  className="px-3.5 py-1.5 rounded-full text-xs font-bold text-[#4B5563] hover:text-[#111827] hover:bg-black/5 transition-all shadow-xs"
                 >
                   Selecionar Todos
                 </button>
               </div>
             </div>
 
-            {/* Grid dos 6 Centros de Custo Unificados */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {/* Grid dos 6 Centros de Custo com design Apple tátil e elegante */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {COST_CENTERS_CONFIG.map((cfg) => {
                 const isOutros = cfg.key === "outros";
                 const isActive = isOutros ? countSelectedOutros > 0 : activeCenters[cfg.key];
@@ -978,32 +1025,41 @@ export default function CmvPage() {
                     onClick={() => {
                       if (!isOutros) toggleCenter(cfg.key);
                     }}
-                    className={`ios-card p-5 rounded-[22px] border transition-all duration-200 ${
+                    className={`p-6 rounded-[24px] border transition-all duration-300 ${
                       !isOutros ? "cursor-pointer" : ""
                     } ${
                       isActive
-                        ? "bg-white border-black/[0.05]"
-                        : "bg-[#FAFAFC] border-black/[0.03] opacity-60 hover:opacity-100 hover:bg-white"
+                        ? `${cfg.cardBorder} hover:-translate-y-1`
+                        : "bg-[#F9FAFB] border-black/[0.06] opacity-65 hover:opacity-100 hover:bg-white"
                     }`}
+                    style={
+                      isActive
+                        ? {
+                            background: cfg.gradientBg,
+                            boxShadow:
+                              "0 4px 18px -2px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.03), inset 0 1px 0 rgba(255,255,255,1)",
+                          }
+                        : undefined
+                    }
                   >
-                    <div className="flex items-center justify-between mb-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`h-9 w-9 rounded-[11px] flex items-center justify-center ${cfg.badgeBg}`}>
-                          <Icon className="h-4.5 w-4.5" />
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-12 w-12 rounded-[14px] flex items-center justify-center shrink-0 ${cfg.iconGradient}`}>
+                          <Icon className="h-6 w-6" />
                         </div>
                         <div>
-                          <span className="text-xs font-bold text-[#1C1C1E] block">
+                          <span className="text-sm font-extrabold text-[#111827] block">
                             {cfg.label}
                           </span>
-                          <span className="text-[10px] text-[#8E8E93] font-medium">
+                          <span className="text-xs text-[#6B7280] font-medium">
                             {countItems} lançamento{countItems === 1 ? "" : "s"}
-                            {isOutros && ` (${outrosSubcategories.length} subcategorias)`}
+                            {isOutros && ` (${outrosSubcategories.length} subcats)`}
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                        {/* Olhinho minimalista */}
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        {/* Olhinho minimalista circular */}
                         <button
                           type="button"
                           onClick={() =>
@@ -1015,10 +1071,10 @@ export default function CmvPage() {
                               icon: cfg.icon,
                             })
                           }
-                          className="h-7 w-7 rounded-full bg-[#767680]/8 hover:bg-[#767680]/15 text-[#8E8E93] hover:text-[#1C1C1E] transition-all flex items-center justify-center"
+                          className="h-8 w-8 rounded-full bg-white hover:bg-white text-[#6B7280] hover:text-[#111827] shadow-[0_2px_6px_rgba(0,0,0,0.08)] border border-black/[0.04] flex items-center justify-center transition-all hover:scale-105 active:scale-95"
                           title={`Ver saídas de ${cfg.label} até o valor total`}
                         >
-                          <Eye className="h-3.5 w-3.5" />
+                          <Eye className="h-4 w-4" />
                         </button>
 
                         {/* Botão de Inclusão no CMV */}
@@ -1026,19 +1082,19 @@ export default function CmvPage() {
                           <button
                             type="button"
                             onClick={() => setShowOutrosBreakdown((prev) => !prev)}
-                            className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-[#FF2D55]/20 bg-[#FF2D55]/10 text-[#D70015] hover:bg-[#FF2D55]/15 transition-all flex items-center gap-1"
+                            className="text-xs font-bold px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#FF2D55] to-[#E11D48] text-white shadow-[0_2px_8px_rgba(255,45,85,0.35)] transition-all flex items-center gap-1.5 active:scale-95"
                           >
-                            <Settings2 className="h-3 w-3" />
+                            <Settings2 className="h-3.5 w-3.5" />
                             <span>{countSelectedOutros > 0 ? `${countSelectedOutros} ativas` : "Escolher"}</span>
                           </button>
                         ) : (
                           <button
                             type="button"
                             onClick={() => toggleCenter(cfg.key)}
-                            className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${
+                            className={`text-xs font-bold px-3.5 py-1.5 rounded-full transition-all flex items-center gap-1 active:scale-95 ${
                               isActive
-                                ? "bg-[#34C759]/12 border-[#34C759]/25 text-[#248A3D] font-bold"
-                                : "bg-[#767680]/8 border-black/5 text-[#8E8E93] hover:text-[#1C1C1E] font-medium"
+                                ? "bg-[#34C759] text-white shadow-[0_2px_8px_rgba(52,199,89,0.35)]"
+                                : "bg-white hover:bg-black/5 text-[#6B7280] hover:text-[#111827] border border-black/15 shadow-xs"
                             }`}
                           >
                             {isActive ? "✓ Na soma" : "+ Incluir"}
@@ -1047,27 +1103,27 @@ export default function CmvPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-baseline justify-between mt-3">
+                    <div className="flex items-baseline justify-between mt-4">
                       <div>
-                        <span className="text-lg font-bold text-[#1C1C1E] tabular-nums">
+                        <span className="text-2xl sm:text-3xl font-black text-[#111827] tabular-nums tracking-tight">
                           {formatBRL(displayedVal)}
                         </span>
                         {isOutros && countSelectedOutros > 0 && (
-                          <span className="text-[10px] text-[#8E8E93] block">
+                          <span className="text-[11px] text-[#6B7280] block font-medium">
                             de {formatBRL(totalVal)} totais
                           </span>
                         )}
                       </div>
-                      <span className="text-xs font-semibold text-[#8E8E93] tabular-nums">
+                      <span className="text-xs font-bold bg-white/85 border border-black/[0.06] shadow-xs text-[#374151] px-2.5 py-1 rounded-full tabular-nums">
                         {formatPercent(pct)}
                       </span>
                     </div>
 
-                    <div className="w-full bg-[#E5E5EA] h-1.5 rounded-full mt-3 overflow-hidden">
+                    <div className="w-full bg-black/[0.06] h-2 rounded-full mt-4 overflow-hidden p-0.5">
                       <div
-                        className="h-full rounded-full transition-all duration-500"
+                        className="h-full rounded-full transition-all duration-700 shadow-xs"
                         style={{
-                          backgroundColor: cfg.barColor,
+                          background: cfg.barGradient,
                           width: `${Math.min(pct, 100)}%`,
                         }}
                       />
@@ -1077,35 +1133,37 @@ export default function CmvPage() {
               })}
             </div>
 
-            {/* Painel de Desdobramento de Outras Despesas (Retrátil) */}
+            {/* Painel de Desdobramento de Outras Despesas (Retrátil com alto padrão) */}
             {outrosSubcategories.length > 0 && showOutrosBreakdown && (
-              <div className="mt-4 p-4 rounded-[20px] bg-[#F2F2F7]/70 border border-black/[0.04]">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="h-6 w-6 rounded-[7px] bg-[#FF2D55]/15 text-[#D70015] flex items-center justify-center">
-                      <Receipt className="h-3.5 w-3.5" />
+              <div className="mt-6 p-6 rounded-[24px] bg-white border border-[#FF2D55]/20 shadow-[0_4px_20px_rgba(255,45,85,0.06)]">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <span className="h-8 w-8 rounded-[10px] bg-gradient-to-br from-[#FF2D55] to-[#D9153C] text-white flex items-center justify-center shadow-xs">
+                      <Receipt className="h-4 w-4" />
                     </span>
-                    <span className="text-[11px] font-bold text-[#1C1C1E]">
-                      Desdobramento de Outras Despesas: Escolha quais entram na soma
-                    </span>
-                    <span className="text-[10px] text-[#8E8E93] font-medium">
-                      ({countSelectedOutros} de {outrosSubcategories.length} ativas · {formatBRL(selectedOutrosSum)})
-                    </span>
+                    <div>
+                      <span className="text-xs font-extrabold text-[#111827] block">
+                        Desdobramento de Outras Despesas: Escolha quais entram na soma
+                      </span>
+                      <span className="text-[11px] text-[#6B7280] font-medium">
+                        {countSelectedOutros} de {outrosSubcategories.length} selecionadas · Total ativo: <strong className="text-[#FF2D55]">{formatBRL(selectedOutrosSum)}</strong>
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-[11px]">
+                  <div className="flex items-center gap-2 text-xs">
                     <button
                       type="button"
                       onClick={selectAllOutros}
-                      className="px-2.5 py-0.5 rounded-full bg-[#007AFF]/10 text-[#007AFF] hover:bg-[#007AFF]/20 font-semibold transition-colors"
+                      className="px-3.5 py-1.5 rounded-full bg-[#FF2D55]/10 text-[#FF2D55] hover:bg-[#FF2D55]/20 font-bold transition-colors"
                     >
                       Marcar Todas
                     </button>
-                    <span className="text-black/10">|</span>
+                    <span className="text-black/15 font-bold">|</span>
                     <button
                       type="button"
                       onClick={deselectAllOutros}
-                      className="px-2.5 py-0.5 rounded-full text-[#636366] hover:text-[#1C1C1E] transition-colors font-medium"
+                      className="px-3.5 py-1.5 rounded-full text-[#6B7280] hover:text-[#111827] hover:bg-black/5 transition-colors font-semibold"
                     >
                       Desmarcar Todas
                     </button>
@@ -1113,33 +1171,33 @@ export default function CmvPage() {
                 </div>
 
                 {/* Grid das subcategorias reais */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {outrosSubcategories.map((sub) => {
                     const isChecked = !!selectedOutrosSubcategories[sub.rawCategory];
 
                     return (
                       <div
                         key={sub.rawCategory}
-                        className={`flex items-center justify-between p-2.5 rounded-[14px] border text-xs transition-all duration-200 ${
+                        className={`flex items-center justify-between p-3 rounded-[16px] border text-xs transition-all duration-200 ${
                           isChecked
-                            ? "bg-white border-black/[0.06] text-[#1C1C1E] shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
-                            : "bg-transparent border-transparent text-[#8E8E93] opacity-70 hover:opacity-100"
+                            ? "bg-[#FFF5F7] border-[#FF2D55]/30 shadow-xs text-[#111827]"
+                            : "bg-white/60 border-black/5 text-[#6B7280] opacity-75 hover:opacity-100"
                         }`}
                       >
-                        <label className="flex items-center gap-2 cursor-pointer flex-1 truncate mr-1.5">
+                        <label className="flex items-center gap-2.5 cursor-pointer flex-1 truncate mr-2">
                           <input
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => toggleOutrosSubcategory(sub.rawCategory)}
-                            className="rounded text-[#007AFF] focus:ring-[#007AFF] accent-[#007AFF] h-3.5 w-3.5 cursor-pointer"
+                            className="rounded text-[#FF2D55] focus:ring-[#FF2D55] accent-[#FF2D55] h-4 w-4 cursor-pointer"
                           />
-                          <span className="font-semibold truncate text-[11px]" title={sub.rawCategory}>
+                          <span className="font-bold truncate text-xs" title={sub.rawCategory}>
                             {sub.label}
                           </span>
                         </label>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="font-bold text-[11px] text-[#1C1C1E] tabular-nums">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-black text-xs text-[#111827] tabular-nums">
                             {formatBRL(sub.total)}
                           </span>
 
@@ -1153,10 +1211,10 @@ export default function CmvPage() {
                                 label: sub.label,
                               })
                             }
-                            className="h-6 w-6 rounded-full hover:bg-[#767680]/10 text-[#8E8E93] hover:text-[#1C1C1E] transition-colors flex items-center justify-center"
+                            className="h-7 w-7 rounded-full bg-white hover:bg-white text-[#6B7280] hover:text-[#111827] shadow-xs border border-black/[0.04] flex items-center justify-center transition-all hover:scale-105 active:scale-95"
                             title={`Ver saídas de ${sub.label} até ${formatBRL(sub.total)}`}
                           >
-                            <Eye className="h-3 w-3" />
+                            <Eye className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </div>
@@ -1169,33 +1227,35 @@ export default function CmvPage() {
 
           {/* TABELA COMPARATIVA POR LOJA (Consolidado - Apple Squircle 28px) */}
           {data.isConsolidated && data.stores.length > 1 && (
-            <div className="ios-widget p-6 rounded-[28px]">
-              <div className="flex items-center justify-between mb-3.5">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1C1C1E] flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-[#1C1C1E]" />
-                  Comparativo por Unidade da Rede (Recalculado Dinamicamente)
-                </h3>
-                <span className="text-[11px] text-[#8E8E93] font-mono">
+            <div className="ios-widget p-7 rounded-[28px] space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <Building2 className="h-5 w-5 text-[#007AFF]" />
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#111827]">
+                    Comparativo por Unidade da Rede (Recalculado Dinamicamente)
+                  </h3>
+                </div>
+                <span className="text-xs px-3.5 py-1 rounded-full bg-[#E2E4EB] text-[#374151] font-bold self-start sm:self-auto">
                   Base: {activeCenterLabels.join(", ")}
                 </span>
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto rounded-2xl border border-black/[0.06]">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-[#E5E5EA] text-[10px] font-bold uppercase tracking-wider text-[#8E8E93]">
-                      <th className="py-2.5 px-3">Loja</th>
-                      <th className="py-2.5 px-3">Faturamento</th>
-                      <th className="py-2.5 px-3">C. Produção</th>
-                      <th className="py-2.5 px-3">M. Prima</th>
-                      <th className="py-2.5 px-3">Embalagem</th>
-                      <th className="py-2.5 px-3">Bebida</th>
-                      {activeCenters.suco && <th className="py-2.5 px-3">Suco</th>}
-                      {countSelectedOutros > 0 && <th className="py-2.5 px-3">Outras Sel.</th>}
-                      <th className="py-2.5 px-3">Total Selecionado</th>
-                      <th className="py-2.5 px-3 text-right">CMV (%)</th>
+                    <tr className="border-b border-[#D1D5DB] text-xs font-bold uppercase tracking-wider text-[#4B5563] bg-black/[0.02]">
+                      <th className="py-3 px-3.5">Loja</th>
+                      <th className="py-3 px-3.5">Faturamento</th>
+                      <th className="py-3 px-3.5">C. Produção</th>
+                      <th className="py-3 px-3.5">M. Prima</th>
+                      <th className="py-3 px-3.5">Embalagem</th>
+                      <th className="py-3 px-3.5">Bebida</th>
+                      {activeCenters.suco && <th className="py-3 px-3.5">Suco</th>}
+                      {countSelectedOutros > 0 && <th className="py-3 px-3.5">Outras Sel.</th>}
+                      <th className="py-3 px-3.5">Total Selecionado</th>
+                      <th className="py-3 px-3.5 text-right">CMV (%)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#E5E5EA]/60">
+                  <tbody className="divide-y divide-black/[0.05]">
                     {data.stores.map((st) => {
                       let storeSum = 0;
                       (["cProducao", "mPrima", "embalagem", "bebida", "suco"] as CostCenterKey[]).forEach((k) => {
@@ -1210,41 +1270,41 @@ export default function CmvPage() {
                       const storePct = st.faturamento > 0 ? (storeSum / st.faturamento) * 100 : 0;
 
                       return (
-                        <tr key={st.storeId} className="hover:bg-[#F2F2F7]/70 transition-colors">
-                          <td className="py-2.5 px-3 font-semibold text-[#1C1C1E]">
+                        <tr key={st.storeId} className="hover:bg-black/[0.02] transition-colors">
+                          <td className="py-3 px-3.5 font-bold text-[#111827]">
                             {st.storeName}
                           </td>
-                          <td className="py-2.5 px-3 text-[#248A3D] font-semibold tabular-nums">
+                          <td className="py-3 px-3.5 text-[#059669] font-black tabular-nums">
                             {formatBRL(st.faturamento)}
                           </td>
-                          <td className="py-2.5 px-3 text-[#636366] tabular-nums">
+                          <td className="py-3 px-3.5 text-[#4B5563] font-semibold tabular-nums">
                             {formatBRL(st.costCenters.cProducao?.total || 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-[#636366] tabular-nums">
+                          <td className="py-3 px-3.5 text-[#4B5563] font-semibold tabular-nums">
                             {formatBRL(st.costCenters.mPrima?.total || 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-[#636366] tabular-nums">
+                          <td className="py-3 px-3.5 text-[#4B5563] font-semibold tabular-nums">
                             {formatBRL(st.costCenters.embalagem?.total || 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-[#636366] tabular-nums">
+                          <td className="py-3 px-3.5 text-[#4B5563] font-semibold tabular-nums">
                             {formatBRL(st.costCenters.bebida?.total || 0)}
                           </td>
                           {activeCenters.suco && (
-                            <td className="py-2.5 px-3 text-[#636366] tabular-nums">
+                            <td className="py-3 px-3.5 text-[#4B5563] font-semibold tabular-nums">
                               {formatBRL(st.costCenters.suco?.total || 0)}
                             </td>
                           )}
                           {countSelectedOutros > 0 && (
-                            <td className="py-2.5 px-3 text-[#D70015] font-semibold tabular-nums">
+                            <td className="py-3 px-3.5 text-[#FF2D55] font-black tabular-nums">
                               {formatBRL(storeOutrosSel)}
                             </td>
                           )}
-                          <td className="py-2.5 px-3 font-bold text-[#1C1C1E] tabular-nums">
+                          <td className="py-3 px-3.5 font-black text-[#111827] tabular-nums">
                             {formatBRL(storeSum)}
                           </td>
-                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <td className="py-3 px-3.5 text-right whitespace-nowrap">
                             <span
-                              className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                              className={`text-xs font-black px-3 py-1 rounded-full border shadow-xs ${
                                 getCmvStatus(storePct).color
                               }`}
                             >
@@ -1261,34 +1321,34 @@ export default function CmvPage() {
           )}
 
           {/* TABELA DE AUDITORIA COMPLETA DE LANÇAMENTOS (APPLE SQUIRCLE 28px) */}
-          <div className="ios-widget p-6 rounded-[28px]">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
+          <div className="ios-widget p-7 rounded-[28px] space-y-5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2">
-                  <Eye className="h-4 w-4 text-[#007AFF]" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#1C1C1E]">
+                <div className="flex items-center gap-2.5">
+                  <Eye className="h-5 w-5 text-[#007AFF]" />
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#111827]">
                     Auditoria de Lançamentos Takeat
                   </h3>
-                  <span className="text-[11px] px-3 py-0.5 rounded-full bg-[#767680]/8 text-[#636366] font-semibold border border-black/5">
+                  <span className="text-xs px-3.5 py-1 rounded-full bg-[#E2E4EB] text-[#374151] font-bold">
                     {allFilteredItems.length} lançamentos · {formatBRL(tableFilteredTotal)}
                   </span>
                 </div>
-                <p className="text-[11px] text-[#8E8E93] mt-1">
+                <p className="text-xs text-[#6B7280] font-medium mt-1">
                   Exibição detalhada de cada gasto, nota ou compra registrada no sistema.
                 </p>
               </div>
 
               {/* Controles de Filtro e Busca com Formato Pílula Apple */}
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2.5">
                 {/* Busca rápida */}
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#8E8E93]" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9CA3AF]" />
                   <input
                     type="text"
                     placeholder="Buscar por descrição, fornecedor..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="h-8 pl-8.5 pr-4 rounded-full text-xs bg-[#767680]/8 focus:bg-white border border-transparent focus:border-[#007AFF] text-[#1C1C1E] font-medium w-48 sm:w-64 transition-all focus:outline-none"
+                    className="h-10 pl-9.5 pr-4 rounded-xl text-xs bg-white border border-[#D1D5DB] text-[#111827] font-semibold focus:ring-2 focus:ring-[#007AFF] shadow-xs w-52 sm:w-68 transition-all focus:outline-none"
                   />
                 </div>
 
@@ -1296,7 +1356,7 @@ export default function CmvPage() {
                 <select
                   value={tableFilter}
                   onChange={(e) => setTableFilter(e.target.value)}
-                  className="h-8 px-3 rounded-full text-xs bg-[#767680]/8 focus:bg-white border border-transparent focus:border-[#007AFF] text-[#1C1C1E] font-medium transition-all cursor-pointer focus:outline-none"
+                  className="h-10 px-3.5 rounded-xl text-xs bg-white border border-[#D1D5DB] text-[#111827] font-semibold focus:ring-2 focus:ring-[#007AFF] shadow-xs transition-all cursor-pointer focus:outline-none"
                 >
                   <option value="all_entries">🌐 Todos os Lançamentos</option>
                   <option value="selected_cmv">✓ Apenas Centros na Soma</option>
@@ -1317,7 +1377,7 @@ export default function CmvPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as any)}
-                  className="h-8 px-3 rounded-full text-xs bg-[#767680]/8 focus:bg-white border border-transparent focus:border-[#007AFF] text-[#1C1C1E] font-medium transition-all cursor-pointer focus:outline-none"
+                  className="h-10 px-3.5 rounded-xl text-xs bg-white border border-[#D1D5DB] text-[#111827] font-semibold focus:ring-2 focus:ring-[#007AFF] shadow-xs transition-all cursor-pointer focus:outline-none"
                 >
                   <option value="all">Status: Todos</option>
                   <option value="paid">Pagos</option>
@@ -1327,24 +1387,24 @@ export default function CmvPage() {
             </div>
 
             {allFilteredItems.length === 0 ? (
-              <div className="text-center py-10 border border-dashed border-black/10 rounded-[20px] text-[#8E8E93] text-xs">
+              <div className="text-center py-12 border border-dashed border-black/15 rounded-[22px] text-[#6B7280] text-xs font-medium">
                 Nenhum lançamento encontrado para os filtros selecionados.
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto rounded-2xl border border-black/[0.06]">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-[#E5E5EA] text-[10px] font-bold uppercase tracking-wider text-[#8E8E93]">
-                      <th className="py-2.5 px-3">Data</th>
-                      {data.isConsolidated && <th className="py-2.5 px-3">Loja</th>}
-                      <th className="py-2.5 px-3">Descrição</th>
-                      <th className="py-2.5 px-3">Centro de Custo</th>
-                      <th className="py-2.5 px-3">Fornecedor</th>
-                      <th className="py-2.5 px-3">Status</th>
-                      <th className="py-2.5 px-3 text-right">Valor</th>
+                    <tr className="border-b border-[#D1D5DB] text-xs font-bold uppercase tracking-wider text-[#4B5563] bg-black/[0.02]">
+                      <th className="py-3 px-3.5">Data</th>
+                      {data.isConsolidated && <th className="py-3 px-3.5">Loja</th>}
+                      <th className="py-3 px-3.5">Descrição</th>
+                      <th className="py-3 px-3.5">Centro de Custo</th>
+                      <th className="py-3 px-3.5">Fornecedor</th>
+                      <th className="py-3 px-3.5">Status</th>
+                      <th className="py-3 px-3.5 text-right">Valor</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#E5E5EA]/50">
+                  <tbody className="divide-y divide-black/[0.05]">
                     {allFilteredItems.map((item, idx) => {
                       const cfg = COST_CENTERS_CONFIG.find(
                         (c) => c.key === item.costCenterKey
@@ -1353,9 +1413,9 @@ export default function CmvPage() {
                       return (
                         <tr
                           key={`${item.id}-${idx}`}
-                          className="hover:bg-[#F2F2F7]/70 transition-colors"
+                          className="hover:bg-black/[0.02] transition-colors"
                         >
-                          <td className="py-2.5 px-3 text-[#8E8E93] whitespace-nowrap">
+                          <td className="py-3 px-3.5 text-[#6B7280] font-semibold whitespace-nowrap">
                             {formatDateDisplay(
                               dateType === "competence_date"
                                 ? item.competenceDate
@@ -1363,17 +1423,17 @@ export default function CmvPage() {
                             )}
                           </td>
                           {data.isConsolidated && (
-                            <td className="py-2.5 px-3 font-medium text-[#636366] whitespace-nowrap">
+                            <td className="py-3 px-3.5 font-bold text-[#4B5563] whitespace-nowrap">
                               {item.storeName}
                             </td>
                           )}
-                          <td className="py-2.5 px-3 font-medium text-[#1C1C1E] max-w-[280px] truncate" title={item.description}>
+                          <td className="py-3 px-3.5 font-bold text-[#111827] max-w-[280px] truncate" title={item.description}>
                             {item.description}
                           </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap">
+                          <td className="py-3 px-3.5 whitespace-nowrap">
                             <span
-                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                                cfg?.badgeBg || "bg-[#767680]/10 text-[#636366] border-black/5"
+                              className={`text-xs font-bold px-3 py-1 rounded-full border shadow-xs ${
+                                cfg?.badgeBg || "bg-[#E2E4EB] text-[#4B5563] border-black/5"
                               }`}
                             >
                               {item.costCenterKey === "outros"
@@ -1381,21 +1441,21 @@ export default function CmvPage() {
                                 : cfg?.label || item.category}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-[#8E8E93] max-w-[180px] truncate" title={item.provider}>
+                          <td className="py-3 px-3.5 text-[#6B7280] font-medium max-w-[180px] truncate" title={item.provider}>
                             {item.provider || "-"}
                           </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap">
+                          <td className="py-3 px-3.5 whitespace-nowrap">
                             <span
-                              className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                              className={`text-xs font-black px-3 py-1 rounded-full shadow-xs ${
                                 item.paid
-                                  ? "bg-[#34C759]/12 text-[#248A3D]"
-                                  : "bg-[#FF9500]/12 text-[#C93400]"
+                                  ? "bg-[#DCFCE7] text-[#15803D] border border-[#86EFAC]"
+                                  : "bg-[#FFEDD5] text-[#C2410C] border border-[#FDBA74]"
                               }`}
                             >
                               {item.paid ? "Pago" : "A Pagar"}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-right font-bold text-[#1C1C1E] tabular-nums whitespace-nowrap">
+                          <td className="py-3 px-3.5 text-right font-black text-[#111827] tabular-nums whitespace-nowrap text-sm">
                             {formatBRL(item.value)}
                           </td>
                         </tr>
