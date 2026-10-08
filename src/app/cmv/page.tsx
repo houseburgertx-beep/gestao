@@ -473,35 +473,30 @@ export default function CmvPage() {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // Badge de saúde do CMV
+  // Badge de saúde do CMV (Regra: Bom é menos de 35%)
   const getCmvStatus = (pct: number) => {
     if (pct === 0)
       return {
         label: "Sem dados",
         color: "text-slate-600 bg-slate-100 border-slate-200",
       };
-    if (pct < 32)
+    if (pct < 35)
       return {
-        label: "Excelente (< 32%)",
+        label: "Bom (< 35%)",
         color: "text-[#0d5c45] bg-[#DBF3EE] border-[#b6e8db]",
       };
-    if (pct <= 38)
+    if (pct <= 40)
       return {
-        label: "Meta Ideal (32% - 38%)",
-        color: "text-[#0d5c45] bg-[#DBF3EE] border-[#b6e8db]",
-      };
-    if (pct <= 42)
-      return {
-        label: "Atenção (38% - 42%)",
-        color: "text-[#92400e] bg-[#FEF3C7] border-[#fde68a]",
+        label: "Atenção (35% - 40%)",
+        color: "text-[#991b1b] bg-[#FEE2E2] border-[#fecaca]",
       };
     return {
-      label: "Crítico (> 42%)",
+      label: "Crítico (> 40%)",
       color: "text-[#991b1b] bg-[#FEE2E2] border-[#fecaca]",
     };
   };
 
-  // Tema suave do Card de CMV (Verde suave se bom, vermelho suave se ruim)
+  // Tema suave do Card de CMV (Verde suave se < 35%, vermelho suave se >= 35%)
   const getCmvCardTheme = (pct: number) => {
     if (pct === 0) {
       return {
@@ -514,8 +509,8 @@ export default function CmvPage() {
         iconCircle: "bg-slate-200 text-slate-700",
       };
     }
-    // BOM: Verde suave (< 38%)
-    if (pct <= 38) {
+    // BOM: Verde suave (< 35%)
+    if (pct < 35) {
       return {
         bg: "linear-gradient(135deg, #EBF8F4 0%, #F4FBF8 50%, #FFFFFF 100%)",
         border: "border-[#b6e8db]",
@@ -526,19 +521,7 @@ export default function CmvPage() {
         iconCircle: "bg-[#189b77] text-white",
       };
     }
-    // ATENÇÃO: Âmbar/Amarelo suave (38% - 42%)
-    if (pct <= 42) {
-      return {
-        bg: "linear-gradient(135deg, #FFFDF5 0%, #FFF9EB 50%, #FFFFFF 100%)",
-        border: "border-[#fde68a]",
-        numberColor: "text-[#92400e]",
-        labelColor: "text-[#b45309]",
-        subColor: "text-[#b45309]",
-        badgeBg: "bg-[#FEF3C7] text-[#92400e] border-[#fde68a]",
-        iconCircle: "bg-[#d97706] text-white",
-      };
-    }
-    // RUIM: Vermelho suave (> 42%)
+    // RUIM: Vermelho suave (>= 35%)
     return {
       bg: "linear-gradient(135deg, #FFF5F5 0%, #FEF2F2 50%, #FFFFFF 100%)",
       border: "border-[#fecaca]",
