@@ -25,6 +25,7 @@ import {
   Search,
   Eye,
   Info,
+  X,
 } from "lucide-react";
 import { useUnit } from "@/contexts/UnitContext";
 import {
@@ -141,6 +142,9 @@ export default function CmvPage() {
     suco: false,
     outros: false,
   });
+
+  // Estado para o modal do olhinho minimalista (composição detalhada de saídas até o total)
+  const [selectedCenterDetail, setSelectedCenterDetail] = useState<CostCenterKey | null>(null);
 
   // Ajuste manual de Faturamento
   const [manualFaturamento, setManualFaturamento] = useState<string>("");
@@ -270,6 +274,37 @@ export default function CmvPage() {
       (cfg) => cfg.label
     );
   }, [activeCenters]);
+
+  // Configuração e lista de saídas do centro clicado no olhinho
+  const detailCenterConfig = useMemo(() => {
+    return COST_CENTERS_CONFIG.find((c) => c.key === selectedCenterDetail);
+  }, [selectedCenterDetail]);
+
+  const detailItems = useMemo(() => {
+    if (!data || !selectedCenterDetail) return [];
+    if (data.isConsolidated) {
+      const list: CostCenterItem[] = [];
+      data.stores.forEach((st) => {
+        const c = st.costCenters[selectedCenterDetail];
+        if (c?.items) list.push(...c.items);
+      });
+      return list;
+    }
+    return data.summary.costCenters[selectedCenterDetail]?.items || [];
+  }, [data, selectedCenterDetail]);
+
+  // Calcula o valor acumulado passo a passo até chegar no total do centro
+  const { detailItemsWithCumulative, detailTotalVal } = useMemo(() => {
+    let run = 0;
+    const list = detailItems.map((item) => {
+      run += item.value;
+      return {
+        ...item,
+        cumulative: run,
+      };
+    });
+    return { detailItemsWithCumulative: list, detailTotalVal: run };
+  }, [detailItems]);
 
   // Alternar centro de custo na soma
   const toggleCenter = (key: CostCenterKey) => {
@@ -637,7 +672,17 @@ export default function CmvPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="ml-1 shrink-0">
+                    <div className="ml-1 shrink-0 flex items-center gap-1">
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCenterDetail(cfg.key);
+                        }}
+                        className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                        title={`Ver saídas de ${cfg.label}`}
+                      >
+                        <Eye className="h-3 w-3" />
+                      </span>
                       {isActive ? (
                         <CheckSquare className="h-4 w-4 text-[#6658d3]" />
                       ) : (
@@ -791,17 +836,31 @@ export default function CmvPage() {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => toggleCenter(cfg.key)}
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
-                        isActive
-                          ? "bg-[#6658d3]/10 border-[#6658d3]/30 text-[#6658d3]"
-                          : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-zinc-700"
-                      }`}
-                    >
-                      {isActive ? "✓ Na soma" : "+ Incluir"}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCenterDetail(cfg.key);
+                        }}
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        title={`Ver saídas de ${cfg.label} até o valor total`}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleCenter(cfg.key)}
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
+                          isActive
+                            ? "bg-[#6658d3]/10 border-[#6658d3]/30 text-[#6658d3]"
+                            : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-zinc-700"
+                        }`}
+                      >
+                        {isActive ? "✓ Na soma" : "+ Incluir"}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex items-baseline justify-between mt-3">
@@ -1057,6 +1116,121 @@ export default function CmvPage() {
             )}
           </div>
         </>
+      )}
+
+      {/* MODAL MINIMALISTA DE COMPOSIÇÃO DE SAÍDAS DO CENTRO DE CUSTO */}
+      {selectedCenterDetail && detailCenterConfig && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${detailCenterConfig.badgeBg}`}>
+                  {React.createElement(detailCenterConfig.icon, { className: "h-5 w-5" })}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    Composição de Saídas: {detailCenterConfig.label}
+                  </h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Soma passo a passo até o valor final de{" "}
+                    <strong className="text-zinc-900 dark:text-zinc-100 font-bold">
+                      {formatBRL(detailTotalVal)}
+                    </strong>{" "}
+                    ({detailItemsWithCumulative.length} saídas)
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedCenterDetail(null)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                title="Fechar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Content Table */}
+            <div className="p-4 overflow-y-auto flex-1">
+              {detailItemsWithCumulative.length === 0 ? (
+                <div className="text-center py-12 text-zinc-400 text-xs">
+                  Nenhuma saída encontrada neste período para este centro de custo.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-zinc-200 dark:border-zinc-800 text-[11px] font-semibold text-zinc-500">
+                        <th className="py-2 px-2 text-center w-8">#</th>
+                        <th className="py-2 px-2.5">Data</th>
+                        <th className="py-2 px-2.5">Descrição</th>
+                        <th className="py-2 px-2.5">Fornecedor</th>
+                        <th className="py-2 px-2.5 text-right">Saída (R$)</th>
+                        <th className="py-2 px-2.5 text-right font-bold text-[#6658d3]">Acumulado (R$)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                      {detailItemsWithCumulative.map((item, idx) => (
+                        <tr key={`${item.id}-${idx}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+                          <td className="py-2 px-2 text-center text-zinc-400 font-mono text-[10px]">
+                            {idx + 1}
+                          </td>
+                          <td className="py-2 px-2.5 text-zinc-500 whitespace-nowrap">
+                            {formatDateDisplay(
+                              dateType === "competence_date" ? item.competenceDate : item.dueDate
+                            )}
+                          </td>
+                          <td
+                            className="py-2 px-2.5 font-medium text-zinc-900 dark:text-zinc-100 max-w-[200px] truncate"
+                            title={item.description}
+                          >
+                            {item.description}
+                          </td>
+                          <td
+                            className="py-2 px-2.5 text-zinc-500 max-w-[130px] truncate"
+                            title={item.provider}
+                          >
+                            {item.provider || "-"}
+                          </td>
+                          <td className="py-2 px-2.5 text-right font-semibold text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
+                            {formatBRL(item.value)}
+                          </td>
+                          <td className="py-2 px-2.5 text-right font-extrabold text-[#6658d3] whitespace-nowrap bg-purple-50/40 dark:bg-purple-950/20">
+                            {formatBRL(item.cumulative)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-zinc-300 dark:border-zinc-700 font-bold bg-zinc-50 dark:bg-zinc-800/60">
+                        <td colSpan={4} className="py-2.5 px-3 text-zinc-900 dark:text-zinc-100">
+                          Total Final ({detailItemsWithCumulative.length} saídas)
+                        </td>
+                        <td colSpan={2} className="py-2.5 px-3 text-right text-sm font-extrabold text-[#6658d3]">
+                          {formatBRL(detailTotalVal)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 bg-zinc-50 dark:bg-zinc-850 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+              <span className="text-[11px] text-zinc-500">
+                Cada saída soma diretamente no valor total do card.
+              </span>
+              <button
+                onClick={() => setSelectedCenterDetail(null)}
+                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-colors"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
