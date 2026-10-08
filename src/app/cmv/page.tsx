@@ -58,12 +58,9 @@ interface CostCenterConfig {
   color: string;
   badgeBg: string;
   borderActive: string;
-  cardGradient: string;
-  chipGradient: string;
   defaultIncluded: boolean;
   description: string;
 }
-
 
 const COST_CENTERS_CONFIG: CostCenterConfig[] = [
   {
@@ -73,8 +70,6 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     color: "text-[#1d6a59]",
     badgeBg: "bg-[#DBF3EE] text-[#1d6a59] border-[#c0e8de]",
     borderActive: "border-[#1d6a59]/30 ring-1 ring-[#1d6a59]/20",
-    cardGradient: "linear-gradient(145deg, #C8F0E6 0%, #E2F8F2 50%, #f4fdf9 100%)",
-    chipGradient: "linear-gradient(135deg, #DBF3EE 0%, #edfaf5 100%)",
     defaultIncluded: true,
     description: "Transferências, carnes e pré-preparo da Central",
   },
@@ -85,8 +80,6 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     color: "text-[#483b8b]",
     badgeBg: "bg-[#E6E2FF] text-[#483b8b] border-[#d4cdfc]",
     borderActive: "border-[#483b8b]/30 ring-1 ring-[#483b8b]/20",
-    cardGradient: "linear-gradient(145deg, #E6E2FF 0%, #F0EDFF 50%, #f8f6ff 100%)",
-    chipGradient: "linear-gradient(135deg, #E6E2FF 0%, #f3f1ff 100%)",
     defaultIncluded: true,
     description: "Carnes, queijos, bacon, batatas e hortifruti",
   },
@@ -97,8 +90,6 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     color: "text-[#1b657d]",
     badgeBg: "bg-[#DFF2F7] text-[#1b657d] border-[#c7e9f1]",
     borderActive: "border-[#1b657d]/30 ring-1 ring-[#1b657d]/20",
-    cardGradient: "linear-gradient(145deg, #D6F2F9 0%, #EBF8FC 50%, #f4fbfd 100%)",
-    chipGradient: "linear-gradient(135deg, #DFF2F7 0%, #edf8fc 100%)",
     defaultIncluded: true,
     description: "Caixas, sacolas, copos, potes e descartáveis",
   },
@@ -109,8 +100,6 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     color: "text-[#1d6a59]",
     badgeBg: "bg-[#DBF3EE] text-[#1d6a59] border-[#c0e8de]",
     borderActive: "border-[#1d6a59]/30 ring-1 ring-[#1d6a59]/20",
-    cardGradient: "linear-gradient(145deg, #C8F0E6 0%, #E2F8F2 50%, #f4fdf9 100%)",
-    chipGradient: "linear-gradient(135deg, #DBF3EE 0%, #edfaf5 100%)",
     defaultIncluded: true,
     description: "Refrigerantes, cervejas, águas e destilados",
   },
@@ -121,8 +110,6 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     color: "text-[#1b657d]",
     badgeBg: "bg-[#DFF2F7] text-[#1b657d] border-[#c7e9f1]",
     borderActive: "border-[#1b657d]/30 ring-1 ring-[#1b657d]/20",
-    cardGradient: "linear-gradient(145deg, #D6F2F9 0%, #EBF8FC 50%, #f4fbfd 100%)",
-    chipGradient: "linear-gradient(135deg, #DFF2F7 0%, #edf8fc 100%)",
     defaultIncluded: false,
     description: "Polpas, concentrados e sucos (opcional)",
   },
@@ -133,8 +120,6 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     color: "text-[#8c421e]",
     badgeBg: "bg-[#FFE9DD] text-[#8c421e] border-[#ffd6bf]",
     borderActive: "border-[#8c421e]/30 ring-1 ring-[#8c421e]/20",
-    cardGradient: "linear-gradient(145deg, #FFE4D4 0%, #FFF0E8 50%, #fffaf7 100%)",
-    chipGradient: "linear-gradient(135deg, #FFE9DD 0%, #fff3ec 100%)",
     defaultIncluded: false,
     description: "Motoboys, aluguel, luz, taxas e manutenção",
   },
@@ -621,7 +606,7 @@ export default function CmvPage() {
       </div>
 
       {/* Apple iOS Control Bar: Seletor de Loja + Seletor de Período + Regime de Data */}
-      <div className="flex flex-col gap-4 p-5 rounded-[28px] backdrop-blur-[14px] border border-[#d4cffa]/60 shadow-[0_12px_28px_rgba(85,74,188,0.07)]" style={{background: "linear-gradient(150deg, #F0EDFF 0%, #F7F5FF 30%, #ffffff 70%)"}}>
+      <div className="flex flex-col gap-4 p-5 rounded-[28px] bg-white/95 backdrop-blur-[14px] border border-slate-200/80 shadow-[0_10px_25px_rgba(40,45,70,0.05)]">
         {/* Linha 1: Segmented Control de Unidades */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -760,7 +745,7 @@ export default function CmvPage() {
       {data && (
         <>
           {/* BARRA DE SELEÇÃO DE CENTROS DE CUSTO NA SOMA (APPLE SQUIRCLE) */}
-          <div className="p-6 rounded-[28px] backdrop-blur-[14px] border border-slate-200/70 shadow-[0_12px_28px_rgba(40,45,70,0.06)] space-y-4" style={{background: "linear-gradient(160deg, #fafbff 0%, #f5f8ff 50%, #ffffff 100%)"}}>
+          <div className="p-6 rounded-[28px] bg-white/95 backdrop-blur-[14px] border border-slate-200/80 shadow-[0_10px_25px_rgba(40,45,70,0.05)] space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-[#554abc]" />
@@ -801,11 +786,10 @@ export default function CmvPage() {
                   <div
                     key={cfg.key}
                     onClick={() => toggleCenter(cfg.key)}
-                    style={isActive ? {background: cfg.chipGradient} : {}}
                     className={`flex items-center justify-between p-3 rounded-[20px] border text-left cursor-pointer transition-all duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                       isActive
-                        ? `${cfg.borderActive} shadow-[0_4px_14px_rgba(40,45,70,0.08)] -translate-y-0.5`
-                        : "border-slate-200 bg-white/60 opacity-55 hover:opacity-90 hover:bg-white"
+                        ? `${cfg.borderActive} bg-white shadow-[0_4px_14px_rgba(40,45,70,0.06)] -translate-y-0.5`
+                        : "border-slate-200 bg-slate-50/70 opacity-60 hover:opacity-100 hover:bg-white"
                     }`}
                   >
                     <div className="flex items-center gap-2 overflow-hidden flex-1">
@@ -965,120 +949,150 @@ export default function CmvPage() {
 
           {/* CARDS PRINCIPAIS DE KPI (APPLE ELEVATED CARDS COM SPRING PHYSICS) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5">
-            {/* Card 1: CMV Realizado */}
-            <div className="p-6 rounded-[24px] border border-[#c9c3f5]/60 shadow-[0_12px_28px_rgba(101,88,211,0.12)] hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(101,88,211,0.18)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden" style={{background: "linear-gradient(145deg, #EDE9FF 0%, #F5F3FF 40%, #ffffff 100%)"}}>
-              {/* Decorative circle */}
-              <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full opacity-20 pointer-events-none" style={{background: "radial-gradient(circle, #7163dc 0%, transparent 70%)"}} />
-              <div className="flex items-center justify-between mb-2.5 relative z-10">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-full bg-[#6658d3] flex items-center justify-center shadow-md">
-                    <TrendingDown className="h-3.5 w-3.5 text-white" />
+            {/* Card 1: CMV Realizado — HERO CARD DE DESTAQUE TOTAL (Executivo Apple / House 190) */}
+            <div
+              className="p-6 rounded-[26px] border border-white/10 shadow-[0_16px_36px_rgba(30,24,65,0.25)] hover:-translate-y-1 hover:shadow-[0_20px_44px_rgba(30,24,65,0.32)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden flex flex-col justify-between"
+              style={{
+                background: "linear-gradient(135deg, #1d1841 0%, #2e2669 45%, #4a3ca6 100%)",
+              }}
+            >
+              {/* Subtle radial light aura */}
+              <div
+                className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-30 pointer-events-none"
+                style={{
+                  background: "radial-gradient(circle, #8372f5 0%, transparent 70%)",
+                }}
+              />
+              <div
+                className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full opacity-20 pointer-events-none"
+                style={{
+                  background: "radial-gradient(circle, #554abc 0%, transparent 70%)",
+                }}
+              />
+
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner">
+                      <TrendingDown className="h-4 w-4 text-purple-200" />
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-purple-200 block">
+                        CMV Realizado
+                      </span>
+                      <span className="text-[9px] text-purple-300/70 font-medium">Indicador Principal</span>
+                    </div>
                   </div>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#554abc]">
-                    CMV Realizado
+                  <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-white border border-white/25 shadow-xs">
+                    {getCmvStatus(effectiveCmvPercent).label}
                   </span>
                 </div>
-                <span
-                  className={`text-[10px] font-bold px-3 py-1 rounded-full border ${
-                    getCmvStatus(effectiveCmvPercent).color
-                  }`}
-                >
-                  {getCmvStatus(effectiveCmvPercent).label}
-                </span>
+
+                <div className="flex items-baseline gap-2 my-2">
+                  <span className="text-4xl lg:text-5xl font-black text-white tracking-tight drop-shadow-sm">
+                    {formatPercent(effectiveCmvPercent)}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-baseline gap-2 relative z-10">
-                <span className="text-3xl lg:text-4xl font-extrabold text-[#3d3499] tracking-tight">
-                  {formatPercent(effectiveCmvPercent)}
-                </span>
-              </div>
-              <p className="text-[11px] text-[#6658d3]/70 mt-2.5 relative z-10">
+
+              <p className="text-[11px] text-purple-200/80 mt-3 relative z-10 leading-relaxed">
                 Calculado sobre os {activeCenterLabels.length} centros e subcategorias selecionados.
               </p>
             </div>
 
-            {/* Card 2: Total de Custos Selecionados */}
-            <div className="p-6 rounded-[24px] border border-[#b8e8f3]/60 shadow-[0_12px_28px_rgba(30,120,150,0.10)] hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(30,120,150,0.16)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden" style={{background: "linear-gradient(145deg, #D6F2F9 0%, #EBF8FC 40%, #ffffff 100%)"}}>
-              <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full opacity-20 pointer-events-none" style={{background: "radial-gradient(circle, #29b6d8 0%, transparent 70%)"}} />
-              <div className="flex items-center justify-between mb-2.5 relative z-10">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-full bg-[#1a9fc0] flex items-center justify-center shadow-md">
-                    <DollarSign className="h-3.5 w-3.5 text-white" />
+            {/* Card 2: Total de Custos Selecionados (Limpo, Elegante, Branco Elevado) */}
+            <div className="p-6 rounded-[26px] bg-white border border-slate-200/90 shadow-[0_10px_25px_rgba(40,45,70,0.05)] hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(40,45,70,0.09)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700">
+                      <DollarSign className="h-4 w-4 text-slate-700" />
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Total de Custos
+                      </span>
+                      <span className="text-[9px] text-slate-400 font-medium">Soma Ativa</span>
+                    </div>
                   </div>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#1a7fa0]">
-                    Total de Custos
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                    {activeCenterLabels.length} itens ativos
                   </span>
                 </div>
-                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#DFF2F7] text-[#1a7fa0] border border-[#b8e8f3] font-semibold">
-                  {activeCenterLabels.length} itens ativos
-                </span>
+
+                <div className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight my-2">
+                  {formatBRL(selectedCostSum)}
+                </div>
               </div>
-              <div className="text-3xl lg:text-4xl font-extrabold text-[#0e5f78] tracking-tight relative z-10">
-                {formatBRL(selectedCostSum)}
-              </div>
-              <p className="text-[11px] text-[#1a9fc0]/70 mt-2.5 truncate relative z-10" title={activeCenterLabels.join(" + ")}>
+
+              <p className="text-[11px] text-slate-500 mt-3 truncate" title={activeCenterLabels.join(" + ")}>
                 {activeCenterLabels.join(" + ") || "Nenhum centro selecionado"}
               </p>
             </div>
 
-            {/* Card 3: Faturamento da Loja */}
-            <div className="p-6 rounded-[24px] border border-[#a8e6d8]/60 shadow-[0_12px_28px_rgba(20,130,100,0.10)] hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(20,130,100,0.16)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden" style={{background: "linear-gradient(145deg, #C8F0E6 0%, #E2F8F2 40%, #ffffff 100%)"}}>
-              <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full opacity-20 pointer-events-none" style={{background: "radial-gradient(circle, #1db085 0%, transparent 70%)"}} />
-              <div className="flex items-center justify-between mb-2.5 relative z-10">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-full bg-[#1a9c78] flex items-center justify-center shadow-md">
-                    <TrendingUp className="h-3.5 w-3.5 text-white" />
+            {/* Card 3: Faturamento da Loja (Limpo, Elegante, Branco Elevado) */}
+            <div className="p-6 rounded-[26px] bg-white border border-slate-200/90 shadow-[0_10px_25px_rgba(40,45,70,0.05)] hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(40,45,70,0.09)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+                      <TrendingUp className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Faturamento da Loja
+                      </span>
+                      <span className="text-[9px] text-slate-400 font-medium">Receita</span>
+                    </div>
                   </div>
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#167a5c]">
-                    Faturamento da Loja
-                  </span>
+                  {!isEditingFat ? (
+                    <button
+                      onClick={() => {
+                        setManualFaturamento(String(data.summary.faturamento));
+                        setIsEditingFat(true);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] text-[#554abc] hover:underline font-semibold"
+                      title="Ajustar faturamento manualmente"
+                    >
+                      <Edit3 className="h-3 w-3" />
+                      <span>Ajustar</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setManualFaturamento("");
+                        setIsEditingFat(false);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 font-semibold"
+                      title="Restaurar valor oficial automático"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      <span>Restaurar</span>
+                    </button>
+                  )}
                 </div>
+
                 {!isEditingFat ? (
-                  <button
-                    onClick={() => {
-                      setManualFaturamento(String(data.summary.faturamento));
-                      setIsEditingFat(true);
-                    }}
-                    className="inline-flex items-center gap-1 text-[11px] text-[#167a5c] hover:underline font-semibold"
-                    title="Ajustar faturamento manualmente"
-                  >
-                    <Edit3 className="h-3 w-3" />
-                    <span>Ajustar</span>
-                  </button>
+                  <div className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight my-2">
+                    {formatBRL(effectiveFaturamento)}
+                  </div>
                 ) : (
-                  <button
-                    onClick={() => {
-                      setManualFaturamento("");
-                      setIsEditingFat(false);
-                    }}
-                    className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 font-semibold"
-                    title="Restaurar valor oficial automático"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                    <span>Restaurar</span>
-                  </button>
+                  <div className="flex items-center gap-2 my-2">
+                    <span className="text-xl font-bold text-slate-400">R$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={manualFaturamento}
+                      onChange={(e) => setManualFaturamento(e.target.value)}
+                      className="w-full text-2xl font-bold px-3 py-1 rounded-full bg-slate-50 border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#554abc]"
+                      placeholder="Valor exato..."
+                      autoFocus
+                    />
+                  </div>
                 )}
               </div>
 
-              {!isEditingFat ? (
-                <div className="text-3xl lg:text-4xl font-extrabold text-[#0d5c42] tracking-tight relative z-10">
-                  {formatBRL(effectiveFaturamento)}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 relative z-10">
-                  <span className="text-xl font-bold text-[#1a9c78]/60">R$</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={manualFaturamento}
-                    onChange={(e) => setManualFaturamento(e.target.value)}
-                    className="w-full text-2xl font-bold px-3 py-1 rounded-full bg-white/70 border border-[#a8e6d8] text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a9c78]"
-                    placeholder="Valor exato..."
-                    autoFocus
-                  />
-                </div>
-              )}
-
-              <p className="text-[11px] text-[#1a9c78]/70 mt-2.5 relative z-10">
+              <p className="text-[11px] text-slate-500 mt-3">
                 {manualFaturamento
                   ? "⚠️ Ajustado manualmente (recalculando CMV em tempo real)."
                   : "Receita oficial registrada na Takeat."}
@@ -1102,11 +1116,10 @@ export default function CmvPage() {
               return (
                 <div
                   key={cfg.key}
-                  style={isActive ? {background: cfg.cardGradient} : {}}
                   className={`p-5 rounded-[24px] border transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                     isActive
-                      ? `${cfg.borderActive} shadow-[0_12px_28px_rgba(40,45,70,0.08)] hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(40,45,70,0.14)]`
-                      : "bg-white/50 border-slate-200/60 opacity-50 hover:opacity-90 hover:bg-white"
+                      ? "bg-white border-slate-200/90 shadow-[0_10px_25px_rgba(40,45,70,0.05)] hover:-translate-y-1 hover:shadow-[0_14px_32px_rgba(40,45,70,0.09)]"
+                      : "bg-slate-50/70 border-slate-200/60 opacity-60 hover:opacity-100 hover:bg-white"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2.5">
