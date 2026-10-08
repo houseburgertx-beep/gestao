@@ -58,6 +58,7 @@ interface CostCenterConfig {
   color: string;
   badgeBg: string;
   borderActive: string;
+  barColor: string;
   defaultIncluded: boolean;
   description: string;
 }
@@ -67,9 +68,10 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "cProducao",
     label: "Central de Produção",
     icon: Factory,
-    color: "text-[#1d6a59]",
-    badgeBg: "bg-[#DBF3EE] text-[#1d6a59] border-[#c0e8de]",
-    borderActive: "border-[#1d6a59]/30 ring-1 ring-[#1d6a59]/20",
+    color: "text-[#007A74]",
+    badgeBg: "bg-[#00C7BE]/15 text-[#007A74]",
+    borderActive: "border-[#00C7BE]/40 ring-1 ring-[#00C7BE]/20",
+    barColor: "#00C7BE",
     defaultIncluded: true,
     description: "Transferências, carnes e pré-preparo da Central",
   },
@@ -77,9 +79,10 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "mPrima",
     label: "Matéria Prima",
     icon: Beef,
-    color: "text-[#483b8b]",
-    badgeBg: "bg-[#E6E2FF] text-[#483b8b] border-[#d4cdfc]",
-    borderActive: "border-[#483b8b]/30 ring-1 ring-[#483b8b]/20",
+    color: "text-[#3634A3]",
+    badgeBg: "bg-[#5856D6]/15 text-[#3634A3]",
+    borderActive: "border-[#5856D6]/40 ring-1 ring-[#5856D6]/20",
+    barColor: "#5856D6",
     defaultIncluded: true,
     description: "Carnes, queijos, bacon, batatas e hortifruti",
   },
@@ -87,9 +90,10 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "embalagem",
     label: "Embalagem",
     icon: Package,
-    color: "text-[#1b657d]",
-    badgeBg: "bg-[#DFF2F7] text-[#1b657d] border-[#c7e9f1]",
-    borderActive: "border-[#1b657d]/30 ring-1 ring-[#1b657d]/20",
+    color: "text-[#0071A4]",
+    badgeBg: "bg-[#32ADE6]/15 text-[#0071A4]",
+    borderActive: "border-[#32ADE6]/40 ring-1 ring-[#32ADE6]/20",
+    barColor: "#32ADE6",
     defaultIncluded: true,
     description: "Caixas, sacolas, copos, potes e descartáveis",
   },
@@ -97,9 +101,10 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "bebida",
     label: "Bebida",
     icon: Wine,
-    color: "text-[#1d6a59]",
-    badgeBg: "bg-[#DBF3EE] text-[#1d6a59] border-[#c0e8de]",
-    borderActive: "border-[#1d6a59]/30 ring-1 ring-[#1d6a59]/20",
+    color: "text-[#7325A6]",
+    badgeBg: "bg-[#AF52DE]/15 text-[#7325A6]",
+    borderActive: "border-[#AF52DE]/40 ring-1 ring-[#AF52DE]/20",
+    barColor: "#AF52DE",
     defaultIncluded: true,
     description: "Refrigerantes, cervejas, águas e destilados",
   },
@@ -107,9 +112,10 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "suco",
     label: "Suco",
     icon: CupSoda,
-    color: "text-[#1b657d]",
-    badgeBg: "bg-[#DFF2F7] text-[#1b657d] border-[#c7e9f1]",
-    borderActive: "border-[#1b657d]/30 ring-1 ring-[#1b657d]/20",
+    color: "text-[#B25000]",
+    badgeBg: "bg-[#FF9500]/15 text-[#B25000]",
+    borderActive: "border-[#FF9500]/40 ring-1 ring-[#FF9500]/20",
+    barColor: "#FF9500",
     defaultIncluded: false,
     description: "Polpas, concentrados e sucos (opcional)",
   },
@@ -117,9 +123,10 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "outros",
     label: "Outras Despesas",
     icon: Receipt,
-    color: "text-[#8c421e]",
-    badgeBg: "bg-[#FFE9DD] text-[#8c421e] border-[#ffd6bf]",
-    borderActive: "border-[#8c421e]/30 ring-1 ring-[#8c421e]/20",
+    color: "text-[#B80F33]",
+    badgeBg: "bg-[#FF2D55]/15 text-[#B80F33]",
+    borderActive: "border-[#FF2D55]/40 ring-1 ring-[#FF2D55]/20",
+    barColor: "#FF2D55",
     defaultIncluded: false,
     description: "Motoboys, aluguel, luz, taxas e manutenção",
   },
@@ -473,26 +480,26 @@ export default function CmvPage() {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // Badge de saúde do CMV (Regra: Bom é menos de 35%)
+  // Badge de saúde do CMV (Regra Apple: Bom é menos de 35%)
   const getCmvStatus = (pct: number) => {
     if (pct === 0)
       return {
         label: "Sem dados",
-        color: "text-slate-600 bg-slate-100 border-slate-200",
+        color: "text-[#8E8E93] bg-[#767680]/10 border-black/5",
       };
     if (pct < 35)
       return {
         label: "Bom (< 35%)",
-        color: "text-[#0d5c45] bg-[#DBF3EE] border-[#b6e8db]",
+        color: "text-[#248A3D] bg-[#34C759]/15 border-[#34C759]/25",
       };
     if (pct <= 40)
       return {
         label: "Atenção (35% - 40%)",
-        color: "text-[#991b1b] bg-[#FEE2E2] border-[#fecaca]",
+        color: "text-[#D70015] bg-[#FF3B30]/15 border-[#FF3B30]/25",
       };
     return {
       label: "Crítico (> 40%)",
-      color: "text-[#991b1b] bg-[#FEE2E2] border-[#fecaca]",
+      color: "text-[#D70015] bg-[#FF3B30]/15 border-[#FF3B30]/25",
     };
   };
 
@@ -500,36 +507,42 @@ export default function CmvPage() {
   const getCmvCardTheme = (pct: number) => {
     if (pct === 0) {
       return {
-        bg: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
-        border: "border-slate-200",
-        numberColor: "text-slate-800",
-        labelColor: "text-slate-500",
-        subColor: "text-slate-400",
-        badgeBg: "bg-slate-100 text-slate-700 border-slate-200",
-        iconCircle: "bg-slate-200 text-slate-700",
+        bg: "#FFFFFF",
+        border: "border-black/[0.04]",
+        numberColor: "text-[#1C1C1E]",
+        labelColor: "text-[#8E8E93]",
+        subColor: "text-[#8E8E93]",
+        badgeBg: "bg-[#767680]/10 text-[#8E8E93] border-black/5",
+        iconCircle: "bg-[#767680]/10 text-[#8E8E93]",
+        boxShadow:
+          "0 0 0 1px rgba(0,0,0,0.03), 0 2px 5px rgba(0,0,0,0.02), 0 12px 28px -4px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,1)",
       };
     }
-    // BOM: Verde suave (< 35%)
+    // BOM: Verde suave Apple Health (< 35%)
     if (pct < 35) {
       return {
-        bg: "linear-gradient(135deg, #EBF8F4 0%, #F4FBF8 50%, #FFFFFF 100%)",
-        border: "border-[#b6e8db]",
-        numberColor: "text-[#0d5c45]",
-        labelColor: "text-[#12644f]",
-        subColor: "text-[#16785f]",
-        badgeBg: "bg-[#DBF3EE] text-[#0d5c45] border-[#b6e8db]",
-        iconCircle: "bg-[#189b77] text-white",
+        bg: "linear-gradient(180deg, #F0FAF5 0%, #FFFFFF 100%)",
+        border: "border-[#34C759]/30",
+        numberColor: "text-[#248A3D]",
+        labelColor: "text-[#248A3D]",
+        subColor: "text-[#248A3D]/80",
+        badgeBg: "bg-[#34C759]/15 text-[#248A3D] border-[#34C759]/30",
+        iconCircle: "bg-[#34C759]/15 text-[#248A3D]",
+        boxShadow:
+          "0 0 0 1px rgba(52, 199, 89, 0.2), 0 3px 8px rgba(0,0,0,0.02), 0 14px 28px -4px rgba(52, 199, 89, 0.08), inset 0 1px 0 rgba(255,255,255,1)",
       };
     }
-    // RUIM: Vermelho suave (>= 35%)
+    // RUIM: Vermelho suave Apple Health (>= 35%)
     return {
-      bg: "linear-gradient(135deg, #FFF5F5 0%, #FEF2F2 50%, #FFFFFF 100%)",
-      border: "border-[#fecaca]",
-      numberColor: "text-[#991b1b]",
-      labelColor: "text-[#b91c1c]",
-      subColor: "text-[#dc2626]",
-      badgeBg: "bg-[#FEE2E2] text-[#991b1b] border-[#fecaca]",
-      iconCircle: "bg-[#dc2626] text-white",
+      bg: "linear-gradient(180deg, #FFF5F5 0%, #FFFFFF 100%)",
+      border: "border-[#FF3B30]/30",
+      numberColor: "text-[#D70015]",
+      labelColor: "text-[#D70015]",
+      subColor: "text-[#D70015]/80",
+      badgeBg: "bg-[#FF3B30]/15 text-[#D70015] border-[#FF3B30]/30",
+      iconCircle: "bg-[#FF3B30]/15 text-[#D70015]",
+      boxShadow:
+        "0 0 0 1px rgba(255, 59, 48, 0.2), 0 3px 8px rgba(0,0,0,0.02), 0 14px 28px -4px rgba(255, 59, 48, 0.08), inset 0 1px 0 rgba(255,255,255,1)",
     };
   };
 
@@ -589,17 +602,17 @@ export default function CmvPage() {
   return (
     <div className="space-y-6 select-none animate-fadeIn">
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-black/[0.06]">
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#6658d3] to-[#8072eb] text-white flex items-center justify-center font-bold text-sm shadow-md">
+            <div className="h-9 w-9 rounded-[11px] bg-[#1C1C1E] text-white flex items-center justify-center font-bold text-sm shadow-[0_2px_6px_rgba(0,0,0,0.12)]">
               %
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+              <h1 className="text-xl font-bold tracking-tight text-[#1C1C1E]">
                 CMV · Custo de Mercadoria Vendida
               </h1>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="text-xs text-[#8E8E93]">
                 Auditoria 100% precisa com controle granular de centros e desdobramento de despesas.
               </p>
             </div>
@@ -611,7 +624,7 @@ export default function CmvPage() {
           <button
             onClick={loadData}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors shadow-sm disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold bg-white hover:bg-[#F2F2F7] text-[#1C1C1E] border border-black/[0.06] shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all active:scale-95 disabled:opacity-50"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             Recalcular
@@ -620,11 +633,11 @@ export default function CmvPage() {
           <button
             onClick={handleCopyWhatsApp}
             disabled={!data || loading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-[#17162f] hover:bg-[#252347] text-white transition-all shadow-md active:scale-95 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold bg-[#1C1C1E] hover:bg-[#2C2C2E] text-white shadow-[0_2px_8px_rgba(0,0,0,0.12)] active:scale-95 transition-all disabled:opacity-50"
           >
             {copied ? (
               <>
-                <Check className="h-3.5 w-3.5 text-emerald-400" />
+                <Check className="h-3.5 w-3.5 text-[#34C759]" />
                 <span>Copiado!</span>
               </>
             ) : (
@@ -638,18 +651,18 @@ export default function CmvPage() {
       </div>
 
       {/* Apple iOS Control Bar: Seletor de Loja + Seletor de Período + Regime de Data */}
-      <div className="flex flex-col gap-4 p-5 rounded-[28px] bg-white/95 backdrop-blur-[14px] border border-slate-200/80 shadow-[0_10px_25px_rgba(40,45,70,0.05)]">
+      <div className="ios-widget p-4 sm:p-5 flex flex-col gap-4">
         {/* Linha 1: Segmented Control de Unidades */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[#8E8E93] flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-[#8E8E93]" />
               Unidade
             </span>
           </div>
 
           {/* Segmented Control Oficial Apple */}
-          <div className="inline-flex p-1 bg-[#EEF1F6] rounded-full overflow-x-auto max-w-full">
+          <div className="inline-flex p-1 bg-[#767680]/12 rounded-full overflow-x-auto max-w-full gap-1">
             {STORE_TABS.map((tab) => {
               const isSelected = selectedUnit === tab.id;
               return (
@@ -659,8 +672,8 @@ export default function CmvPage() {
                   onClick={() => setSelectedUnit(tab.id)}
                   className={`px-3.5 py-1.5 rounded-full text-xs transition-all duration-200 whitespace-nowrap ${
                     isSelected
-                      ? "bg-white text-slate-900 font-bold shadow-[0_2px_8px_rgba(40,45,70,0.08)] -translate-y-0.5"
-                      : "text-slate-600 hover:text-slate-900 font-medium"
+                      ? "bg-white text-[#1C1C1E] font-bold shadow-[0_2px_6px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)]"
+                      : "text-[#636366] hover:text-[#1C1C1E] font-medium"
                   }`}
                 >
                   {tab.label}
@@ -671,14 +684,14 @@ export default function CmvPage() {
         </div>
 
         {/* Linha 2: Presets Rápidos + Datas Exatas + Regime */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-3 border-t border-slate-100 items-center">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-3 border-t border-black/[0.04] items-center">
           {/* Presets Rápidos Segmented Control */}
           <div className="md:col-span-5 flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93] flex items-center gap-1">
+              <Calendar className="h-3 w-3 text-[#8E8E93]" />
               Período Rápido
             </label>
-            <div className="inline-flex p-1 bg-[#EEF1F6] rounded-full">
+            <div className="inline-flex p-1 bg-[#767680]/12 rounded-full gap-1">
               {[
                 { id: "estaSemana", label: "Esta sem." },
                 { id: "semanaPassada", label: "Sem. ant." },
@@ -689,7 +702,7 @@ export default function CmvPage() {
                   key={preset.id}
                   type="button"
                   onClick={() => handlePreset(preset.id as any)}
-                  className="flex-1 py-1 px-2 rounded-full text-[11px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/60 transition-all text-center"
+                  className="flex-1 py-1 px-2 rounded-full text-[11px] font-medium text-[#636366] hover:text-[#1C1C1E] hover:bg-white/60 transition-all text-center"
                 >
                   {preset.label}
                 </button>
@@ -700,42 +713,42 @@ export default function CmvPage() {
           {/* Datas Início e Fim */}
           <div className="md:col-span-4 flex items-center gap-2">
             <div className="flex-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93] mb-1 block">
                 Início
               </label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full h-8.5 px-3 text-xs rounded-full bg-slate-50 border border-slate-200 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-[#6658d3] transition-all"
+                className="w-full h-8 px-3 text-xs rounded-full bg-[#767680]/8 focus:bg-white border border-transparent focus:border-[#007AFF] text-[#1C1C1E] font-medium transition-all"
               />
             </div>
             <div className="flex-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93] mb-1 block">
                 Fim
               </label>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full h-8.5 px-3 text-xs rounded-full bg-slate-50 border border-slate-200 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-[#6658d3] transition-all"
+                className="w-full h-8 px-3 text-xs rounded-full bg-[#767680]/8 focus:bg-white border border-transparent focus:border-[#007AFF] text-[#1C1C1E] font-medium transition-all"
               />
             </div>
           </div>
 
           {/* Regime Segmented Control */}
           <div className="md:col-span-3 flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-[#8E8E93]">
               Regime de Data
             </label>
-            <div className="inline-flex p-1 bg-[#EEF1F6] rounded-full">
+            <div className="inline-flex p-1 bg-[#767680]/12 rounded-full gap-1">
               <button
                 type="button"
                 onClick={() => setDateType("due_date")}
                 className={`flex-1 py-1 px-2.5 rounded-full text-[11px] transition-all ${
                   dateType === "due_date"
-                    ? "bg-white text-slate-900 font-bold shadow-[0_2px_8px_rgba(40,45,70,0.08)]"
-                    : "text-slate-600 hover:text-slate-900 font-medium"
+                    ? "bg-white text-[#1C1C1E] font-bold shadow-[0_2px_6px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)]"
+                    : "text-[#636366] hover:text-[#1C1C1E] font-medium"
                 }`}
               >
                 Vencimento
@@ -745,8 +758,8 @@ export default function CmvPage() {
                 onClick={() => setDateType("competence_date")}
                 className={`flex-1 py-1 px-2.5 rounded-full text-[11px] transition-all ${
                   dateType === "competence_date"
-                    ? "bg-white text-slate-900 font-bold shadow-[0_2px_8px_rgba(40,45,70,0.08)]"
-                    : "text-slate-600 hover:text-slate-900 font-medium"
+                    ? "bg-white text-[#1C1C1E] font-bold shadow-[0_2px_6px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)]"
+                    : "text-[#636366] hover:text-[#1C1C1E] font-medium"
                 }`}
               >
                 Competência
@@ -783,29 +796,29 @@ export default function CmvPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5">
                 {/* Card 1: CMV Realizado (Verde suave se bom, vermelho suave se ruim) */}
                 <div
-                  className={`p-6 rounded-[26px] border ${cmvTheme.border} shadow-[0_10px_25px_rgba(40,45,70,0.05)] hover:-translate-y-1 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden flex flex-col justify-between`}
-                  style={{ background: cmvTheme.bg }}
+                  className={`p-6 rounded-[26px] border ${cmvTheme.border} transition-transform duration-200 hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between`}
+                  style={{ background: cmvTheme.bg, boxShadow: cmvTheme.boxShadow }}
                 >
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className={`h-8 w-8 rounded-full ${cmvTheme.iconCircle} flex items-center justify-center shadow-xs`}>
+                      <div className="flex items-center gap-2.5">
+                        <div className={`h-8 w-8 rounded-[10px] ${cmvTheme.iconCircle} flex items-center justify-center shadow-xs`}>
                           <TrendingDown className="h-4 w-4" />
                         </div>
                         <div>
-                          <span className={`text-[11px] font-bold uppercase tracking-wider ${cmvTheme.labelColor} block`}>
+                          <span className={`text-[11px] font-semibold uppercase tracking-wider ${cmvTheme.labelColor} block`}>
                             CMV Realizado
                           </span>
                           <span className={`text-[9px] ${cmvTheme.subColor} font-medium`}>Indicador Principal</span>
                         </div>
                       </div>
-                      <span className={`text-[10px] font-bold px-3 py-1 rounded-full border ${cmvTheme.badgeBg}`}>
+                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${cmvTheme.badgeBg}`}>
                         {getCmvStatus(effectiveCmvPercent).label}
                       </span>
                     </div>
 
                     <div className="flex items-baseline gap-2 my-2">
-                      <span className={`text-4xl lg:text-5xl font-extrabold ${cmvTheme.numberColor} tracking-tight`}>
+                      <span className={`text-4xl lg:text-5xl font-extrabold ${cmvTheme.numberColor} tracking-tight tabular-nums`}>
                         {formatPercent(effectiveCmvPercent)}
                       </span>
                     </div>
@@ -817,48 +830,48 @@ export default function CmvPage() {
                 </div>
 
                 {/* Card 2: Total de Custos Selecionados */}
-                <div className="p-6 rounded-[26px] bg-white border border-slate-200/90 shadow-[0_10px_25px_rgba(40,45,70,0.05)] hover:-translate-y-1 hover:shadow-[0_14px_30px_rgba(40,45,70,0.08)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden flex flex-col justify-between">
+                <div className="ios-widget p-6 rounded-[26px] flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700">
-                          <DollarSign className="h-4 w-4 text-slate-700" />
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-8 w-8 rounded-[10px] bg-[#007AFF]/12 text-[#007AFF] flex items-center justify-center">
+                          <DollarSign className="h-4 w-4" />
                         </div>
                         <div>
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#8E8E93] block">
                             Total de Custos
                           </span>
-                          <span className="text-[9px] text-slate-400 font-medium">Soma Ativa</span>
+                          <span className="text-[9px] text-[#8E8E93] font-medium">Soma Ativa</span>
                         </div>
                       </div>
-                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#767680]/8 text-[#636366] font-semibold border border-black/5">
                         {activeCenterLabels.length} itens ativos
                       </span>
                     </div>
 
-                    <div className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight my-2">
+                    <div className="text-3xl lg:text-4xl font-extrabold text-[#1C1C1E] tracking-tight tabular-nums my-2">
                       {formatBRL(selectedCostSum)}
                     </div>
                   </div>
 
-                  <p className="text-[11px] text-slate-500 mt-3 truncate" title={activeCenterLabels.join(" + ")}>
+                  <p className="text-[11px] text-[#8E8E93] mt-3 truncate" title={activeCenterLabels.join(" + ")}>
                     {activeCenterLabels.join(" + ") || "Nenhum centro selecionado"}
                   </p>
                 </div>
 
                 {/* Card 3: Faturamento da Loja */}
-                <div className="p-6 rounded-[26px] bg-white border border-slate-200/90 shadow-[0_10px_25px_rgba(40,45,70,0.05)] hover:-translate-y-1 hover:shadow-[0_14px_30px_rgba(40,45,70,0.08)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden flex flex-col justify-between">
+                <div className="ios-widget p-6 rounded-[26px] flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
-                          <TrendingUp className="h-4 w-4 text-emerald-600" />
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-8 w-8 rounded-[10px] bg-[#34C759]/12 text-[#248A3D] flex items-center justify-center">
+                          <TrendingUp className="h-4 w-4" />
                         </div>
                         <div>
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#8E8E93] block">
                             Faturamento da Loja
                           </span>
-                          <span className="text-[9px] text-slate-400 font-medium">Receita</span>
+                          <span className="text-[9px] text-[#8E8E93] font-medium">Receita</span>
                         </div>
                       </div>
                       {!isEditingFat ? (
@@ -867,7 +880,7 @@ export default function CmvPage() {
                             setManualFaturamento(String(data.summary.faturamento));
                             setIsEditingFat(true);
                           }}
-                          className="inline-flex items-center gap-1 text-[11px] text-[#554abc] hover:underline font-semibold"
+                          className="inline-flex items-center gap-1 text-[11px] text-[#007AFF] hover:underline font-semibold"
                           title="Ajustar faturamento manualmente"
                         >
                           <Edit3 className="h-3 w-3" />
@@ -879,7 +892,7 @@ export default function CmvPage() {
                             setManualFaturamento("");
                             setIsEditingFat(false);
                           }}
-                          className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 font-semibold"
+                          className="inline-flex items-center gap-1 text-[11px] text-[#8E8E93] hover:text-[#1C1C1E] font-semibold"
                           title="Restaurar valor oficial automático"
                         >
                           <RotateCcw className="h-3 w-3" />
@@ -889,18 +902,18 @@ export default function CmvPage() {
                     </div>
 
                     {!isEditingFat ? (
-                      <div className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight my-2">
+                      <div className="text-3xl lg:text-4xl font-extrabold text-[#1C1C1E] tracking-tight tabular-nums my-2">
                         {formatBRL(effectiveFaturamento)}
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 my-2">
-                        <span className="text-xl font-bold text-slate-400">R$</span>
+                        <span className="text-xl font-bold text-[#8E8E93]">R$</span>
                         <input
                           type="number"
                           step="0.01"
                           value={manualFaturamento}
                           onChange={(e) => setManualFaturamento(e.target.value)}
-                          className="w-full text-2xl font-bold px-3 py-1 rounded-full bg-slate-50 border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#554abc]"
+                          className="w-full text-2xl font-bold px-3 py-1 rounded-full bg-[#767680]/8 border border-transparent focus:border-[#007AFF] focus:bg-white text-[#1C1C1E] focus:outline-none"
                           placeholder="Valor exato..."
                           autoFocus
                         />
@@ -908,7 +921,7 @@ export default function CmvPage() {
                     )}
                   </div>
 
-                  <p className="text-[11px] text-slate-500 mt-3">
+                  <p className="text-[11px] text-[#8E8E93] mt-3">
                     {manualFaturamento
                       ? "⚠️ Ajustado manualmente (recalculando CMV em tempo real)."
                       : "Receita oficial registrada na Takeat."}
@@ -919,28 +932,28 @@ export default function CmvPage() {
           })()}
 
           {/* COMPOSIÇÃO UNIFICADA DOS CENTROS DE CUSTO (SEM DUPLICAÇÃO DE DADOS) */}
-          <div className="p-6 rounded-[28px] bg-white border border-slate-200/80 shadow-[0_10px_25px_rgba(40,45,70,0.05)] space-y-4">
+          <div className="ios-widget p-6 rounded-[28px] space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-[#554abc]" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                <SlidersHorizontal className="h-4 w-4 text-[#1C1C1E]" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1C1C1E]">
                   Centros de Custo & Composição do CMV
                 </h3>
-                <span className="text-[11px] text-slate-400 font-semibold">
+                <span className="text-[11px] text-[#8E8E93] font-medium">
                   ({activeCenterLabels.length} na soma)
                 </span>
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <button
                   onClick={resetToStandardCmv}
-                  className="px-3 py-1 rounded-full text-[11px] font-semibold text-[#554abc] bg-[#E6E2FF]/60 hover:bg-[#E6E2FF] transition-all"
+                  className="px-3 py-1 rounded-full text-[11px] font-semibold text-[#007AFF] bg-[#007AFF]/10 hover:bg-[#007AFF]/20 transition-all"
                 >
                   Padrão (4 Centros)
                 </button>
-                <span className="text-slate-300">|</span>
+                <span className="text-black/10">|</span>
                 <button
                   onClick={selectAllCenters}
-                  className="px-3 py-1 rounded-full text-[11px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all"
+                  className="px-3 py-1 rounded-full text-[11px] font-medium text-[#636366] hover:text-[#1C1C1E] hover:bg-[#767680]/8 transition-all"
                 >
                   Selecionar Todos
                 </button>
@@ -965,24 +978,24 @@ export default function CmvPage() {
                     onClick={() => {
                       if (!isOutros) toggleCenter(cfg.key);
                     }}
-                    className={`p-5 rounded-[24px] border transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+                    className={`ios-card p-5 rounded-[22px] border transition-all duration-200 ${
                       !isOutros ? "cursor-pointer" : ""
                     } ${
                       isActive
-                        ? "bg-white border-slate-200/90 shadow-[0_8px_20px_rgba(40,45,70,0.05)] hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(40,45,70,0.08)]"
-                        : "bg-slate-50/70 border-slate-200/60 opacity-55 hover:opacity-90 hover:bg-white"
+                        ? "bg-white border-black/[0.05]"
+                        : "bg-[#FAFAFC] border-black/[0.03] opacity-60 hover:opacity-100 hover:bg-white"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2.5">
                       <div className="flex items-center gap-2.5">
-                        <div className={`h-9 w-9 rounded-full flex items-center justify-center shadow-xs ${cfg.badgeBg}`}>
+                        <div className={`h-9 w-9 rounded-[11px] flex items-center justify-center ${cfg.badgeBg}`}>
                           <Icon className="h-4.5 w-4.5" />
                         </div>
                         <div>
-                          <span className="text-xs font-bold text-slate-900 block">
+                          <span className="text-xs font-bold text-[#1C1C1E] block">
                             {cfg.label}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-medium">
+                          <span className="text-[10px] text-[#8E8E93] font-medium">
                             {countItems} lançamento{countItems === 1 ? "" : "s"}
                             {isOutros && ` (${outrosSubcategories.length} subcategorias)`}
                           </span>
@@ -1002,10 +1015,10 @@ export default function CmvPage() {
                               icon: cfg.icon,
                             })
                           }
-                          className="p-1.5 rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                          className="h-7 w-7 rounded-full bg-[#767680]/8 hover:bg-[#767680]/15 text-[#8E8E93] hover:text-[#1C1C1E] transition-all flex items-center justify-center"
                           title={`Ver saídas de ${cfg.label} até o valor total`}
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-3.5 w-3.5" />
                         </button>
 
                         {/* Botão de Inclusão no CMV */}
@@ -1013,19 +1026,19 @@ export default function CmvPage() {
                           <button
                             type="button"
                             onClick={() => setShowOutrosBreakdown((prev) => !prev)}
-                            className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-100 transition-all flex items-center gap-1"
+                            className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-[#FF2D55]/20 bg-[#FF2D55]/10 text-[#D70015] hover:bg-[#FF2D55]/15 transition-all flex items-center gap-1"
                           >
-                            <Settings2 className="h-3 w-3 text-[#554abc]" />
+                            <Settings2 className="h-3 w-3" />
                             <span>{countSelectedOutros > 0 ? `${countSelectedOutros} ativas` : "Escolher"}</span>
                           </button>
                         ) : (
                           <button
                             type="button"
                             onClick={() => toggleCenter(cfg.key)}
-                            className={`text-[10px] font-semibold px-3 py-1 rounded-full border transition-all ${
+                            className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${
                               isActive
-                                ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-bold"
-                                : "bg-slate-100 border-slate-200 text-slate-400 hover:text-slate-700"
+                                ? "bg-[#34C759]/12 border-[#34C759]/25 text-[#248A3D] font-bold"
+                                : "bg-[#767680]/8 border-black/5 text-[#8E8E93] hover:text-[#1C1C1E] font-medium"
                             }`}
                           >
                             {isActive ? "✓ Na soma" : "+ Incluir"}
@@ -1036,36 +1049,25 @@ export default function CmvPage() {
 
                     <div className="flex items-baseline justify-between mt-3">
                       <div>
-                        <span className="text-lg font-bold text-slate-900">
+                        <span className="text-lg font-bold text-[#1C1C1E] tabular-nums">
                           {formatBRL(displayedVal)}
                         </span>
                         {isOutros && countSelectedOutros > 0 && (
-                          <span className="text-[10px] text-slate-400 block">
+                          <span className="text-[10px] text-[#8E8E93] block">
                             de {formatBRL(totalVal)} totais
                           </span>
                         )}
                       </div>
-                      <span className="text-xs font-semibold text-slate-500">
+                      <span className="text-xs font-semibold text-[#8E8E93] tabular-nums">
                         {formatPercent(pct)}
                       </span>
                     </div>
 
-                    <div className="w-full bg-slate-100 h-1.5 rounded-full mt-3 overflow-hidden">
+                    <div className="w-full bg-[#E5E5EA] h-1.5 rounded-full mt-3 overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          cfg.key === "cProducao"
-                            ? "bg-[#1d6a59]"
-                            : cfg.key === "mPrima"
-                            ? "bg-[#483b8b]"
-                            : cfg.key === "embalagem"
-                            ? "bg-[#1b657d]"
-                            : cfg.key === "bebida"
-                            ? "bg-[#1d6a59]"
-                            : cfg.key === "suco"
-                            ? "bg-[#1b657d]"
-                            : "bg-[#8c421e]"
-                        }`}
+                        className="h-full rounded-full transition-all duration-500"
                         style={{
+                          backgroundColor: cfg.barColor,
                           width: `${Math.min(pct, 100)}%`,
                         }}
                       />
@@ -1077,16 +1079,16 @@ export default function CmvPage() {
 
             {/* Painel de Desdobramento de Outras Despesas (Retrátil) */}
             {outrosSubcategories.length > 0 && showOutrosBreakdown && (
-              <div className="mt-4 pt-4 border-t border-slate-100">
+              <div className="mt-4 p-4 rounded-[20px] bg-[#F2F2F7]/70 border border-black/[0.04]">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                   <div className="flex items-center gap-2">
-                    <span className="p-1 rounded-full bg-[#FFE9DD] text-[#8c421e]">
+                    <span className="h-6 w-6 rounded-[7px] bg-[#FF2D55]/15 text-[#D70015] flex items-center justify-center">
                       <Receipt className="h-3.5 w-3.5" />
                     </span>
-                    <span className="text-[11px] font-bold text-slate-800">
+                    <span className="text-[11px] font-bold text-[#1C1C1E]">
                       Desdobramento de Outras Despesas: Escolha quais entram na soma
                     </span>
-                    <span className="text-[10px] text-slate-400 font-semibold">
+                    <span className="text-[10px] text-[#8E8E93] font-medium">
                       ({countSelectedOutros} de {outrosSubcategories.length} ativas · {formatBRL(selectedOutrosSum)})
                     </span>
                   </div>
@@ -1095,15 +1097,15 @@ export default function CmvPage() {
                     <button
                       type="button"
                       onClick={selectAllOutros}
-                      className="px-2.5 py-0.5 rounded-full bg-purple-50 text-[#554abc] hover:bg-purple-100 font-semibold transition-colors"
+                      className="px-2.5 py-0.5 rounded-full bg-[#007AFF]/10 text-[#007AFF] hover:bg-[#007AFF]/20 font-semibold transition-colors"
                     >
                       Marcar Todas
                     </button>
-                    <span className="text-slate-300">|</span>
+                    <span className="text-black/10">|</span>
                     <button
                       type="button"
                       onClick={deselectAllOutros}
-                      className="px-2.5 py-0.5 rounded-full text-slate-500 hover:text-slate-700 transition-colors"
+                      className="px-2.5 py-0.5 rounded-full text-[#636366] hover:text-[#1C1C1E] transition-colors font-medium"
                     >
                       Desmarcar Todas
                     </button>
@@ -1118,10 +1120,10 @@ export default function CmvPage() {
                     return (
                       <div
                         key={sub.rawCategory}
-                        className={`flex items-center justify-between p-2.5 rounded-2xl border text-xs transition-all duration-200 ${
+                        className={`flex items-center justify-between p-2.5 rounded-[14px] border text-xs transition-all duration-200 ${
                           isChecked
-                            ? "bg-[#FFE9DD]/40 border-[#ffd6bf] text-slate-900 shadow-xs"
-                            : "bg-slate-50 border-slate-200/80 text-slate-500 opacity-75 hover:opacity-100"
+                            ? "bg-white border-black/[0.06] text-[#1C1C1E] shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
+                            : "bg-transparent border-transparent text-[#8E8E93] opacity-70 hover:opacity-100"
                         }`}
                       >
                         <label className="flex items-center gap-2 cursor-pointer flex-1 truncate mr-1.5">
@@ -1129,7 +1131,7 @@ export default function CmvPage() {
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => toggleOutrosSubcategory(sub.rawCategory)}
-                            className="rounded-full text-[#554abc] focus:ring-[#554abc] h-3.5 w-3.5 cursor-pointer"
+                            className="rounded text-[#007AFF] focus:ring-[#007AFF] accent-[#007AFF] h-3.5 w-3.5 cursor-pointer"
                           />
                           <span className="font-semibold truncate text-[11px]" title={sub.rawCategory}>
                             {sub.label}
@@ -1137,7 +1139,7 @@ export default function CmvPage() {
                         </label>
 
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="font-bold text-[11px] text-slate-900">
+                          <span className="font-bold text-[11px] text-[#1C1C1E] tabular-nums">
                             {formatBRL(sub.total)}
                           </span>
 
@@ -1151,7 +1153,7 @@ export default function CmvPage() {
                                 label: sub.label,
                               })
                             }
-                            className="p-1 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
+                            className="h-6 w-6 rounded-full hover:bg-[#767680]/10 text-[#8E8E93] hover:text-[#1C1C1E] transition-colors flex items-center justify-center"
                             title={`Ver saídas de ${sub.label} até ${formatBRL(sub.total)}`}
                           >
                             <Eye className="h-3 w-3" />
@@ -1167,20 +1169,20 @@ export default function CmvPage() {
 
           {/* TABELA COMPARATIVA POR LOJA (Consolidado - Apple Squircle 28px) */}
           {data.isConsolidated && data.stores.length > 1 && (
-            <div className="p-6 rounded-[28px] bg-white border border-slate-200/80 shadow-[0_12px_28px_rgba(40,45,70,0.06)]">
+            <div className="ios-widget p-6 rounded-[28px]">
               <div className="flex items-center justify-between mb-3.5">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-[#554abc]" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#1C1C1E] flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-[#1C1C1E]" />
                   Comparativo por Unidade da Rede (Recalculado Dinamicamente)
                 </h3>
-                <span className="text-[11px] text-slate-400 font-mono">
+                <span className="text-[11px] text-[#8E8E93] font-mono">
                   Base: {activeCenterLabels.join(", ")}
                 </span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-100 text-[11px] font-semibold text-slate-400">
+                    <tr className="border-b border-[#E5E5EA] text-[10px] font-bold uppercase tracking-wider text-[#8E8E93]">
                       <th className="py-2.5 px-3">Loja</th>
                       <th className="py-2.5 px-3">Faturamento</th>
                       <th className="py-2.5 px-3">C. Produção</th>
@@ -1193,7 +1195,7 @@ export default function CmvPage() {
                       <th className="py-2.5 px-3 text-right">CMV (%)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[#E5E5EA]/60">
                     {data.stores.map((st) => {
                       let storeSum = 0;
                       (["cProducao", "mPrima", "embalagem", "bebida", "suco"] as CostCenterKey[]).forEach((k) => {
@@ -1208,36 +1210,36 @@ export default function CmvPage() {
                       const storePct = st.faturamento > 0 ? (storeSum / st.faturamento) * 100 : 0;
 
                       return (
-                        <tr key={st.storeId} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="py-2.5 px-3 font-semibold text-slate-900">
+                        <tr key={st.storeId} className="hover:bg-[#F2F2F7]/70 transition-colors">
+                          <td className="py-2.5 px-3 font-semibold text-[#1C1C1E]">
                             {st.storeName}
                           </td>
-                          <td className="py-2.5 px-3 text-[#1d6a59] font-semibold">
+                          <td className="py-2.5 px-3 text-[#248A3D] font-semibold tabular-nums">
                             {formatBRL(st.faturamento)}
                           </td>
-                          <td className="py-2.5 px-3 text-slate-600">
+                          <td className="py-2.5 px-3 text-[#636366] tabular-nums">
                             {formatBRL(st.costCenters.cProducao?.total || 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-slate-600">
+                          <td className="py-2.5 px-3 text-[#636366] tabular-nums">
                             {formatBRL(st.costCenters.mPrima?.total || 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-slate-600">
+                          <td className="py-2.5 px-3 text-[#636366] tabular-nums">
                             {formatBRL(st.costCenters.embalagem?.total || 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-slate-600">
+                          <td className="py-2.5 px-3 text-[#636366] tabular-nums">
                             {formatBRL(st.costCenters.bebida?.total || 0)}
                           </td>
                           {activeCenters.suco && (
-                            <td className="py-2.5 px-3 text-slate-600">
+                            <td className="py-2.5 px-3 text-[#636366] tabular-nums">
                               {formatBRL(st.costCenters.suco?.total || 0)}
                             </td>
                           )}
                           {countSelectedOutros > 0 && (
-                            <td className="py-2.5 px-3 text-[#8c421e] font-semibold">
+                            <td className="py-2.5 px-3 text-[#D70015] font-semibold tabular-nums">
                               {formatBRL(storeOutrosSel)}
                             </td>
                           )}
-                          <td className="py-2.5 px-3 font-bold text-slate-900">
+                          <td className="py-2.5 px-3 font-bold text-[#1C1C1E] tabular-nums">
                             {formatBRL(storeSum)}
                           </td>
                           <td className="py-2.5 px-3 text-right whitespace-nowrap">
@@ -1259,19 +1261,19 @@ export default function CmvPage() {
           )}
 
           {/* TABELA DE AUDITORIA COMPLETA DE LANÇAMENTOS (APPLE SQUIRCLE 28px) */}
-          <div className="p-6 rounded-[28px] bg-white border border-slate-200/80 shadow-[0_12px_28px_rgba(40,45,70,0.06)]">
+          <div className="ios-widget p-6 rounded-[28px]">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
               <div>
                 <div className="flex items-center gap-2">
-                  <Eye className="h-4 w-4 text-[#554abc]" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  <Eye className="h-4 w-4 text-[#007AFF]" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#1C1C1E]">
                     Auditoria de Lançamentos Takeat
                   </h3>
-                  <span className="text-[11px] px-3 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
+                  <span className="text-[11px] px-3 py-0.5 rounded-full bg-[#767680]/8 text-[#636366] font-semibold border border-black/5">
                     {allFilteredItems.length} lançamentos · {formatBRL(tableFilteredTotal)}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">
+                <p className="text-[11px] text-[#8E8E93] mt-1">
                   Exibição detalhada de cada gasto, nota ou compra registrada no sistema.
                 </p>
               </div>
@@ -1280,13 +1282,13 @@ export default function CmvPage() {
               <div className="flex flex-wrap items-center gap-2">
                 {/* Busca rápida */}
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#8E8E93]" />
                   <input
                     type="text"
                     placeholder="Buscar por descrição, fornecedor..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="h-8.5 pl-8.5 pr-4 rounded-full text-xs bg-slate-50 border border-slate-200 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-[#554abc] w-48 sm:w-64 transition-all"
+                    className="h-8 pl-8.5 pr-4 rounded-full text-xs bg-[#767680]/8 focus:bg-white border border-transparent focus:border-[#007AFF] text-[#1C1C1E] font-medium w-48 sm:w-64 transition-all focus:outline-none"
                   />
                 </div>
 
@@ -1294,7 +1296,7 @@ export default function CmvPage() {
                 <select
                   value={tableFilter}
                   onChange={(e) => setTableFilter(e.target.value)}
-                  className="h-8.5 px-3 rounded-full text-xs bg-slate-50 border border-slate-200 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-[#554abc] transition-all cursor-pointer"
+                  className="h-8 px-3 rounded-full text-xs bg-[#767680]/8 focus:bg-white border border-transparent focus:border-[#007AFF] text-[#1C1C1E] font-medium transition-all cursor-pointer focus:outline-none"
                 >
                   <option value="all_entries">🌐 Todos os Lançamentos</option>
                   <option value="selected_cmv">✓ Apenas Centros na Soma</option>
@@ -1315,7 +1317,7 @@ export default function CmvPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as any)}
-                  className="h-8.5 px-3 rounded-full text-xs bg-slate-50 border border-slate-200 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-[#554abc] transition-all cursor-pointer"
+                  className="h-8 px-3 rounded-full text-xs bg-[#767680]/8 focus:bg-white border border-transparent focus:border-[#007AFF] text-[#1C1C1E] font-medium transition-all cursor-pointer focus:outline-none"
                 >
                   <option value="all">Status: Todos</option>
                   <option value="paid">Pagos</option>
@@ -1325,14 +1327,14 @@ export default function CmvPage() {
             </div>
 
             {allFilteredItems.length === 0 ? (
-              <div className="text-center py-10 border border-dashed border-slate-200 rounded-[20px] text-slate-400 text-xs">
+              <div className="text-center py-10 border border-dashed border-black/10 rounded-[20px] text-[#8E8E93] text-xs">
                 Nenhum lançamento encontrado para os filtros selecionados.
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-zinc-200 dark:border-zinc-800 text-[11px] font-semibold text-zinc-500">
+                    <tr className="border-b border-[#E5E5EA] text-[10px] font-bold uppercase tracking-wider text-[#8E8E93]">
                       <th className="py-2.5 px-3">Data</th>
                       {data.isConsolidated && <th className="py-2.5 px-3">Loja</th>}
                       <th className="py-2.5 px-3">Descrição</th>
@@ -1342,7 +1344,7 @@ export default function CmvPage() {
                       <th className="py-2.5 px-3 text-right">Valor</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  <tbody className="divide-y divide-[#E5E5EA]/50">
                     {allFilteredItems.map((item, idx) => {
                       const cfg = COST_CENTERS_CONFIG.find(
                         (c) => c.key === item.costCenterKey
@@ -1351,9 +1353,9 @@ export default function CmvPage() {
                       return (
                         <tr
                           key={`${item.id}-${idx}`}
-                          className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors"
+                          className="hover:bg-[#F2F2F7]/70 transition-colors"
                         >
-                          <td className="py-2.5 px-3 text-zinc-500 whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-[#8E8E93] whitespace-nowrap">
                             {formatDateDisplay(
                               dateType === "competence_date"
                                 ? item.competenceDate
@@ -1361,17 +1363,17 @@ export default function CmvPage() {
                             )}
                           </td>
                           {data.isConsolidated && (
-                            <td className="py-2.5 px-3 font-medium text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
+                            <td className="py-2.5 px-3 font-medium text-[#636366] whitespace-nowrap">
                               {item.storeName}
                             </td>
                           )}
-                          <td className="py-2.5 px-3 font-medium text-zinc-900 dark:text-zinc-100 max-w-[280px] truncate" title={item.description}>
+                          <td className="py-2.5 px-3 font-medium text-[#1C1C1E] max-w-[280px] truncate" title={item.description}>
                             {item.description}
                           </td>
                           <td className="py-2.5 px-3 whitespace-nowrap">
                             <span
                               className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                                cfg?.badgeBg || "bg-zinc-100 text-zinc-700"
+                                cfg?.badgeBg || "bg-[#767680]/10 text-[#636366] border-black/5"
                               }`}
                             >
                               {item.costCenterKey === "outros"
@@ -1379,21 +1381,21 @@ export default function CmvPage() {
                                 : cfg?.label || item.category}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-zinc-500 max-w-[180px] truncate" title={item.provider}>
+                          <td className="py-2.5 px-3 text-[#8E8E93] max-w-[180px] truncate" title={item.provider}>
                             {item.provider || "-"}
                           </td>
                           <td className="py-2.5 px-3 whitespace-nowrap">
                             <span
                               className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
                                 item.paid
-                                  ? "bg-[#DBF3EE] text-[#1d6a59]"
-                                  : "bg-[#FFE9DD] text-[#8c421e]"
+                                  ? "bg-[#34C759]/12 text-[#248A3D]"
+                                  : "bg-[#FF9500]/12 text-[#C93400]"
                               }`}
                             >
                               {item.paid ? "Pago" : "A Pagar"}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-right font-bold text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-right font-bold text-[#1C1C1E] tabular-nums whitespace-nowrap">
                             {formatBRL(item.value)}
                           </td>
                         </tr>
@@ -1407,16 +1409,16 @@ export default function CmvPage() {
         </>
       )}
 
-      {/* MODAL MINIMALISTA DE COMPOSIÇÃO DE SAÍDAS DO ALVO (APPLE FROSTED GLASS & SQUIRCLE 34px) */}
+      {/* MODAL MINIMALISTA DE COMPOSIÇÃO DE SAÍDAS DO ALVO (APPLE HIG SHEET & SQUIRCLE 32px) */}
       {selectedDetailTarget && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[14px] z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white/95 backdrop-blur-[14px] border border-slate-200/80 rounded-[34px] max-w-2xl w-full max-h-[85vh] flex flex-col shadow-[0_24px_60px_rgba(40,45,70,0.18)] overflow-hidden">
+        <div className="fixed inset-0 bg-black/35 backdrop-blur-[12px] z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white border border-black/[0.06] rounded-[30px] max-w-2xl w-full max-h-[85vh] flex flex-col shadow-[0_24px_64px_rgba(0,0,0,0.2)] overflow-hidden">
             {/* Modal Header */}
-            <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between">
+            <div className="p-5 sm:p-6 border-b border-[#E5E5EA] flex items-center justify-between">
               <div className="flex items-center gap-3.5">
                 <div
-                  className={`h-11 w-11 rounded-full flex items-center justify-center shadow-xs ${
-                    selectedDetailTarget.badgeBg || "bg-[#E6E2FF] text-[#483b8b]"
+                  className={`h-10 w-10 rounded-[11px] flex items-center justify-center shadow-xs ${
+                    selectedDetailTarget.badgeBg || "bg-[#767680]/10 text-[#1C1C1E]"
                   }`}
                 >
                   {selectedDetailTarget.icon ? (
@@ -1426,12 +1428,12 @@ export default function CmvPage() {
                   )}
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-[#1C1C1E] flex items-center gap-2">
                     Composição de Saídas: {selectedDetailTarget.label}
                   </h3>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-[#8E8E93]">
                     Soma passo a passo até o valor final de{" "}
-                    <strong className="text-slate-900 font-bold">
+                    <strong className="text-[#1C1C1E] font-bold">
                       {formatBRL(detailTotalVal)}
                     </strong>{" "}
                     ({detailItemsWithCumulative.length} saídas)
@@ -1441,7 +1443,7 @@ export default function CmvPage() {
 
               <button
                 onClick={() => setSelectedDetailTarget(null)}
-                className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                className="p-1.5 rounded-full text-[#8E8E93] hover:text-[#1C1C1E] hover:bg-[#767680]/10 transition-colors"
                 title="Fechar"
               >
                 <X className="h-5 w-5" />
@@ -1451,60 +1453,60 @@ export default function CmvPage() {
             {/* Modal Content Table */}
             <div className="p-4 overflow-y-auto flex-1">
               {detailItemsWithCumulative.length === 0 ? (
-                <div className="text-center py-12 text-zinc-400 text-xs">
+                <div className="text-center py-12 text-[#8E8E93] text-xs">
                   Nenhuma saída encontrada neste período para este item.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="border-b border-zinc-200 dark:border-zinc-800 text-[11px] font-semibold text-zinc-500">
+                      <tr className="border-b border-[#E5E5EA] text-[10px] font-bold uppercase tracking-wider text-[#8E8E93]">
                         <th className="py-2 px-2 text-center w-8">#</th>
                         <th className="py-2 px-2.5">Data</th>
                         <th className="py-2 px-2.5">Descrição</th>
                         <th className="py-2 px-2.5">Fornecedor</th>
                         <th className="py-2 px-2.5 text-right">Saída (R$)</th>
-                        <th className="py-2 px-2.5 text-right font-bold text-[#6658d3]">Acumulado (R$)</th>
+                        <th className="py-2 px-2.5 text-right font-bold text-[#007AFF]">Acumulado (R$)</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    <tbody className="divide-y divide-[#E5E5EA]/50">
                       {detailItemsWithCumulative.map((item, idx) => (
-                        <tr key={`${item.id}-${idx}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
-                          <td className="py-2 px-2 text-center text-zinc-400 font-mono text-[10px]">
+                        <tr key={`${item.id}-${idx}`} className="hover:bg-[#F2F2F7]/60">
+                          <td className="py-2 px-2 text-center text-[#8E8E93] font-mono text-[10px]">
                             {idx + 1}
                           </td>
-                          <td className="py-2 px-2.5 text-zinc-500 whitespace-nowrap">
+                          <td className="py-2 px-2.5 text-[#8E8E93] whitespace-nowrap">
                             {formatDateDisplay(
                               dateType === "competence_date" ? item.competenceDate : item.dueDate
                             )}
                           </td>
                           <td
-                            className="py-2 px-2.5 font-medium text-zinc-900 dark:text-zinc-100 max-w-[200px] truncate"
+                            className="py-2 px-2.5 font-medium text-[#1C1C1E] max-w-[200px] truncate"
                             title={item.description}
                           >
                             {item.description}
                           </td>
                           <td
-                            className="py-2 px-2.5 text-zinc-500 max-w-[130px] truncate"
+                            className="py-2 px-2.5 text-[#8E8E93] max-w-[130px] truncate"
                             title={item.provider}
                           >
                             {item.provider || "-"}
                           </td>
-                          <td className="py-2 px-2.5 text-right font-semibold text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
+                          <td className="py-2 px-2.5 text-right font-semibold text-[#1C1C1E] tabular-nums whitespace-nowrap">
                             {formatBRL(item.value)}
                           </td>
-                          <td className="py-2 px-2.5 text-right font-extrabold text-[#6658d3] whitespace-nowrap bg-purple-50/40 dark:bg-purple-950/20">
+                          <td className="py-2 px-2.5 text-right font-extrabold text-[#007AFF] tabular-nums whitespace-nowrap bg-[#007AFF]/5">
                             {formatBRL(item.cumulative)}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot>
-                      <tr className="border-t-2 border-zinc-300 dark:border-zinc-700 font-bold bg-zinc-50 dark:bg-zinc-800/60">
-                        <td colSpan={4} className="py-2.5 px-3 text-zinc-900 dark:text-zinc-100">
+                      <tr className="border-t-2 border-[#E5E5EA] font-bold bg-[#F2F2F7]/50">
+                        <td colSpan={4} className="py-2.5 px-3 text-[#1C1C1E]">
                           Total Final ({detailItemsWithCumulative.length} saídas)
                         </td>
-                        <td colSpan={2} className="py-2.5 px-3 text-right text-sm font-extrabold text-[#6658d3]">
+                        <td colSpan={2} className="py-2.5 px-3 text-right text-sm font-extrabold text-[#007AFF] tabular-nums">
                           {formatBRL(detailTotalVal)}
                         </td>
                       </tr>
@@ -1515,13 +1517,13 @@ export default function CmvPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-3.5 bg-zinc-50 dark:bg-zinc-850 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-              <span className="text-[11px] text-zinc-500">
+            <div className="p-3.5 bg-[#F2F2F7]/50 border-t border-[#E5E5EA] flex items-center justify-between">
+              <span className="text-[11px] text-[#8E8E93]">
                 Cada saída acumula progressivamente até atingir o total do centro.
               </span>
               <button
                 onClick={() => setSelectedDetailTarget(null)}
-                className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 transition-colors"
+                className="px-4 py-1.5 text-xs font-semibold rounded-full bg-[#1C1C1E] hover:bg-[#2C2C2E] text-white transition-colors"
               >
                 Fechar
               </button>
