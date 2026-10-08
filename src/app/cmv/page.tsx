@@ -856,7 +856,7 @@ export default function CmvPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 {/* Card 1: CMV Realizado (Verde suave Apple se bom <35%, vermelho suave se >=35%) */}
                 <div
-                  className={`p-7 rounded-[28px] border ${cmvTheme.border} transition-all duration-300 hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between min-h-[195px]`}
+                  className={`p-6 sm:p-7 rounded-[26px] border ${cmvTheme.border} transition-all duration-300 hover:-translate-y-1 relative overflow-hidden flex flex-col justify-between min-h-[195px]`}
                   style={{ background: cmvTheme.bg, boxShadow: cmvTheme.boxShadow }}
                 >
                   <div>
@@ -886,23 +886,34 @@ export default function CmvPage() {
                     </div>
                   </div>
 
-                  <p className={`text-xs ${cmvTheme.subColor} font-medium leading-relaxed pt-2 border-t border-black/[0.05]`}>
-                    Calculado sobre os {activeCenterLabels.length} centros e subcategorias selecionados.
-                  </p>
+                  <div className="pt-2 border-t border-black/[0.05] flex items-center justify-between gap-2">
+                    <p className={`text-xs ${cmvTheme.subColor} font-semibold truncate`}>
+                      {effectiveCmvPercent === 0 ? (
+                        <span>Aguardando dados da Takeat</span>
+                      ) : effectiveCmvPercent < 35 ? (
+                        <span>● Folga de <strong className="underline">{cmvSafetyMargin.toFixed(2).replace(".", ",")}%</strong> até o teto de 35%</span>
+                      ) : (
+                        <span>⚠️ Excesso de <strong className="underline">+{Math.abs(cmvSafetyMargin).toFixed(2).replace(".", ",")}%</strong> acima da meta</span>
+                      )}
+                    </p>
+                    <span className={`text-[11px] ${cmvTheme.subColor} font-medium shrink-0`}>
+                      {activeCenterLabels.length} centros
+                    </span>
+                  </div>
                 </div>
 
-                {/* Card 2: Total de Custos Selecionados */}
+                {/* Card 2: Total de Custos Selecionados + Barra de Distribuição Apple Storage */}
                 <div
-                  className="p-7 rounded-[28px] border border-[#007AFF]/25 transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between min-h-[195px]"
+                  className="p-6 sm:p-7 rounded-[26px] border border-[#007AFF]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between min-h-[195px]"
                   style={{
-                    background: "linear-gradient(135deg, #F5F7FC 0%, #EDF2FA 50%, #F7F9FD 100%)",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.03), 0 12px 30px -4px rgba(0,122,255,0.18), inset 0 1px 0 rgba(255,255,255,0.95)",
+                    background: "linear-gradient(145deg, #F5F8FD 0%, #EEF4FB 50%, #F7FAFE 100%)",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.03), 0 8px 24px -4px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.95)",
                   }}
                 >
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-3">
-                        <div className="h-11 w-11 rounded-[14px] bg-gradient-to-br from-[#007AFF] to-[#0056B3] text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(0,122,255,0.35)]">
+                        <div className="h-11 w-11 rounded-[14px] bg-[#007AFF] text-white flex items-center justify-center shrink-0 shadow-xs border border-white/30">
                           <DollarSign className="h-5 w-5" />
                         </div>
                         <div>
@@ -914,8 +925,8 @@ export default function CmvPage() {
                           </span>
                         </div>
                       </div>
-                      <span className="text-xs px-3 py-1 rounded-full bg-white/90 text-[#0056B3] font-bold border border-[#007AFF]/30 shadow-xs">
-                        {activeCenterLabels.length} itens ativos
+                      <span className="text-xs px-3 py-1 rounded-full bg-white/95 text-[#0056B3] font-bold border border-[#007AFF]/25 shadow-xs">
+                        {activeCenterLabels.length} centros ativos
                       </span>
                     </div>
 
@@ -924,23 +935,54 @@ export default function CmvPage() {
                     </div>
                   </div>
 
-                  <p className="text-xs text-[#4B6B94] font-medium truncate pt-2 border-t border-black/[0.05]" title={activeCenterLabels.join(" + ")}>
-                    {activeCenterLabels.join(" + ") || "Nenhum centro selecionado"}
-                  </p>
+                  {/* Barra de Distribuição iOS (estilo Armazenamento do iPhone) */}
+                  <div className="space-y-1.5 pt-2 border-t border-black/[0.05]">
+                    <div className="h-2 w-full bg-black/[0.06] rounded-full overflow-hidden flex gap-0.5 p-0.5">
+                      {costDistribution.length > 0 ? (
+                        costDistribution.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${item.percent}%`, backgroundColor: item.color }}
+                            title={`${item.label}: ${item.percent.toFixed(1)}% (${formatBRL(item.value)})`}
+                          />
+                        ))
+                      ) : (
+                        <div className="h-full w-full bg-gray-200 rounded-full" />
+                      )}
+                    </div>
+
+                    {/* Micro-legenda da Barra de Distribuição */}
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-[#4B6B94] font-medium">
+                      {costDistribution.slice(0, 3).map((item, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                          <span className="font-semibold text-[#1E3A5F]">{item.label}</span>
+                          <span>{item.percent.toFixed(0)}%</span>
+                        </span>
+                      ))}
+                      {costDistribution.length > 3 && (
+                        <span className="text-[#6B8BAE]">+{costDistribution.length - 3}</span>
+                      )}
+                      {costDistribution.length === 0 && (
+                        <span className="text-[#6B8BAE]">Nenhum lançamento ativo</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Card 3: Faturamento da Loja */}
                 <div
-                  className="p-7 rounded-[28px] border border-[#10B981]/25 transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between min-h-[195px]"
+                  className="p-6 sm:p-7 rounded-[26px] border border-[#10B981]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col justify-between min-h-[195px]"
                   style={{
-                    background: "linear-gradient(135deg, #F3FAF6 0%, #E7F6EE 50%, #F4FBF7 100%)",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.03), 0 12px 30px -4px rgba(16,185,129,0.18), inset 0 1px 0 rgba(255,255,255,0.95)",
+                    background: "linear-gradient(145deg, #F3FAF6 0%, #E9F7F0 50%, #F5FBF8 100%)",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.03), 0 8px 24px -4px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.95)",
                   }}
                 >
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-3">
-                        <div className="h-11 w-11 rounded-[14px] bg-gradient-to-br from-[#10B981] to-[#059669] text-white flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(16,185,129,0.35)]">
+                        <div className="h-11 w-11 rounded-[14px] bg-[#10B981] text-white flex items-center justify-center shrink-0 shadow-xs border border-white/30">
                           <TrendingUp className="h-5 w-5" />
                         </div>
                         <div>
@@ -958,7 +1000,7 @@ export default function CmvPage() {
                             setManualFaturamento(String(data.summary.faturamento));
                             setIsEditingFat(true);
                           }}
-                          className="inline-flex items-center gap-1.5 text-xs text-[#065F46] hover:bg-emerald-50 bg-white/90 border border-[#10B981]/30 px-3 py-1 rounded-full font-bold shadow-xs transition-all active:scale-95"
+                          className="inline-flex items-center gap-1.5 text-xs text-[#065F46] hover:bg-emerald-50 bg-white/95 border border-[#10B981]/25 px-3 py-1 rounded-full font-bold shadow-xs transition-all active:scale-95"
                           title="Ajustar faturamento manualmente"
                         >
                           <Edit3 className="h-3.5 w-3.5" />
@@ -1002,7 +1044,7 @@ export default function CmvPage() {
                   <p className="text-xs text-[#3D7A65] font-medium pt-2 border-t border-black/[0.05]">
                     {manualFaturamento
                       ? "⚠️ Ajustado manualmente (recalculando CMV em tempo real)."
-                      : "Receita oficial registrada na Takeat."}
+                      : "Receita oficial registrada na Takeat no período."}
                   </p>
                 </div>
               </div>
@@ -1010,7 +1052,7 @@ export default function CmvPage() {
           })()}
 
           {/* COMPOSIÇÃO UNIFICADA DOS CENTROS DE CUSTO (SEM DUPLICAÇÃO DE DADOS) */}
-          <div className="ios-widget p-7 rounded-[30px] space-y-6">
+          <div className="ios-widget p-6 sm:p-7 rounded-[28px] space-y-5">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <SlidersHorizontal className="h-5 w-5 text-[#007AFF]" />
@@ -1041,7 +1083,7 @@ export default function CmvPage() {
             </div>
 
             {/* Grid dos 6 Centros de Custo com design Apple tátil e elegante */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4.5">
               {COST_CENTERS_CONFIG.map((cfg) => {
                 const isOutros = cfg.key === "outros";
                 const isActive = isOutros ? countSelectedOutros > 0 : activeCenters[cfg.key];
@@ -1050,6 +1092,7 @@ export default function CmvPage() {
                 const countItems = center?.items?.length || 0;
                 const displayedVal = isOutros && countSelectedOutros > 0 ? selectedOutrosSum : totalVal;
                 const pct = effectiveFaturamento > 0 ? (displayedVal / effectiveFaturamento) * 100 : 0;
+                const costPct = selectedCostSum > 0 ? (displayedVal / selectedCostSum) * 100 : 0;
                 const Icon = cfg.icon;
 
                 return (
@@ -1058,7 +1101,7 @@ export default function CmvPage() {
                     onClick={() => {
                       if (!isOutros) toggleCenter(cfg.key);
                     }}
-                    className={`p-6 rounded-[24px] border transition-all duration-300 ${
+                    className={`p-5 rounded-[22px] border transition-all duration-300 ${
                       !isOutros ? "cursor-pointer" : ""
                     } ${
                       isActive
@@ -1070,28 +1113,28 @@ export default function CmvPage() {
                         ? {
                             background: cfg.gradientBg,
                             boxShadow:
-                              "0 4px 18px -2px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.03), inset 0 1px 0 rgba(255,255,255,1)",
+                              "0 1px 2px rgba(0,0,0,0.02), 0 8px 20px -3px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,1)",
                           }
                         : undefined
                     }
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`h-12 w-12 rounded-[14px] flex items-center justify-center shrink-0 ${cfg.iconGradient}`}>
-                          <Icon className="h-6 w-6" />
+                      <div className="flex items-center gap-2.5">
+                        <div className={`h-11 w-11 rounded-[13px] flex items-center justify-center shrink-0 ${cfg.iconGradient}`}>
+                          <Icon className="h-5.5 w-5.5" />
                         </div>
                         <div>
-                          <span className="text-sm font-extrabold text-[#111827] block">
+                          <span className="text-sm font-extrabold text-[#111827] block leading-snug">
                             {cfg.label}
                           </span>
-                          <span className="text-xs text-[#6B7280] font-medium">
+                          <span className="text-[11px] text-[#6B7280] font-medium">
                             {countItems} lançamento{countItems === 1 ? "" : "s"}
                             {isOutros && ` (${outrosSubcategories.length} subcats)`}
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                         {/* Olhinho minimalista circular */}
                         <button
                           type="button"
@@ -1104,8 +1147,8 @@ export default function CmvPage() {
                               icon: cfg.icon,
                             })
                           }
-                          className="h-8 w-8 rounded-full bg-white hover:bg-white text-[#6B7280] hover:text-[#111827] shadow-[0_2px_6px_rgba(0,0,0,0.08)] border border-black/[0.04] flex items-center justify-center transition-all hover:scale-105 active:scale-95"
-                          title={`Ver saídas de ${cfg.label} até o valor total`}
+                          className="h-8 w-8 rounded-full bg-white/95 hover:bg-white text-[#6B7280] hover:text-[#111827] shadow-xs border border-black/[0.06] flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+                          title={`Auditar saídas de ${cfg.label}`}
                         >
                           <Eye className="h-4 w-4" />
                         </button>
@@ -1115,7 +1158,7 @@ export default function CmvPage() {
                           <button
                             type="button"
                             onClick={() => setShowOutrosBreakdown((prev) => !prev)}
-                            className="text-xs font-bold px-3.5 py-1.5 rounded-full bg-gradient-to-r from-[#FF2D55] to-[#E11D48] text-white shadow-[0_2px_8px_rgba(255,45,85,0.35)] transition-all flex items-center gap-1.5 active:scale-95"
+                            className="text-xs font-bold px-3 py-1.5 rounded-full bg-gradient-to-r from-[#FF2D55] to-[#E11D48] text-white shadow-xs transition-all flex items-center gap-1 active:scale-95"
                           >
                             <Settings2 className="h-3.5 w-3.5" />
                             <span>{countSelectedOutros > 0 ? `${countSelectedOutros} ativas` : "Escolher"}</span>
@@ -1124,10 +1167,10 @@ export default function CmvPage() {
                           <button
                             type="button"
                             onClick={() => toggleCenter(cfg.key)}
-                            className={`text-xs font-bold px-3.5 py-1.5 rounded-full transition-all flex items-center gap-1 active:scale-95 ${
+                            className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all flex items-center gap-1 active:scale-95 ${
                               isActive
-                                ? "bg-[#34C759] text-white shadow-[0_2px_8px_rgba(52,199,89,0.35)]"
-                                : "bg-white hover:bg-black/5 text-[#6B7280] hover:text-[#111827] border border-black/15 shadow-xs"
+                                ? "bg-[#34C759] text-white shadow-xs"
+                                : "bg-white hover:bg-black/5 text-[#6B7280] hover:text-[#111827] border border-black/10 shadow-xs"
                             }`}
                           >
                             {isActive ? "✓ Na soma" : "+ Incluir"}
@@ -1136,9 +1179,9 @@ export default function CmvPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-baseline justify-between mt-4">
+                    <div className="flex items-baseline justify-between mt-3 mb-2">
                       <div>
-                        <span className="text-2xl sm:text-3xl font-black text-[#111827] tabular-nums tracking-tight">
+                        <span className="text-2xl font-black text-[#111827] tabular-nums tracking-tight">
                           {formatBRL(displayedVal)}
                         </span>
                         {isOutros && countSelectedOutros > 0 && (
@@ -1147,12 +1190,19 @@ export default function CmvPage() {
                           </span>
                         )}
                       </div>
-                      <span className="text-xs font-bold bg-white/85 border border-black/[0.06] shadow-xs text-[#374151] px-2.5 py-1 rounded-full tabular-nums">
-                        {formatPercent(pct)}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs font-bold bg-white/90 border border-black/[0.06] shadow-xs text-[#1F2937] px-2 py-0.5 rounded-full tabular-nums" title="% do Faturamento total">
+                          {formatPercent(pct)}
+                        </span>
+                        {isActive && costPct > 0 && (
+                          <span className="text-[10px] font-semibold text-[#6B7280] bg-black/[0.04] px-1.5 py-0.5 rounded-full tabular-nums" title="% do custo selecionado">
+                            {costPct.toFixed(0)}% custo
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="w-full bg-black/[0.06] h-2 rounded-full mt-4 overflow-hidden p-0.5">
+                    <div className="w-full bg-black/[0.06] h-1.5 rounded-full overflow-hidden p-0.5">
                       <div
                         className="h-full rounded-full transition-all duration-700 shadow-xs"
                         style={{
