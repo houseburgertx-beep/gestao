@@ -72,25 +72,25 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors",
+                "flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200",
                 isActive
-                  ? "bg-gradient-to-r from-[#6658d3] to-[#7567dd] text-white shadow-md shadow-purple-950/20"
-                  : "text-[#aaa6c8] hover:text-white hover:bg-white/[.07]"
+                  ? "bg-gradient-to-r from-[#6658d3] to-[#7567dd] text-white shadow-lg shadow-purple-950/25 -translate-y-0.5"
+                  : "text-[#aaa6c8] hover:text-white hover:bg-white/[.08]"
               )}
             >
               <div className="flex items-center gap-2.5">
                 <Icon
                   className={cn(
-                    "h-4 w-4 stroke-[1.6]",
+                    "h-4 w-4 stroke-[1.8]",
                     isActive
-                      ? "text-current"
+                      ? "text-white"
                       : "text-[#77729d]"
                   )}
                 />
                 <span>{item.title}</span>
               </div>
               {item.badge && (
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-zinc-200 text-zinc-800 font-semibold dark:bg-zinc-800 dark:text-zinc-200">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/20 text-white font-bold">
                   {item.badge}
                 </span>
               )}

@@ -133,12 +133,12 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
 
   return (
     <>
-      <header className="sticky top-0 z-20 h-16 w-full bg-white/90 backdrop-blur-xl border-b border-[#e4e5ee] px-4 lg:px-7 flex items-center justify-between shadow-[0_2px_12px_rgba(35,39,62,0.03)]">
+      <header className="sticky top-0 z-20 h-16 w-full bg-white/80 backdrop-blur-[14px] border-b border-slate-200/60 px-4 lg:px-7 flex items-center justify-between shadow-[0_4px_20px_rgba(40,45,70,0.03)]">
         {/* Left Section: Unit Selector & Mobile Toggle */}
         <div className="flex items-center gap-3">
           <button
             onClick={onMobileMenuToggle}
-            className="lg:hidden p-1.5 rounded-md text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900"
+            className="lg:hidden p-2 rounded-full text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900 transition-colors"
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -149,13 +149,13 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
         <div className="flex-1 max-w-md mx-4 hidden md:block">
           <button
             onClick={() => setIsCommandOpen(true)}
-            className="w-full h-8.5 px-3 rounded-md border border-zinc-200/80 bg-zinc-50/70 hover:bg-zinc-100/70 text-xs text-zinc-400 flex items-center justify-between transition-colors dark:bg-zinc-900/60 dark:border-zinc-800 dark:hover:bg-zinc-900"
+            className="w-full h-9 px-4 rounded-full border border-slate-200/80 bg-slate-100/60 hover:bg-white hover:border-slate-300 text-xs text-slate-500 flex items-center justify-between transition-all shadow-[0_2px_8px_rgba(40,45,70,0.02)]"
           >
-            <div className="flex items-center gap-2">
-              <Search className="h-3.5 w-3.5 text-zinc-400" />
+            <div className="flex items-center gap-2.5">
+              <Search className="h-3.5 w-3.5 text-slate-400" />
               <span>Pesquisar em toda a House 190...</span>
             </div>
-            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-medium text-zinc-400 bg-white border border-zinc-200 rounded shadow-2xs dark:bg-zinc-800 dark:border-zinc-700">
+            <kbd className="px-2 py-0.5 text-[10px] font-mono font-medium text-slate-400 bg-white border border-slate-200 rounded-full shadow-2xs">
               ⌘K
             </kbd>
           </button>
@@ -166,7 +166,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
           {/* Mobile Search Button */}
           <button
             onClick={() => setIsCommandOpen(true)}
-            className="md:hidden p-2 rounded-md text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+            className="md:hidden p-2 rounded-full text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900"
           >
             <Search className="h-4 w-4" />
           </button>
@@ -175,7 +175,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
           <Button
             size="sm"
             onClick={openNewRecord}
-            className="h-9 px-3 sm:px-4 text-xs gap-1.5 !rounded-lg !bg-gradient-to-r !from-[#554abc] !to-[#7163dc] !text-white shadow-md shadow-purple-200"
+            className="h-9 px-4 text-xs gap-1.5 !rounded-full !bg-gradient-to-r !from-[#554abc] !to-[#7163dc] !text-white shadow-[0_8px_20px_rgba(85,74,188,0.22)] hover:shadow-[0_10px_24px_rgba(85,74,188,0.32)] hover:-translate-y-0.5 transition-all duration-200"
           >
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{primaryActionLabel}</span>
@@ -184,7 +184,7 @@ export function Header({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
           {/* Notifications */}
           <button
             onClick={() => setIsNotificationOpen(true)}
-            className="relative p-2 rounded-md text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-900"
+            className="relative p-2 rounded-full text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-900"
           >
             <Bell className="h-4 w-4" />
             {unreadCount > 0 && (

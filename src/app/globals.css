@@ -23,7 +23,21 @@
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
     --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
+    --radius: 1.5rem;
+    --ios-radius-hero: 34px;
+    --ios-radius-card: 24px;
+    --ios-radius-pill: 9999px;
+    --ios-lavender: #E6E2FF;
+    --ios-lavender-text: #483b8b;
+    --ios-mint: #DBF3EE;
+    --ios-mint-text: #1d6a59;
+    --ios-ice: #DFF2F7;
+    --ios-ice-text: #1b657d;
+    --ios-peach: #FFE9DD;
+    --ios-peach-text: #8c421e;
+    --ios-bg: #F8F9FD;
+    --ios-shadow-card: 0 12px 28px rgba(40, 45, 70, 0.06);
+    --ios-shadow-hover: 0 16px 36px rgba(40, 45, 70, 0.10);
   }
 
   .dark {
@@ -50,13 +64,151 @@
 }
 
 body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", system-ui, -apple-system-subheadline, "Helvetica Neue", Helvetica, Arial, sans-serif;
   color: #18181b;
-  background:
-    radial-gradient(circle at 92% 0%, rgba(105, 91, 212, 0.055), transparent 28rem),
-    #f7f8fb;
+  background-color: #F8F9FD;
+  background-image:
+    radial-gradient(circle at 92% 0%, rgba(230, 226, 255, 0.4), transparent 30rem),
+    radial-gradient(circle at 10% 100%, rgba(219, 243, 238, 0.35), transparent 30rem);
   font-feature-settings: "rlig" 1, "calt" 1, "tnum" 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Apple iOS Layout System Tokens & Utilities ── */
+.ios-hero-card {
+  background: #ffffff;
+  border-radius: 34px !important;
+  box-shadow: 0 16px 38px rgba(40, 45, 70, 0.08);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.28s ease;
+}
+
+.ios-card {
+  background: #ffffff;
+  border-radius: 24px !important;
+  box-shadow: 0 12px 28px rgba(40, 45, 70, 0.06);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.28s ease;
+}
+
+.ios-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px rgba(40, 45, 70, 0.10);
+}
+
+.ios-glass {
+  background: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+}
+
+.ios-glass-bar {
+  background: rgba(248, 249, 253, 0.85) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+}
+
+.ios-glass-modal {
+  background: rgba(18, 20, 32, 0.4) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+}
+
+/* Controles Segmentados Apple */
+.ios-segmented {
+  display: inline-flex;
+  align-items: center;
+  background: #EEF1F6;
+  border-radius: 9999px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.ios-segmented-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748B;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  white-space: nowrap;
+}
+
+.ios-segmented-btn:hover {
+  color: #1E293B;
+}
+
+.ios-segmented-btn.active,
+.ios-segmented-btn[data-active="true"] {
+  background: #FFFFFF;
+  color: #0F172A;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(40, 45, 70, 0.08);
+}
+
+/* Pílulas de Status Apple (Liquid Pastel) */
+.ios-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px !important;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: -0.1px;
+}
+
+.ios-pill-lavender {
+  background: #E6E2FF !important;
+  color: #483B8B !important;
+}
+
+.ios-pill-mint {
+  background: #DBF3EE !important;
+  color: #1D6A59 !important;
+}
+
+.ios-pill-ice {
+  background: #DFF2F7 !important;
+  color: #1B657D !important;
+}
+
+.ios-pill-peach {
+  background: #FFE9DD !important;
+  color: #8C421E !important;
+}
+
+/* Apple Liquid Pastel Tinted Cards */
+.ios-card-lavender {
+  background: #E6E2FF !important;
+  color: #2D226B !important;
+  border: 1px solid rgba(200, 190, 245, 0.6) !important;
+}
+
+.ios-card-mint {
+  background: #DBF3EE !important;
+  color: #134E42 !important;
+  border: 1px solid rgba(190, 230, 220, 0.6) !important;
+}
+
+.ios-card-ice {
+  background: #DFF2F7 !important;
+  color: #124D61 !important;
+  border: 1px solid rgba(195, 230, 240, 0.6) !important;
+}
+
+.ios-card-peach {
+  background: #FFE9DD !important;
+  color: #692F13 !important;
+  border: 1px solid rgba(245, 215, 200, 0.6) !important;
 }
 
 /* Custom subtle scrollbar */

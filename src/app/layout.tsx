@@ -227,7 +227,7 @@ export default function RootLayout({
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
       </head>
       <body
-        className="min-h-full flex flex-col font-sans bg-[#fafafa] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50"
+        className="min-h-full flex flex-col font-sans bg-[#F8F9FD] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 antialiased"
         suppressHydrationWarning
       >
         <AuthProvider>

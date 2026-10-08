@@ -64,9 +64,9 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "cProducao",
     label: "Central de Produção",
     icon: Factory,
-    color: "text-purple-600 dark:text-purple-400",
-    badgeBg: "bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800",
-    borderActive: "border-purple-500 ring-1 ring-purple-500/20",
+    color: "text-[#1d6a59]",
+    badgeBg: "bg-[#DBF3EE] text-[#1d6a59] border-[#c0e8de]",
+    borderActive: "border-[#1d6a59]/30 ring-1 ring-[#1d6a59]/20",
     defaultIncluded: true,
     description: "Transferências, carnes e pré-preparo da Central",
   },
@@ -74,9 +74,9 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "mPrima",
     label: "Matéria Prima",
     icon: Beef,
-    color: "text-red-600 dark:text-red-400",
-    badgeBg: "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
-    borderActive: "border-red-500 ring-1 ring-red-500/20",
+    color: "text-[#483b8b]",
+    badgeBg: "bg-[#E6E2FF] text-[#483b8b] border-[#d4cdfc]",
+    borderActive: "border-[#483b8b]/30 ring-1 ring-[#483b8b]/20",
     defaultIncluded: true,
     description: "Carnes, queijos, bacon, batatas e hortifruti",
   },
@@ -84,9 +84,9 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "embalagem",
     label: "Embalagem",
     icon: Package,
-    color: "text-blue-600 dark:text-blue-400",
-    badgeBg: "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
-    borderActive: "border-blue-500 ring-1 ring-blue-500/20",
+    color: "text-[#1b657d]",
+    badgeBg: "bg-[#DFF2F7] text-[#1b657d] border-[#c7e9f1]",
+    borderActive: "border-[#1b657d]/30 ring-1 ring-[#1b657d]/20",
     defaultIncluded: true,
     description: "Caixas, sacolas, copos, potes e descartáveis",
   },
@@ -94,9 +94,9 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "bebida",
     label: "Bebida",
     icon: Wine,
-    color: "text-amber-600 dark:text-amber-400",
-    badgeBg: "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
-    borderActive: "border-amber-500 ring-1 ring-amber-500/20",
+    color: "text-[#1d6a59]",
+    badgeBg: "bg-[#DBF3EE] text-[#1d6a59] border-[#c0e8de]",
+    borderActive: "border-[#1d6a59]/30 ring-1 ring-[#1d6a59]/20",
     defaultIncluded: true,
     description: "Refrigerantes, cervejas, águas e destilados",
   },
@@ -104,9 +104,9 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "suco",
     label: "Suco",
     icon: CupSoda,
-    color: "text-emerald-600 dark:text-emerald-400",
-    badgeBg: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
-    borderActive: "border-emerald-500 ring-1 ring-emerald-500/20",
+    color: "text-[#1b657d]",
+    badgeBg: "bg-[#DFF2F7] text-[#1b657d] border-[#c7e9f1]",
+    borderActive: "border-[#1b657d]/30 ring-1 ring-[#1b657d]/20",
     defaultIncluded: false,
     description: "Polpas, concentrados e sucos (opcional)",
   },
@@ -114,9 +114,9 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     key: "outros",
     label: "Outras Despesas",
     icon: Receipt,
-    color: "text-zinc-600 dark:text-zinc-400",
-    badgeBg: "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700",
-    borderActive: "border-zinc-500 ring-1 ring-zinc-500/20",
+    color: "text-[#8c421e]",
+    badgeBg: "bg-[#FFE9DD] text-[#8c421e] border-[#ffd6bf]",
+    borderActive: "border-[#8c421e]/30 ring-1 ring-[#8c421e]/20",
     defaultIncluded: false,
     description: "Motoboys, aluguel, luz, taxas e manutenção",
   },
@@ -474,30 +474,26 @@ export default function CmvPage() {
     if (pct === 0)
       return {
         label: "Sem dados",
-        color: "text-zinc-500 bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700",
+        color: "text-slate-600 bg-slate-100 border-slate-200",
       };
-    if (pct <= 32)
+    if (pct < 32)
       return {
         label: "Excelente (< 32%)",
-        color:
-          "text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60",
+        color: "text-[#1d6a59] bg-[#DBF3EE] border-[#c0e8de]",
       };
     if (pct <= 38)
       return {
         label: "Meta Ideal (32% - 38%)",
-        color:
-          "text-indigo-700 bg-indigo-50 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800/60",
+        color: "text-[#483b8b] bg-[#E6E2FF] border-[#d4cdfc]",
       };
     if (pct <= 42)
       return {
         label: "Atenção (38% - 42%)",
-        color:
-          "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60",
+        color: "text-[#1b657d] bg-[#DFF2F7] border-[#c7e9f1]",
       };
     return {
       label: "Crítico (> 42%)",
-      color:
-        "text-rose-700 bg-rose-50 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/60",
+      color: "text-[#8c421e] bg-[#FFE9DD] border-[#ffd6bf]",
     };
   };
 
@@ -605,103 +601,122 @@ export default function CmvPage() {
         </div>
       </div>
 
-      {/* Control Bar: Seletor de Loja + Seletor de Período + Regime de Data */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 p-3.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-        {/* Seletor de Loja */}
-        <div className="lg:col-span-4 flex flex-col justify-center">
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5 flex items-center gap-1.5">
-            <Building2 className="h-3.5 w-3.5 text-zinc-400" />
-            Unidade
-          </label>
-          <div className="relative">
-            <select
-              value={selectedUnit}
-              onChange={(e) => setSelectedUnit(e.target.value)}
-              className="w-full h-9 px-3 pr-8 rounded-lg text-xs font-medium bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#6658d3] appearance-none"
-            >
-              {STORE_TABS.map((tab) => (
-                <option key={tab.id} value={tab.id}>
+      {/* Apple iOS Control Bar: Seletor de Loja + Seletor de Período + Regime de Data */}
+      <div className="flex flex-col gap-4 p-5 rounded-[28px] bg-white/90 backdrop-blur-[14px] border border-slate-200/80 shadow-[0_12px_28px_rgba(40,45,70,0.05)]">
+        {/* Linha 1: Segmented Control de Unidades */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-slate-400" />
+              Unidade
+            </span>
+          </div>
+
+          {/* Segmented Control Oficial Apple */}
+          <div className="inline-flex p-1 bg-[#EEF1F6] rounded-full overflow-x-auto max-w-full">
+            {STORE_TABS.map((tab) => {
+              const isSelected = selectedUnit === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setSelectedUnit(tab.id)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs transition-all duration-200 whitespace-nowrap ${
+                    isSelected
+                      ? "bg-white text-slate-900 font-bold shadow-[0_2px_8px_rgba(40,45,70,0.08)] -translate-y-0.5"
+                      : "text-slate-600 hover:text-slate-900 font-medium"
+                  }`}
+                >
                   {tab.label}
-                </option>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Linha 2: Presets Rápidos + Datas Exatas + Regime */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-3 border-t border-slate-100 items-center">
+          {/* Presets Rápidos Segmented Control */}
+          <div className="md:col-span-5 flex flex-col gap-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              Período Rápido
+            </label>
+            <div className="inline-flex p-1 bg-[#EEF1F6] rounded-full">
+              {[
+                { id: "estaSemana", label: "Esta sem." },
+                { id: "semanaPassada", label: "Sem. ant." },
+                { id: "esteMes", label: "Mês atual" },
+                { id: "mesPassado", label: "Mês ant." },
+              ].map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => handlePreset(preset.id as any)}
+                  className="flex-1 py-1 px-2 rounded-full text-[11px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/60 transition-all text-center"
+                >
+                  {preset.label}
+                </button>
               ))}
-            </select>
-            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 pointer-events-none" />
+            </div>
           </div>
-        </div>
 
-        {/* Presets Rápidos de Data */}
-        <div className="lg:col-span-3 flex flex-col justify-center">
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5 flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5 text-zinc-400" />
-            Período Rápido
-          </label>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => handlePreset("estaSemana")}
-              className="flex-1 py-1.5 px-1.5 rounded-md text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
-            >
-              Esta sem.
-            </button>
-            <button
-              onClick={() => handlePreset("semanaPassada")}
-              className="flex-1 py-1.5 px-1.5 rounded-md text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
-            >
-              Sem. ant.
-            </button>
-            <button
-              onClick={() => handlePreset("esteMes")}
-              className="flex-1 py-1.5 px-1.5 rounded-md text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
-            >
-              Mês atual
-            </button>
-            <button
-              onClick={() => handlePreset("mesPassado")}
-              className="flex-1 py-1.5 px-1.5 rounded-md text-[11px] font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 transition-colors"
-            >
-              Mês ant.
-            </button>
+          {/* Datas Início e Fim */}
+          <div className="md:col-span-4 flex items-center gap-2">
+            <div className="flex-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">
+                Início
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full h-8.5 px-3 text-xs rounded-full bg-slate-50 border border-slate-200 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-[#6658d3] transition-all"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">
+                Fim
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full h-8.5 px-3 text-xs rounded-full bg-slate-50 border border-slate-200 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-[#6658d3] transition-all"
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Inputs de Data Início e Fim */}
-        <div className="lg:col-span-3 flex items-center gap-2">
-          <div className="flex-1">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1 block">
-              Início
+          {/* Regime Segmented Control */}
+          <div className="md:col-span-3 flex flex-col gap-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Regime de Data
             </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full h-9 px-2 text-xs rounded-lg bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#6658d3]"
-            />
+            <div className="inline-flex p-1 bg-[#EEF1F6] rounded-full">
+              <button
+                type="button"
+                onClick={() => setDateType("due_date")}
+                className={`flex-1 py-1 px-2.5 rounded-full text-[11px] transition-all ${
+                  dateType === "due_date"
+                    ? "bg-white text-slate-900 font-bold shadow-[0_2px_8px_rgba(40,45,70,0.08)]"
+                    : "text-slate-600 hover:text-slate-900 font-medium"
+                }`}
+              >
+                Vencimento
+              </button>
+              <button
+                type="button"
+                onClick={() => setDateType("competence_date")}
+                className={`flex-1 py-1 px-2.5 rounded-full text-[11px] transition-all ${
+                  dateType === "competence_date"
+                    ? "bg-white text-slate-900 font-bold shadow-[0_2px_8px_rgba(40,45,70,0.08)]"
+                    : "text-slate-600 hover:text-slate-900 font-medium"
+                }`}
+              >
+                Competência
+              </button>
+            </div>
           </div>
-          <div className="flex-1">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1 block">
-              Fim
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full h-9 px-2 text-xs rounded-lg bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#6658d3]"
-            />
-          </div>
-        </div>
-
-        {/* Regime de Data (Vencimento vs Competência) */}
-        <div className="lg:col-span-2 flex flex-col justify-center">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-1 block">
-            Regime
-          </label>
-          <select
-            value={dateType}
-            onChange={(e) => setDateType(e.target.value as any)}
-            className="w-full h-9 px-2 rounded-lg text-[11px] font-medium bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#6658d3]"
-          >
-            <option value="due_date">Vencimento</option>
-            <option value="competence_date">Competência</option>
-          </select>
         </div>
       </div>
 
@@ -725,29 +740,29 @@ export default function CmvPage() {
       {/* Conteúdo Principal */}
       {data && (
         <>
-          {/* BARRA DE SELEÇÃO DE CENTROS DE CUSTO NA SOMA */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3">
+          {/* BARRA DE SELEÇÃO DE CENTROS DE CUSTO NA SOMA (APPLE SQUIRCLE) */}
+          <div className="p-6 rounded-[28px] bg-white/95 backdrop-blur-[14px] border border-slate-200/80 shadow-[0_12px_28px_rgba(40,45,70,0.05)] space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-[#6658d3]" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
+                <SlidersHorizontal className="h-4 w-4 text-[#554abc]" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
                   Centros de Custo Incluídos na Soma do CMV
                 </h3>
-                <span className="text-[11px] text-zinc-500 font-medium">
+                <span className="text-[11px] text-slate-400 font-semibold">
                   ({activeCenterLabels.length} ativos)
                 </span>
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <button
                   onClick={resetToStandardCmv}
-                  className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#6658d3] hover:bg-[#6658d3]/10 transition-colors"
+                  className="px-3 py-1 rounded-full text-[11px] font-semibold text-[#554abc] bg-[#E6E2FF]/60 hover:bg-[#E6E2FF] transition-all"
                 >
                   Padrão (4 Centros)
                 </button>
-                <span className="text-zinc-300 dark:text-zinc-700">|</span>
+                <span className="text-slate-300">|</span>
                 <button
                   onClick={selectAllCenters}
-                  className="px-2.5 py-1 rounded-md text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+                  className="px-3 py-1 rounded-full text-[11px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all"
                 >
                   Selecionar Todos
                 </button>
@@ -755,7 +770,7 @@ export default function CmvPage() {
             </div>
 
             {/* Checkbox Chips principais */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
               {COST_CENTERS_CONFIG.map((cfg) => {
                 const isOutros = cfg.key === "outros";
                 const isActive = isOutros ? countSelectedOutros > 0 : activeCenters[cfg.key];
@@ -767,21 +782,21 @@ export default function CmvPage() {
                   <div
                     key={cfg.key}
                     onClick={() => toggleCenter(cfg.key)}
-                    className={`flex items-center justify-between p-2.5 rounded-xl border text-left cursor-pointer transition-all ${
+                    className={`flex items-center justify-between p-3 rounded-[20px] border text-left cursor-pointer transition-all duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                       isActive
-                        ? `${cfg.borderActive} bg-white dark:bg-zinc-850 shadow-sm`
-                        : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/60 opacity-60 hover:opacity-100"
+                        ? `${cfg.borderActive} bg-white shadow-[0_4px_14px_rgba(40,45,70,0.06)] -translate-y-0.5`
+                        : "border-slate-200 bg-slate-50/70 opacity-60 hover:opacity-100 hover:bg-white"
                     }`}
                   >
                     <div className="flex items-center gap-2 overflow-hidden flex-1">
-                      <div className={`p-1 rounded-md shrink-0 ${cfg.badgeBg}`}>
+                      <div className={`p-1.5 rounded-full shrink-0 ${cfg.badgeBg}`}>
                         <Icon className="h-3.5 w-3.5" />
                       </div>
                       <div className="truncate">
-                        <span className="text-[11px] font-bold block truncate text-zinc-900 dark:text-zinc-100">
+                        <span className="text-[11px] font-bold block truncate text-slate-900">
                           {cfg.label}
                         </span>
-                        <span className="text-[10px] text-zinc-500 block truncate">
+                        <span className="text-[10px] text-slate-500 block truncate font-medium">
                           {isOutros && countSelectedOutros > 0
                             ? `${formatBRL(displayedVal)} (${countSelectedOutros})`
                             : isOutros
@@ -804,7 +819,7 @@ export default function CmvPage() {
                             icon: cfg.icon,
                           });
                         }}
-                        className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                        className="p-1 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
                         title={`Ver saídas de ${cfg.label} até o valor total`}
                       >
                         <Eye className="h-3.5 w-3.5" />
@@ -818,19 +833,19 @@ export default function CmvPage() {
                             e.stopPropagation();
                             setShowOutrosBreakdown((prev) => !prev);
                           }}
-                          className="p-0.5 rounded text-zinc-400 hover:text-zinc-700"
+                          className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100"
                           title="Desdobrar subcategorias de Outras Despesas"
                         >
                           {showOutrosBreakdown ? (
-                            <ChevronUp className="h-3.5 w-3.5 text-[#6658d3]" />
+                            <ChevronUp className="h-3.5 w-3.5 text-[#554abc]" />
                           ) : (
-                            <Settings2 className="h-3.5 w-3.5 text-zinc-400" />
+                            <Settings2 className="h-3.5 w-3.5 text-slate-400" />
                           )}
                         </button>
                       ) : isActive ? (
-                        <CheckSquare className="h-4 w-4 text-[#6658d3]" />
+                        <CheckSquare className="h-4 w-4 text-[#554abc]" />
                       ) : (
-                        <Square className="h-4 w-4 text-zinc-400" />
+                        <Square className="h-4 w-4 text-slate-300" />
                       )}
                     </div>
                   </div>
@@ -838,16 +853,18 @@ export default function CmvPage() {
               })}
             </div>
 
-            {/* PAINEL DE DESDOBRAMENTO ESPECÍFICO DE OUTRAS DESPESAS */}
+            {/* PAINEL DE DESDOBRAMENTO ESPECÍFICO DE OUTRAS DESPESAS (LIQUID PASTEL PÊSSEGO / SQUIRCLE) */}
             {outrosSubcategories.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                   <div className="flex items-center gap-2">
-                    <Receipt className="h-3.5 w-3.5 text-zinc-500" />
-                    <span className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200">
+                    <span className="p-1 rounded-full bg-[#FFE9DD] text-[#8c421e]">
+                      <Receipt className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-[11px] font-bold text-slate-800">
                       Desdobramento de Outras Despesas: Escolha literalmente quais entram na soma
                     </span>
-                    <span className="text-[10px] text-zinc-500 font-medium">
+                    <span className="text-[10px] text-slate-400 font-semibold">
                       ({countSelectedOutros} de {outrosSubcategories.length} ativas · {formatBRL(selectedOutrosSum)})
                     </span>
                   </div>
@@ -856,33 +873,33 @@ export default function CmvPage() {
                     <button
                       type="button"
                       onClick={selectAllOutros}
-                      className="text-[#6658d3] hover:underline font-semibold"
+                      className="px-2.5 py-0.5 rounded-full bg-purple-50 text-[#554abc] hover:bg-purple-100 font-semibold transition-colors"
                     >
                       Marcar Todas
                     </button>
-                    <span className="text-zinc-300 dark:text-zinc-700">|</span>
+                    <span className="text-slate-300">|</span>
                     <button
                       type="button"
                       onClick={deselectAllOutros}
-                      className="text-zinc-500 hover:underline"
+                      className="px-2.5 py-0.5 rounded-full text-slate-500 hover:text-slate-700 transition-colors"
                     >
                       Desmarcar Todas
                     </button>
                   </div>
                 </div>
 
-                {/* Grid das subcategorias reais (Motoboy, Freelancer, Gás, Limpeza, etc.) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                {/* Grid das subcategorias reais */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
                   {outrosSubcategories.map((sub) => {
                     const isChecked = !!selectedOutrosSubcategories[sub.rawCategory];
 
                     return (
                       <div
                         key={sub.rawCategory}
-                        className={`flex items-center justify-between p-2 rounded-xl border text-xs transition-all ${
+                        className={`flex items-center justify-between p-2.5 rounded-2xl border text-xs transition-all duration-200 ${
                           isChecked
-                            ? "bg-purple-50/60 dark:bg-purple-950/20 border-purple-300 dark:border-purple-800 text-zinc-900 dark:text-zinc-100"
-                            : "bg-zinc-50 dark:bg-zinc-850 border-zinc-200 dark:border-zinc-800 text-zinc-500 opacity-75 hover:opacity-100"
+                            ? "bg-[#FFE9DD]/40 border-[#ffd6bf] text-slate-900 shadow-xs"
+                            : "bg-slate-50 border-slate-200/80 text-slate-500 opacity-75 hover:opacity-100"
                         }`}
                       >
                         <label className="flex items-center gap-2 cursor-pointer flex-1 truncate mr-1.5">
@@ -890,7 +907,7 @@ export default function CmvPage() {
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => toggleOutrosSubcategory(sub.rawCategory)}
-                            className="rounded text-[#6658d3] focus:ring-[#6658d3] h-3.5 w-3.5"
+                            className="rounded-full text-[#554abc] focus:ring-[#554abc] h-3.5 w-3.5 cursor-pointer"
                           />
                           <span className="font-semibold truncate text-[11px]" title={sub.rawCategory}>
                             {sub.label}
@@ -898,7 +915,7 @@ export default function CmvPage() {
                         </label>
 
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="font-bold text-[11px] text-zinc-900 dark:text-zinc-100">
+                          <span className="font-bold text-[11px] text-slate-900">
                             {formatBRL(sub.total)}
                           </span>
 
@@ -912,7 +929,7 @@ export default function CmvPage() {
                                 label: sub.label,
                               })
                             }
-                            className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                            className="p-1 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
                             title={`Ver saídas de ${sub.label} até ${formatBRL(sub.total)}`}
                           >
                             <Eye className="h-3 w-3" />
@@ -926,16 +943,16 @@ export default function CmvPage() {
             )}
           </div>
 
-          {/* CARDS PRINCIPAIS DE KPI */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* CARDS PRINCIPAIS DE KPI (APPLE ELEVATED CARDS COM SPRING PHYSICS) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5">
             {/* Card 1: CMV Realizado */}
-            <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-hidden">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            <div className="p-6 rounded-[24px] bg-white border border-slate-200/80 shadow-[0_12px_28px_rgba(40,45,70,0.06)] hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(40,45,70,0.10)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                   CMV Realizado
                 </span>
                 <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  className={`text-[10px] font-bold px-3 py-1 rounded-full border ${
                     getCmvStatus(effectiveCmvPercent).color
                   }`}
                 >
@@ -943,40 +960,40 @@ export default function CmvPage() {
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl lg:text-4xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
+                <span className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight">
                   {formatPercent(effectiveCmvPercent)}
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-500 mt-2">
+              <p className="text-[11px] text-slate-500 mt-2.5">
                 Calculado sobre os {activeCenterLabels.length} centros e subcategorias selecionados.
               </p>
               <div className="absolute right-0 bottom-0 translate-x-2 translate-y-2 opacity-5 pointer-events-none">
-                <TrendingDown className="w-24 h-24 text-zinc-900 dark:text-white" />
+                <TrendingDown className="w-24 h-24 text-slate-900" />
               </div>
             </div>
 
             {/* Card 2: Total de Custos Selecionados */}
-            <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            <div className="p-6 rounded-[24px] bg-white border border-slate-200/80 shadow-[0_12px_28px_rgba(40,45,70,0.06)] hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(40,45,70,0.10)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                   Total de Custos Selecionados
                 </span>
-                <span className="text-[10px] text-zinc-400 font-mono">
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
                   {activeCenterLabels.length} itens ativos
                 </span>
               </div>
-              <div className="text-3xl lg:text-4xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
+              <div className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight">
                 {formatBRL(selectedCostSum)}
               </div>
-              <p className="text-[11px] text-zinc-500 mt-2 truncate" title={activeCenterLabels.join(" + ")}>
+              <p className="text-[11px] text-slate-500 mt-2.5 truncate" title={activeCenterLabels.join(" + ")}>
                 {activeCenterLabels.join(" + ") || "Nenhum centro selecionado"}
               </p>
             </div>
 
             {/* Card 3: Faturamento da Loja */}
-            <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            <div className="p-6 rounded-[24px] bg-white border border-slate-200/80 shadow-[0_12px_28px_rgba(40,45,70,0.06)] hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(40,45,70,0.10)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                   Faturamento da Loja
                 </span>
                 {!isEditingFat ? (
@@ -985,7 +1002,7 @@ export default function CmvPage() {
                       setManualFaturamento(String(data.summary.faturamento));
                       setIsEditingFat(true);
                     }}
-                    className="inline-flex items-center gap-1 text-[11px] text-[#6658d3] hover:underline font-medium"
+                    className="inline-flex items-center gap-1 text-[11px] text-[#554abc] hover:underline font-semibold"
                     title="Ajustar faturamento manualmente"
                   >
                     <Edit3 className="h-3 w-3" />
@@ -997,7 +1014,7 @@ export default function CmvPage() {
                       setManualFaturamento("");
                       setIsEditingFat(false);
                     }}
-                    className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-600 font-medium"
+                    className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 font-semibold"
                     title="Restaurar valor oficial automático"
                   >
                     <RotateCcw className="h-3 w-3" />
@@ -1007,27 +1024,27 @@ export default function CmvPage() {
               </div>
 
               {!isEditingFat ? (
-                <div className="text-3xl lg:text-4xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight text-emerald-600 dark:text-emerald-400">
+                <div className="text-3xl lg:text-4xl font-extrabold text-[#1d6a59] tracking-tight">
                   {formatBRL(effectiveFaturamento)}
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-xl font-bold text-zinc-400">R$</span>
+                  <span className="text-xl font-bold text-slate-400">R$</span>
                   <input
                     type="number"
                     step="0.01"
                     value={manualFaturamento}
                     onChange={(e) => setManualFaturamento(e.target.value)}
-                    className="w-full text-2xl font-bold px-2 py-1 rounded bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#6658d3]"
+                    className="w-full text-2xl font-bold px-3 py-1 rounded-full bg-slate-50 border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#554abc]"
                     placeholder="Valor exato..."
                     autoFocus
                   />
                 </div>
               )}
 
-              <p className="text-[11px] text-zinc-500 mt-2">
+              <p className="text-[11px] text-slate-500 mt-2.5">
                 {manualFaturamento
-                  ? "⚠️ Valor ajustado manualmente (recalculando CMV em tempo real)."
+                  ? "⚠️ Ajustado manualmente (recalculando CMV em tempo real)."
                   : "Receita oficial registrada na Takeat."}
               </p>
             </div>
@@ -1048,22 +1065,22 @@ export default function CmvPage() {
               return (
                 <div
                   key={cfg.key}
-                  className={`p-4 rounded-xl border transition-all ${
+                  className={`p-5 rounded-[24px] border transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
                     isActive
-                      ? "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm"
-                      : "bg-zinc-50/70 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800 opacity-60"
+                      ? "bg-white border-slate-200/80 shadow-[0_12px_28px_rgba(40,45,70,0.06)] hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(40,45,70,0.10)]"
+                      : "bg-slate-50/70 border-slate-200/60 opacity-60 hover:opacity-100 hover:bg-white"
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${cfg.badgeBg}`}>
-                        <Icon className="h-4 w-4" />
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`h-9 w-9 rounded-full flex items-center justify-center shadow-xs ${cfg.badgeBg}`}>
+                        <Icon className="h-4.5 w-4.5" />
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 block">
+                        <span className="text-xs font-bold text-slate-900 block">
                           {cfg.label}
                         </span>
-                        <span className="text-[10px] text-zinc-400">
+                        <span className="text-[10px] text-slate-400 font-medium">
                           {countItems} lançamento{countItems === 1 ? "" : "s"}
                           {isOutros && ` (${outrosSubcategories.length} subcategorias)`}
                         </span>
@@ -1071,7 +1088,7 @@ export default function CmvPage() {
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      {/* Olhinho minimalista */}
+                      {/* Olhinho minimalista Apple */}
                       <button
                         type="button"
                         onClick={() =>
@@ -1083,7 +1100,7 @@ export default function CmvPage() {
                             icon: cfg.icon,
                           })
                         }
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        className="p-1.5 rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
                         title={`Ver saídas de ${cfg.label} até o valor total`}
                       >
                         <Eye className="h-4 w-4" />
@@ -1093,7 +1110,7 @@ export default function CmvPage() {
                         <button
                           type="button"
                           onClick={() => setShowOutrosBreakdown((prev) => !prev)}
-                          className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all flex items-center gap-1"
+                          className="text-[10px] font-semibold px-3 py-1 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all flex items-center gap-1"
                         >
                           <Settings2 className="h-3 w-3" />
                           <span>{countSelectedOutros > 0 ? `${countSelectedOutros} ativas` : "Escolher"}</span>
@@ -1102,10 +1119,10 @@ export default function CmvPage() {
                         <button
                           type="button"
                           onClick={() => toggleCenter(cfg.key)}
-                          className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${
+                          className={`text-[10px] font-semibold px-3 py-1 rounded-full border transition-all ${
                             isActive
-                              ? "bg-[#6658d3]/10 border-[#6658d3]/30 text-[#6658d3]"
-                              : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-zinc-700"
+                              ? "bg-[#E6E2FF]/60 border-[#d4cdfc] text-[#483b8b]"
+                              : "bg-slate-100 border-slate-200 text-slate-400 hover:text-slate-700"
                           }`}
                         >
                           {isActive ? "✓ Na soma" : "+ Incluir"}
@@ -1130,20 +1147,20 @@ export default function CmvPage() {
                     </span>
                   </div>
 
-                  <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full mt-2.5 overflow-hidden">
+                  <div className="w-full bg-slate-100 h-2 rounded-full mt-3 overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
                         cfg.key === "cProducao"
-                          ? "bg-purple-500"
+                          ? "bg-[#1d6a59]"
                           : cfg.key === "mPrima"
-                          ? "bg-red-500"
+                          ? "bg-[#483b8b]"
                           : cfg.key === "embalagem"
-                          ? "bg-blue-500"
+                          ? "bg-[#1b657d]"
                           : cfg.key === "bebida"
-                          ? "bg-amber-500"
+                          ? "bg-[#1d6a59]"
                           : cfg.key === "suco"
-                          ? "bg-emerald-500"
-                          : "bg-zinc-400"
+                          ? "bg-[#1b657d]"
+                          : "bg-[#8c421e]"
                       }`}
                       style={{
                         width: `${Math.min(pct, 100)}%`,
@@ -1155,22 +1172,22 @@ export default function CmvPage() {
             })}
           </div>
 
-          {/* TABELA COMPARATIVA POR LOJA (Consolidado) */}
+          {/* TABELA COMPARATIVA POR LOJA (Consolidado - Apple Squircle 28px) */}
           {data.isConsolidated && data.stores.length > 1 && (
-            <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-[#6658d3]" />
+            <div className="p-6 rounded-[28px] bg-white border border-slate-200/80 shadow-[0_12px_28px_rgba(40,45,70,0.06)]">
+              <div className="flex items-center justify-between mb-3.5">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-[#554abc]" />
                   Comparativo por Unidade da Rede (Recalculado Dinamicamente)
                 </h3>
-                <span className="text-[11px] text-zinc-400 font-mono">
+                <span className="text-[11px] text-slate-400 font-mono">
                   Base: {activeCenterLabels.join(", ")}
                 </span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-zinc-200 dark:border-zinc-800 text-[11px] font-semibold text-zinc-500">
+                    <tr className="border-b border-slate-100 text-[11px] font-semibold text-slate-400">
                       <th className="py-2.5 px-3">Loja</th>
                       <th className="py-2.5 px-3">Faturamento</th>
                       <th className="py-2.5 px-3">C. Produção</th>
@@ -1183,7 +1200,7 @@ export default function CmvPage() {
                       <th className="py-2.5 px-3 text-right">CMV (%)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                  <tbody className="divide-y divide-slate-100">
                     {data.stores.map((st) => {
                       let storeSum = 0;
                       (["cProducao", "mPrima", "embalagem", "bebida", "suco"] as CostCenterKey[]).forEach((k) => {
@@ -1198,40 +1215,46 @@ export default function CmvPage() {
                       const storePct = st.faturamento > 0 ? (storeSum / st.faturamento) * 100 : 0;
 
                       return (
-                        <tr key={st.storeId} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
-                          <td className="py-2.5 px-3 font-semibold text-zinc-900 dark:text-zinc-100">
+                        <tr key={st.storeId} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2.5 px-3 font-semibold text-slate-900">
                             {st.storeName}
                           </td>
-                          <td className="py-2.5 px-3 text-emerald-600 dark:text-emerald-400 font-medium">
+                          <td className="py-2.5 px-3 text-[#1d6a59] font-semibold">
                             {formatBRL(st.faturamento)}
                           </td>
-                          <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
+                          <td className="py-2.5 px-3 text-slate-600">
                             {formatBRL(st.costCenters.cProducao?.total || 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
+                          <td className="py-2.5 px-3 text-slate-600">
                             {formatBRL(st.costCenters.mPrima?.total || 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
+                          <td className="py-2.5 px-3 text-slate-600">
                             {formatBRL(st.costCenters.embalagem?.total || 0)}
                           </td>
-                          <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
+                          <td className="py-2.5 px-3 text-slate-600">
                             {formatBRL(st.costCenters.bebida?.total || 0)}
                           </td>
                           {activeCenters.suco && (
-                            <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
+                            <td className="py-2.5 px-3 text-slate-600">
                               {formatBRL(st.costCenters.suco?.total || 0)}
                             </td>
                           )}
                           {countSelectedOutros > 0 && (
-                            <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
+                            <td className="py-2.5 px-3 text-[#8c421e] font-semibold">
                               {formatBRL(storeOutrosSel)}
                             </td>
                           )}
-                          <td className="py-2.5 px-3 font-semibold text-zinc-900 dark:text-zinc-100">
+                          <td className="py-2.5 px-3 font-bold text-slate-900">
                             {formatBRL(storeSum)}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-extrabold text-zinc-900 dark:text-zinc-100">
-                            {formatPercent(storePct)}
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                            <span
+                              className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                                getCmvStatus(storePct).color
+                              }`}
+                            >
+                              {formatPercent(storePct)}
+                            </span>
                           </td>
                         </tr>
                       );
@@ -1242,35 +1265,35 @@ export default function CmvPage() {
             </div>
           )}
 
-          {/* TABELA DE AUDITORIA COMPLETA DE LANÇAMENTOS */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
+          {/* TABELA DE AUDITORIA COMPLETA DE LANÇAMENTOS (APPLE SQUIRCLE 28px) */}
+          <div className="p-6 rounded-[28px] bg-white border border-slate-200/80 shadow-[0_12px_28px_rgba(40,45,70,0.06)]">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
               <div>
                 <div className="flex items-center gap-2">
-                  <Eye className="h-4 w-4 text-[#6658d3]" />
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
+                  <Eye className="h-4 w-4 text-[#554abc]" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
                     Auditoria de Lançamentos Takeat
                   </h3>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-semibold">
+                  <span className="text-[11px] px-3 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
                     {allFilteredItems.length} lançamentos · {formatBRL(tableFilteredTotal)}
                   </span>
                 </div>
-                <p className="text-[11px] text-zinc-500 mt-1">
+                <p className="text-[11px] text-slate-500 mt-1">
                   Exibição detalhada de cada gasto, nota ou compra registrada no sistema.
                 </p>
               </div>
 
-              {/* Controles de Filtro e Busca */}
+              {/* Controles de Filtro e Busca com Formato Pílula Apple */}
               <div className="flex flex-wrap items-center gap-2">
                 {/* Busca rápida */}
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   <input
                     type="text"
                     placeholder="Buscar por descrição, fornecedor..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="h-8 pl-8 pr-3 rounded-lg text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#6658d3] w-48 sm:w-64"
+                    className="h-8.5 pl-8.5 pr-4 rounded-full text-xs bg-slate-50 border border-slate-200 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-[#554abc] w-48 sm:w-64 transition-all"
                   />
                 </div>
 
@@ -1278,7 +1301,7 @@ export default function CmvPage() {
                 <select
                   value={tableFilter}
                   onChange={(e) => setTableFilter(e.target.value)}
-                  className="h-8 px-2.5 rounded-lg text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#6658d3]"
+                  className="h-8.5 px-3 rounded-full text-xs bg-slate-50 border border-slate-200 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-[#554abc] transition-all cursor-pointer"
                 >
                   <option value="all_entries">🌐 Todos os Lançamentos</option>
                   <option value="selected_cmv">✓ Apenas Centros na Soma</option>
@@ -1299,7 +1322,7 @@ export default function CmvPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as any)}
-                  className="h-8 px-2 rounded-lg text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#6658d3]"
+                  className="h-8.5 px-3 rounded-full text-xs bg-slate-50 border border-slate-200 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-[#554abc] transition-all cursor-pointer"
                 >
                   <option value="all">Status: Todos</option>
                   <option value="paid">Pagos</option>
@@ -1309,7 +1332,7 @@ export default function CmvPage() {
             </div>
 
             {allFilteredItems.length === 0 ? (
-              <div className="text-center py-10 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-400 text-xs">
+              <div className="text-center py-10 border border-dashed border-slate-200 rounded-[20px] text-slate-400 text-xs">
                 Nenhum lançamento encontrado para os filtros selecionados.
               </div>
             ) : (
@@ -1368,8 +1391,10 @@ export default function CmvPage() {
                           </td>
                           <td className="py-2.5 px-3 whitespace-nowrap">
                             <span
-                              className={`text-[10px] font-semibold ${
-                                item.paid ? "text-emerald-600" : "text-amber-600"
+                              className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                                item.paid
+                                  ? "bg-[#DBF3EE] text-[#1d6a59]"
+                                  : "bg-[#FFE9DD] text-[#8c421e]"
                               }`}
                             >
                               {item.paid ? "Pago" : "A Pagar"}
@@ -1389,16 +1414,16 @@ export default function CmvPage() {
         </>
       )}
 
-      {/* MODAL MINIMALISTA DE COMPOSIÇÃO DE SAÍDAS DO ALVO (CENTRO OU SUBCATEGORIA) */}
+      {/* MODAL MINIMALISTA DE COMPOSIÇÃO DE SAÍDAS DO ALVO (APPLE FROSTED GLASS & SQUIRCLE 34px) */}
       {selectedDetailTarget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[14px] z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white/95 backdrop-blur-[14px] border border-slate-200/80 rounded-[34px] max-w-2xl w-full max-h-[85vh] flex flex-col shadow-[0_24px_60px_rgba(40,45,70,0.18)] overflow-hidden">
             {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-              <div className="flex items-center gap-3">
+            <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3.5">
                 <div
-                  className={`h-10 w-10 rounded-xl flex items-center justify-center ${
-                    selectedDetailTarget.badgeBg || "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300"
+                  className={`h-11 w-11 rounded-full flex items-center justify-center shadow-xs ${
+                    selectedDetailTarget.badgeBg || "bg-[#E6E2FF] text-[#483b8b]"
                   }`}
                 >
                   {selectedDetailTarget.icon ? (
@@ -1408,12 +1433,12 @@ export default function CmvPage() {
                   )}
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                     Composição de Saídas: {selectedDetailTarget.label}
                   </h3>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <p className="text-xs text-slate-500">
                     Soma passo a passo até o valor final de{" "}
-                    <strong className="text-zinc-900 dark:text-zinc-100 font-bold">
+                    <strong className="text-slate-900 font-bold">
                       {formatBRL(detailTotalVal)}
                     </strong>{" "}
                     ({detailItemsWithCumulative.length} saídas)
@@ -1423,7 +1448,7 @@ export default function CmvPage() {
 
               <button
                 onClick={() => setSelectedDetailTarget(null)}
-                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                 title="Fechar"
               >
                 <X className="h-5 w-5" />
