@@ -3861,7 +3861,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
             fileName: saved.fileName,
             mimeType: saved.mimeType,
             size: saved.size,
-            dataUrl: thumbUrl || (clientDataUrl && clientDataUrl.length < 350000 ? clientDataUrl : undefined),
+            dataUrl: thumbUrl || undefined,
             uploadedAt: new Date().toISOString()
           };
         } catch {
@@ -4022,9 +4022,18 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         notes: notes.trim() || "Conferência aprovada com conciliação bancária."
       };
 
+      const cleanAttachments = attachmentsList.map(att => {
+        const isDrive = Boolean(att.fileId && !att.fileId.startsWith("local-"));
+        if (isDrive && att.dataUrl && att.dataUrl.length > 50000) {
+          const { dataUrl, ...rest } = att;
+          return rest;
+        }
+        return att;
+      });
+
       const updatedClosing: RecordData = {
         ...closing,
-        attachmentsJson: JSON.stringify(attachmentsList),
+        attachmentsJson: JSON.stringify(cleanAttachments),
         status: "Conferido",
         conferredAt: now,
         conferredBy: userProfile?.displayName || user.email || user.uid,

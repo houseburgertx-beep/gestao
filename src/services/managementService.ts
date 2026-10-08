@@ -102,6 +102,53 @@ export function sanitizeFirestoreData<T>(data: T): T {
   return data;
 }
 
+export function sanitizeAuditPayload<T>(data: T): T {
+  if (data === null || data === undefined) return data;
+  if (Array.isArray(data)) {
+    return data.map(sanitizeAuditPayload) as unknown as T;
+  }
+  if (typeof data === "object" && !(data instanceof Date)) {
+    const clean: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value === undefined) continue;
+
+      if (key === "attachmentsJson" && typeof value === "string") {
+        try {
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed)) {
+            const stripped = parsed.map((item: any) => {
+              if (item && typeof item === "object") {
+                const { dataUrl, ...rest } = item;
+                return rest;
+              }
+              return item;
+            });
+            clean[key] = JSON.stringify(stripped);
+            continue;
+          }
+        } catch {
+          // fallback to string check
+        }
+      }
+
+      if (typeof value === "string") {
+        if (value.startsWith("data:") && value.length > 300) {
+          clean[key] = `[DATA_URL_OMITTED length=${value.length}]`;
+          continue;
+        }
+        if (value.length > 15000) {
+          clean[key] = value.slice(0, 1000) + `... [TRUNCATED_AUDIT length=${value.length}]`;
+          continue;
+        }
+      }
+
+      clean[key] = sanitizeAuditPayload(value);
+    }
+    return clean;
+  }
+  return data;
+}
+
 export async function saveManagement(
   record: RecordData,
   state: Database,
@@ -183,7 +230,7 @@ async function createRecords(records: RecordData[]) {
       updatedAt: now,
       version: 1,
       before: null,
-      after: saved,
+      after: sanitizeAuditPayload(saved),
     }));
   });
   await batch.commit();
@@ -368,8 +415,8 @@ export async function commitRecords(
           updatedBy: r.updatedBy,
           updatedAt: now,
           version: data.version,
-          before: existing[i].exists() ? existing[i].data() : null,
-          after: data,
+          before: existing[i].exists() ? sanitizeAuditPayload(existing[i].data()) : null,
+          after: sanitizeAuditPayload(data),
         }));
       });
       if (payment && obligationRef && obligationSnapshot?.exists()) {
@@ -400,7 +447,7 @@ export async function commitRecords(
   } catch (error) {
     const isQuotaOrContention =
       error instanceof Error &&
-      /quota|resource-exhausted|exceeded|unavailable|deadline|aborted|failed-precondition|contention|transaction/i.test(`${error.name} ${error.message}`);
+      /quota|resource-exhausted|exceed|unavailable|deadline|aborted|failed-precondition|contention|transaction|maximum allowed size|size/i.test(`${error.name} ${error.message}`);
     if (isQuotaOrContention) {
       console.warn("[commitRecords] Quota ou contenção no Firestore. Executando fallback em batch leve...", error);
       try {

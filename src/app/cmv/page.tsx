@@ -72,8 +72,8 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     label: "Central de Produção",
     icon: Factory,
     gradientBg: "linear-gradient(180deg, #EFFBF7 0%, #FFFFFF 70%)",
-    cardBorder: "border-[#00C7BE]/35",
-    iconGradient: "bg-gradient-to-br from-[#00C7BE] to-[#00968F] text-white shadow-[0_4px_14px_rgba(0,199,190,0.35)]",
+    cardBorder: "border-[#00C7BE]/30",
+    iconGradient: "bg-gradient-to-br from-[#00C7BE] to-[#00A39C] text-white shadow-xs border border-white/30",
     barGradient: "linear-gradient(90deg, #00C7BE, #30B0C7)",
     barColor: "#00C7BE",
     accentColor: "#00857D",
@@ -86,8 +86,8 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     label: "Matéria Prima",
     icon: Beef,
     gradientBg: "linear-gradient(180deg, #F3F2FD 0%, #FFFFFF 70%)",
-    cardBorder: "border-[#5856D6]/35",
-    iconGradient: "bg-gradient-to-br from-[#5856D6] to-[#423FB8] text-white shadow-[0_4px_14px_rgba(88,86,214,0.35)]",
+    cardBorder: "border-[#5856D6]/30",
+    iconGradient: "bg-gradient-to-br from-[#5856D6] to-[#4745C7] text-white shadow-xs border border-white/30",
     barGradient: "linear-gradient(90deg, #5856D6, #7A79E4)",
     barColor: "#5856D6",
     accentColor: "#3E3CB0",
@@ -100,8 +100,8 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     label: "Embalagem",
     icon: Package,
     gradientBg: "linear-gradient(180deg, #F0F9FE 0%, #FFFFFF 70%)",
-    cardBorder: "border-[#32ADE6]/35",
-    iconGradient: "bg-gradient-to-br from-[#32ADE6] to-[#0D87BF] text-white shadow-[0_4px_14px_rgba(50,173,230,0.35)]",
+    cardBorder: "border-[#32ADE6]/30",
+    iconGradient: "bg-gradient-to-br from-[#32ADE6] to-[#1592CB] text-white shadow-xs border border-white/30",
     barGradient: "linear-gradient(90deg, #32ADE6, #5AC8FA)",
     barColor: "#32ADE6",
     accentColor: "#007BA8",
@@ -114,8 +114,8 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     label: "Bebida",
     icon: Wine,
     gradientBg: "linear-gradient(180deg, #F8F2FC 0%, #FFFFFF 70%)",
-    cardBorder: "border-[#AF52DE]/35",
-    iconGradient: "bg-gradient-to-br from-[#AF52DE] to-[#8E26BE] text-white shadow-[0_4px_14px_rgba(175,82,222,0.35)]",
+    cardBorder: "border-[#AF52DE]/30",
+    iconGradient: "bg-gradient-to-br from-[#AF52DE] to-[#993EC8] text-white shadow-xs border border-white/30",
     barGradient: "linear-gradient(90deg, #AF52DE, #BF5AF2)",
     barColor: "#AF52DE",
     accentColor: "#7D1EA8",
@@ -128,8 +128,8 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     label: "Suco",
     icon: CupSoda,
     gradientBg: "linear-gradient(180deg, #FFF7ED 0%, #FFFFFF 70%)",
-    cardBorder: "border-[#FF9500]/35",
-    iconGradient: "bg-gradient-to-br from-[#FF9500] to-[#D97706] text-white shadow-[0_4px_14px_rgba(255,149,0,0.35)]",
+    cardBorder: "border-[#FF9500]/30",
+    iconGradient: "bg-gradient-to-br from-[#FF9500] to-[#E68200] text-white shadow-xs border border-white/30",
     barGradient: "linear-gradient(90deg, #FF9500, #FFB340)",
     barColor: "#FF9500",
     accentColor: "#B86200",
@@ -142,8 +142,8 @@ const COST_CENTERS_CONFIG: CostCenterConfig[] = [
     label: "Outras Despesas",
     icon: Receipt,
     gradientBg: "linear-gradient(180deg, #FFF1F3 0%, #FFFFFF 70%)",
-    cardBorder: "border-[#FF2D55]/35",
-    iconGradient: "bg-gradient-to-br from-[#FF2D55] to-[#D9153C] text-white shadow-[0_4px_14px_rgba(255,45,85,0.35)]",
+    cardBorder: "border-[#FF2D55]/30",
+    iconGradient: "bg-gradient-to-br from-[#FF2D55] to-[#E61942] text-white shadow-xs border border-white/30",
     barGradient: "linear-gradient(90deg, #FF2D55, #FF6482)",
     barColor: "#FF2D55",
     accentColor: "#C20D32",
@@ -366,6 +366,38 @@ export default function CmvPage() {
     return list;
   }, [activeCenters, countSelectedOutros, outrosSubcategories, selectedOutrosSubcategories]);
 
+  // Margem de segurança ou excesso em relação à meta de 35%
+  const cmvSafetyMargin = useMemo(() => {
+    return Math.round((35 - effectiveCmvPercent) * 100) / 100;
+  }, [effectiveCmvPercent]);
+
+  // Distribuição proporcional de cada centro ativo sobre o custo selecionado (Barra de Armazenamento Apple)
+  const costDistribution = useMemo(() => {
+    if (!data || selectedCostSum <= 0) return [];
+    const items: { key: string; label: string; value: number; percent: number; color: string }[] = [];
+
+    COST_CENTERS_CONFIG.forEach((cfg) => {
+      let val = 0;
+      if (cfg.key === "outros") {
+        if (countSelectedOutros > 0) val = selectedOutrosSum;
+      } else if (activeCenters[cfg.key]) {
+        val = data.summary.costCenters[cfg.key]?.total || 0;
+      }
+
+      if (val > 0) {
+        items.push({
+          key: cfg.key,
+          label: cfg.label,
+          value: val,
+          percent: (val / selectedCostSum) * 100,
+          color: cfg.barColor,
+        });
+      }
+    });
+
+    return items;
+  }, [data, selectedCostSum, activeCenters, countSelectedOutros, selectedOutrosSum]);
+
   // Alternar centro de custo principal na soma
   const toggleCenter = (key: CostCenterKey) => {
     if (key === "outros") {
@@ -528,42 +560,42 @@ export default function CmvPage() {
   const getCmvCardTheme = (pct: number) => {
     if (pct === 0) {
       return {
-        bg: "linear-gradient(135deg, #F9FAFB 0%, #FFFFFF 100%)",
+        bg: "linear-gradient(145deg, #F9FAFB 0%, #FFFFFF 100%)",
         border: "border-black/[0.08]",
         numberColor: "text-[#111827]",
         labelColor: "text-[#6B7280]",
         subColor: "text-[#9CA3AF]",
         badgeBg: "bg-white text-[#6B7280] border-black/10 shadow-xs",
-        iconGradient: "bg-gradient-to-br from-[#9CA3AF] to-[#6B7280] text-white shadow-md",
+        iconGradient: "bg-gradient-to-br from-[#9CA3AF] to-[#6B7280] text-white shadow-xs border border-white/40",
         boxShadow:
-          "0 1px 3px rgba(0,0,0,0.03), 0 10px 24px -4px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 1)",
+          "0 1px 2px rgba(0,0,0,0.03), 0 8px 24px -4px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 1)",
       };
     }
     // BOM: Verde suave Apple Health (< 35%)
     if (pct < 35) {
       return {
-        bg: "linear-gradient(135deg, #E6F8F0 0%, #D8F4E6 50%, #EDF9F3 100%)",
-        border: "border-[#34C759]/40",
+        bg: "linear-gradient(145deg, #EBF8F2 0%, #DFFAED 60%, #EEFAF4 100%)",
+        border: "border-[#34C759]/35",
         numberColor: "text-[#0A563C]",
         labelColor: "text-[#0E6245]",
         subColor: "text-[#127050]",
-        badgeBg: "bg-white/95 text-[#0A563C] border-[#34C759]/40 shadow-xs",
-        iconGradient: "bg-gradient-to-br from-[#34C759] to-[#248A3D] text-white shadow-[0_4px_14px_rgba(52,199,89,0.4)]",
+        badgeBg: "bg-white/95 text-[#0A563C] border-[#34C759]/35 shadow-xs",
+        iconGradient: "bg-[#34C759] text-white shadow-xs border border-white/40",
         boxShadow:
-          "0 1px 3px rgba(0,0,0,0.03), 0 12px 32px -4px rgba(52, 199, 89, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.95)",
+          "0 1px 2px rgba(0,0,0,0.03), 0 8px 24px -4px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.95)",
       };
     }
     // RUIM: Vermelho suave Apple Health (>= 35%)
     return {
-      bg: "linear-gradient(135deg, #FDEBEA 0%, #FCDAD8 50%, #FEECEB 100%)",
-      border: "border-[#FF3B30]/40",
+      bg: "linear-gradient(145deg, #FDEEEC 0%, #FCE4E2 60%, #FDF0EE 100%)",
+      border: "border-[#FF3B30]/35",
       numberColor: "text-[#881414]",
       labelColor: "text-[#9B1C1C]",
       subColor: "text-[#B91C1C]",
-      badgeBg: "bg-white/95 text-[#881414] border-[#FF3B30]/40 shadow-xs",
-      iconGradient: "bg-gradient-to-br from-[#FF3B30] to-[#D70015] text-white shadow-[0_4px_14px_rgba(255,59,48,0.4)]",
+      badgeBg: "bg-white/95 text-[#881414] border-[#FF3B30]/35 shadow-xs",
+      iconGradient: "bg-[#FF3B30] text-white shadow-xs border border-white/40",
       boxShadow:
-        "0 1px 3px rgba(0,0,0,0.03), 0 12px 32px -4px rgba(255, 59, 48, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.95)",
+        "0 1px 2px rgba(0,0,0,0.03), 0 8px 24px -4px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.95)",
     };
   };
 
@@ -626,7 +658,7 @@ export default function CmvPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-black/[0.08]">
         <div>
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-[12px] bg-gradient-to-br from-[#1C1C1E] to-[#2C2C2E] text-white flex items-center justify-center font-black text-base shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
+            <div className="h-10 w-10 rounded-[12px] bg-gradient-to-br from-[#1C1C1E] to-[#2C2C2E] text-white flex items-center justify-center font-black text-base shadow-sm border border-black/10">
               %
             </div>
             <div>
@@ -645,7 +677,7 @@ export default function CmvPage() {
           <button
             onClick={loadData}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold bg-white hover:bg-[#F3F4F6] text-[#111827] border border-black/[0.08] shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-all active:scale-95 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold bg-white hover:bg-[#F9FAFB] text-[#374151] border border-black/[0.08] shadow-xs transition-all active:scale-95 disabled:opacity-50"
           >
             <RefreshCw className={`h-3.5 w-3.5 text-[#4B5563] ${loading ? "animate-spin" : ""}`} />
             Recalcular
@@ -654,7 +686,8 @@ export default function CmvPage() {
           <button
             onClick={handleCopyWhatsApp}
             disabled={!data || loading}
-            className="inline-flex items-center gap-2 px-4.5 py-2.5 rounded-full text-xs font-bold bg-[#111827] hover:bg-[#1F2937] text-white shadow-[0_4px_14px_rgba(0,0,0,0.18)] active:scale-95 transition-all disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold bg-[#E8F8F0] hover:bg-[#DCF5E7] text-[#0E7A4A] border border-[#34C759]/30 shadow-xs active:scale-95 transition-all disabled:opacity-50"
+            title="Copiar relatório formatado para o WhatsApp"
           >
             {copied ? (
               <>
@@ -663,7 +696,7 @@ export default function CmvPage() {
               </>
             ) : (
               <>
-                <Copy className="h-4 w-4" />
+                <Copy className="h-4 w-4 text-[#0E7A4A]" />
                 <span>Copiar WhatsApp</span>
               </>
             )}
@@ -671,19 +704,19 @@ export default function CmvPage() {
         </div>
       </div>
 
-      {/* Apple iOS Control Bar: Seletor de Loja + Seletor de Período + Regime de Data */}
-      <div className="ios-widget p-6 sm:p-7 rounded-[28px] space-y-5">
+      {/* Apple iOS Control Bar: Seletor de Loja + Seletor de Período + Regime de Data (Compacto e Unificado) */}
+      <div className="ios-widget p-4 sm:p-5 rounded-[24px] space-y-3.5">
         {/* Linha 1: Segmented Control de Unidades */}
-        <div className="space-y-2.5">
+        <div className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-[#007AFF]" />
-            <span className="text-xs font-bold uppercase tracking-wider text-[#4B5563]">
+            <Building2 className="h-3.5 w-3.5 text-[#007AFF]" />
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#4B5563]">
               Unidade da Rede
             </span>
           </div>
 
           {/* Segmented Control Oficial Apple com visual tátil */}
-          <div className="bg-[#E2E4EB] p-1.5 rounded-2xl flex flex-wrap gap-1.5 border border-black/[0.04]">
+          <div className="bg-[#E2E4EB] p-1 rounded-xl flex flex-wrap gap-1 border border-black/[0.04]">
             {STORE_TABS.map((tab) => {
               const isSelected = selectedUnit === tab.id;
               return (
@@ -691,9 +724,9 @@ export default function CmvPage() {
                   key={tab.id}
                   type="button"
                   onClick={() => setSelectedUnit(tab.id)}
-                  className={`px-4 py-2 rounded-xl text-xs transition-all duration-200 whitespace-nowrap ${
+                  className={`px-3.5 py-1.5 rounded-lg text-xs transition-all duration-200 whitespace-nowrap ${
                     isSelected
-                      ? "bg-white text-[#111827] font-bold shadow-[0_2px_8px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.06)] -translate-y-0.5"
+                      ? "bg-white text-[#111827] font-bold shadow-[0_2px_6px_rgba(0,0,0,0.1),0_1px_2px_rgba(0,0,0,0.04)] -translate-y-0.5"
                       : "text-[#4B5563] hover:text-[#111827] hover:bg-white/60 font-semibold"
                   }`}
                 >
@@ -704,15 +737,15 @@ export default function CmvPage() {
           </div>
         </div>
 
-        {/* Linha 2: Presets Rápidos + Datas Exatas + Regime */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-4 border-t border-black/[0.06] items-center">
+        {/* Linha 2: Presets Rápidos + Datas Exatas + Regime em Grid Compacto */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-3 border-t border-black/[0.06] items-center">
           {/* Presets Rápidos Segmented Control */}
-          <div className="md:col-span-5 flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280] flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5 text-[#007AFF]" />
+          <div className="md:col-span-5 flex flex-col gap-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] flex items-center gap-1">
+              <Calendar className="h-3 w-3 text-[#007AFF]" />
               Período Rápido
             </label>
-            <div className="bg-[#E2E4EB] p-1.5 rounded-xl flex gap-1 border border-black/[0.04]">
+            <div className="bg-[#E2E4EB] p-1 rounded-xl flex gap-1 border border-black/[0.04]">
               {[
                 { id: "estaSemana", label: "Esta sem." },
                 { id: "semanaPassada", label: "Sem. ant." },
@@ -723,7 +756,7 @@ export default function CmvPage() {
                   key={preset.id}
                   type="button"
                   onClick={() => handlePreset(preset.id as any)}
-                  className="flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-[#4B5563] hover:text-[#111827] hover:bg-white/70 transition-all text-center"
+                  className="flex-1 py-1 px-2 rounded-lg text-xs font-semibold text-[#4B5563] hover:text-[#111827] hover:bg-white/70 transition-all text-center"
                 >
                   {preset.label}
                 </button>
@@ -732,13 +765,13 @@ export default function CmvPage() {
           </div>
 
           {/* Datas Início e Fim com input cápsula estilizado */}
-          <div className="md:col-span-4 grid grid-cols-2 gap-2.5">
+          <div className="md:col-span-4 grid grid-cols-2 gap-2">
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280] mb-1.5 block">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] mb-1 block">
                 Início
               </label>
-              <div className="flex items-center gap-2 h-10 px-3 rounded-xl bg-white border border-[#D1D5DB] shadow-xs focus-within:ring-2 focus-within:ring-[#007AFF] focus-within:border-[#007AFF] transition-all">
-                <Calendar className="h-3.5 w-3.5 text-[#007AFF] shrink-0" />
+              <div className="flex items-center gap-1.5 h-8.5 px-2.5 rounded-lg bg-white border border-[#D1D5DB] shadow-xs focus-within:ring-2 focus-within:ring-[#007AFF] focus-within:border-[#007AFF] transition-all">
+                <Calendar className="h-3 w-3 text-[#007AFF] shrink-0" />
                 <input
                   type="date"
                   value={startDate}
@@ -748,11 +781,11 @@ export default function CmvPage() {
               </div>
             </div>
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280] mb-1.5 block">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280] mb-1 block">
                 Fim
               </label>
-              <div className="flex items-center gap-2 h-10 px-3 rounded-xl bg-white border border-[#D1D5DB] shadow-xs focus-within:ring-2 focus-within:ring-[#007AFF] focus-within:border-[#007AFF] transition-all">
-                <Calendar className="h-3.5 w-3.5 text-[#007AFF] shrink-0" />
+              <div className="flex items-center gap-1.5 h-8.5 px-2.5 rounded-lg bg-white border border-[#D1D5DB] shadow-xs focus-within:ring-2 focus-within:ring-[#007AFF] focus-within:border-[#007AFF] transition-all">
+                <Calendar className="h-3 w-3 text-[#007AFF] shrink-0" />
                 <input
                   type="date"
                   value={endDate}
@@ -764,17 +797,17 @@ export default function CmvPage() {
           </div>
 
           {/* Regime Segmented Control */}
-          <div className="md:col-span-3 flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280]">
+          <div className="md:col-span-3 flex flex-col gap-1">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">
               Regime de Data
             </label>
-            <div className="bg-[#E2E4EB] p-1.5 rounded-xl flex gap-1 border border-black/[0.04]">
+            <div className="bg-[#E2E4EB] p-1 rounded-xl flex gap-1 border border-black/[0.04]">
               <button
                 type="button"
                 onClick={() => setDateType("due_date")}
-                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+                className={`flex-1 py-1 px-2.5 rounded-lg text-xs font-bold transition-all ${
                   dateType === "due_date"
-                    ? "bg-white text-[#111827] shadow-[0_2px_6px_rgba(0,0,0,0.12)]"
+                    ? "bg-white text-[#111827] shadow-[0_2px_4px_rgba(0,0,0,0.1)]"
                     : "text-[#4B5563] hover:text-[#111827]"
                 }`}
               >
@@ -783,9 +816,9 @@ export default function CmvPage() {
               <button
                 type="button"
                 onClick={() => setDateType("competence_date")}
-                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
+                className={`flex-1 py-1 px-2.5 rounded-lg text-xs font-bold transition-all ${
                   dateType === "competence_date"
-                    ? "bg-white text-[#111827] shadow-[0_2px_6px_rgba(0,0,0,0.12)]"
+                    ? "bg-white text-[#111827] shadow-[0_2px_4px_rgba(0,0,0,0.1)]"
                     : "text-[#4B5563] hover:text-[#111827]"
                 }`}
               >
