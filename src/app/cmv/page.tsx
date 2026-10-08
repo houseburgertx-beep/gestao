@@ -16,9 +16,23 @@ import {
   ChevronDown,
   Edit3,
   RotateCcw,
+  CupSoda,
+  Receipt,
+  CheckSquare,
+  Square,
+  SlidersHorizontal,
+  Layers,
+  Search,
+  Eye,
+  Info,
 } from "lucide-react";
 import { useUnit } from "@/contexts/UnitContext";
-import { fetchCmvData, CmvApiResponse } from "@/services/cmvService";
+import {
+  fetchCmvData,
+  CmvApiResponse,
+  CostCenterKey,
+  CostCenterItem,
+} from "@/services/cmvService";
 
 const STORE_TABS = [
   { id: "all", label: "Todas as Lojas (Consolidado)" },
@@ -27,6 +41,80 @@ const STORE_TABS = [
   { id: "foodpark", label: "House Food Park" },
   { id: "central", label: "Central Alimentos" },
   { id: "tios", label: "Tios Rockets Pizzaria" },
+];
+
+interface CostCenterConfig {
+  key: CostCenterKey;
+  label: string;
+  icon: React.ElementType;
+  color: string;
+  badgeBg: string;
+  borderActive: string;
+  defaultIncluded: boolean;
+  description: string;
+}
+
+const COST_CENTERS_CONFIG: CostCenterConfig[] = [
+  {
+    key: "cProducao",
+    label: "Central de Produção",
+    icon: Factory,
+    color: "text-purple-600 dark:text-purple-400",
+    badgeBg: "bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+    borderActive: "border-purple-500 ring-1 ring-purple-500/20",
+    defaultIncluded: true,
+    description: "Transferências, carnes e pré-preparo da Central",
+  },
+  {
+    key: "mPrima",
+    label: "Matéria Prima",
+    icon: Beef,
+    color: "text-red-600 dark:text-red-400",
+    badgeBg: "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
+    borderActive: "border-red-500 ring-1 ring-red-500/20",
+    defaultIncluded: true,
+    description: "Carnes, queijos, bacon, batatas e hortifruti",
+  },
+  {
+    key: "embalagem",
+    label: "Embalagem",
+    icon: Package,
+    color: "text-blue-600 dark:text-blue-400",
+    badgeBg: "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+    borderActive: "border-blue-500 ring-1 ring-blue-500/20",
+    defaultIncluded: true,
+    description: "Caixas, sacolas, copos, potes e descartáveis",
+  },
+  {
+    key: "bebida",
+    label: "Bebida",
+    icon: Wine,
+    color: "text-amber-600 dark:text-amber-400",
+    badgeBg: "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+    borderActive: "border-amber-500 ring-1 ring-amber-500/20",
+    defaultIncluded: true,
+    description: "Refrigerantes, cervejas, águas e destilados",
+  },
+  {
+    key: "suco",
+    label: "Suco",
+    icon: CupSoda,
+    color: "text-emerald-600 dark:text-emerald-400",
+    badgeBg: "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+    borderActive: "border-emerald-500 ring-1 ring-emerald-500/20",
+    defaultIncluded: false,
+    description: "Polpas, concentrados e sucos (opcional)",
+  },
+  {
+    key: "outros",
+    label: "Outras Despesas",
+    icon: Receipt,
+    color: "text-zinc-600 dark:text-zinc-400",
+    badgeBg: "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700",
+    borderActive: "border-zinc-500 ring-1 ring-zinc-500/20",
+    defaultIncluded: false,
+    description: "Motoboys, aluguel, luz, taxas e manutenção",
+  },
 ];
 
 export default function CmvPage() {
@@ -44,7 +132,17 @@ export default function CmvPage() {
   // Loja selecionada
   const [selectedUnit, setSelectedUnit] = useState<string>("eunapolis");
 
-  // Ajuste manual de Faturamento (opcional para 100% exatidão com o caixa fechado)
+  // Centros de custo que fazem parte da soma (Checkboxes)
+  const [activeCenters, setActiveCenters] = useState<Record<CostCenterKey, boolean>>({
+    cProducao: true,
+    mPrima: true,
+    embalagem: true,
+    bebida: true,
+    suco: false,
+    outros: false,
+  });
+
+  // Ajuste manual de Faturamento
   const [manualFaturamento, setManualFaturamento] = useState<string>("");
   const [isEditingFat, setIsEditingFat] = useState(false);
 
@@ -53,9 +151,10 @@ export default function CmvPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Filtro na tabela de lançamentos
+  // Filtros na tabela de auditoria
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeCenterFilter, setActiveCenterFilter] = useState<string>("all");
+  const [tableFilter, setTableFilter] = useState<string>("all_entries"); // "all_entries" | "selected_cmv" | CostCenterKey
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "pending">("all");
 
   // Botão de Copiar WhatsApp
   const [copied, setCopied] = useState(false);
@@ -149,15 +248,59 @@ export default function CmvPage() {
     return data?.summary.faturamento || 0;
   }, [manualFaturamento, data]);
 
-  // CMV recalculado sobre o faturamento efetivo
-  const effectiveCmvPercent = useMemo(() => {
+  // Soma dos Centros de Custo SELECIONADOS pelo usuário
+  const selectedCostSum = useMemo(() => {
     if (!data) return 0;
-    const totalInsumos = data.summary.totalInsumos;
-    if (effectiveFaturamento <= 0) return 0;
-    return Math.round((totalInsumos / effectiveFaturamento) * 10000) / 100;
-  }, [data, effectiveFaturamento]);
+    return Object.entries(activeCenters).reduce((sum, [k, isActive]) => {
+      if (!isActive) return sum;
+      const center = data.summary.costCenters[k as CostCenterKey];
+      return sum + (center?.total || 0);
+    }, 0);
+  }, [data, activeCenters]);
 
-  // Copiar formato WhatsApp
+  // CMV recalculado sobre o faturamento efetivo e centros selecionados
+  const effectiveCmvPercent = useMemo(() => {
+    if (!data || effectiveFaturamento <= 0 || selectedCostSum <= 0) return 0;
+    return Math.round((selectedCostSum / effectiveFaturamento) * 10000) / 100;
+  }, [data, effectiveFaturamento, selectedCostSum]);
+
+  // Nomes dos centros ativos para exibição
+  const activeCenterLabels = useMemo(() => {
+    return COST_CENTERS_CONFIG.filter((cfg) => activeCenters[cfg.key]).map(
+      (cfg) => cfg.label
+    );
+  }, [activeCenters]);
+
+  // Alternar centro de custo na soma
+  const toggleCenter = (key: CostCenterKey) => {
+    setActiveCenters((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Restaurar padrão (4 centros oficiais: Bebida, Embalagem, M. Prima, C. Produção)
+  const resetToStandardCmv = () => {
+    setActiveCenters({
+      cProducao: true,
+      mPrima: true,
+      embalagem: true,
+      bebida: true,
+      suco: false,
+      outros: false,
+    });
+  };
+
+  // Selecionar todos os centros
+  const selectAllCenters = () => {
+    setActiveCenters({
+      cProducao: true,
+      mPrima: true,
+      embalagem: true,
+      bebida: true,
+      suco: true,
+      outros: true,
+    });
+  };
+
+  // Copiar formato WhatsApp com base nos centros selecionados
   const handleCopyWhatsApp = () => {
     if (!data) return;
     const storeName =
@@ -166,7 +309,19 @@ export default function CmvPage() {
     const dFim = formatDateDisplay(endDate);
     const s = data.summary;
 
-    const text = `*RELATÓRIO CMV*\n(${storeName})\n*${dIni} - ${dFim}*\n\n*CMV ${formatPercent(effectiveCmvPercent)}:*\nBebida - ${formatBRL(s.costCenters.bebida.total)}\nEmbalagem - ${formatBRL(s.costCenters.embalagem.total)}\nM Prima - ${formatBRL(s.costCenters.mPrima.total)}\nC Produção - ${formatBRL(s.costCenters.cProducao.total)}\n*Total - ${formatBRL(s.totalInsumos)}*\n\n*Faturamento - ${formatBRL(effectiveFaturamento)}*`;
+    const centerLines: string[] = [];
+    COST_CENTERS_CONFIG.forEach((cfg) => {
+      if (activeCenters[cfg.key]) {
+        const val = s.costCenters[cfg.key]?.total || 0;
+        centerLines.push(`${cfg.label} - ${formatBRL(val)}`);
+      }
+    });
+
+    const text = `*RELATÓRIO CMV*\n(${storeName})\n*${dIni} - ${dFim}*\n\n*CMV ${formatPercent(
+      effectiveCmvPercent
+    )}:*\n${centerLines.join("\n")}\n*Total Selecionado - ${formatBRL(
+      selectedCostSum
+    )}*\n\n*Faturamento - ${formatBRL(effectiveFaturamento)}*`;
 
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -175,17 +330,40 @@ export default function CmvPage() {
 
   // Badge de saúde do CMV
   const getCmvStatus = (pct: number) => {
-    if (pct === 0) return { label: "Sem dados", color: "text-zinc-500 bg-zinc-100 dark:bg-zinc-800" };
-    if (pct <= 32) return { label: "Excelente (Abaixo de 32%)", color: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60" };
-    if (pct <= 38) return { label: "Meta Ideal (32% - 38%)", color: "text-indigo-700 bg-indigo-50 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800/60" };
-    if (pct <= 42) return { label: "Atenção (38% - 42%)", color: "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60" };
-    return { label: "Crítico (> 42%)", color: "text-rose-700 bg-rose-50 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/60" };
+    if (pct === 0)
+      return {
+        label: "Sem dados",
+        color: "text-zinc-500 bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700",
+      };
+    if (pct <= 32)
+      return {
+        label: "Excelente (< 32%)",
+        color:
+          "text-emerald-700 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60",
+      };
+    if (pct <= 38)
+      return {
+        label: "Meta Ideal (32% - 38%)",
+        color:
+          "text-indigo-700 bg-indigo-50 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800/60",
+      };
+    if (pct <= 42)
+      return {
+        label: "Atenção (38% - 42%)",
+        color:
+          "text-amber-700 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60",
+      };
+    return {
+      label: "Crítico (> 42%)",
+      color:
+        "text-rose-700 bg-rose-50 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/60",
+    };
   };
 
-  // Coleta de todos os itens de despesa para auditoria
+  // Coleta e filtragem de lançamentos para a tabela completa
   const allFilteredItems = useMemo(() => {
     if (!data) return [];
-    let items: any[] = [];
+    let items: CostCenterItem[] = [];
     if (data.isConsolidated) {
       data.stores.forEach((st) => {
         items.push(...st.items);
@@ -195,15 +373,38 @@ export default function CmvPage() {
     }
 
     return items.filter((it) => {
-      const matchCenter =
-        activeCenterFilter === "all" || it.costCenterKey === activeCenterFilter;
+      // Filtro de centro de custo
+      let matchCenter = true;
+      if (tableFilter === "all_entries") {
+        matchCenter = true; // Mostra literalmente tudo
+      } else if (tableFilter === "selected_cmv") {
+        matchCenter = Boolean(activeCenters[it.costCenterKey]);
+      } else {
+        matchCenter = it.costCenterKey === tableFilter;
+      }
+
+      // Filtro de status
+      let matchStatus = true;
+      if (statusFilter === "paid") matchStatus = it.paid === true;
+      if (statusFilter === "pending") matchStatus = it.paid === false;
+
+      // Filtro de busca textual
+      const q = searchTerm.toLowerCase().trim();
       const matchSearch =
-        !searchTerm ||
-        it.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (it.provider && it.provider.toLowerCase().includes(searchTerm.toLowerCase()));
-      return matchCenter && matchSearch;
+        !q ||
+        it.description.toLowerCase().includes(q) ||
+        it.category.toLowerCase().includes(q) ||
+        (it.provider && it.provider.toLowerCase().includes(q)) ||
+        it.value.toString().includes(q);
+
+      return matchCenter && matchStatus && matchSearch;
     });
-  }, [data, activeCenterFilter, searchTerm]);
+  }, [data, tableFilter, statusFilter, searchTerm, activeCenters]);
+
+  // Total dos itens atualmente visíveis na tabela
+  const tableFilteredTotal = useMemo(() => {
+    return allFilteredItems.reduce((acc, cur) => acc + cur.value, 0);
+  }, [allFilteredItems]);
 
   return (
     <div className="space-y-6 select-none animate-fadeIn">
@@ -219,7 +420,7 @@ export default function CmvPage() {
                 CMV · Custo de Mercadoria Vendida
               </h1>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Cálculo de 100% exatidão sobre os 4 centros de insumos da Takeat (Bebida, Embalagem, M. Prima e C. Produção)
+                Auditoria 100% precisa com controle de centros na soma e visualização total de despesas.
               </p>
             </div>
           </div>
@@ -376,9 +577,82 @@ export default function CmvPage() {
       {/* Conteúdo Principal */}
       {data && (
         <>
-          {/* CARDS PRINCIPAIS */}
+          {/* BARRA DE SELEÇÃO DE CENTROS DE CUSTO NA SOMA */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4 text-[#6658d3]" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
+                  Centros de Custo Incluídos na Soma do CMV
+                </h3>
+                <span className="text-[11px] text-zinc-500 font-medium">
+                  ({activeCenterLabels.length} de {COST_CENTERS_CONFIG.length} ativos)
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  onClick={resetToStandardCmv}
+                  className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#6658d3] hover:bg-[#6658d3]/10 transition-colors"
+                >
+                  Padrão (4 Centros)
+                </button>
+                <span className="text-zinc-300 dark:text-zinc-700">|</span>
+                <button
+                  onClick={selectAllCenters}
+                  className="px-2.5 py-1 rounded-md text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+                >
+                  Selecionar Todos
+                </button>
+              </div>
+            </div>
+
+            {/* Checkbox Chips interativos */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+              {COST_CENTERS_CONFIG.map((cfg) => {
+                const isActive = activeCenters[cfg.key];
+                const centerData = data.summary.costCenters[cfg.key];
+                const Icon = cfg.icon;
+
+                return (
+                  <button
+                    key={cfg.key}
+                    type="button"
+                    onClick={() => toggleCenter(cfg.key)}
+                    className={`flex items-center justify-between p-2.5 rounded-xl border text-left transition-all ${
+                      isActive
+                        ? `${cfg.borderActive} bg-white dark:bg-zinc-850 shadow-sm`
+                        : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/60 opacity-60 hover:opacity-100"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <div className={`p-1 rounded-md ${cfg.badgeBg}`}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="truncate">
+                        <span className="text-[11px] font-bold block truncate text-zinc-900 dark:text-zinc-100">
+                          {cfg.label}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 block">
+                          {formatBRL(centerData?.total || 0)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="ml-1 shrink-0">
+                      {isActive ? (
+                        <CheckSquare className="h-4 w-4 text-[#6658d3]" />
+                      ) : (
+                        <Square className="h-4 w-4 text-zinc-400" />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* CARDS PRINCIPAIS DE KPI */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Card 1: CMV Principal */}
+            {/* Card 1: CMV Realizado */}
             <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm relative overflow-hidden">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
@@ -398,27 +672,32 @@ export default function CmvPage() {
                 </span>
               </div>
               <p className="text-[11px] text-zinc-500 mt-2">
-                Impacto exato dos 4 centros de insumos sobre o faturamento do período.
+                Calculado sobre os {activeCenterLabels.length} centros de custo selecionados.
               </p>
               <div className="absolute right-0 bottom-0 translate-x-2 translate-y-2 opacity-5 pointer-events-none">
                 <TrendingDown className="w-24 h-24 text-zinc-900 dark:text-white" />
               </div>
             </div>
 
-            {/* Card 2: Total de Insumos */}
+            {/* Card 2: Total de Custos Selecionados */}
             <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 block mb-2">
-                Total Insumos (Custo)
-              </span>
-              <div className="text-3xl lg:text-4xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
-                {formatBRL(data.summary.totalInsumos)}
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  Total de Custos Selecionados
+                </span>
+                <span className="text-[10px] text-zinc-400 font-mono">
+                  {activeCenterLabels.length} centros
+                </span>
               </div>
-              <p className="text-[11px] text-zinc-500 mt-2">
-                Bebida + Embalagem + M. Prima + C. Produção
+              <div className="text-3xl lg:text-4xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">
+                {formatBRL(selectedCostSum)}
+              </div>
+              <p className="text-[11px] text-zinc-500 mt-2 truncate" title={activeCenterLabels.join(" + ")}>
+                {activeCenterLabels.join(" + ") || "Nenhum centro selecionado"}
               </p>
             </div>
 
-            {/* Card 3: Faturamento (com ajuste opcional para 100% de exatidão) */}
+            {/* Card 3: Faturamento da Loja */}
             <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
@@ -431,7 +710,7 @@ export default function CmvPage() {
                       setIsEditingFat(true);
                     }}
                     className="inline-flex items-center gap-1 text-[11px] text-[#6658d3] hover:underline font-medium"
-                    title="Ajustar faturamento manualmente se necessário"
+                    title="Ajustar faturamento manualmente"
                   >
                     <Edit3 className="h-3 w-3" />
                     <span>Ajustar</span>
@@ -472,257 +751,238 @@ export default function CmvPage() {
 
               <p className="text-[11px] text-zinc-500 mt-2">
                 {manualFaturamento
-                  ? "⚠️ Valor ajustado manualmente (recalculando CMV instantâneo)."
+                  ? "⚠️ Valor ajustado manualmente (recalculando CMV em tempo real)."
                   : "Receita oficial registrada na Takeat."}
               </p>
             </div>
           </div>
 
-          {/* GRID DOS 4 CENTROS DE CUSTO */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {/* Bebida */}
-            <div className="p-4 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center">
-                      <Wine className="h-3.5 w-3.5" />
-                    </div>
-                    <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                      Bebida
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-semibold text-zinc-500">
-                    {effectiveFaturamento > 0
-                      ? formatPercent((data.summary.costCenters.bebida.total / effectiveFaturamento) * 100)
-                      : "0,00%"}
-                  </span>
-                </div>
-                <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                  {formatBRL(data.summary.costCenters.bebida.total)}
-                </div>
-              </div>
-              <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full mt-3 overflow-hidden">
-                <div
-                  className="bg-amber-500 h-full rounded-full"
-                  style={{
-                    width: `${Math.min(
-                      effectiveFaturamento > 0
-                        ? (data.summary.costCenters.bebida.total / effectiveFaturamento) * 100
-                        : 0,
-                      100
-                    )}%`,
-                  }}
-                />
-              </div>
-            </div>
+          {/* DETALHAMENTO DE TODOS OS CENTROS DE CUSTO */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {COST_CENTERS_CONFIG.map((cfg) => {
+              const isActive = activeCenters[cfg.key];
+              const center = data.summary.costCenters[cfg.key];
+              const totalVal = center?.total || 0;
+              const countItems = center?.items?.length || 0;
+              const pct = effectiveFaturamento > 0 ? (totalVal / effectiveFaturamento) * 100 : 0;
+              const Icon = cfg.icon;
 
-            {/* Embalagem */}
-            <div className="p-4 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center">
-                      <Package className="h-3.5 w-3.5" />
-                    </div>
-                    <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                      Embalagem
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-semibold text-zinc-500">
-                    {effectiveFaturamento > 0
-                      ? formatPercent((data.summary.costCenters.embalagem.total / effectiveFaturamento) * 100)
-                      : "0,00%"}
-                  </span>
-                </div>
-                <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                  {formatBRL(data.summary.costCenters.embalagem.total)}
-                </div>
-              </div>
-              <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full mt-3 overflow-hidden">
+              return (
                 <div
-                  className="bg-blue-500 h-full rounded-full"
-                  style={{
-                    width: `${Math.min(
-                      effectiveFaturamento > 0
-                        ? (data.summary.costCenters.embalagem.total / effectiveFaturamento) * 100
-                        : 0,
-                      100
-                    )}%`,
-                  }}
-                />
-              </div>
-            </div>
+                  key={cfg.key}
+                  className={`p-4 rounded-xl border transition-all ${
+                    isActive
+                      ? "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-sm"
+                      : "bg-zinc-50/70 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800 opacity-60"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${cfg.badgeBg}`}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 block">
+                          {cfg.label}
+                        </span>
+                        <span className="text-[10px] text-zinc-400">
+                          {countItems} lançamento{countItems === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                    </div>
 
-            {/* Matéria Prima */}
-            <div className="p-4 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 flex items-center justify-center">
-                      <Beef className="h-3.5 w-3.5" />
-                    </div>
-                    <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                      M Prima
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => toggleCenter(cfg.key)}
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
+                        isActive
+                          ? "bg-[#6658d3]/10 border-[#6658d3]/30 text-[#6658d3]"
+                          : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-zinc-700"
+                      }`}
+                    >
+                      {isActive ? "✓ Na soma" : "+ Incluir"}
+                    </button>
                   </div>
-                  <span className="text-[11px] font-semibold text-zinc-500">
-                    {effectiveFaturamento > 0
-                      ? formatPercent((data.summary.costCenters.mPrima.total / effectiveFaturamento) * 100)
-                      : "0,00%"}
-                  </span>
-                </div>
-                <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                  {formatBRL(data.summary.costCenters.mPrima.total)}
-                </div>
-              </div>
-              <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full mt-3 overflow-hidden">
-                <div
-                  className="bg-red-500 h-full rounded-full"
-                  style={{
-                    width: `${Math.min(
-                      effectiveFaturamento > 0
-                        ? (data.summary.costCenters.mPrima.total / effectiveFaturamento) * 100
-                        : 0,
-                      100
-                    )}%`,
-                  }}
-                />
-              </div>
-            </div>
 
-            {/* Central de Produção */}
-            <div className="p-4 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-600 flex items-center justify-center">
-                      <Factory className="h-3.5 w-3.5" />
-                    </div>
-                    <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
-                      C Produção
+                  <div className="flex items-baseline justify-between mt-3">
+                    <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                      {formatBRL(totalVal)}
+                    </span>
+                    <span className="text-xs font-semibold text-zinc-500">
+                      {formatPercent(pct)}
                     </span>
                   </div>
-                  <span className="text-[11px] font-semibold text-zinc-500">
-                    {effectiveFaturamento > 0
-                      ? formatPercent((data.summary.costCenters.cProducao.total / effectiveFaturamento) * 100)
-                      : "0,00%"}
-                  </span>
+
+                  <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full mt-2.5 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        cfg.key === "cProducao"
+                          ? "bg-purple-500"
+                          : cfg.key === "mPrima"
+                          ? "bg-red-500"
+                          : cfg.key === "embalagem"
+                          ? "bg-blue-500"
+                          : cfg.key === "bebida"
+                          ? "bg-amber-500"
+                          : cfg.key === "suco"
+                          ? "bg-emerald-500"
+                          : "bg-zinc-400"
+                      }`}
+                      style={{
+                        width: `${Math.min(pct, 100)}%`,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                  {formatBRL(data.summary.costCenters.cProducao.total)}
-                </div>
-              </div>
-              <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-1.5 rounded-full mt-3 overflow-hidden">
-                <div
-                  className="bg-purple-500 h-full rounded-full"
-                  style={{
-                    width: `${Math.min(
-                      effectiveFaturamento > 0
-                        ? (data.summary.costCenters.cProducao.total / effectiveFaturamento) * 100
-                        : 0,
-                      100
-                    )}%`,
-                  }}
-                />
-              </div>
-            </div>
+              );
+            })}
           </div>
 
-          {/* TABELA COMPARATIVA POR LOJA (Se for Consolidado) */}
+          {/* TABELA COMPARATIVA POR LOJA (Consolidado) */}
           {data.isConsolidated && data.stores.length > 1 && (
             <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100 mb-3 flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-[#6658d3]" />
-                Comparativo por Unidade da Rede
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-[#6658d3]" />
+                  Comparativo por Unidade da Rede (Recalculado Dinamicamente)
+                </h3>
+                <span className="text-[11px] text-zinc-400 font-mono">
+                  Base: {activeCenterLabels.join(", ")}
+                </span>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="border-b border-zinc-200 dark:border-zinc-800 text-[11px] font-semibold text-zinc-500">
                       <th className="py-2.5 px-3">Loja</th>
                       <th className="py-2.5 px-3">Faturamento</th>
-                      <th className="py-2.5 px-3">Bebida</th>
-                      <th className="py-2.5 px-3">Embalagem</th>
-                      <th className="py-2.5 px-3">M. Prima</th>
                       <th className="py-2.5 px-3">C. Produção</th>
-                      <th className="py-2.5 px-3">Total Insumos</th>
+                      <th className="py-2.5 px-3">M. Prima</th>
+                      <th className="py-2.5 px-3">Embalagem</th>
+                      <th className="py-2.5 px-3">Bebida</th>
+                      {activeCenters.suco && <th className="py-2.5 px-3">Suco</th>}
+                      {activeCenters.outros && <th className="py-2.5 px-3">Outros</th>}
+                      <th className="py-2.5 px-3">Total Selecionado</th>
                       <th className="py-2.5 px-3 text-right">CMV (%)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                    {data.stores.map((st) => (
-                      <tr key={st.storeId} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
-                        <td className="py-2.5 px-3 font-semibold text-zinc-900 dark:text-zinc-100">
-                          {st.storeName}
-                        </td>
-                        <td className="py-2.5 px-3 text-emerald-600 dark:text-emerald-400 font-medium">
-                          {formatBRL(st.faturamento)}
-                        </td>
-                        <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
-                          {formatBRL(st.costCenters.bebida.total)}
-                        </td>
-                        <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
-                          {formatBRL(st.costCenters.embalagem.total)}
-                        </td>
-                        <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
-                          {formatBRL(st.costCenters.mPrima.total)}
-                        </td>
-                        <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
-                          {formatBRL(st.costCenters.cProducao.total)}
-                        </td>
-                        <td className="py-2.5 px-3 font-semibold text-zinc-900 dark:text-zinc-100">
-                          {formatBRL(st.totalInsumos)}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-extrabold text-zinc-900 dark:text-zinc-100">
-                          {formatPercent(st.cmvPercent)}
-                        </td>
-                      </tr>
-                    ))}
+                    {data.stores.map((st) => {
+                      const storeSum = Object.entries(activeCenters).reduce((sum, [k, isActive]) => {
+                        if (!isActive) return sum;
+                        return sum + (st.costCenters[k as CostCenterKey]?.total || 0);
+                      }, 0);
+                      const storePct = st.faturamento > 0 ? (storeSum / st.faturamento) * 100 : 0;
+
+                      return (
+                        <tr key={st.storeId} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+                          <td className="py-2.5 px-3 font-semibold text-zinc-900 dark:text-zinc-100">
+                            {st.storeName}
+                          </td>
+                          <td className="py-2.5 px-3 text-emerald-600 dark:text-emerald-400 font-medium">
+                            {formatBRL(st.faturamento)}
+                          </td>
+                          <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
+                            {formatBRL(st.costCenters.cProducao?.total || 0)}
+                          </td>
+                          <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
+                            {formatBRL(st.costCenters.mPrima?.total || 0)}
+                          </td>
+                          <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
+                            {formatBRL(st.costCenters.embalagem?.total || 0)}
+                          </td>
+                          <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
+                            {formatBRL(st.costCenters.bebida?.total || 0)}
+                          </td>
+                          {activeCenters.suco && (
+                            <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
+                              {formatBRL(st.costCenters.suco?.total || 0)}
+                            </td>
+                          )}
+                          {activeCenters.outros && (
+                            <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-300">
+                              {formatBRL(st.costCenters.outros?.total || 0)}
+                            </td>
+                          )}
+                          <td className="py-2.5 px-3 font-semibold text-zinc-900 dark:text-zinc-100">
+                            {formatBRL(storeSum)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-extrabold text-zinc-900 dark:text-zinc-100">
+                            {formatPercent(storePct)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
 
-          {/* TABELA DE AUDITORIA DE LANÇAMENTOS */}
+          {/* TABELA DE AUDITORIA COMPLETA DE LANÇAMENTOS */}
           <div className="p-5 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
-                  Lançamentos e Notas do CMV
-                </h3>
-                <p className="text-[11px] text-zinc-500">
-                  Audite individualmente cada compra ou nota lançada nos centros de custo.
+                <div className="flex items-center gap-2">
+                  <Eye className="h-4 w-4 text-[#6658d3]" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
+                    Auditoria de Lançamentos Takeat
+                  </h3>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-semibold">
+                    {allFilteredItems.length} lançamentos · {formatBRL(tableFilteredTotal)}
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  Exibição detalhada de cada gasto, nota ou compra registrada no sistema.
                 </p>
               </div>
 
-              {/* Filtros da Tabela */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Buscar lançamento..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="h-8 px-2.5 rounded-lg text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#6658d3]"
-                />
+              {/* Controles de Filtro e Busca */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Busca rápida */}
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por descrição, fornecedor..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="h-8 pl-8 pr-3 rounded-lg text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#6658d3] w-48 sm:w-64"
+                  />
+                </div>
+
+                {/* Seletor de Categoria/Centro */}
                 <select
-                  value={activeCenterFilter}
-                  onChange={(e) => setActiveCenterFilter(e.target.value)}
+                  value={tableFilter}
+                  onChange={(e) => setTableFilter(e.target.value)}
                   className="h-8 px-2.5 rounded-lg text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#6658d3]"
                 >
-                  <option value="all">Todos os centros</option>
-                  <option value="bebida">Bebida</option>
-                  <option value="embalagem">Embalagem</option>
-                  <option value="mPrima">M. Prima</option>
-                  <option value="cProducao">C. Produção</option>
+                  <option value="all_entries">🌐 Todos os Lançamentos</option>
+                  <option value="selected_cmv">✓ Apenas Centros na Soma</option>
+                  <option value="cProducao">🏭 Central de Produção</option>
+                  <option value="mPrima">🥩 Matéria Prima</option>
+                  <option value="embalagem">📦 Embalagem</option>
+                  <option value="bebida">🍷 Bebida</option>
+                  <option value="suco">🥤 Suco</option>
+                  <option value="outros">🧾 Outras Despesas (Geral)</option>
+                </select>
+
+                {/* Seletor de Status (Pago / A Pagar) */}
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  className="h-8 px-2 rounded-lg text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#6658d3]"
+                >
+                  <option value="all">Status: Todos</option>
+                  <option value="paid">Pagos</option>
+                  <option value="pending">A Pagar</option>
                 </select>
               </div>
             </div>
 
             {allFilteredItems.length === 0 ? (
-              <div className="text-center py-8 text-zinc-400 text-xs">
-                Nenhum lançamento de insumo encontrado para este filtro.
+              <div className="text-center py-10 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-400 text-xs">
+                Nenhum lançamento encontrado para os filtros selecionados.
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -730,6 +990,7 @@ export default function CmvPage() {
                   <thead>
                     <tr className="border-b border-zinc-200 dark:border-zinc-800 text-[11px] font-semibold text-zinc-500">
                       <th className="py-2.5 px-3">Data</th>
+                      {data.isConsolidated && <th className="py-2.5 px-3">Loja</th>}
                       <th className="py-2.5 px-3">Descrição</th>
                       <th className="py-2.5 px-3">Centro de Custo</th>
                       <th className="py-2.5 px-3">Fornecedor</th>
@@ -738,46 +999,58 @@ export default function CmvPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                    {allFilteredItems.map((item, idx) => (
-                      <tr key={`${item.id}-${idx}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
-                        <td className="py-2.5 px-3 text-zinc-500">
-                          {formatDateDisplay(dateType === "competence_date" ? item.competenceDate : item.dueDate)}
-                        </td>
-                        <td className="py-2.5 px-3 font-medium text-zinc-900 dark:text-zinc-100 max-w-[250px] truncate">
-                          {item.description}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span
-                            className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                              item.costCenterKey === "bebida"
-                                ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                                : item.costCenterKey === "embalagem"
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300"
-                                : item.costCenterKey === "mPrima"
-                                ? "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300"
-                                : "bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300"
-                            }`}
-                          >
-                            {item.category}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-zinc-500">
-                          {item.provider || "-"}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span
-                            className={`text-[10px] font-semibold ${
-                              item.paid ? "text-emerald-600" : "text-amber-600"
-                            }`}
-                          >
-                            {item.paid ? "Pago" : "A Pagar"}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-semibold text-zinc-900 dark:text-zinc-100">
-                          {formatBRL(item.value)}
-                        </td>
-                      </tr>
-                    ))}
+                    {allFilteredItems.map((item, idx) => {
+                      const cfg = COST_CENTERS_CONFIG.find(
+                        (c) => c.key === item.costCenterKey
+                      );
+
+                      return (
+                        <tr
+                          key={`${item.id}-${idx}`}
+                          className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors"
+                        >
+                          <td className="py-2.5 px-3 text-zinc-500 whitespace-nowrap">
+                            {formatDateDisplay(
+                              dateType === "competence_date"
+                                ? item.competenceDate
+                                : item.dueDate
+                            )}
+                          </td>
+                          {data.isConsolidated && (
+                            <td className="py-2.5 px-3 font-medium text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
+                              {item.storeName}
+                            </td>
+                          )}
+                          <td className="py-2.5 px-3 font-medium text-zinc-900 dark:text-zinc-100 max-w-[280px] truncate" title={item.description}>
+                            {item.description}
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <span
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                                cfg?.badgeBg || "bg-zinc-100 text-zinc-700"
+                              }`}
+                            >
+                              {cfg?.label || item.category}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-zinc-500 max-w-[180px] truncate" title={item.provider}>
+                            {item.provider || "-"}
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <span
+                              className={`text-[10px] font-semibold ${
+                                item.paid ? "text-emerald-600" : "text-amber-600"
+                              }`}
+                            >
+                              {item.paid ? "Pago" : "A Pagar"}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
+                            {formatBRL(item.value)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
