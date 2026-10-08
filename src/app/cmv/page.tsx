@@ -483,21 +483,70 @@ export default function CmvPage() {
     if (pct < 32)
       return {
         label: "Excelente (< 32%)",
-        color: "text-[#1d6a59] bg-[#DBF3EE] border-[#c0e8de]",
+        color: "text-[#0d5c45] bg-[#DBF3EE] border-[#b6e8db]",
       };
     if (pct <= 38)
       return {
         label: "Meta Ideal (32% - 38%)",
-        color: "text-[#483b8b] bg-[#E6E2FF] border-[#d4cdfc]",
+        color: "text-[#0d5c45] bg-[#DBF3EE] border-[#b6e8db]",
       };
     if (pct <= 42)
       return {
         label: "Atenção (38% - 42%)",
-        color: "text-[#1b657d] bg-[#DFF2F7] border-[#c7e9f1]",
+        color: "text-[#92400e] bg-[#FEF3C7] border-[#fde68a]",
       };
     return {
       label: "Crítico (> 42%)",
-      color: "text-[#8c421e] bg-[#FFE9DD] border-[#ffd6bf]",
+      color: "text-[#991b1b] bg-[#FEE2E2] border-[#fecaca]",
+    };
+  };
+
+  // Tema suave do Card de CMV (Verde suave se bom, vermelho suave se ruim)
+  const getCmvCardTheme = (pct: number) => {
+    if (pct === 0) {
+      return {
+        bg: "linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)",
+        border: "border-slate-200",
+        numberColor: "text-slate-800",
+        labelColor: "text-slate-500",
+        subColor: "text-slate-400",
+        badgeBg: "bg-slate-100 text-slate-700 border-slate-200",
+        iconCircle: "bg-slate-200 text-slate-700",
+      };
+    }
+    // BOM: Verde suave (< 38%)
+    if (pct <= 38) {
+      return {
+        bg: "linear-gradient(135deg, #EBF8F4 0%, #F4FBF8 50%, #FFFFFF 100%)",
+        border: "border-[#b6e8db]",
+        numberColor: "text-[#0d5c45]",
+        labelColor: "text-[#12644f]",
+        subColor: "text-[#16785f]",
+        badgeBg: "bg-[#DBF3EE] text-[#0d5c45] border-[#b6e8db]",
+        iconCircle: "bg-[#189b77] text-white",
+      };
+    }
+    // ATENÇÃO: Âmbar/Amarelo suave (38% - 42%)
+    if (pct <= 42) {
+      return {
+        bg: "linear-gradient(135deg, #FFFDF5 0%, #FFF9EB 50%, #FFFFFF 100%)",
+        border: "border-[#fde68a]",
+        numberColor: "text-[#92400e]",
+        labelColor: "text-[#b45309]",
+        subColor: "text-[#b45309]",
+        badgeBg: "bg-[#FEF3C7] text-[#92400e] border-[#fde68a]",
+        iconCircle: "bg-[#d97706] text-white",
+      };
+    }
+    // RUIM: Vermelho suave (> 42%)
+    return {
+      bg: "linear-gradient(135deg, #FFF5F5 0%, #FEF2F2 50%, #FFFFFF 100%)",
+      border: "border-[#fecaca]",
+      numberColor: "text-[#991b1b]",
+      labelColor: "text-[#b91c1c]",
+      subColor: "text-[#dc2626]",
+      badgeBg: "bg-[#FEE2E2] text-[#991b1b] border-[#fecaca]",
+      iconCircle: "bg-[#dc2626] text-white",
     };
   };
 
@@ -744,16 +793,158 @@ export default function CmvPage() {
       {/* Conteúdo Principal */}
       {data && (
         <>
-          {/* BARRA DE SELEÇÃO DE CENTROS DE CUSTO NA SOMA (APPLE SQUIRCLE) */}
-          <div className="p-6 rounded-[28px] bg-white/95 backdrop-blur-[14px] border border-slate-200/80 shadow-[0_10px_25px_rgba(40,45,70,0.05)] space-y-4">
+          {/* CARDS PRINCIPAIS DE KPI (TOPO) */}
+          {(() => {
+            const cmvTheme = getCmvCardTheme(effectiveCmvPercent);
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5">
+                {/* Card 1: CMV Realizado (Verde suave se bom, vermelho suave se ruim) */}
+                <div
+                  className={`p-6 rounded-[26px] border ${cmvTheme.border} shadow-[0_10px_25px_rgba(40,45,70,0.05)] hover:-translate-y-1 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden flex flex-col justify-between`}
+                  style={{ background: cmvTheme.bg }}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`h-8 w-8 rounded-full ${cmvTheme.iconCircle} flex items-center justify-center shadow-xs`}>
+                          <TrendingDown className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <span className={`text-[11px] font-bold uppercase tracking-wider ${cmvTheme.labelColor} block`}>
+                            CMV Realizado
+                          </span>
+                          <span className={`text-[9px] ${cmvTheme.subColor} font-medium`}>Indicador Principal</span>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-bold px-3 py-1 rounded-full border ${cmvTheme.badgeBg}`}>
+                        {getCmvStatus(effectiveCmvPercent).label}
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline gap-2 my-2">
+                      <span className={`text-4xl lg:text-5xl font-extrabold ${cmvTheme.numberColor} tracking-tight`}>
+                        {formatPercent(effectiveCmvPercent)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className={`text-[11px] ${cmvTheme.subColor} mt-3 leading-relaxed`}>
+                    Calculado sobre os {activeCenterLabels.length} centros e subcategorias selecionados.
+                  </p>
+                </div>
+
+                {/* Card 2: Total de Custos Selecionados */}
+                <div className="p-6 rounded-[26px] bg-white border border-slate-200/90 shadow-[0_10px_25px_rgba(40,45,70,0.05)] hover:-translate-y-1 hover:shadow-[0_14px_30px_rgba(40,45,70,0.08)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700">
+                          <DollarSign className="h-4 w-4 text-slate-700" />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                            Total de Custos
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-medium">Soma Ativa</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                        {activeCenterLabels.length} itens ativos
+                      </span>
+                    </div>
+
+                    <div className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight my-2">
+                      {formatBRL(selectedCostSum)}
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 mt-3 truncate" title={activeCenterLabels.join(" + ")}>
+                    {activeCenterLabels.join(" + ") || "Nenhum centro selecionado"}
+                  </p>
+                </div>
+
+                {/* Card 3: Faturamento da Loja */}
+                <div className="p-6 rounded-[26px] bg-white border border-slate-200/90 shadow-[0_10px_25px_rgba(40,45,70,0.05)] hover:-translate-y-1 hover:shadow-[0_14px_30px_rgba(40,45,70,0.08)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+                          <TrendingUp className="h-4 w-4 text-emerald-600" />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                            Faturamento da Loja
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-medium">Receita</span>
+                        </div>
+                      </div>
+                      {!isEditingFat ? (
+                        <button
+                          onClick={() => {
+                            setManualFaturamento(String(data.summary.faturamento));
+                            setIsEditingFat(true);
+                          }}
+                          className="inline-flex items-center gap-1 text-[11px] text-[#554abc] hover:underline font-semibold"
+                          title="Ajustar faturamento manualmente"
+                        >
+                          <Edit3 className="h-3 w-3" />
+                          <span>Ajustar</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setManualFaturamento("");
+                            setIsEditingFat(false);
+                          }}
+                          className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 font-semibold"
+                          title="Restaurar valor oficial automático"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          <span>Restaurar</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {!isEditingFat ? (
+                      <div className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight my-2">
+                        {formatBRL(effectiveFaturamento)}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 my-2">
+                        <span className="text-xl font-bold text-slate-400">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={manualFaturamento}
+                          onChange={(e) => setManualFaturamento(e.target.value)}
+                          className="w-full text-2xl font-bold px-3 py-1 rounded-full bg-slate-50 border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#554abc]"
+                          placeholder="Valor exato..."
+                          autoFocus
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 mt-3">
+                    {manualFaturamento
+                      ? "⚠️ Ajustado manualmente (recalculando CMV em tempo real)."
+                      : "Receita oficial registrada na Takeat."}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* COMPOSIÇÃO UNIFICADA DOS CENTROS DE CUSTO (SEM DUPLICAÇÃO DE DADOS) */}
+          <div className="p-6 rounded-[28px] bg-white border border-slate-200/80 shadow-[0_10px_25px_rgba(40,45,70,0.05)] space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="h-4 w-4 text-[#554abc]" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  Centros de Custo Incluídos na Soma do CMV
+                  Centros de Custo & Composição do CMV
                 </h3>
                 <span className="text-[11px] text-slate-400 font-semibold">
-                  ({activeCenterLabels.length} ativos)
+                  ({activeCenterLabels.length} na soma)
                 </span>
               </div>
               <div className="flex items-center gap-2 text-xs">
@@ -773,92 +964,136 @@ export default function CmvPage() {
               </div>
             </div>
 
-            {/* Checkbox Chips principais */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+            {/* Grid dos 6 Centros de Custo Unificados */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {COST_CENTERS_CONFIG.map((cfg) => {
                 const isOutros = cfg.key === "outros";
                 const isActive = isOutros ? countSelectedOutros > 0 : activeCenters[cfg.key];
-                const centerData = data.summary.costCenters[cfg.key];
-                const displayedVal = isOutros ? selectedOutrosSum : centerData?.total || 0;
+                const center = data.summary.costCenters[cfg.key];
+                const totalVal = center?.total || 0;
+                const countItems = center?.items?.length || 0;
+                const displayedVal = isOutros && countSelectedOutros > 0 ? selectedOutrosSum : totalVal;
+                const pct = effectiveFaturamento > 0 ? (displayedVal / effectiveFaturamento) * 100 : 0;
                 const Icon = cfg.icon;
 
                 return (
                   <div
                     key={cfg.key}
-                    onClick={() => toggleCenter(cfg.key)}
-                    className={`flex items-center justify-between p-3 rounded-[20px] border text-left cursor-pointer transition-all duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+                    onClick={() => {
+                      if (!isOutros) toggleCenter(cfg.key);
+                    }}
+                    className={`p-5 rounded-[24px] border transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+                      !isOutros ? "cursor-pointer" : ""
+                    } ${
                       isActive
-                        ? `${cfg.borderActive} bg-white shadow-[0_4px_14px_rgba(40,45,70,0.06)] -translate-y-0.5`
-                        : "border-slate-200 bg-slate-50/70 opacity-60 hover:opacity-100 hover:bg-white"
+                        ? "bg-white border-slate-200/90 shadow-[0_8px_20px_rgba(40,45,70,0.05)] hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(40,45,70,0.08)]"
+                        : "bg-slate-50/70 border-slate-200/60 opacity-55 hover:opacity-90 hover:bg-white"
                     }`}
                   >
-                    <div className="flex items-center gap-2 overflow-hidden flex-1">
-                      <div className={`p-1.5 rounded-full shrink-0 ${cfg.badgeBg}`}>
-                        <Icon className="h-3.5 w-3.5" />
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`h-9 w-9 rounded-full flex items-center justify-center shadow-xs ${cfg.badgeBg}`}>
+                          <Icon className="h-4.5 w-4.5" />
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-slate-900 block">
+                            {cfg.label}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {countItems} lançamento{countItems === 1 ? "" : "s"}
+                            {isOutros && ` (${outrosSubcategories.length} subcategorias)`}
+                          </span>
+                        </div>
                       </div>
-                      <div className="truncate">
-                        <span className="text-[11px] font-bold block truncate text-slate-900">
-                          {cfg.label}
-                        </span>
-                        <span className="text-[10px] text-slate-500 block truncate font-medium">
-                          {isOutros && countSelectedOutros > 0
-                            ? `${formatBRL(displayedVal)} (${countSelectedOutros})`
-                            : isOutros
-                            ? `R$ 0 (${formatBRL(centerData?.total || 0)})`
-                            : formatBRL(displayedVal)}
-                        </span>
+
+                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        {/* Olhinho minimalista */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedDetailTarget({
+                              type: "center",
+                              key: cfg.key,
+                              label: cfg.label,
+                              badgeBg: cfg.badgeBg,
+                              icon: cfg.icon,
+                            })
+                          }
+                          className="p-1.5 rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                          title={`Ver saídas de ${cfg.label} até o valor total`}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+
+                        {/* Botão de Inclusão no CMV */}
+                        {isOutros ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowOutrosBreakdown((prev) => !prev)}
+                            className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-100 transition-all flex items-center gap-1"
+                          >
+                            <Settings2 className="h-3 w-3 text-[#554abc]" />
+                            <span>{countSelectedOutros > 0 ? `${countSelectedOutros} ativas` : "Escolher"}</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => toggleCenter(cfg.key)}
+                            className={`text-[10px] font-semibold px-3 py-1 rounded-full border transition-all ${
+                              isActive
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-800 font-bold"
+                                : "bg-slate-100 border-slate-200 text-slate-400 hover:text-slate-700"
+                            }`}
+                          >
+                            {isActive ? "✓ Na soma" : "+ Incluir"}
+                          </button>
+                        )}
                       </div>
                     </div>
 
-                    <div className="ml-1 shrink-0 flex items-center gap-1">
-                      {/* Olhinho minimalista */}
-                      <span
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedDetailTarget({
-                            type: "center",
-                            key: cfg.key,
-                            label: cfg.label,
-                            badgeBg: cfg.badgeBg,
-                            icon: cfg.icon,
-                          });
-                        }}
-                        className="p-1 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
-                        title={`Ver saídas de ${cfg.label} até o valor total`}
-                      >
-                        <Eye className="h-3.5 w-3.5" />
+                    <div className="flex items-baseline justify-between mt-3">
+                      <div>
+                        <span className="text-lg font-bold text-slate-900">
+                          {formatBRL(displayedVal)}
+                        </span>
+                        {isOutros && countSelectedOutros > 0 && (
+                          <span className="text-[10px] text-slate-400 block">
+                            de {formatBRL(totalVal)} totais
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs font-semibold text-slate-500">
+                        {formatPercent(pct)}
                       </span>
+                    </div>
 
-                      {/* Ícone de status */}
-                      {isOutros ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowOutrosBreakdown((prev) => !prev);
-                          }}
-                          className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-                          title="Desdobrar subcategorias de Outras Despesas"
-                        >
-                          {showOutrosBreakdown ? (
-                            <ChevronUp className="h-3.5 w-3.5 text-[#554abc]" />
-                          ) : (
-                            <Settings2 className="h-3.5 w-3.5 text-slate-400" />
-                          )}
-                        </button>
-                      ) : isActive ? (
-                        <CheckSquare className="h-4 w-4 text-[#554abc]" />
-                      ) : (
-                        <Square className="h-4 w-4 text-slate-300" />
-                      )}
+                    <div className="w-full bg-slate-100 h-1.5 rounded-full mt-3 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          cfg.key === "cProducao"
+                            ? "bg-[#1d6a59]"
+                            : cfg.key === "mPrima"
+                            ? "bg-[#483b8b]"
+                            : cfg.key === "embalagem"
+                            ? "bg-[#1b657d]"
+                            : cfg.key === "bebida"
+                            ? "bg-[#1d6a59]"
+                            : cfg.key === "suco"
+                            ? "bg-[#1b657d]"
+                            : "bg-[#8c421e]"
+                        }`}
+                        style={{
+                          width: `${Math.min(pct, 100)}%`,
+                        }}
+                      />
                     </div>
                   </div>
                 );
               })}
             </div>
 
-            {/* PAINEL DE DESDOBRAMENTO ESPECÍFICO DE OUTRAS DESPESAS (LIQUID PASTEL PÊSSEGO / SQUIRCLE) */}
-            {outrosSubcategories.length > 0 && (
+            {/* Painel de Desdobramento de Outras Despesas (Retrátil) */}
+            {outrosSubcategories.length > 0 && showOutrosBreakdown && (
               <div className="mt-4 pt-4 border-t border-slate-100">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                   <div className="flex items-center gap-2">
@@ -866,7 +1101,7 @@ export default function CmvPage() {
                       <Receipt className="h-3.5 w-3.5" />
                     </span>
                     <span className="text-[11px] font-bold text-slate-800">
-                      Desdobramento de Outras Despesas: Escolha literalmente quais entram na soma
+                      Desdobramento de Outras Despesas: Escolha quais entram na soma
                     </span>
                     <span className="text-[10px] text-slate-400 font-semibold">
                       ({countSelectedOutros} de {outrosSubcategories.length} ativas · {formatBRL(selectedOutrosSum)})
@@ -923,7 +1158,7 @@ export default function CmvPage() {
                             {formatBRL(sub.total)}
                           </span>
 
-                          {/* Olhinho da subcategoria específica! */}
+                          {/* Olhinho da subcategoria específica */}
                           <button
                             type="button"
                             onClick={() =>
@@ -945,282 +1180,6 @@ export default function CmvPage() {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* CARDS PRINCIPAIS DE KPI (APPLE ELEVATED CARDS COM SPRING PHYSICS) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5">
-            {/* Card 1: CMV Realizado — HERO CARD DE DESTAQUE TOTAL (Executivo Apple / House 190) */}
-            <div
-              className="p-6 rounded-[26px] border border-white/10 shadow-[0_16px_36px_rgba(30,24,65,0.25)] hover:-translate-y-1 hover:shadow-[0_20px_44px_rgba(30,24,65,0.32)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden flex flex-col justify-between"
-              style={{
-                background: "linear-gradient(135deg, #1d1841 0%, #2e2669 45%, #4a3ca6 100%)",
-              }}
-            >
-              {/* Subtle radial light aura */}
-              <div
-                className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-30 pointer-events-none"
-                style={{
-                  background: "radial-gradient(circle, #8372f5 0%, transparent 70%)",
-                }}
-              />
-              <div
-                className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full opacity-20 pointer-events-none"
-                style={{
-                  background: "radial-gradient(circle, #554abc 0%, transparent 70%)",
-                }}
-              />
-
-              <div className="relative z-10">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-inner">
-                      <TrendingDown className="h-4 w-4 text-purple-200" />
-                    </div>
-                    <div>
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-purple-200 block">
-                        CMV Realizado
-                      </span>
-                      <span className="text-[9px] text-purple-300/70 font-medium">Indicador Principal</span>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-white border border-white/25 shadow-xs">
-                    {getCmvStatus(effectiveCmvPercent).label}
-                  </span>
-                </div>
-
-                <div className="flex items-baseline gap-2 my-2">
-                  <span className="text-4xl lg:text-5xl font-black text-white tracking-tight drop-shadow-sm">
-                    {formatPercent(effectiveCmvPercent)}
-                  </span>
-                </div>
-              </div>
-
-              <p className="text-[11px] text-purple-200/80 mt-3 relative z-10 leading-relaxed">
-                Calculado sobre os {activeCenterLabels.length} centros e subcategorias selecionados.
-              </p>
-            </div>
-
-            {/* Card 2: Total de Custos Selecionados (Limpo, Elegante, Branco Elevado) */}
-            <div className="p-6 rounded-[26px] bg-white border border-slate-200/90 shadow-[0_10px_25px_rgba(40,45,70,0.05)] hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(40,45,70,0.09)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700">
-                      <DollarSign className="h-4 w-4 text-slate-700" />
-                    </div>
-                    <div>
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-                        Total de Custos
-                      </span>
-                      <span className="text-[9px] text-slate-400 font-medium">Soma Ativa</span>
-                    </div>
-                  </div>
-                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold border border-slate-200">
-                    {activeCenterLabels.length} itens ativos
-                  </span>
-                </div>
-
-                <div className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight my-2">
-                  {formatBRL(selectedCostSum)}
-                </div>
-              </div>
-
-              <p className="text-[11px] text-slate-500 mt-3 truncate" title={activeCenterLabels.join(" + ")}>
-                {activeCenterLabels.join(" + ") || "Nenhum centro selecionado"}
-              </p>
-            </div>
-
-            {/* Card 3: Faturamento da Loja (Limpo, Elegante, Branco Elevado) */}
-            <div className="p-6 rounded-[26px] bg-white border border-slate-200/90 shadow-[0_10px_25px_rgba(40,45,70,0.05)] hover:-translate-y-1 hover:shadow-[0_16px_36px_rgba(40,45,70,0.09)] transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] relative overflow-hidden flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
-                      <TrendingUp className="h-4 w-4 text-emerald-600" />
-                    </div>
-                    <div>
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
-                        Faturamento da Loja
-                      </span>
-                      <span className="text-[9px] text-slate-400 font-medium">Receita</span>
-                    </div>
-                  </div>
-                  {!isEditingFat ? (
-                    <button
-                      onClick={() => {
-                        setManualFaturamento(String(data.summary.faturamento));
-                        setIsEditingFat(true);
-                      }}
-                      className="inline-flex items-center gap-1 text-[11px] text-[#554abc] hover:underline font-semibold"
-                      title="Ajustar faturamento manualmente"
-                    >
-                      <Edit3 className="h-3 w-3" />
-                      <span>Ajustar</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setManualFaturamento("");
-                        setIsEditingFat(false);
-                      }}
-                      className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 font-semibold"
-                      title="Restaurar valor oficial automático"
-                    >
-                      <RotateCcw className="h-3 w-3" />
-                      <span>Restaurar</span>
-                    </button>
-                  )}
-                </div>
-
-                {!isEditingFat ? (
-                  <div className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight my-2">
-                    {formatBRL(effectiveFaturamento)}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 my-2">
-                    <span className="text-xl font-bold text-slate-400">R$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={manualFaturamento}
-                      onChange={(e) => setManualFaturamento(e.target.value)}
-                      className="w-full text-2xl font-bold px-3 py-1 rounded-full bg-slate-50 border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#554abc]"
-                      placeholder="Valor exato..."
-                      autoFocus
-                    />
-                  </div>
-                )}
-              </div>
-
-              <p className="text-[11px] text-slate-500 mt-3">
-                {manualFaturamento
-                  ? "⚠️ Ajustado manualmente (recalculando CMV em tempo real)."
-                  : "Receita oficial registrada na Takeat."}
-              </p>
-            </div>
-          </div>
-
-
-          {/* DETALHAMENTO DE TODOS OS CENTROS DE CUSTO */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {COST_CENTERS_CONFIG.map((cfg) => {
-              const isOutros = cfg.key === "outros";
-              const isActive = isOutros ? countSelectedOutros > 0 : activeCenters[cfg.key];
-              const center = data.summary.costCenters[cfg.key];
-              const totalVal = center?.total || 0;
-              const countItems = center?.items?.length || 0;
-              const displayedVal = isOutros && countSelectedOutros > 0 ? selectedOutrosSum : totalVal;
-              const pct = effectiveFaturamento > 0 ? (displayedVal / effectiveFaturamento) * 100 : 0;
-              const Icon = cfg.icon;
-
-              return (
-                <div
-                  key={cfg.key}
-                  className={`p-5 rounded-[24px] border transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-                    isActive
-                      ? "bg-white border-slate-200/90 shadow-[0_10px_25px_rgba(40,45,70,0.05)] hover:-translate-y-1 hover:shadow-[0_14px_32px_rgba(40,45,70,0.09)]"
-                      : "bg-slate-50/70 border-slate-200/60 opacity-60 hover:opacity-100 hover:bg-white"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <div className={`h-9 w-9 rounded-full flex items-center justify-center shadow-xs ${cfg.badgeBg}`}>
-                        <Icon className="h-4.5 w-4.5" />
-                      </div>
-                      <div>
-                        <span className="text-xs font-bold text-slate-900 block">
-                          {cfg.label}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-medium">
-                          {countItems} lançamento{countItems === 1 ? "" : "s"}
-                          {isOutros && ` (${outrosSubcategories.length} subcategorias)`}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      {/* Olhinho minimalista Apple */}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedDetailTarget({
-                            type: "center",
-                            key: cfg.key,
-                            label: cfg.label,
-                            badgeBg: cfg.badgeBg,
-                            icon: cfg.icon,
-                          })
-                        }
-                        className="p-1.5 rounded-full text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-                        title={`Ver saídas de ${cfg.label} até o valor total`}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-
-                      {isOutros ? (
-                        <button
-                          type="button"
-                          onClick={() => setShowOutrosBreakdown((prev) => !prev)}
-                          className="text-[10px] font-semibold px-3 py-1 rounded-full border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all flex items-center gap-1"
-                        >
-                          <Settings2 className="h-3 w-3" />
-                          <span>{countSelectedOutros > 0 ? `${countSelectedOutros} ativas` : "Escolher"}</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => toggleCenter(cfg.key)}
-                          className={`text-[10px] font-semibold px-3 py-1 rounded-full border transition-all ${
-                            isActive
-                              ? "bg-[#E6E2FF]/60 border-[#d4cdfc] text-[#483b8b]"
-                              : "bg-slate-100 border-slate-200 text-slate-400 hover:text-slate-700"
-                          }`}
-                        >
-                          {isActive ? "✓ Na soma" : "+ Incluir"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-baseline justify-between mt-3">
-                    <div>
-                      <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                        {formatBRL(displayedVal)}
-                      </span>
-                      {isOutros && countSelectedOutros > 0 && (
-                        <span className="text-[10px] text-zinc-400 block">
-                          de {formatBRL(totalVal)} totais
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-xs font-semibold text-zinc-500">
-                      {formatPercent(pct)}
-                    </span>
-                  </div>
-
-                  <div className="w-full bg-slate-100 h-2 rounded-full mt-3 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        cfg.key === "cProducao"
-                          ? "bg-[#1d6a59]"
-                          : cfg.key === "mPrima"
-                          ? "bg-[#483b8b]"
-                          : cfg.key === "embalagem"
-                          ? "bg-[#1b657d]"
-                          : cfg.key === "bebida"
-                          ? "bg-[#1d6a59]"
-                          : cfg.key === "suco"
-                          ? "bg-[#1b657d]"
-                          : "bg-[#8c421e]"
-                      }`}
-                      style={{
-                        width: `${Math.min(pct, 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
           </div>
 
           {/* TABELA COMPARATIVA POR LOJA (Consolidado - Apple Squircle 28px) */}
