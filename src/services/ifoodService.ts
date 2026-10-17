@@ -14,6 +14,9 @@ import {
   IfoodReview,
   IfoodReviewSummary,
   IfoodUnitId,
+  IfoodInterruption,
+  IfoodMerchantStatus,
+  IfoodOpeningHourShift,
 } from "@/types/ifood";
 
 const IFOOD_BASE_URL = "https://merchant-api.ifood.com.br";
@@ -198,6 +201,25 @@ export class IfoodService {
     return null;
   }
 
+  public static async getMerchantStatus(unitId: IfoodUnitId, merchantId?: string): Promise<IfoodMerchantStatus[]> {
+    if (!merchantId) return [];
+    const token = this.getTokenState(unitId).accessToken;
+    if (!token) return [];
+
+    try {
+      const res = await fetch(`${IFOOD_BASE_URL}/merchant/v1.0/merchants/${merchantId}/status`, {
+        headers: this.getHeaders(unitId),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : [data];
+      }
+    } catch (err) {
+      console.warn("Falha ao consultar disponibilidade/status do merchant:", err);
+    }
+    return [];
+  }
+
   public static async updatePreparationTime(unitId: IfoodUnitId, merchantId: string, minutes: number): Promise<boolean> {
     const res = await fetch(`${IFOOD_BASE_URL}/merchant/v1.0/merchants/${merchantId}/myPreparationTime`, {
       method: "PUT",
@@ -210,7 +232,32 @@ export class IfoodService {
     return true;
   }
 
-  public static async setInterruption(unitId: IfoodUnitId, merchantId: string, pauseMinutes: number, reason: string): Promise<boolean> {
+  // Interrupções (Pausas)
+  public static async getInterruptions(unitId: IfoodUnitId, merchantId?: string): Promise<IfoodInterruption[]> {
+    if (!merchantId) return [];
+    const token = this.getTokenState(unitId).accessToken;
+    if (!token) return [];
+
+    try {
+      const res = await fetch(`${IFOOD_BASE_URL}/merchant/v1.0/merchants/${merchantId}/interruptions`, {
+        headers: this.getHeaders(unitId),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      }
+    } catch (err) {
+      console.warn("Falha ao consultar interrupções:", err);
+    }
+    return [];
+  }
+
+  public static async setInterruption(
+    unitId: IfoodUnitId,
+    merchantId: string,
+    pauseMinutes: number,
+    reason: string
+  ): Promise<IfoodInterruption | boolean> {
     const start = new Date();
     const end = new Date(start.getTime() + pauseMinutes * 60 * 1000);
     const res = await fetch(`${IFOOD_BASE_URL}/merchant/v1.0/merchants/${merchantId}/interruptions`, {
@@ -223,7 +270,65 @@ export class IfoodService {
       }),
     });
     if (!res.ok) {
-      throw new Error(`Erro ao pausar loja: ${res.statusText}`);
+      const errText = await res.text();
+      throw new Error(`Erro ao pausar loja (${res.status}): ${errText || res.statusText}`);
+    }
+    try {
+      return await res.json();
+    } catch {
+      return true;
+    }
+  }
+
+  public static async deleteInterruption(
+    unitId: IfoodUnitId,
+    merchantId: string,
+    interruptionId: string
+  ): Promise<boolean> {
+    const res = await fetch(`${IFOOD_BASE_URL}/merchant/v1.0/merchants/${merchantId}/interruptions/${interruptionId}`, {
+      method: "DELETE",
+      headers: this.getHeaders(unitId),
+    });
+    if (!res.ok && res.status !== 204) {
+      const errText = await res.text();
+      throw new Error(`Erro ao remover pausa (${res.status}): ${errText || res.statusText}`);
+    }
+    return true;
+  }
+
+  // Horários de Funcionamento (Opening Hours)
+  public static async getOpeningHours(unitId: IfoodUnitId, merchantId?: string): Promise<IfoodOpeningHourShift[]> {
+    if (!merchantId) return [];
+    const token = this.getTokenState(unitId).accessToken;
+    if (!token) return [];
+
+    try {
+      const res = await fetch(`${IFOOD_BASE_URL}/merchant/v1.0/merchants/${merchantId}/opening-hours`, {
+        headers: this.getHeaders(unitId),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      }
+    } catch (err) {
+      console.warn("Falha ao consultar horários de funcionamento:", err);
+    }
+    return [];
+  }
+
+  public static async updateOpeningHours(
+    unitId: IfoodUnitId,
+    merchantId: string,
+    shifts: IfoodOpeningHourShift[]
+  ): Promise<boolean> {
+    const res = await fetch(`${IFOOD_BASE_URL}/merchant/v1.0/merchants/${merchantId}/opening-hours`, {
+      method: "PUT",
+      headers: this.getHeaders(unitId),
+      body: JSON.stringify(shifts),
+    });
+    if (!res.ok && res.status !== 200 && res.status !== 201) {
+      const errText = await res.text();
+      throw new Error(`Erro ao atualizar horários (${res.status}): ${errText || res.statusText}`);
     }
     return true;
   }

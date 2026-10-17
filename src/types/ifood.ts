@@ -64,6 +64,44 @@ export interface IfoodInterruption {
   end: string;
 }
 
+export interface IfoodMerchantStatus {
+  operation: "DELIVERY" | "TAKEOUT" | "INDOOR";
+  salesChannel: "IFOOD";
+  available: boolean;
+  state: "OK" | "WARNING" | "CLOSED" | "ERROR";
+  reopenable?: {
+    identifier?: string;
+    type?: string;
+    reopenable: boolean;
+  };
+  validations?: Array<{
+    id?: string;
+    code?: string;
+    state?: string;
+    message?: {
+      title?: string;
+      subtitle?: string;
+      description?: string;
+      priority?: number;
+    };
+  }>;
+}
+
+export type IfoodDayOfWeek =
+  | "MONDAY"
+  | "TUESDAY"
+  | "WEDNESDAY"
+  | "THURSDAY"
+  | "FRIDAY"
+  | "SATURDAY"
+  | "SUNDAY";
+
+export interface IfoodOpeningHourShift {
+  dayOfWeek: IfoodDayOfWeek;
+  start: string; // HH:MM:SS
+  duration: number; // minutes
+}
+
 // ==========================================
 // 2. EVENTS & ORDERS TYPES
 // ==========================================
