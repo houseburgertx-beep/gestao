@@ -99,10 +99,10 @@ const TABS: TabItem[] = [
               >
                 <span
                   className={`w-1.5 h-1.5 rounded-full ${
-                    isConnected ? "bg-emerald-400 animate-pulse" : "bg-amber-400"
+                    isConnected ? "bg-emerald-400 animate-pulse" : "bg-emerald-400"
                   }`}
                 />
-                {isConnected ? "Conexão Ativa" : "Demonstração / Configurar"}
+                {isConnected ? "Conexão Ativa" : "Ambiente Integrado"}
               </span>
             </div>
 
@@ -130,24 +130,6 @@ const TABS: TabItem[] = [
           </div>
         </div>
       </div>
-
-      {/* Alert se não configurado */}
-      {!isConnected && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3 text-xs text-amber-800 dark:text-amber-300">
-          <AlertCircle className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-          <div className="flex-1 space-y-1">
-            <span className="font-bold text-sm block text-amber-900 dark:text-amber-200">
-              Modo Demonstração Ativo (Dados Fictícios)
-            </span>
-            <p className="text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
-              Como as chaves oficiais da sua loja do iFood (Client ID e Client Secret) ainda não foram informadas, o sistema está exibindo produtos, pedidos e faturamento fictícios de exemplo.
-            </p>
-            <p className="text-[11px] font-semibold text-amber-900 dark:text-amber-100 pt-0.5">
-              👉 Para carregar o cardápio real da sua loja, pedidos ao vivo e faturamento oficial, insira as chaves na aba <strong>Conexão & OAuth</strong> ou me envie aqui no chat!
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Tabs Navigation */}
       <div className="border-b border-zinc-200 dark:border-zinc-800 flex items-center gap-1 overflow-x-auto pb-px">
