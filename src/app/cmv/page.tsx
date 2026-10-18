@@ -1039,12 +1039,32 @@ export default function CmvPage() {
                         />
                       </div>
                     )}
+
+                    {!manualFaturamento && data?.summary.channels && (data.summary.channels.table > 0 || data.summary.channels.delivery > 0 || data.summary.channels.ifood > 0) && (
+                      <div className="flex flex-wrap items-center gap-1.5 my-2">
+                        {data.summary.channels.table > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#10B981]/15 text-[11px] font-bold text-[#065F46]">
+                            <span className="font-medium opacity-80">Mesas:</span> {formatBRL(data.summary.channels.table)}
+                          </span>
+                        )}
+                        {data.summary.channels.delivery > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#10B981]/15 text-[11px] font-bold text-[#065F46]">
+                            <span className="font-medium opacity-80">Delivery:</span> {formatBRL(data.summary.channels.delivery)}
+                          </span>
+                        )}
+                        {data.summary.channels.ifood > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#10B981]/15 text-[11px] font-bold text-[#065F46]">
+                            <span className="font-medium opacity-80">iFood:</span> {formatBRL(data.summary.channels.ifood)}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <p className="text-xs text-[#3D7A65] font-medium pt-2 border-t border-black/[0.05]">
                     {manualFaturamento
                       ? "⚠️ Ajustado manualmente (recalculando CMV em tempo real)."
-                      : "Receita oficial registrada na Takeat no período."}
+                      : "Receita oficial de vendas registrada no Gestor Takeat no período."}
                   </p>
                 </div>
               </div>

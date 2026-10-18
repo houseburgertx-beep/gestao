@@ -1,4 +1,6 @@
 import { store as managementStore } from "@/services/store";
+import { getDefaultTakeatCredentials } from "@/config/takeatCredentials";
+import { fetchTakeatGeneralCards } from "@/services/takeatService";
 
 export type CostCenterKey =
   | "bebida"
@@ -7,6 +9,18 @@ export type CostCenterKey =
   | "cProducao"
   | "suco"
   | "outros";
+
+export interface ChannelBreakdown {
+  table: number;
+  delivery: number;
+  ifood: number;
+  balcony: number;
+}
+
+export interface OfficialRevenueResult {
+  total: number;
+  channels: ChannelBreakdown;
+}
 
 export interface CostCenterItem {
   id: number;
@@ -47,6 +61,7 @@ export interface StoreResult {
   cmvPercent: number;
   costCenters: Record<CostCenterKey, CostCenterData>;
   items: CostCenterItem[];
+  channels?: ChannelBreakdown;
 }
 
 export interface CmvApiResponse {
@@ -61,6 +76,7 @@ export interface CmvApiResponse {
     allExpensesTotal: number;
     cmvPercent: number;
     costCenters: Record<CostCenterKey, CostCenterData>;
+    channels?: ChannelBreakdown;
   };
   stores: StoreResult[];
 }
@@ -351,6 +367,79 @@ export function createEmptyCostCenters(): Record<CostCenterKey, CostCenterData> 
   };
 }
 
+/**
+ * Converte intervalo de datas YYYY-MM-DD para o intervalo ISO oficial da Bahia (America/Bahia, UTC-03:00)
+ * das 00:00:00.000 do dia inicial até 23:59:59.999 do dia final, idêntico ao relatório do Gestor Takeat.
+ */
+export function toBahiaReportIsoRange(startStr: string, endStr: string): { startIso: string; endIso: string } {
+  const [sY, sM, sD] = startStr.split("-").map(Number);
+  const [eY, eM, eD] = endStr.split("-").map(Number);
+  const startUtc = new Date(Date.UTC(sY, sM - 1, sD, 3, 0, 0, 0));
+  const endUtc = new Date(Date.UTC(eY, eM - 1, eD + 1, 2, 59, 59, 999));
+  return {
+    startIso: startUtc.toISOString(),
+    endIso: endUtc.toISOString(),
+  };
+}
+
+/**
+ * Busca o faturamento 100% oficial e fiel da Takeat via relatório de vendas (general-cards),
+ * exatamente idêntico ao painel oficial do Gestor Takeat (https://gestor.takeat.app/reports/main).
+ */
+export async function fetchTakeatStoreOfficialRevenue(
+  storeSlug: string,
+  startDate: string,
+  endDate: string
+): Promise<OfficialRevenueResult | null> {
+  // Central de Produção é centro de custos/fornecedor interno, não possui vendas ao consumidor
+  if (storeSlug === "central") {
+    return {
+      total: 0,
+      channels: { table: 0, delivery: 0, ifood: 0, balcony: 0 },
+    };
+  }
+
+  const creds = getDefaultTakeatCredentials(storeSlug);
+  if (!creds || (!creds.token && !creds.password)) {
+    return null;
+  }
+
+  try {
+    const { startIso, endIso } = toBahiaReportIsoRange(startDate, endDate);
+    const report = await fetchTakeatGeneralCards(creds, startIso, endIso);
+
+    if (report?.payment_without_tax) {
+      const p = report.payment_without_tax;
+      const table = parseFloat(String(p.table ?? "0")) || 0;
+      const delivery = parseFloat(String(p.delivery_takeat ?? "0")) || 0;
+      const ifood = parseFloat(String(p.ifood ?? "0")) || 0;
+      const balcony = parseFloat(String(p.balcony ?? "0")) || 0;
+
+      let total = 0;
+      if (p.client !== undefined && p.client !== null) {
+        total = parseFloat(String(p.client)) || 0;
+      }
+      if (total <= 0) {
+        total = table + delivery + ifood + balcony;
+      }
+
+      return {
+        total: Math.round(total * 100) / 100,
+        channels: {
+          table: Math.round(table * 100) / 100,
+          delivery: Math.round(delivery * 100) / 100,
+          ifood: Math.round(ifood * 100) / 100,
+          balcony: Math.round(balcony * 100) / 100,
+        },
+      };
+    }
+  } catch (err) {
+    console.warn(`[CMV] Falha ao consultar faturamento fiel de ${storeSlug} via general-cards:`, err);
+  }
+
+  return null;
+}
+
 export async function fetchCmvData(
   startDate: string,
   endDate: string,
@@ -379,37 +468,60 @@ export async function fetchCmvData(
   const storeResults: StoreResult[] = [];
   const globalCostCenters = createEmptyCostCenters();
   let globalAllExpensesTotal = 0;
+  const globalChannels: ChannelBreakdown = {
+    table: 0,
+    delivery: 0,
+    ifood: 0,
+    balcony: 0,
+  };
 
   const slices = splitDateInterval(startDate, endDate, 80);
 
   for (const store of targetStores) {
     let storeRevenue = 0;
+    let storeChannels: ChannelBreakdown | undefined = undefined;
     const storeItems: CostCenterItem[] = [];
     const storeCostCenters = createEmptyCostCenters();
 
+    // 1. Tenta obter o faturamento oficial 100% fiel da Takeat (general-cards),
+    // exatamente idêntico ao painel oficial do Gestor Takeat (https://gestor.takeat.app/reports/main)
+    if (store.slugKey) {
+      const official = await fetchTakeatStoreOfficialRevenue(store.slugKey, startDate, endDate);
+      if (official && official.total >= 0) {
+        storeRevenue = official.total;
+        storeChannels = official.channels;
+        globalChannels.table += official.channels.table;
+        globalChannels.delivery += official.channels.delivery;
+        globalChannels.ifood += official.channels.ifood;
+        globalChannels.balcony += official.channels.balcony;
+      }
+    }
+
     // Percorre cada fatia de data (suporta períodos arbitrários sem o limite de 92 dias)
     for (const slice of slices) {
-      // 1. Faturamento oficial registrado na Takeat
-      const revenueParams = new URLSearchParams({
-        restaurant_id: store.id,
-        start_date: slice.start,
-        end_date: slice.end,
-        is_earning: "true",
-        date_type: dateType,
-      });
+      // Se não obteve via relatório oficial de vendas general-cards, busca via cash-flows
+      if (storeRevenue === 0 && store.id !== "121908") {
+        const revenueParams = new URLSearchParams({
+          restaurant_id: store.id,
+          start_date: slice.start,
+          end_date: slice.end,
+          is_earning: "true",
+          date_type: dateType,
+        });
 
-      try {
-        const revRes = await fetch(
-          `https://public-api.takeat.app/v1/financial/cash-flows?${revenueParams.toString()}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        try {
+          const revRes = await fetch(
+            `https://public-api.takeat.app/v1/financial/cash-flows?${revenueParams.toString()}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
 
-        if (revRes.ok) {
-          const revData = await revRes.json();
-          storeRevenue += parseFloat(revData.totals?.total_earnings || "0");
+          if (revRes.ok) {
+            const revData = await revRes.json();
+            storeRevenue += parseFloat(revData.totals?.total_earnings || "0");
+          }
+        } catch (e) {
+          console.warn(`Aviso ao consultar receita loja ${store.name} fatia ${slice.start}:`, e);
         }
-      } catch (e) {
-        console.warn(`Aviso ao consultar receita loja ${store.name} fatia ${slice.start}:`, e);
       }
 
       // 2. Despesas com paginação completa (coleta 100% de todos os lançamentos)
@@ -526,6 +638,7 @@ export async function fetchCmvData(
       cmvPercent: Math.round(storeCmvPercent * 100) / 100,
       costCenters: storeCostCenters,
       items: storeItems,
+      channels: storeChannels,
     });
   }
 
@@ -557,6 +670,7 @@ export async function fetchCmvData(
       allExpensesTotal: globalAllExpensesTotal,
       cmvPercent: Math.round(globalCmvPercent * 100) / 100,
       costCenters: globalCostCenters,
+      channels: globalChannels,
     },
     stores: storeResults,
   };
