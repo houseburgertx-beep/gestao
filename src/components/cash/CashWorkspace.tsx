@@ -34,6 +34,8 @@ import {
   TakeatFiscalIssuedSummary,
   TakeatCashierSummary,
 } from "@/services/takeatService";
+import { CashClosingHome } from "./CashClosingHome";
+import { CashClosingWizard } from "./CashClosingWizard";
 import "@/components/management/management.css";
 
 const MAX_CLOSING_ATTACHMENTS = 20;
@@ -804,6 +806,94 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
     });
   }, [filteredQueue, selectedUnit, availableUnits, data.units]);
 
+  const handleDeleteClosing = async (row: RecordData) => {
+    const unitName = data.units.find((u) => u.id === row.unitId)?.name || row.unitId;
+    const formattedDate = str(row, "date").split("-").reverse().join("/");
+    if (
+      !window.confirm(
+        `Tem certeza que deseja excluir o fechamento de ${formattedDate} (${unitName})? Caso tenha lançado com a data errada, você poderá lançar novamente com a data certa.`
+      )
+    ) {
+      return;
+    }
+    try {
+      const rowToDelete = { ...row, updatedBy: user?.uid || row.updatedBy };
+      await saveManagement(rowToDelete, data, true);
+      setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
+    } catch (err) {
+      console.warn("Falha no soft-delete do fechamento, tentando exclusão direta:", err);
+      try {
+        const { deleteDoc, doc } = await import("firebase/firestore");
+        await deleteDoc(doc(db, "gestao_cashClosings", row.id));
+        setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
+      } catch (delErr) {
+        console.error("Erro ao excluir fechamento:", delErr);
+        alert(
+          "Não foi possível excluir o fechamento: " +
+            (delErr instanceof Error ? delErr.message : String(delErr))
+        );
+      }
+    }
+  };
+
+  if (mode === "closing") {
+    return (
+      <>
+        <CashClosingHome
+          closings={visible}
+          units={data.units}
+          availableUnits={availableUnits}
+          selectedUnit={selectedUnit}
+          onSelectUnit={handleSelectUnit}
+          showUnitFilter={!isScopedStoreUser}
+          todayCount={todayRows.length}
+          todayDifference={difference}
+          pendingCount={pending.length}
+          reviewedCount={reviewed.length}
+          message={message}
+          onDismissMessage={() => setMessage("")}
+          isConferred={isConferred}
+          getEffectiveStatus={getEffectiveStatus}
+          onNewClosing={() => {
+            setEditingClosing(null);
+            setClosingOpen(true);
+          }}
+          onEditClosing={(row) => {
+            setEditingClosing(row);
+            setClosingOpen(true);
+          }}
+          onViewClosing={setViewingClosing}
+          onDeleteClosing={handleDeleteClosing}
+        />
+        {closingOpen && (
+          <CashClosingWizard
+            initialClosing={editingClosing}
+            onClose={() => {
+              setClosingOpen(false);
+              setEditingClosing(null);
+            }}
+            onSaved={() => {
+              const wasReopen = Boolean(editingClosing);
+              setClosingOpen(false);
+              setEditingClosing(null);
+              setMessage(
+                wasReopen
+                  ? "Fechamento atualizado e reenviado ao financeiro."
+                  : "Fechamento enviado ao financeiro para conferência."
+              );
+            }}
+          />
+        )}
+        {viewingClosing && (
+          <ClosingDetailsModal
+            closing={viewingClosing}
+            onClose={() => setViewingClosing(null)}
+          />
+        )}
+      </>
+    );
+  }
+
   return <div className="workspace-shell cash-workspace">
     {mode === "audit" ? (
       <header className="workspace-header">
@@ -816,15 +906,10 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
     ) : (
       <header className="workspace-header">
         <div>
-          <span className="workspace-eyebrow">{mode === "closing" ? "FECHAMENTO DE CAIXA HOUSE 190" : "CONFERÊNCIA FINANCEIRA HOUSE 190"}</span>
-          <h1>{mode === "closing" ? "Fechamento de caixa" : "Conferência financeira"}</h1>
-          <p>{mode === "closing" ? "Entrada total e conciliação objetiva de Dinheiro, Crédito, Débito e PIX." : "Compare os valores apurados, revise divergências, audite motoboys e aprove os saldos líquidos dos bancos."}</p>
+          <span className="workspace-eyebrow">CONFERÊNCIA FINANCEIRA HOUSE 190</span>
+          <h1>Conferência financeira</h1>
+          <p>Compare os valores apurados, revise divergências, audite motoboys e aprove os saldos líquidos dos bancos.</p>
         </div>
-        {mode === "closing" && (
-          <button className="workspace-primary" onClick={() => { setEditingClosing(null); setClosingOpen(true); }}>
-            <Plus size={16} /> Novo fechamento
-          </button>
-        )}
       </header>
     )}
 
@@ -899,8 +984,8 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
       <section className="cash-list">
         <header>
           <div>
-            <span>{mode==="closing"?"HISTÓRICO":"FILA FINANCEIRA"}</span>
-            <h2>{mode==="closing"?"Fechamentos registrados":"Caixas para conferência"}</h2>
+            <span>FILA FINANCEIRA</span>
+            <h2>Caixas para conferência</h2>
           </div>
           {mode==="conference"&&(
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -1034,45 +1119,6 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
                             </button>
                           </>
                         )}
-                        {mode==="closing"&&!rowConferred&&(
-                          <>
-                            <button
-                              type="button"
-                              className="cash-reopen-btn"
-                              title="Reabrir este fechamento para corrigir ou ajustar valores antes da conferência do financeiro"
-                              onClick={()=>{ setEditingClosing(row); setClosingOpen(true); }}
-                            >
-                              <RotateCcw size={12}/> Reabrir
-                            </button>
-                            <button
-                              type="button"
-                              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition border border-rose-200 dark:border-rose-900 flex items-center gap-1"
-                              title="Excluir este fechamento de caixa caso tenha sido lançado com data errada ou duplicado"
-                              onClick={async () => {
-                                const unitName = data.units.find(u => u.id === row.unitId)?.name || row.unitId;
-                                const formattedDate = str(row, "date").split("-").reverse().join("/");
-                                if (!window.confirm(`Tem certeza que deseja excluir o fechamento de ${formattedDate} (${unitName})? Caso tenha lançado com a data errada, você poderá lançar novamente com a data certa.`)) return;
-                                try {
-                                  const rowToDelete = { ...row, updatedBy: user?.uid || row.updatedBy };
-                                  await saveManagement(rowToDelete, data, true);
-                                  setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
-                                } catch (err) {
-                                  console.warn("Falha no soft-delete do fechamento, tentando exclusão direta:", err);
-                                  try {
-                                    const { deleteDoc, doc } = await import("firebase/firestore");
-                                    await deleteDoc(doc(db, "gestao_cashClosings", row.id));
-                                    setMessage(`Fechamento de ${formattedDate} excluído com sucesso.`);
-                                  } catch (delErr) {
-                                    console.error("Erro ao excluir fechamento:", delErr);
-                                    alert("Não foi possível excluir o fechamento: " + (delErr instanceof Error ? delErr.message : String(delErr)));
-                                  }
-                                }
-                              }}
-                            >
-                              <Trash2 size={12}/> Excluir
-                            </button>
-                          </>
-                        )}
                       </div>
                     </article>
                   );
@@ -1084,24 +1130,12 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
           <div className="people-empty">
             <FileCheck2 size={30} />
             <strong>Nenhum fechamento encontrado</strong>
-            <span>{mode === "closing" ? "Use “Novo fechamento” para iniciar." : "Nenhum caixa encontrado para este filtro."}</span>
+            <span>Nenhum caixa encontrado para este filtro.</span>
           </div>
         )}
       </section>
     )}
 
-    {closingOpen&&(
-      <ClosingModal
-        initialClosing={editingClosing}
-        onClose={()=>{ setClosingOpen(false); setEditingClosing(null); }}
-        onSaved={()=>{
-          const wasReopen = Boolean(editingClosing);
-          setClosingOpen(false);
-          setEditingClosing(null);
-          setMessage(wasReopen ? "Fechamento atualizado com sucesso e reenviado ao financeiro." : "Fechamento enviado ao financeiro para conferência.");
-        }}
-      />
-    )}
     {reviewing&&<ConferenceModal closing={reviewing} onClose={()=>setReviewing(null)} onSaved={()=>{setReviewing(null);setMessage("Conferência aprovada e saldos bancários atualizados com desconto de taxas.");}}/>}
     {viewingClosing && (
       <ClosingDetailsModal
