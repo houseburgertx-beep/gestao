@@ -140,7 +140,10 @@ async function callGoogleScript(env: EmailEnv, body: object): Promise<Record<str
     const location = response.headers.get("Location");
     if (!location) throw new Error("google_script_invalid_response");
     const destination = new URL(location, env.GOOGLE_SCRIPT_URL);
-    if (destination.protocol !== "https:" || destination.hostname !== "script.googleusercontent.com") {
+    if (
+      destination.protocol !== "https:" ||
+      (destination.hostname !== "script.googleusercontent.com" && destination.hostname !== "script.google.com")
+    ) {
       throw new Error("google_script_invalid_response");
     }
     // ContentService can briefly return 404 while its response becomes available.
@@ -157,7 +160,11 @@ async function callGoogleScript(env: EmailEnv, body: object): Promise<Record<str
   let result: Record<string, unknown>;
   try { result = JSON.parse(text); }
   catch { throw new Error("google_script_invalid_response"); }
-  if (!result.ok) throw new Error(String(result.error || "google_script_failed"));
+  if (!result.ok) {
+    const code = String(result.error || "google_script_failed");
+    const details = typeof result.details === "string" && result.details.trim() ? `: ${result.details.trim().slice(0, 240)}` : "";
+    throw new Error(`${code}${details}`);
+  }
   return result;
 }
 
@@ -233,13 +240,15 @@ export default {
     }
     const contentLength = Number(request.headers.get("Content-Length") || "0");
     const maxRequestSize = ["/files/upload", "/sheets/sync"].includes(url.pathname) ? 11250000 : 8192;
-    if (contentLength > maxRequestSize) return jsonResponse({ error: "payload_too_large" }, 413, origin);
+    if (contentLength > maxRequestSize) {
+      return jsonResponse({ error: "payload_too_large", message: "O arquivo ultrapassa o limite de 8 MB permitido para o Google Drive." }, 413, origin);
+    }
 
     let verifiedUser: { userId: string; email: string };
     try {
       verifiedUser = await verifyFirebaseToken(request.headers.get("Authorization"));
     } catch {
-      return jsonResponse({ error: "unauthorized" }, 401, origin);
+      return jsonResponse({ error: "unauthorized", message: "Sessão expirada. Atualize a página ou faça login novamente." }, 401, origin);
     }
 
     let payload: unknown;
@@ -266,8 +275,12 @@ export default {
       }
 
       if (url.pathname === "/files/upload") {
-        if (!isValidUpload(payload)) return jsonResponse({ error: "invalid_payload" }, 400, origin);
-        if (Math.floor(payload.base64.length * 0.75) > MAX_FILE_BYTES) return jsonResponse({ error: "file_too_large" }, 413, origin);
+        if (!isValidUpload(payload)) {
+          return jsonResponse({ error: "invalid_payload", message: "Arquivo inválido ou formato não suportado para envio ao Google Drive." }, 400, origin);
+        }
+        if (Math.floor(payload.base64.length * 0.75) > MAX_FILE_BYTES) {
+          return jsonResponse({ error: "file_too_large", message: "O arquivo ultrapassa o limite de 8 MB permitido para o Google Drive." }, 413, origin);
+        }
         const result = await callGoogleScript(env, { action: "upload", ...payload, userId: verifiedUser.userId });
         return jsonResponse({ ok: true, fileId: result.fileId, fileName: result.fileName, mimeType: result.mimeType, size: result.size }, 200, origin);
       }
@@ -307,6 +320,8 @@ export default {
     } catch (error) {
       console.error(JSON.stringify({ event: "service_error", reason: error instanceof Error ? error.message : "unknown", userId: verifiedUser.userId }));
       const reason = error instanceof Error ? error.message : "unknown";
+      const baseReason = reason.split(":")[0].trim();
+      const extraDetails = reason.includes(":") ? reason.slice(reason.indexOf(":") + 1).trim() : "";
       const messages: Record<string, string> = {
         recipient_directory_unavailable: "Não foi possível atualizar os destinatários. Abra o sistema com uma conta da diretoria para sincronizar os usuários.",
         google_script_not_configured: "A conexão com o Google Apps Script não está configurada.",
@@ -314,9 +329,13 @@ export default {
         unauthorized: "A chave de conexão entre o serviço e o Google Apps Script não confere.",
         daily_quota_exceeded: "O limite diário de envio de e-mails do Google foi atingido.",
         request_failed: "O Google Apps Script falhou. Verifique suas execuções e autorizações do Gmail e Google Drive.",
-        invalid_action: "O Google Apps Script em execução ainda não possui a ação de sincronizar planilha (sync_sheets). Atualize o Code.gs no Apps Script.",
+        invalid_action: "O Google Apps Script em execução ainda não possui a ação solicitada. Atualize o Code.gs no Apps Script.",
+        file_not_managed: "O arquivo solicitado não pertence à pasta gerenciada do Google Drive.",
       };
-      const displayMessage = messages[reason] || `O Google Apps Script retornou erro: ${reason}.`;
+      const baseMsg = messages[reason] || messages[baseReason];
+      const displayMessage = baseMsg
+        ? (extraDetails ? `${baseMsg} (${extraDetails})` : baseMsg)
+        : `O Google Apps Script retornou erro: ${reason}.`;
       return jsonResponse({ error: "service_unavailable", reason, message: displayMessage }, 503, origin);
     }
   },

@@ -22,6 +22,8 @@ import {
   downloadFileFromDrive,
   formatFileSize,
   getFileBlobFromDrive,
+  isImageFile,
+  MAX_DRIVE_FILE_SIZE,
   nameFileForDrive,
   runWithConcurrency,
   uploadFileToDrive
@@ -37,6 +39,7 @@ import {
 import { CashClosingHome } from "./CashClosingHome";
 import { CashClosingWizard } from "./CashClosingWizard";
 import { MotoboyBreakdownModal } from "./MotoboyBreakdownModal";
+import { serializeSafeAttachments } from "./cashHelpers";
 import "@/components/management/management.css";
 
 const MAX_CLOSING_ATTACHMENTS = 20;
@@ -1500,7 +1503,7 @@ function ClosingModal({
     try {
       const processed = await Promise.all(
         toProcess.map(async (file) => {
-          if (file.type && file.type.startsWith("image/")) {
+          if (isImageFile(file)) {
             const comp = await compressImageFile(file, 1400, 0.72);
             return {
               file: comp.file,
@@ -1699,38 +1702,49 @@ function ClosingModal({
         dataUrl: isValidDataUrl(att.dataUrl) ? att.dataUrl : undefined,
       }))];
 
-      const newUploadResults = await runWithConcurrency(newFiles, 3, async (item) => {
+      const newUploadResults = await runWithConcurrency(newFiles, 2, async (item) => {
         try {
           const named = nameFileForDrive(item.file, `Fechamento ${date} - ${unit}`);
           const [saved, thumbUrl] = await Promise.all([
             uploadFileToDrive(named, "payment_proofs"),
-            createThumbnailDataUrl(item.file, 260, 0.65)
+            createThumbnailDataUrl(item.file, 220, 0.58)
           ]);
           completedCount++;
-          setBusyMessage(`Enviando comprovantes (${completedCount}/${totalNew})...`);
+          setBusyMessage(`Enviando fotos para o Drive (${completedCount}/${totalNew})...`);
           return {
-            fileId: saved.fileId,
-            fileName: saved.fileName,
-            mimeType: saved.mimeType,
-            size: saved.size,
-            dataUrl: thumbUrl || undefined,
-            uploadedAt: new Date().toISOString()
+            ok: true as const,
+            attachment: {
+              fileId: saved.fileId,
+              fileName: saved.fileName,
+              mimeType: saved.mimeType,
+              size: saved.size,
+              dataUrl: thumbUrl || undefined,
+              uploadedAt: new Date().toISOString()
+            }
           };
         } catch (uploadErr) {
-          console.warn("[Fechamento] Falha ao enviar comprovante para o Drive, mantendo fallback:", uploadErr);
+          console.error("[Fechamento] Falha ao enviar comprovante para o Drive:", uploadErr);
           completedCount++;
-          setBusyMessage(`Enviando comprovantes (${completedCount}/${totalNew})...`);
+          setBusyMessage(`Enviando fotos para o Drive (${completedCount}/${totalNew})...`);
           return {
-            fileId: `local-${Date.now()}-${item.file.name}`,
-            fileName: item.file.name,
-            mimeType: item.file.type || "image/jpeg",
-            size: item.size,
-            dataUrl: isValidDataUrl(item.dataUrl) ? item.dataUrl : undefined,
-            uploadedAt: new Date().toISOString()
+            ok: false as const,
+            item,
+            reason: uploadErr instanceof Error ? uploadErr.message : "Falha ao salvar no Google Drive."
           };
         }
       });
-      uploadedAttachments.push(...newUploadResults);
+      const succeededUploads = newUploadResults.filter((r) => r.ok).map((r) => r.attachment);
+      const failedUploads = newUploadResults.filter((r) => !r.ok);
+      if (succeededUploads.length > 0) {
+        uploadedAttachments.push(...succeededUploads);
+      }
+      if (failedUploads.length > 0) {
+        if (succeededUploads.length > 0) {
+          setExistingAttachments(uploadedAttachments);
+        }
+        setNewFiles(failedUploads.map((f) => f.item));
+        throw new Error(`Não foi possível enviar ${failedUploads.length} comprovante(s) para o Google Drive: ${failedUploads[0].reason}`);
+      }
       setBusyMessage("Gravando fechamento...");
 
       const now = new Date().toISOString();
@@ -1807,7 +1821,7 @@ function ClosingModal({
         invoiceIssued: c(invoiceIssued),
         invoiceDifference: cInvoiceDiff,
         pixRequestsJson: JSON.stringify(requestedPix),
-        attachmentsJson: JSON.stringify(uploadedAttachments),
+        attachmentsJson: serializeSafeAttachments(uploadedAttachments),
         status: "Aguardando conferência",
         notes: notes.trim()
       };
@@ -3092,7 +3106,11 @@ function ClosingModal({
                           capture="environment"
                           className="sr-only"
                           disabled={compressingFiles}
-                          onChange={e => e.target.files && handleAddFiles(e.target.files)}
+                          onChange={(e) => {
+                            const picked = e.target.files ? Array.from(e.target.files) : [];
+                            e.target.value = "";
+                            if (picked.length > 0) void handleAddFiles(picked);
+                          }}
                         />
                       </label>
                       <label className="flex-1 employee-file-upload cursor-pointer justify-center text-xs py-2.5">
@@ -3104,7 +3122,11 @@ function ClosingModal({
                           accept=".pdf,image/*"
                           className="sr-only"
                           disabled={compressingFiles}
-                          onChange={e => e.target.files && handleAddFiles(e.target.files)}
+                          onChange={(e) => {
+                            const picked = e.target.files ? Array.from(e.target.files) : [];
+                            e.target.value = "";
+                            if (picked.length > 0) void handleAddFiles(picked);
+                          }}
                         />
                       </label>
                     </div>
@@ -3875,53 +3897,74 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
   const handleAddFinanceAttachment = async (fileList: FileList | File[]) => {
     const files = Array.from(fileList);
     if (!files.length) return;
+    const remaining = MAX_CLOSING_ATTACHMENTS - attachmentsList.length;
+    if (remaining <= 0) {
+      setError(`Limite máximo de ${MAX_CLOSING_ATTACHMENTS} comprovantes atingido.`);
+      return;
+    }
+    const toProcess = files.slice(0, remaining);
     setUploadingAtt(true);
     setError("");
     try {
-      const newItems = await runWithConcurrency(files, 3, async (file) => {
-        let fileToSend = file;
-        let clientDataUrl = "";
-        if (file.type && file.type.startsWith("image/")) {
-          const comp = await compressImageFile(file, 1400, 0.72);
-          fileToSend = comp.file;
-          clientDataUrl = comp.dataUrl;
-        }
+      const results = await runWithConcurrency(toProcess, 2, async (file) => {
         try {
+          if (!file || file.size === 0) {
+            throw new Error(`O arquivo "${file?.name || "sem nome"}" está vazio.`);
+          }
+          let fileToSend = file;
+          if (isImageFile(file)) {
+            const comp = await compressImageFile(file, 1400, 0.72);
+            fileToSend = comp.file;
+          }
+          if (fileToSend.size > MAX_DRIVE_FILE_SIZE) {
+            throw new Error(`"${file.name}" excede o limite de 8 MB.`);
+          }
           const named = nameFileForDrive(fileToSend, `Conferencia ${str(closing, "date")} - ${closing.unitId}`);
           const [saved, thumbUrl] = await Promise.all([
             uploadFileToDrive(named, "payment_proofs"),
-            createThumbnailDataUrl(fileToSend, 260, 0.65)
+            createThumbnailDataUrl(fileToSend, 220, 0.58)
           ]);
           return {
-            fileId: saved.fileId,
-            fileName: saved.fileName,
-            mimeType: saved.mimeType,
-            size: saved.size,
-            dataUrl: thumbUrl || undefined,
-            uploadedAt: new Date().toISOString()
+            ok: true as const,
+            attachment: {
+              fileId: saved.fileId,
+              fileName: saved.fileName,
+              mimeType: saved.mimeType,
+              size: saved.size,
+              dataUrl: thumbUrl || undefined,
+              uploadedAt: new Date().toISOString()
+            }
           };
-        } catch {
+        } catch (uploadErr) {
+          console.error("[Conferência] Erro ao enviar comprovante para o Google Drive:", file.name, uploadErr);
           return {
-            fileId: `local-${Date.now()}-${file.name}`,
+            ok: false as const,
             fileName: file.name,
-            mimeType: file.type || "image/jpeg",
-            size: file.size,
-            dataUrl: clientDataUrl || undefined,
-            uploadedAt: new Date().toISOString()
+            reason: uploadErr instanceof Error ? uploadErr.message : "Falha ao enviar para o Google Drive."
           };
         }
       });
-      const newList: CashAttachment[] = [...attachmentsList, ...newItems];
-      setAttachmentsList(newList);
-      const updatedClosing: RecordData = {
-        ...closing,
-        attachmentsJson: JSON.stringify(newList),
-        updatedAt: new Date().toISOString(),
-        updatedBy: user?.uid || ""
-      };
-      await commitRecords([updatedClosing], data, updatedClosing);
+
+      const succeeded = results.filter((r) => r.ok).map((r) => r.attachment);
+      const failed = results.filter((r) => !r.ok);
+
+      if (succeeded.length > 0) {
+        const newList: CashAttachment[] = [...attachmentsList, ...succeeded];
+        setAttachmentsList(newList);
+        const updatedClosing: RecordData = {
+          ...closing,
+          attachmentsJson: serializeSafeAttachments(newList),
+          updatedAt: new Date().toISOString(),
+          updatedBy: user?.uid || ""
+        };
+        await commitRecords([updatedClosing], data, updatedClosing);
+      }
+
+      if (failed.length > 0) {
+        setError(`Não foi possível enviar ${failed.length} arquivo(s) para o Google Drive: ${failed[0].reason}`);
+      }
     } catch (err) {
-      setError("Falha ao salvar comprovante.");
+      setError(err instanceof Error ? err.message : "Falha ao salvar comprovante no Google Drive.");
     } finally {
       setUploadingAtt(false);
     }
@@ -4058,18 +4101,9 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         notes: notes.trim() || "Conferência aprovada com conciliação bancária."
       };
 
-      const cleanAttachments = attachmentsList.map(att => {
-        const isDrive = Boolean(att.fileId && !att.fileId.startsWith("local-"));
-        if (isDrive && att.dataUrl && att.dataUrl.length > 50000) {
-          const { dataUrl, ...rest } = att;
-          return rest;
-        }
-        return att;
-      });
-
       const updatedClosing: RecordData = {
         ...closing,
-        attachmentsJson: JSON.stringify(cleanAttachments),
+        attachmentsJson: serializeSafeAttachments(attachmentsList),
         status: "Conferido",
         conferredAt: now,
         conferredBy: userProfile?.displayName || user.email || user.uid,
@@ -4303,7 +4337,11 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
                 accept=".pdf,image/*"
                 className="sr-only"
                 disabled={uploadingAtt}
-                onChange={e => e.target.files && handleAddFinanceAttachment(e.target.files)}
+                onChange={(e) => {
+                  const picked = e.target.files ? Array.from(e.target.files) : [];
+                  e.target.value = "";
+                  if (picked.length > 0) void handleAddFinanceAttachment(picked);
+                }}
               />
             </label>
           </div>

@@ -68,6 +68,7 @@ export function EditEmployeeModal({
   const [vacationEnd, setVacationEnd] = useState("");
   const [notes, setNotes] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
     if (employee && isOpen) {
@@ -112,6 +113,7 @@ export function EditEmployeeModal({
     if (!name.trim() || !role.trim()) return;
 
     setLoading(true);
+    setSubmitError("");
     try {
       const parsedSalary = parseFloat(
         salary.replace(/\./g, "").replace(",", ".")
@@ -119,15 +121,11 @@ export function EditEmployeeModal({
 
       let photoDriveFileId = employee.photoDriveFileId;
       if (photoFile) {
-        try {
-          const stored = await uploadFileToDrive(
-            nameFileForDrive(photoFile, `Foto - ${name.trim()}`),
-            "employee_photos"
-          );
-          photoDriveFileId = stored.fileId;
-        } catch (uploadErr) {
-          console.warn("Aviso ao fazer upload da foto:", uploadErr);
-        }
+        const stored = await uploadFileToDrive(
+          nameFileForDrive(photoFile, `Foto - ${name.trim()}`),
+          "employee_photos"
+        );
+        photoDriveFileId = stored.fileId;
       }
 
       const updatedEmployee: Employee = {
@@ -193,6 +191,11 @@ export function EditEmployeeModal({
       onClose();
     } catch (error) {
       console.error("Erro ao atualizar colaborador:", error);
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível salvar as alterações ou enviar a foto para o Google Drive."
+      );
     } finally {
       setLoading(false);
     }
@@ -616,6 +619,11 @@ export function EditEmployeeModal({
           </div>
 
           {/* Fixed Footer */}
+          {submitError && (
+            <div className="px-5 py-2 text-xs font-medium text-rose-700 bg-rose-50 border-t border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900">
+              {submitError}
+            </div>
+          )}
           <footer className="task-modal-footer">
             <button
               type="button"

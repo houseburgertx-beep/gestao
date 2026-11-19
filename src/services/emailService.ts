@@ -1,8 +1,8 @@
 import { auth } from "@/lib/firebase";
+import { HOUSE190_EMAIL_URL } from "@/config/worker";
 import type { AppNotification } from "@/types";
 
-const EMAIL_WORKER_URL =
-  "https://house190-email-notifications.house-folgas-notifications.workers.dev/notifications/email";
+const EMAIL_WORKER_URL = HOUSE190_EMAIL_URL;
 
 export async function sendNotificationEmail(
   eventId: string,

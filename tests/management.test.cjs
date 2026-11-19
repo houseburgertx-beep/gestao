@@ -1086,4 +1086,58 @@ test("RH - Alertas e acompanhamento de contrato de experiência de 90 dias (getE
   assert.equal(expTerminated.urgency, "completed");
 });
 
+test("Google Drive / Worker: usa o subdomínio ativo brunohouse.workers.dev em todos os serviços", () => {
+  const workerCfg = require("../src/config/worker.ts");
+  assert.equal(
+    workerCfg.HOUSE190_WORKER_URL,
+    "https://house190-email-notifications.brunohouse.workers.dev"
+  );
+  assert.equal(
+    workerCfg.HOUSE190_EMAIL_URL,
+    "https://house190-email-notifications.brunohouse.workers.dev/notifications/email"
+  );
+  for (const rel of [
+    "../src/services/driveService.ts",
+    "../src/services/emailService.ts",
+    "../src/services/sheetsBackupService.ts",
+  ]) {
+    const content = fs.readFileSync(path.join(__dirname, rel), "utf8");
+    assert.ok(
+      !content.includes("house-folgas-notifications.workers.dev"),
+      `${rel} não deve referenciar o subdomínio antigo desativado`
+    );
+  }
+});
+
+test("Comprovantes do Caixa: serializeSafeAttachments protege contra estouro do limite de 1 MB do Firestore", () => {
+  const helpersPath = path.join(__dirname, "../src/components/cash/cashHelpers.ts");
+  const helpersSrc = fs.readFileSync(helpersPath, "utf8");
+  const safeSlice = helpersSrc.slice(helpersSrc.indexOf("export function isValidDataUrl("));
+  const compiled = ts.transpileModule(safeSlice, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const mod = { exports: {} };
+  new Function("module", "exports", "currency", "str", compiled)(
+    mod,
+    mod.exports,
+    (v) => String(v),
+    (r, k) => String(r?.[k] || "")
+  );
+  const { serializeSafeAttachments } = mod.exports;
+  const bigThumb = "data:image/jpeg;base64," + "A".repeat(40000);
+  const items = Array.from({ length: 20 }, (_, i) => ({
+    fileId: `1DriveFileIdValid000000${i}`,
+    fileName: `comprovante-${i}.jpg`,
+    mimeType: "image/jpeg",
+    size: 180000,
+    dataUrl: bigThumb,
+  }));
+  const json = serializeSafeAttachments(items);
+  assert.ok(json.length < 450000, `JSON deve ficar bem abaixo de 1 MB (atual: ${json.length})`);
+  const parsed = JSON.parse(json);
+  assert.equal(parsed.length, 20);
+  assert.equal(parsed[0].fileId, "1DriveFileIdValid0000000");
+});
+
+
 

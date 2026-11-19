@@ -32,6 +32,8 @@ import {
   createThumbnailDataUrl,
   formatFileSize,
   getFileBlobFromDrive,
+  isImageFile,
+  MAX_DRIVE_FILE_SIZE,
   nameFileForDrive,
   runWithConcurrency,
   uploadFileToDrive,
@@ -63,6 +65,7 @@ import {
   parsePixRequests,
   PixRequestItem,
   safeUUID,
+  serializeSafeAttachments,
   toMoneyCents,
   toMoneyInput,
 } from "./cashHelpers";
@@ -617,35 +620,58 @@ export function CashClosingWizard({
   };
 
   const handleAddFiles = async (fileList: FileList | File[]) => {
+    const incoming = Array.from(fileList);
+    if (!incoming.length) return;
     const remaining = MAX_CLOSING_ATTACHMENTS - (existingAttachments.length + newFiles.length);
     if (remaining <= 0) {
       setError(`Limite máximo de ${MAX_CLOSING_ATTACHMENTS} comprovantes atingido.`);
       return;
     }
-    const toProcess = Array.from(fileList).slice(0, remaining);
+    const toProcess = incoming.slice(0, remaining);
+    setError("");
     setCompressingFiles(true);
     try {
-      const processed = await Promise.all(
-        toProcess.map(async (file) => {
-          if (file.type && file.type.startsWith("image/")) {
-            const comp = await compressImageFile(file, 1400, 0.72);
-            return {
-              file: comp.file,
-              previewUrl:
-                comp.dataUrl || (typeof window !== "undefined" ? URL.createObjectURL(comp.file) : ""),
-              dataUrl: comp.dataUrl,
-              size: comp.size,
-            };
+      const skippedErrors: string[] = [];
+      const processed: Array<{ file: File; previewUrl: string; dataUrl: string; size: number }> = [];
+      for (const file of toProcess) {
+        if (!file || file.size === 0) {
+          skippedErrors.push(`"${file?.name || "arquivo"}" está vazio.`);
+          continue;
+        }
+        if (isImageFile(file)) {
+          const comp = await compressImageFile(file, 1400, 0.72);
+          if (comp.size > MAX_DRIVE_FILE_SIZE) {
+            skippedErrors.push(`"${file.name}" excede o limite de 8 MB mesmo após compactação.`);
+            continue;
           }
-          return {
+          processed.push({
+            file: comp.file,
+            previewUrl:
+              comp.dataUrl || (typeof window !== "undefined" ? URL.createObjectURL(comp.file) : ""),
+            dataUrl: comp.dataUrl,
+            size: comp.size,
+          });
+        } else {
+          if (file.size > MAX_DRIVE_FILE_SIZE) {
+            skippedErrors.push(`"${file.name}" excede o limite de 8 MB.`);
+            continue;
+          }
+          processed.push({
             file,
             previewUrl: typeof window !== "undefined" ? URL.createObjectURL(file) : "",
             dataUrl: "",
             size: file.size,
-          };
-        })
-      );
-      setNewFiles((prev) => [...prev, ...processed]);
+          });
+        }
+      }
+      if (processed.length > 0) {
+        setNewFiles((prev) => [...prev, ...processed]);
+      }
+      if (skippedErrors.length > 0) {
+        setError(skippedErrors.join(" "));
+      } else if (incoming.length > remaining) {
+        setError(`Apenas ${remaining} arquivo(s) foram adicionados (limite máximo de ${MAX_CLOSING_ATTACHMENTS}).`);
+      }
     } finally {
       setCompressingFiles(false);
     }
@@ -991,7 +1017,7 @@ export function CashClosingWizard({
       let completedCount = 0;
       const totalNew = newFiles.length;
       if (totalNew > 0) {
-        setBusyMessage(`Enviando comprovantes (0/${totalNew})...`);
+        setBusyMessage(`Enviando fotos para o Drive (0/${totalNew})...`);
       }
 
       const uploadedAttachments: CashAttachment[] = [
@@ -1001,37 +1027,72 @@ export function CashClosingWizard({
         })),
       ];
 
-      const newUploadResults = await runWithConcurrency(newFiles, 3, async (item) => {
+      type UploadAttempt =
+        | { ok: true; attachment: CashAttachment }
+        | { ok: false; item: (typeof newFiles)[number]; reason: string };
+
+      const newUploadResults = await runWithConcurrency<
+        (typeof newFiles)[number],
+        UploadAttempt
+      >(newFiles, 2, async (item) => {
         try {
           const named = nameFileForDrive(item.file, `Fechamento ${date} - ${unit}`);
           const [saved, thumbUrl] = await Promise.all([
             uploadFileToDrive(named, "payment_proofs"),
-            createThumbnailDataUrl(item.file, 260, 0.65),
+            createThumbnailDataUrl(item.file, 220, 0.58),
           ]);
           completedCount++;
-          setBusyMessage(`Enviando comprovantes (${completedCount}/${totalNew})...`);
+          setBusyMessage(`Enviando fotos para o Drive (${completedCount}/${totalNew})...`);
           return {
-            fileId: saved.fileId,
-            fileName: saved.fileName,
-            mimeType: saved.mimeType,
-            size: saved.size,
-            dataUrl: thumbUrl || undefined,
-            uploadedAt: new Date().toISOString(),
+            ok: true,
+            attachment: {
+              fileId: saved.fileId,
+              fileName: saved.fileName,
+              mimeType: saved.mimeType,
+              size: saved.size,
+              dataUrl: thumbUrl || undefined,
+              uploadedAt: new Date().toISOString(),
+            },
           };
-        } catch {
+        } catch (uploadErr) {
           completedCount++;
-          setBusyMessage(`Enviando comprovantes (${completedCount}/${totalNew})...`);
-          return {
-            fileId: `local-${Date.now()}-${item.file.name}`,
-            fileName: item.file.name,
-            mimeType: item.file.type || "image/jpeg",
-            size: item.size,
-            dataUrl: isValidDataUrl(item.dataUrl) ? item.dataUrl : undefined,
-            uploadedAt: new Date().toISOString(),
-          };
+          setBusyMessage(`Enviando fotos para o Drive (${completedCount}/${totalNew})...`);
+          const reason =
+            uploadErr instanceof Error
+              ? uploadErr.message
+              : "Falha ao enviar comprovante para o Google Drive.";
+          console.error("[Fechamento] Erro ao enviar comprovante para o Google Drive:", item.file.name, uploadErr);
+          return { ok: false, item, reason };
         }
       });
-      uploadedAttachments.push(...newUploadResults);
+
+      const succeeded = newUploadResults
+        .filter((r): r is { ok: true; attachment: CashAttachment } => r.ok)
+        .map((r) => r.attachment);
+      const failed = newUploadResults.filter(
+        (r): r is { ok: false; item: (typeof newFiles)[number]; reason: string } => !r.ok
+      );
+
+      if (succeeded.length > 0) {
+        uploadedAttachments.push(...succeeded);
+      }
+
+      if (failed.length > 0) {
+        // Preserva o progresso dos arquivos que já subiram para o Drive e mantém apenas os pendentes
+        if (succeeded.length > 0) {
+          setExistingAttachments(uploadedAttachments);
+        }
+        setNewFiles(failed.map((f) => f.item));
+        const firstReason = failed[0].reason;
+        const partialNote =
+          succeeded.length > 0
+            ? ` ${succeeded.length} foto(s) já foram salvas no Drive e não precisarão ser reenviadas.`
+            : "";
+        throw new Error(
+          `Não foi possível enviar ${failed.length} comprovante(s) para o Google Drive: ${firstReason}${partialNote} Tente novamente.`
+        );
+      }
+
       setBusyMessage("Gravando fechamento...");
 
       const now = new Date().toISOString();
@@ -1139,7 +1200,7 @@ export function CashClosingWizard({
         invoiceIssued: cInvoiceIssued,
         invoiceDifference: cInvoiceDiff,
         pixRequestsJson: JSON.stringify(activePixRequests),
-        attachmentsJson: JSON.stringify(uploadedAttachments),
+        attachmentsJson: serializeSafeAttachments(uploadedAttachments),
         status: "Aguardando conferência",
         notes: notes.trim(),
       };
@@ -1220,6 +1281,7 @@ export function CashClosingWizard({
       } else {
         setError(message);
       }
+      scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setBusy(false);
       setBusyMessage("");
@@ -2342,7 +2404,11 @@ export function CashClosingWizard({
                         capture="environment"
                         className="sr-only"
                         disabled={compressingFiles}
-                        onChange={(e) => e.target.files && handleAddFiles(e.target.files)}
+                        onChange={(e) => {
+                          const picked = e.target.files ? Array.from(e.target.files) : [];
+                          e.target.value = "";
+                          if (picked.length > 0) void handleAddFiles(picked);
+                        }}
                       />
                     </label>
                     <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-[10px] border border-zinc-200 bg-zinc-50 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800">
@@ -2354,7 +2420,11 @@ export function CashClosingWizard({
                         accept=".pdf,image/*"
                         className="sr-only"
                         disabled={compressingFiles}
-                        onChange={(e) => e.target.files && handleAddFiles(e.target.files)}
+                        onChange={(e) => {
+                          const picked = e.target.files ? Array.from(e.target.files) : [];
+                          e.target.value = "";
+                          if (picked.length > 0) void handleAddFiles(picked);
+                        }}
                       />
                     </label>
                   </div>
@@ -2395,7 +2465,7 @@ export function CashClosingWizard({
                     {newFiles.map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between gap-3 px-3 py-2">
                         <div className="flex min-w-0 items-center gap-2.5">
-                          {item.previewUrl && item.file.type.startsWith("image/") ? (
+                          {item.previewUrl && isImageFile(item.file) ? (
                             <img
                               src={item.previewUrl}
                               alt=""
@@ -2704,6 +2774,14 @@ export function CashClosingWizard({
 
       {/* Rodapé fixo limpo com safe-area para mobile */}
       <footer className="shrink-0 border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom,0px)] dark:border-zinc-800 dark:bg-zinc-900">
+        {error && (
+          <div className="border-b border-rose-200 bg-rose-50 px-4 py-2 dark:border-rose-900/70 dark:bg-rose-950/50">
+            <div className="mx-auto flex max-w-2xl items-center gap-2 text-xs font-medium text-rose-700 dark:text-rose-300">
+              <AlertCircle size={14} className="shrink-0" />
+              <span className="line-clamp-2">{error}</span>
+            </div>
+          </div>
+        )}
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           {/* Esquerda: Voltar ou Cancelar */}
           {step === 1 ? (

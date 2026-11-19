@@ -64,6 +64,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
   const [vacationEnd, setVacationEnd] = useState("");
   const [notes, setNotes] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [submitError, setSubmitError] = useState("");
   const [readingDocument, setReadingDocument] = useState(false);
   const [documentReadMessage, setDocumentReadMessage] = useState("");
   const [scannedDocumentFile, setScannedDocumentFile] = useState<File | null>(null);
@@ -122,6 +123,7 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
     if (!name.trim() || !role.trim()) return;
 
     setLoading(true);
+    setSubmitError("");
     try {
       const parsedSalary = parseFloat(
         salary.replace(/\./g, "").replace(",", ".")
@@ -241,6 +243,11 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
       onClose();
     } catch (error) {
       console.error("Erro ao cadastrar colaborador:", error);
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível salvar o colaborador ou enviar a foto para o Google Drive."
+      );
     } finally {
       setLoading(false);
     }
@@ -666,6 +673,11 @@ export function NewEmployeeModal({ isOpen, onClose, onSuccess }: NewEmployeeModa
           </div>
 
           {/* Fixed Footer */}
+          {submitError && (
+            <div className="px-5 py-2 text-xs font-medium text-rose-700 bg-rose-50 border-t border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900">
+              {submitError}
+            </div>
+          )}
           <footer className="task-modal-footer">
             <button
               type="button"

@@ -120,6 +120,44 @@ export const parseAttachments = (row: RecordData): CashAttachment[] => {
   }
 };
 
+const MAX_ATTACHMENTS_JSON_BYTES = 420_000;
+
+/**
+ * Serializes attachments safely for Firestore (< 1 MB doc limit).
+ * Drive-backed files always have their full-res source in Google Drive, so oversized
+ * inline preview thumbnails are pruned before hitting Firestore size limits.
+ */
+export const serializeSafeAttachments = (attachments: CashAttachment[]): string => {
+  const normalized: CashAttachment[] = attachments.map((att): CashAttachment => {
+    const isDrive = Boolean(att.fileId && !att.fileId.startsWith("local-"));
+    const cleanDataUrl = isValidDataUrl(att.dataUrl) ? att.dataUrl : undefined;
+    if (isDrive && cleanDataUrl && cleanDataUrl.length > 45_000) {
+      const { dataUrl: _omit, ...rest } = att;
+      return rest;
+    }
+    if (cleanDataUrl) {
+      return { ...att, dataUrl: cleanDataUrl };
+    }
+    const { dataUrl: _omit, ...rest } = att;
+    return rest;
+  });
+
+  let serialized = JSON.stringify(normalized);
+  if (serialized.length <= MAX_ATTACHMENTS_JSON_BYTES) return serialized;
+
+  const strippedDriveThumbs: CashAttachment[] = normalized.map((att): CashAttachment => {
+    const isDrive = Boolean(att.fileId && !att.fileId.startsWith("local-"));
+    if (isDrive && att.dataUrl) {
+      const { dataUrl: _omit, ...rest } = att;
+      return rest;
+    }
+    return att;
+  });
+
+  serialized = JSON.stringify(strippedDriveThumbs);
+  return serialized;
+};
+
 export const parseOutflows = (json: unknown): OutflowItem[] => {
   try {
     if (typeof json === "string" && json.trim()) {

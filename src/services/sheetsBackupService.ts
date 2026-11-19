@@ -2,8 +2,9 @@
 
 import { Database, RecordData, dateToday, str } from "../domain/management/model";
 import { outstanding, payableStatus } from "../domain/management/engine";
+import { HOUSE190_WORKER_URL } from "../config/worker";
 
-const WORKER_URL = "https://house190-email-notifications.house-folgas-notifications.workers.dev";
+const WORKER_URL = HOUSE190_WORKER_URL;
 const SPREADSHEET_STORAGE_KEY = "house190_backup_spreadsheet_url";
 
 function brl(cents: number): string {
