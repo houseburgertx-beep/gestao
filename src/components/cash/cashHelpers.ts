@@ -33,6 +33,34 @@ export type MachineEntry = {
   pix: string;
 };
 
+export type SavedMotoboyRow = {
+  id: number;
+  name: string;
+  deliveriesCount: number;
+  totalTax: number; // em reais (float)
+  totalKm?: number;
+};
+
+export const parseMotoboyBreakdown = (json: unknown): SavedMotoboyRow[] => {
+  try {
+    if (typeof json === "string" && json.trim()) {
+      const parsed = JSON.parse(json);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((item) => item && typeof item === "object")
+          .map((item) => ({
+            id: Number(item.id || 0),
+            name: String(item.name || "Motoboy"),
+            deliveriesCount: Number(item.deliveriesCount || 0),
+            totalTax: Number(item.totalTax || 0),
+            totalKm: item.totalKm !== undefined ? Number(item.totalKm) : undefined,
+          }));
+      }
+    }
+  } catch {}
+  return [];
+};
+
 export const safeUUID = () =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()

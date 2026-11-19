@@ -15,6 +15,9 @@ import {
   TakeatCashierOpening,
   TakeatCashierTotals,
   TakeatCashierOutflowItem,
+  TakeatMotoboyDeliveryItem,
+  TakeatMotoboyBreakdownItem,
+  TakeatMotoboySummary,
 } from "@/types/takeat";
 export type {
   BrandId,
@@ -23,6 +26,9 @@ export type {
   TakeatCashierSummary,
   TakeatCashierAuditItem,
   TakeatCashierOutflowItem,
+  TakeatMotoboyDeliveryItem,
+  TakeatMotoboyBreakdownItem,
+  TakeatMotoboySummary,
 };
 import { UnitId } from "@/types";
 import { getDefaultTakeatCredentials } from "@/config/takeatCredentials";
@@ -1868,6 +1874,158 @@ export async function fetchTakeatCashierSummary(
     openedAtFormatted,
     closedAtFormatted,
     isOpen,
+    syncedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Busca o relatório oficial de entregas e taxas por motoboy diretamente do painel Takeat
+ * (mesmo endpoint da tela Delivery -> Motoboys -> Relatórios em dashboard.takeat.app).
+ *
+ * GET /restaurants/motoboys/sessions?start=<ISO>&end=<ISO>
+ *
+ * Funciona para todas as lojas com credenciais Takeat configuradas (Teixeira, Eunápolis, Foodpark).
+ */
+export async function fetchTakeatMotoboySummary(
+  unitId: string,
+  dateStr: string,
+  cashierShift?: { openedAt?: string; closedAt?: string | null }
+): Promise<TakeatMotoboySummary> {
+  const resolvedUnit =
+    (getDefaultTakeatCredentials(unitId) ? unitId : matchStoreNameToUnit(unitId)) as
+      | Exclude<UnitId, "all">
+      | undefined;
+
+  const creds = resolvedUnit ? getDefaultTakeatCredentials(resolvedUnit) : null;
+  if (!creds) {
+    throw new Error(`Unidade "${unitId}" não possui integração Takeat configurada para motoboys.`);
+  }
+
+  let token = sanitizeToken(creds.token);
+  const credsEmail = creds.email;
+  const credsPassword = creds.password;
+
+  if (!token && credsEmail && credsPassword) {
+    const authResult = await authenticateTakeat(credsEmail, credsPassword);
+    token = authResult.token;
+  }
+  if (!token) {
+    throw new Error(`Não foi possível autenticar na Takeat para a unidade "${unitId}".`);
+  }
+
+  // Janela oficial do dia no fuso da Bahia (00:00:00 até 23:59:59.999)
+  const dayRange = getBahiaIsoDayRange(dateStr);
+  let startIso = dayRange.startDate;
+  let endIso = dayRange.endDate;
+
+  // Se o turno de caixa fechou após a meia-noite (ex.: sábado até 01:30), estende o fim até o fechamento (+15min, máx 05:59 Bahia)
+  if (cashierShift?.closedAt) {
+    const closedMs = Date.parse(cashierShift.closedAt);
+    const dayEndMs = Date.parse(dayRange.endDate);
+    const maxCapMs = dayEndMs + 6 * 60 * 60 * 1000; // 05:59:59 Bahia do dia seguinte
+    if (Number.isFinite(closedMs) && closedMs > dayEndMs && closedMs <= maxCapMs) {
+      endIso = new Date(Math.min(closedMs + 15 * 60 * 1000, maxCapMs)).toISOString();
+    }
+  }
+
+  const queryPath = `/restaurants/motoboys/sessions?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`;
+  const urls = [
+    `https://backend-pdv-2.takeat.app${queryPath}`,
+    `https://backend-pdv.takeat.app${queryPath}`,
+  ];
+
+  let rawData: any = null;
+  let lastStatus = 0;
+
+  for (const url of urls) {
+    let res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+
+    if (res.status === 401 && credsEmail && credsPassword) {
+      try {
+        const authResult = await authenticateTakeat(credsEmail, credsPassword);
+        token = authResult.token;
+        res = await fetch(url, {
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        });
+      } catch {}
+    }
+
+    lastStatus = res.status;
+    if (res.ok) {
+      rawData = await res.json();
+      break;
+    }
+  }
+
+  if (!Array.isArray(rawData)) {
+    throw new Error(
+      `Não foi possível consultar relatório de motoboys na Takeat (HTTP ${lastStatus || "erro"}).`
+    );
+  }
+
+  const motoboys: TakeatMotoboyBreakdownItem[] = [];
+  let totalDeliveries = 0;
+  let totalTax = 0;
+  let totalOrdersValue = 0;
+  let totalKm = 0;
+
+  for (const m of rawData) {
+    if (m.is_foody_delivery || m.is_ifood_on_demand) continue;
+    const rawSessions: any[] = Array.isArray(m.sessions) ? m.sessions : [];
+    if (rawSessions.length === 0) continue;
+
+    const deliveries: TakeatMotoboyDeliveryItem[] = rawSessions
+      .map((s) => ({
+        id: Number(s.id || 0),
+        createdAt: String(s.created_at || ""),
+        endTime: s.end_time ? String(s.end_time) : null,
+        deliveryTaxPrice: Math.round(parseBRLNumber(s.delivery_tax_price) * 100) / 100,
+        orderTotalPrice: Math.round(parseBRLNumber(s.total_price) * 100) / 100,
+        distanceKm: Math.round(parseBRLNumber(s.delivery_distance_km) * 1000) / 1000,
+        neighborhood: String(s.neighborhood || "").trim(),
+        buyerName: String(s.buyer_name || "").trim(),
+        status: String(s.status || ""),
+      }))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+    const mTax =
+      Math.round(deliveries.reduce((sum, d) => sum + d.deliveryTaxPrice, 0) * 100) / 100;
+    const mOrders =
+      Math.round(deliveries.reduce((sum, d) => sum + d.orderTotalPrice, 0) * 100) / 100;
+    const mKm =
+      Math.round(deliveries.reduce((sum, d) => sum + d.distanceKm, 0) * 100) / 100;
+
+    motoboys.push({
+      id: Number(m.id || 0),
+      name: String(m.name || "Motoboy").trim(),
+      phone: String(m.phone || "").trim(),
+      deliveriesCount: deliveries.length,
+      totalTax: mTax,
+      totalOrdersValue: mOrders,
+      totalKm: mKm,
+      dailyRate: parseBRLNumber(m.daily_rate),
+      kmRate: parseBRLNumber(m.km_rate),
+      deliveries,
+    });
+
+    totalDeliveries += deliveries.length;
+    totalTax += mTax;
+    totalOrdersValue += mOrders;
+    totalKm += mKm;
+  }
+
+  motoboys.sort((a, b) => b.deliveriesCount - a.deliveriesCount || b.totalTax - a.totalTax);
+
+  return {
+    unitId: resolvedUnit || (unitId as Exclude<UnitId, "all">),
+    date: dateStr,
+    totalDeliveries,
+    totalTax: Math.round(totalTax * 100) / 100,
+    totalOrdersValue: Math.round(totalOrdersValue * 100) / 100,
+    totalKm: Math.round(totalKm * 100) / 100,
+    motoboys,
     syncedAt: new Date().toISOString(),
   };
 }

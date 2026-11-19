@@ -10,6 +10,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Eye,
   FileText,
   Image as ImageIcon,
   Loader2,
@@ -39,9 +40,12 @@ import { validate } from "@/domain/management/operations";
 import {
   fetchTakeatCashierSummary,
   fetchTakeatIssuedInvoicesSummary,
+  fetchTakeatMotoboySummary,
   TakeatCashierSummary,
   TakeatFiscalIssuedSummary,
+  TakeatMotoboySummary,
 } from "@/services/takeatService";
+import { MotoboyBreakdownModal } from "./MotoboyBreakdownModal";
 import {
   brl,
   CashAttachment,
@@ -421,17 +425,49 @@ export function CashClosingWizard({
   >([]);
   const [compressingFiles, setCompressingFiles] = useState(false);
 
-  // Integração Takeat (Caixa e Fiscal)
+  // Integração Takeat (Caixa, Fiscal e Motoboys)
   const [takeatCashierLoading, setTakeatCashierLoading] = useState(false);
   const [takeatCashierData, setTakeatCashierData] = useState<TakeatCashierSummary | null>(null);
   const [takeatCashierError, setTakeatCashierError] = useState<string | null>(null);
   const [takeatFiscalLoading, setTakeatFiscalLoading] = useState(false);
   const [takeatFiscalData, setTakeatFiscalData] = useState<TakeatFiscalIssuedSummary | null>(null);
   const [takeatFiscalError, setTakeatFiscalError] = useState<string | null>(null);
+  const [takeatMotoboyLoading, setTakeatMotoboyLoading] = useState(false);
+  const [takeatMotoboyData, setTakeatMotoboyData] = useState<TakeatMotoboySummary | null>(null);
+  const [takeatMotoboyError, setTakeatMotoboyError] = useState<string | null>(null);
+  const [motoboyModalOpen, setMotoboyModalOpen] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [busyMessage, setBusyMessage] = useState("");
   const [error, setError] = useState("");
+
+  const handleSyncTakeatMotoboys = async (
+    forceApply: boolean = false,
+    shiftInfo?: { openedAt?: string; closedAt?: string | null }
+  ) => {
+    if (!unit || unit === "all" || unit === "central" || !date) return;
+    setTakeatMotoboyLoading(true);
+    setTakeatMotoboyError(null);
+    try {
+      const shiftRange =
+        shiftInfo ||
+        (takeatCashierData?.opening
+          ? {
+              openedAt: takeatCashierData.opening.opened_at,
+              closedAt: takeatCashierData.opening.closed_at,
+            }
+          : undefined);
+      const summary = await fetchTakeatMotoboySummary(unit, date, shiftRange);
+      setTakeatMotoboyData(summary);
+      if (forceApply || !motoboySystem || Number(motoboySystem) === 0) {
+        setMotoboySystem(toMoneyInput(Math.round(summary.totalTax * 100)));
+      }
+    } catch (err: any) {
+      setTakeatMotoboyError(err?.message || "Não foi possível consultar motoboys na Takeat.");
+    } finally {
+      setTakeatMotoboyLoading(false);
+    }
+  };
 
   const handleSyncTakeatFiscal = async (
     forceApply: boolean = false,
@@ -513,13 +549,16 @@ export function CashClosingWizard({
         }
       }
 
-      handleSyncTakeatFiscal(forceApply, {
+      const shiftRange = {
         openedAt: summary.opening.opened_at,
         closedAt: summary.opening.closed_at,
-      });
+      };
+      handleSyncTakeatFiscal(forceApply, shiftRange);
+      handleSyncTakeatMotoboys(forceApply, shiftRange);
     } catch (err: any) {
       setTakeatCashierError(err?.message || "Não foi possível consultar o caixa no PDV Takeat.");
       handleSyncTakeatFiscal(forceApply);
+      handleSyncTakeatMotoboys(forceApply);
     } finally {
       setTakeatCashierLoading(false);
     }
@@ -1082,6 +1121,19 @@ export function CashClosingWizard({
         motoboySystem: cMotoboySystem,
         motoboyPaid: cMotoboyPaid,
         motoboyDifference: cMotoboyDiff,
+        ...(takeatMotoboyData
+          ? {
+              motoboyBreakdownJson: JSON.stringify(
+                takeatMotoboyData.motoboys.map((m) => ({
+                  id: m.id,
+                  name: m.name,
+                  deliveriesCount: m.deliveriesCount,
+                  totalTax: m.totalTax,
+                  totalKm: m.totalKm,
+                }))
+              ),
+            }
+          : {}),
         ifoodAudit: cIfoodAudit,
         fiscalMachines: cFiscalMachines,
         invoiceIssued: cInvoiceIssued,
@@ -1979,11 +2031,32 @@ export function CashClosingWizard({
             <div className="space-y-4">
               {/* Motoboys */}
               <section className="rounded-[16px] border border-zinc-200/90 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.03)] sm:p-5 dark:border-zinc-800 dark:bg-zinc-900">
-                <div className="mb-4 flex items-center justify-between gap-2">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                     Auditoria de motoboys
                   </h3>
-                  <StatusPill diff={cMotoboyDiff} size="xs" />
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setMotoboyModalOpen(true)}
+                      disabled={!unit || unit === "all" || unit === "central" || !date}
+                      title="Ver motoboys e valor individual"
+                      aria-label="Ver motoboys e valor individual"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    >
+                      <Eye size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSyncTakeatMotoboys(true)}
+                      disabled={takeatMotoboyLoading || !unit || unit === "all" || unit === "central"}
+                      className="inline-flex h-7 items-center gap-1.5 rounded-[10px] border border-zinc-200 px-2.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    >
+                      <RotateCw size={12} className={takeatMotoboyLoading ? "animate-spin" : ""} />
+                      {takeatMotoboyLoading ? "Consultando..." : "Puxar Takeat"}
+                    </button>
+                    <StatusPill diff={cMotoboyDiff} size="xs" />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1998,6 +2071,37 @@ export function CashClosingWizard({
                     onChange={setMotoboyPaid}
                   />
                 </div>
+
+                {takeatMotoboyData && (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[10px] bg-zinc-50 px-3.5 py-2 text-xs text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
+                    <span>
+                      Takeat oficial:{" "}
+                      <strong className="tabular-nums text-zinc-900 dark:text-zinc-100">
+                        {brl(Math.round(takeatMotoboyData.totalTax * 100))}
+                      </strong>
+                      <span className="ml-2 text-zinc-400">
+                        ({takeatMotoboyData.totalDeliveries}{" "}
+                        {takeatMotoboyData.totalDeliveries === 1 ? "entrega" : "entregas"} ·{" "}
+                        {takeatMotoboyData.motoboys.length}{" "}
+                        {takeatMotoboyData.motoboys.length === 1 ? "motoboy" : "motoboys"})
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setMotoboyModalOpen(true)}
+                      className="inline-flex items-center gap-1 font-medium text-zinc-700 transition hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+                    >
+                      <Eye size={12} />
+                      <span>Ver individual</span>
+                    </button>
+                  </div>
+                )}
+
+                {takeatMotoboyError && (
+                  <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">
+                    {takeatMotoboyError}
+                  </p>
+                )}
 
                 <div className="mt-4 flex items-center justify-between border-t border-zinc-100 pt-3 text-xs dark:border-zinc-800">
                   <span className="text-zinc-500">Diferença de entregas (Pago − Sistema)</span>
@@ -2530,8 +2634,21 @@ export function CashClosingWizard({
                     </button>
                   </div>
                   <dl className="space-y-1.5 text-xs">
-                    <div className="flex justify-between">
-                      <dt className="text-zinc-500">Motoboys (Pago / Sis.)</dt>
+                    <div className="flex items-center justify-between gap-2">
+                      <dt className="flex items-center gap-1.5 text-zinc-500">
+                        <span>Motoboys (Pago / Sis.)</span>
+                        {unit && unit !== "all" && unit !== "central" && date && (
+                          <button
+                            type="button"
+                            onClick={() => setMotoboyModalOpen(true)}
+                            title="Ver motoboys e valor individual"
+                            aria-label="Ver motoboys e valor individual"
+                            className="inline-flex h-5 w-5 items-center justify-center rounded-[5px] text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                          >
+                            <Eye size={12} />
+                          </button>
+                        )}
+                      </dt>
                       <dd className="font-medium tabular-nums">
                         {brl(cMotoboyPaid)} / {brl(cMotoboySystem)}
                       </dd>
@@ -2658,6 +2775,23 @@ export function CashClosingWizard({
           )}
         </div>
       </footer>
+
+      {motoboyModalOpen && (
+        <MotoboyBreakdownModal
+          unitId={unit}
+          unitName={unitName}
+          date={date}
+          summary={takeatMotoboyData}
+          savedBreakdownJson={activeTargetClosing?.motoboyBreakdownJson}
+          onSynced={(res) => {
+            setTakeatMotoboyData(res);
+            if (!motoboySystem || Number(motoboySystem) === 0) {
+              setMotoboySystem(toMoneyInput(Math.round(res.totalTax * 100)));
+            }
+          }}
+          onClose={() => setMotoboyModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

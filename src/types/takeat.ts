@@ -236,3 +236,39 @@ export interface TakeatCashierSummary {
   isOpen: boolean; // true = caixa ainda aberto no momento da busca
   syncedAt: string;
 }
+
+export interface TakeatMotoboyDeliveryItem {
+  id: number;
+  createdAt: string;
+  endTime: string | null;
+  deliveryTaxPrice: number;
+  orderTotalPrice: number;
+  distanceKm: number;
+  neighborhood: string;
+  buyerName: string;
+  status: string;
+}
+
+export interface TakeatMotoboyBreakdownItem {
+  id: number;
+  name: string;
+  phone: string;
+  deliveriesCount: number;
+  totalTax: number; // Soma de delivery_tax_price (R$)
+  totalOrdersValue: number; // Soma de total_price das entregas (R$)
+  totalKm: number;
+  dailyRate: number;
+  kmRate: number;
+  deliveries?: TakeatMotoboyDeliveryItem[];
+}
+
+export interface TakeatMotoboySummary {
+  unitId: Exclude<UnitId, "all">;
+  date: string; // YYYY-MM-DD
+  totalDeliveries: number;
+  totalTax: number; // Total geral de taxas de motoboy (R$)
+  totalOrdersValue: number;
+  totalKm: number;
+  motoboys: TakeatMotoboyBreakdownItem[];
+  syncedAt: string;
+}

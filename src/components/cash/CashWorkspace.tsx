@@ -36,6 +36,7 @@ import {
 } from "@/services/takeatService";
 import { CashClosingHome } from "./CashClosingHome";
 import { CashClosingWizard } from "./CashClosingWizard";
+import { MotoboyBreakdownModal } from "./MotoboyBreakdownModal";
 import "@/components/management/management.css";
 
 const MAX_CLOSING_ATTACHMENTS = 20;
@@ -3791,6 +3792,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
     payable?: RecordData;
   } | null>(null);
   const [pixSuccessMsg, setPixSuccessMsg] = useState("");
+  const [showMotoboysModal, setShowMotoboysModal] = useState(false);
 
   const outflowsList = useMemo(() => parseOutflows(closing.cashOutflowsJson), [closing.cashOutflowsJson]);
   const pixRequestsList = useMemo(() => parsePixRequests(closing.pixRequestsJson), [closing.pixRequestsJson]);
@@ -5087,7 +5089,20 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs space-y-1.5">
-                <span className="font-bold text-zinc-800 dark:text-zinc-200 block text-xs">🏍️ Conferência de Motoboys</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-zinc-800 dark:text-zinc-200 text-xs">Conferência de Motoboys</span>
+                  {closing.unitId && closing.unitId !== "central" && str(closing, "date") && (
+                    <button
+                      type="button"
+                      onClick={() => setShowMotoboysModal(true)}
+                      title="Ver motoboys e valor individual"
+                      aria-label="Ver motoboys e valor individual"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                    >
+                      <Eye size={12} />
+                    </button>
+                  )}
+                </div>
                 <div className="flex justify-between"><span>Taxas Geradas no PDV:</span> <b>{brl(motoboySystem)}</b></div>
                 <div className="flex justify-between"><span>Pago aos Motoboys na Loja:</span> <b>{brl(motoboyPaid)}</b></div>
                 <div className="flex justify-between pt-1.5 border-t border-zinc-200 dark:border-zinc-800">
@@ -5095,7 +5110,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
                 </div>
               </div>
               <div className="p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs space-y-1.5">
-                <span className="font-bold text-zinc-800 dark:text-zinc-200 block text-xs">🧾 Conferência Fiscal / NFC-e</span>
+                <span className="font-bold text-zinc-800 dark:text-zinc-200 block text-xs">Conferência Fiscal / NFC-e</span>
                 <div className="flex justify-between"><span>Vendas iFood (Relatório):</span> <b>{brl(ifoodAudit)}</b></div>
                 <div className="flex justify-between"><span>Máquinas Fiscais (Cartão/PIX):</span> <b>{brl(fiscalMachines)}</b></div>
                 <div className="flex justify-between"><span>NFC-e / Cupom Emitido:</span> <b>{brl(invoiceIssued)}</b></div>
@@ -5172,6 +5187,16 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
           }}
         />
       )}
+
+      {showMotoboysModal && (
+        <MotoboyBreakdownModal
+          unitId={String(closing.unitId || "")}
+          unitName={String(data.units.find(u => u.id === closing.unitId)?.name || closing.unitId || "Unidade")}
+          date={str(closing, "date")}
+          savedBreakdownJson={closing.motoboyBreakdownJson}
+          onClose={() => setShowMotoboysModal(false)}
+        />
+      )}
     </Modal>
   );
 }
@@ -5193,6 +5218,7 @@ function ClosingDetailsModal({
     payable?: RecordData;
   } | null>(null);
   const [pixSuccessMsg, setPixSuccessMsg] = useState("");
+  const [showMotoboysModal, setShowMotoboysModal] = useState(false);
 
   const unit = data.units.find(u => u.id === closing.unitId);
   const conference = data.cashConferences.find(
@@ -5773,7 +5799,20 @@ function ClosingDetailsModal({
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs space-y-1">
-                <span className="font-bold text-zinc-700 dark:text-zinc-300 block mb-1">🏍️ Motoboys</span>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className="font-bold text-zinc-700 dark:text-zinc-300">Motoboys</span>
+                  {closing.unitId && closing.unitId !== "central" && str(closing, "date") && (
+                    <button
+                      type="button"
+                      onClick={() => setShowMotoboysModal(true)}
+                      title="Ver motoboys e valor individual"
+                      aria-label="Ver motoboys e valor individual"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                    >
+                      <Eye size={12} />
+                    </button>
+                  )}
+                </div>
                 <div className="flex justify-between"><span>Sistema (Taxa Gerada):</span> <b>{brl(motoboySystem)}</b></div>
                 <div className="flex justify-between"><span>Pago na Loja:</span> <b>{brl(motoboyPaid)}</b></div>
                 <div className="flex justify-between pt-1 border-t border-zinc-200 dark:border-zinc-800">
@@ -5781,7 +5820,7 @@ function ClosingDetailsModal({
                 </div>
               </div>
               <div className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs space-y-1">
-                <span className="font-bold text-zinc-700 dark:text-zinc-300 block mb-1">🧾 Notas Fiscais / NFC-e</span>
+                <span className="font-bold text-zinc-700 dark:text-zinc-300 block mb-1">Notas Fiscais / NFC-e</span>
                 <div className="flex justify-between"><span>iFood (Auditoria):</span> <b>{brl(ifoodAudit)}</b></div>
                 <div className="flex justify-between"><span>Máquinas Fiscais:</span> <b>{brl(fiscalMachines)}</b></div>
                 <div className="flex justify-between"><span>NFC-e Emitida:</span> <b>{brl(invoiceIssued)}</b></div>
@@ -5875,6 +5914,16 @@ function ClosingDetailsModal({
           }}
         />
       )}
+
+      {showMotoboysModal && (
+        <MotoboyBreakdownModal
+          unitId={String(closing.unitId || "")}
+          unitName={String(unit?.name || closing.unitId || "Unidade")}
+          date={str(closing, "date")}
+          savedBreakdownJson={closing.motoboyBreakdownJson}
+          onClose={() => setShowMotoboysModal(false)}
+        />
+      )}
     </Modal>
   );
 }
@@ -5898,6 +5947,7 @@ function AuditHistoryTab({
   const [search, setSearch] = useState("");
   const [filterUnit, setFilterUnit] = useState(selectedUnit !== "all" ? selectedUnit : "");
   const [previewAttachment, setPreviewAttachment] = useState<CashAttachment | null>(null);
+  const [motoboyModalRow, setMotoboyModalRow] = useState<RecordData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -6023,6 +6073,17 @@ function AuditHistoryTab({
             <div className="cash-audit-card-title-row">
               <Bike size={20} className="text-zinc-600 dark:text-zinc-400 shrink-0" />
               <strong>Motoboys do dia</strong>
+              {row.unitId && row.unitId !== "central" && str(row, "date") && (
+                <button
+                  type="button"
+                  onClick={() => setMotoboyModalRow(row)}
+                  title="Ver motoboys e valor individual"
+                  aria-label="Ver motoboys e valor individual"
+                  className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                >
+                  <Eye size={12} />
+                </button>
+              )}
             </div>
             <span className="cash-audit-card-sub">
               {unitName} · {dateFormatted}{str(row, "shift") ? ` (${str(row, "shift")})` : ""}
@@ -6395,6 +6456,20 @@ function AuditHistoryTab({
         <AttachmentLightbox
           attachment={previewAttachment}
           onClose={() => setPreviewAttachment(null)}
+        />
+      )}
+
+      {motoboyModalRow && (
+        <MotoboyBreakdownModal
+          unitId={String(motoboyModalRow.unitId || "")}
+          unitName={String(
+            data.units.find((u) => u.id === motoboyModalRow.unitId)?.name ||
+              motoboyModalRow.unitId ||
+              "Unidade"
+          )}
+          date={str(motoboyModalRow, "date")}
+          savedBreakdownJson={motoboyModalRow.motoboyBreakdownJson}
+          onClose={() => setMotoboyModalRow(null)}
         />
       )}
     </section>
