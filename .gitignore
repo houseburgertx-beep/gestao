@@ -1,6 +1,0 @@
-.env*
-.next/
-out/
-branding/
-next-env.d.ts
-tsconfig.tsbuildinfo
