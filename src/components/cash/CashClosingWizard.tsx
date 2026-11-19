@@ -48,6 +48,7 @@ import {
   TakeatMotoboySummary,
 } from "@/services/takeatService";
 import { MotoboyBreakdownModal } from "./MotoboyBreakdownModal";
+import { normalizeRole } from "@/components/layout/managementNavigation";
 import {
   brl,
   CashAttachment,
@@ -230,6 +231,16 @@ export function CashClosingWizard({
   const [loadedClosing, setLoadedClosing] = useState<RecordData | null>(null);
   const activeTargetClosing = initialClosing || loadedClosing;
 
+  const urlParams = useMemo(() => {
+    if (typeof window === "undefined") return new URLSearchParams();
+    return new URLSearchParams(window.location.search);
+  }, []);
+  const urlUnit = urlParams.get("unitId") || urlParams.get("unit") || "";
+  const lockUnitParam = urlParams.get("lockUnit") === "true";
+  const normRole = normalizeRole(userProfile?.role);
+  const isOperator = normRole === "operator";
+  const isUnitLocked = lockUnitParam || allowedUnit !== "all" || isOperator || Boolean(urlUnit && lockUnitParam);
+
   const draft = useMemo(() => (!activeTargetClosing ? loadDraftData() : null), [activeTargetClosing]);
   const [hasDraft, setHasDraft] = useState(() => Boolean(draft));
   const [draftSavedMsg, setDraftSavedMsg] = useState("");
@@ -238,9 +249,10 @@ export function CashClosingWizard({
   // Passo 1: Identificação
   const [unit, setUnit] = useState<string>(() => {
     if (activeTargetClosing?.unitId) return activeTargetClosing.unitId;
-    if (draft?.unit) return draft.unit;
+    if (urlUnit && ["eunapolis", "teixeira", "foodpark", "central"].includes(urlUnit)) return urlUnit;
     if (allowedUnit !== "all") return allowedUnit;
-    if (currentUnit !== "all") return currentUnit;
+    if (draft?.unit && !isUnitLocked) return draft.unit;
+    if (currentUnit !== "all" && !isUnitLocked) return currentUnit;
     return data.units[0]?.id || "";
   });
 
@@ -1290,10 +1302,13 @@ export function CashClosingWizard({
 
   const currentStepMeta = STEPS[step - 1];
   const nextStepMeta = step < 6 ? STEPS[step] : null;
-  const availableUnits = useMemo(
-    () => data.units.filter((u) => !u.archived && (allowedUnit === "all" || u.id === allowedUnit)),
-    [data.units, allowedUnit]
-  );
+  const availableUnits = useMemo(() => {
+    if (isUnitLocked && unit) {
+      const match = data.units.find((u) => u.id === unit);
+      return match ? [match] : [{ id: unit, name: unit } as unknown as RecordData];
+    }
+    return data.units.filter((u) => !u.archived && (allowedUnit === "all" || u.id === allowedUnit));
+  }, [data.units, allowedUnit, isUnitLocked, unit]);
 
   return (
     <div
@@ -1506,14 +1521,14 @@ export function CashClosingWizard({
                     </label>
                     <select
                       value={unit}
-                      disabled={allowedUnit !== "all"}
+                      disabled={isUnitLocked}
                       onChange={(e) => {
                         setUnit(e.target.value);
                         setMachines({});
                       }}
                       className="h-11 w-full rounded-[10px] border border-zinc-200 bg-white px-3 text-[16px] font-medium text-zinc-900 outline-none transition focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 disabled:bg-zinc-50 disabled:text-zinc-500 sm:h-10 sm:text-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
                     >
-                      <option value="">Selecione a unidade</option>
+                      {!isUnitLocked && <option value="">Selecione a unidade</option>}
                       {availableUnits.map((u) => (
                         <option key={u.id} value={u.id}>
                           {str(u, "name")}
@@ -2104,9 +2119,10 @@ export function CashClosingWizard({
                       disabled={!unit || unit === "all" || unit === "central" || !date}
                       title="Ver motoboys e valor individual"
                       aria-label="Ver motoboys e valor individual"
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-[10px] border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                      className="inline-flex h-7 items-center gap-1.5 rounded-[10px] border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-900 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
                     >
                       <Eye size={13} />
+                      <span className="hidden sm:inline">Ver individual</span>
                     </button>
                     <button
                       type="button"
@@ -2135,19 +2151,31 @@ export function CashClosingWizard({
                 </div>
 
                 {takeatMotoboyData && (
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[10px] bg-zinc-50 px-3.5 py-2 text-xs text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
-                    <span>
-                      Takeat oficial:{" "}
-                      <strong className="tabular-nums text-zinc-900 dark:text-zinc-100">
-                        {brl(Math.round(takeatMotoboyData.totalTax * 100))}
-                      </strong>
-                    </span>
-                    <span className="tabular-nums text-zinc-500 dark:text-zinc-400">
-                      {takeatMotoboyData.totalDeliveries}{" "}
-                      {takeatMotoboyData.totalDeliveries === 1 ? "entrega" : "entregas"} ·{" "}
-                      {takeatMotoboyData.motoboys.length}{" "}
-                      {takeatMotoboyData.motoboys.length === 1 ? "motoboy" : "motoboys"}
-                    </span>
+                  <div className="mt-3 rounded-[10px] bg-zinc-50 p-3 text-xs text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        Takeat oficial:{" "}
+                        <strong className="tabular-nums text-zinc-900 dark:text-zinc-100">
+                          {brl(Math.round(takeatMotoboyData.totalTax * 100))}
+                        </strong>
+                      </span>
+                      <span className="tabular-nums text-zinc-500 dark:text-zinc-400">
+                        {takeatMotoboyData.totalDeliveries}{" "}
+                        {takeatMotoboyData.totalDeliveries === 1 ? "entrega" : "entregas"} ·{" "}
+                        {takeatMotoboyData.motoboys.length}{" "}
+                        {takeatMotoboyData.motoboys.length === 1 ? "motoboy" : "motoboys"}
+                      </span>
+                    </div>
+                    <div className="mt-2.5 flex items-center pt-2 border-t border-zinc-200/60 dark:border-zinc-800">
+                      <button
+                        type="button"
+                        onClick={() => setMotoboyModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-900 hover:text-black underline underline-offset-2 dark:text-zinc-200 dark:hover:text-white"
+                      >
+                        <Eye size={14} />
+                        Ver individual
+                      </button>
+                    </div>
                   </div>
                 )}
 

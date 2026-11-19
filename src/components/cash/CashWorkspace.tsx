@@ -593,13 +593,26 @@ function generateWhatsAppClosingText(row: RecordData, unitName: string) {
 }
 
 export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audit" }) {
-  const { data } = useManagement(); const { user, userProfile } = useAuth();
+  const { data, allowedUnit } = useManagement(); const { user, userProfile } = useAuth();
   const { currentUnit, setCurrentUnit } = useUnit();
   const [selectedUnit, setSelectedUnit] = useState<string>(() => currentUnit || "all");
+  const [urlParams, setUrlParams] = useState<{ unitId: string; lockUnit: boolean }>({ unitId: "", lockUnit: false });
   const [closingOpen, setClosingOpen] = useState(false); const [editingClosing, setEditingClosing] = useState<RecordData|null>(null); const [reviewing, setReviewing] = useState<RecordData|null>(null); const [message, setMessage] = useState("");
   const [viewingClosing, setViewingClosing] = useState<RecordData|null>(null);
   const [confTab, setConfTab] = useState<"queue"|"audit"|"rates"|"sangrias">("queue");
   const [queueFilter, setQueueFilter] = useState<string>("all");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search);
+      const u = p.get("unitId") || p.get("unit") || "";
+      const lock = p.get("lockUnit") === "true";
+      if (u) {
+        setUrlParams({ unitId: u, lockUnit: lock });
+        setSelectedUnit(u);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (currentUnit) {
@@ -608,6 +621,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
   }, [currentUnit]);
 
   const handleSelectUnit = (unitId: string) => {
+    if (urlParams.lockUnit) return;
     setSelectedUnit(unitId);
     if (setCurrentUnit) {
       setCurrentUnit(unitId as any);
@@ -733,12 +747,15 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
   const normRole = normalizeRole(userProfile?.role);
   const isOperator = normRole === "operator";
   const isManager = normRole === "manager";
-  const isScopedStoreUser = (isOperator || isManager) && Boolean(userUnit && userUnit !== "all");
+  const isUrlLocked = urlParams.lockUnit && Boolean(urlParams.unitId);
+  const effectiveUserUnit = isUrlLocked ? urlParams.unitId : (userUnit || urlParams.unitId);
+  const isScopedStoreUser = isUrlLocked || ((isOperator || isManager) && Boolean(effectiveUserUnit && effectiveUserUnit !== "all")) || (allowedUnit !== "all");
+  const activeScopedUnit = isUrlLocked ? urlParams.unitId : (allowedUnit !== "all" ? allowedUnit : (effectiveUserUnit || ""));
 
   const availableUnits = useMemo(() => {
-    if (isScopedStoreUser && userUnit) {
-      const matchUnit = data.units.find(x => x.id === userUnit);
-      return [{ id: userUnit, name: matchUnit ? str(matchUnit, "name") : userUnit }];
+    if (isScopedStoreUser && activeScopedUnit) {
+      const matchUnit = data.units.find(x => x.id === activeScopedUnit);
+      return [{ id: activeScopedUnit, name: matchUnit ? str(matchUnit, "name") : activeScopedUnit }];
     }
     const list: { id: string; name: string }[] = [];
     const seen = new Set<string>();
@@ -755,18 +772,18 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
       }
     });
     return list;
-  }, [data.units, closings, isScopedStoreUser, userUnit]);
+  }, [data.units, closings, isScopedStoreUser, activeScopedUnit]);
 
   const closingsForUnit = useMemo(() => {
-    if (isScopedStoreUser && userUnit) {
-      return closings.filter(r => r.unitId === userUnit);
+    if (isScopedStoreUser && activeScopedUnit) {
+      return closings.filter(r => r.unitId === activeScopedUnit);
     }
     if (selectedUnit === "all") return closings;
     return closings.filter(r => r.unitId === selectedUnit);
-  }, [closings, selectedUnit, isScopedStoreUser, userUnit]);
+  }, [closings, selectedUnit, isScopedStoreUser, activeScopedUnit]);
 
   const visible = mode === "closing" || mode === "audit"
-    ? (isScopedStoreUser && userUnit ? closings.filter(r => r.unitId === userUnit) : closingsForUnit)
+    ? (isScopedStoreUser && activeScopedUnit ? closings.filter(r => r.unitId === activeScopedUnit) : closingsForUnit)
     : closingsForUnit.filter(r => r.status !== "Rascunho");
 
   const todayRows = visible.filter(r => str(r, "date") === today);
