@@ -38,9 +38,20 @@ function ProtectedShell({
   children: React.ReactNode;
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isEmbedded, setIsEmbedded] = useState(false);
   const { user, userProfile, loading, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const inFrame = window.self !== window.top;
+      const params = new URLSearchParams(window.location.search);
+      if (inFrame || params.get("embedded") === "true") {
+        setIsEmbedded(true);
+      }
+    }
+  }, []);
 
   const effectiveRole = normalizeRole(userProfile?.role);
   const menuItems = navigationForRole(effectiveRole);
@@ -103,6 +114,20 @@ function ProtectedShell({
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (isEmbedded) {
+    return (
+      <ManagementProvider>
+        <UnitProvider>
+          <div className="w-full min-h-screen bg-[#fafafa] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col">
+            <main className="flex-1 w-full p-2 sm:p-4 max-w-[1600px] mx-auto pb-10">
+              {children}
+            </main>
+          </div>
+        </UnitProvider>
+      </ManagementProvider>
     );
   }
 
