@@ -2141,21 +2141,13 @@ export function CashClosingWizard({
                       <strong className="tabular-nums text-zinc-900 dark:text-zinc-100">
                         {brl(Math.round(takeatMotoboyData.totalTax * 100))}
                       </strong>
-                      <span className="ml-2 text-zinc-400">
-                        ({takeatMotoboyData.totalDeliveries}{" "}
-                        {takeatMotoboyData.totalDeliveries === 1 ? "entrega" : "entregas"} ·{" "}
-                        {takeatMotoboyData.motoboys.length}{" "}
-                        {takeatMotoboyData.motoboys.length === 1 ? "motoboy" : "motoboys"})
-                      </span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setMotoboyModalOpen(true)}
-                      className="inline-flex items-center gap-1 font-medium text-zinc-700 transition hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
-                    >
-                      <Eye size={12} />
-                      <span>Ver individual</span>
-                    </button>
+                    <span className="tabular-nums text-zinc-500 dark:text-zinc-400">
+                      {takeatMotoboyData.totalDeliveries}{" "}
+                      {takeatMotoboyData.totalDeliveries === 1 ? "entrega" : "entregas"} ·{" "}
+                      {takeatMotoboyData.motoboys.length}{" "}
+                      {takeatMotoboyData.motoboys.length === 1 ? "motoboy" : "motoboys"}
+                    </span>
                   </div>
                 )}
 
