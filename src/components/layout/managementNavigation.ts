@@ -1,10 +1,11 @@
-import { TrendingUp, Users, ReceiptText, Truck, Columns3, FolderLock, Landmark, ClipboardCheck, BadgeCheck, FileText, Bike, Wallet, Utensils, Percent } from "lucide-react";
+import { TrendingUp, Users, ReceiptText, Truck, Columns3, FolderLock, Landmark, ClipboardCheck, BadgeCheck, FileText, Bike, Wallet, Utensils, Percent, Navigation } from "lucide-react";
 export const MANAGEMENT_NAV = [
   { title: "Contas a pagar", href: "/", icon: ReceiptText, roles: ["admin","accountant"] },
   { title: "Fluxo de caixa", href: "/fluxo-de-caixa", icon: Wallet, roles: ["admin","accountant"] },
   { title: "CMV", href: "/cmv", icon: Percent, roles: ["admin","accountant","manager"] },
   { title: "NF Recebidas", href: "/nfe-recebida", icon: FileText, roles: ["admin","accountant"] },
   { title: "Bancos", href: "/bancos", icon: Landmark, roles: ["admin","accountant"] },
+  { title: "Logística & Entregas", href: "/logistica", icon: Navigation, roles: ["admin","manager","operator"] },
   { title: "iFood", href: "/ifood", icon: Utensils, roles: ["admin","accountant","manager"] },
   { title: "Fornecedores", href: "/fornecedores", icon: Truck, roles: ["admin","accountant"] },
   { title: "Fechamento de caixa", href: "/fechamento-caixa", icon: ClipboardCheck, roles: ["admin","accountant","operator","manager"] },
@@ -52,6 +53,7 @@ export function roleCanAccess(role: string | undefined, pathname?: string | null
     return (
       path.startsWith("/fechamento-caixa") ||
       path.startsWith("/auditoria-caixa") ||
+      path.startsWith("/logistica") ||
       path.startsWith("/faturamento") ||
       path.startsWith("/cmv") ||
       path.startsWith("/tarefas") ||
@@ -60,7 +62,11 @@ export function roleCanAccess(role: string | undefined, pathname?: string | null
     );
   }
   if (norm === "operator") {
-    return path.startsWith("/fechamento-caixa") || path.startsWith("/auditoria-caixa");
+    return (
+      path.startsWith("/fechamento-caixa") ||
+      path.startsWith("/auditoria-caixa") ||
+      path.startsWith("/logistica")
+    );
   }
   return false;
 }

@@ -1,8 +1,37 @@
 import { auth } from "@/lib/firebase";
-import { HOUSE190_EMAIL_URL } from "@/config/worker";
+import { HOUSE190_EMAIL_URL, HOUSE190_WORKER_URL } from "@/config/worker";
 import type { AppNotification } from "@/types";
 
 const EMAIL_WORKER_URL = HOUSE190_EMAIL_URL;
+
+export type CashNotifyEvent = {
+  eventKind: "cash_closing" | "cash_returned" | "cash_conference";
+  unitId: string;
+  unitName: string;
+  operatorName: string;
+  date: string;
+  difference: number;
+  shift?: string;
+};
+
+export async function notifyCashEventViaFolgas(payload: CashNotifyEvent): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) return;
+  try {
+    const token = await user.getIdToken();
+    await fetch(`${HOUSE190_WORKER_URL}/cash-event-relay`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch (err) {
+    console.warn("Relay de notificacao WhatsApp/Folgas indisponivel:", err);
+  }
+}
 
 export async function sendNotificationEmail(
   eventId: string,

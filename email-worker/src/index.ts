@@ -21,9 +21,12 @@ function isAllowedOrigin(origin: string | null): boolean {
   return ALLOWED_ORIGINS.has(origin);
 }
 
+const FOLGAS_WORKER_URL = "https://house-folgas-notifications.brunohouse.workers.dev";
+
 type EmailEnv = Env & {
   GOOGLE_SCRIPT_URL: string;
   GOOGLE_SCRIPT_SECRET: string;
+  FOLGAS_WORKER_SECRET?: string;
 };
 
 type NotificationPayload = {
@@ -235,7 +238,7 @@ export default {
     }
     if (!isAllowedOrigin(origin)) return jsonResponse({ error: "origin_not_allowed" }, 403, origin);
     const url = new URL(request.url);
-    if (request.method !== "POST" || !["/notifications/email", "/notifications/directory", "/files/upload", "/files/download", "/sheets/sync"].includes(url.pathname)) {
+    if (request.method !== "POST" || !["/notifications/email", "/notifications/directory", "/files/upload", "/files/download", "/sheets/sync", "/cash-event-relay"].includes(url.pathname)) {
       return jsonResponse({ error: "not_found" }, 404, origin);
     }
     const contentLength = Number(request.headers.get("Content-Length") || "0");
@@ -302,6 +305,32 @@ export default {
       }
 
       const download = payload as { fileId?: unknown };
+      if (url.pathname === "/cash-event-relay") {
+        const p = payload as Record<string, unknown>;
+        const { eventKind, unitId, unitName, operatorName, date, difference, shift } = p;
+        if (!eventKind || !unitId) return jsonResponse({ error: "missing_fields" }, 400, origin);
+        if (!env.FOLGAS_WORKER_SECRET) {
+          console.log(JSON.stringify({ event: "cash_relay_skipped", reason: "FOLGAS_WORKER_SECRET_not_configured", userId: verifiedUser.userId }));
+          return jsonResponse({ ok: true, skipped: true, reason: "not_configured" }, 200, origin);
+        }
+        try {
+          const folgasRes = await fetch(`${FOLGAS_WORKER_URL}/cash-notify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Service-Token": env.FOLGAS_WORKER_SECRET },
+            body: JSON.stringify({ eventKind, unitId, unitName, operatorName, date, difference, shift }),
+            signal: AbortSignal.timeout(8000),
+          }).catch(() => null);
+          const result: Record<string, unknown> = folgasRes?.ok
+            ? ((await folgasRes.json().catch(() => ({}))) as Record<string, unknown>)
+            : { folgas_error: folgasRes?.status };
+          console.log(JSON.stringify({ event: "cash_relay_sent", eventKind, unitId, userId: verifiedUser.userId, ...result }));
+          return jsonResponse({ ok: true, ...result }, 200, origin);
+        } catch (relayErr) {
+          console.error(JSON.stringify({ event: "cash_relay_error", reason: relayErr instanceof Error ? relayErr.message : "unknown", userId: verifiedUser.userId }));
+          return jsonResponse({ ok: true, skipped: true, reason: "relay_failed" }, 200, origin);
+        }
+      }
+
       if (typeof download?.fileId !== "string" || !/^[a-zA-Z0-9_-]{10,200}$/.test(download.fileId)) {
         return jsonResponse({ error: "invalid_file_id" }, 400, origin);
       }

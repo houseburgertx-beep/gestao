@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { normalizeRole } from "@/components/layout/managementNavigation";
 import { currency, dateToday, RecordData, str } from "@/domain/management/model";
 import { commitRecords, saveManagement } from "@/services/managementService";
+import { notifyCashEventViaFolgas } from "@/services/emailService";
 import { db } from "@/lib/firebase";
 import {
   compressImageFile,
@@ -709,6 +710,16 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
 
     try {
       await commitRecords([updated, ...relatedConferences], data, updated);
+      const targetUnit = data.units.find(u => u.id === updated.unitId);
+      void notifyCashEventViaFolgas({
+        eventKind: "cash_returned",
+        unitId: updated.unitId,
+        unitName: String(targetUnit?.name || updated.unitId),
+        operatorName: str(updated, "operatorName"),
+        date: str(updated, "date"),
+        difference: Number(updated.difference || 0),
+        shift: str(updated, "shift"),
+      });
       setMessage("Caixa devolvido ao operador para conferência.");
     } catch (err) {
       console.error("Erro ao devolver caixa ao operador:", err);
@@ -4204,6 +4215,16 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
       };
 
       await commitRecords([updated, ...relatedConferences], data, updated);
+      const confTargetUnit = data.units.find(u => u.id === updated.unitId);
+      void notifyCashEventViaFolgas({
+        eventKind: "cash_returned",
+        unitId: updated.unitId,
+        unitName: String(confTargetUnit?.name || updated.unitId),
+        operatorName: str(updated, "operatorName"),
+        date: str(updated, "date"),
+        difference: Number(updated.difference || 0),
+        shift: str(updated, "shift"),
+      });
       onSaved();
       onClose();
     } catch (err) {

@@ -1139,5 +1139,45 @@ test("Comprovantes do Caixa: serializeSafeAttachments protege contra estouro do 
   assert.equal(parsed[0].fileId, "1DriveFileIdValid0000000");
 });
 
+test("Integração Financeiro ↔ Folgas 3.0: relay e rota /cash-notify configurados", () => {
+  const emailServicePath = path.join(__dirname, "../src/services/emailService.ts");
+  const emailServiceSrc = fs.readFileSync(emailServicePath, "utf8");
+  assert.ok(
+    emailServiceSrc.includes("export async function notifyCashEventViaFolgas"),
+    "emailService deve exportar notifyCashEventViaFolgas"
+  );
+  assert.ok(
+    emailServiceSrc.includes("/cash-event-relay"),
+    "emailService deve enviar eventos para /cash-event-relay"
+  );
+
+  const emailWorkerPath = path.join(__dirname, "../email-worker/src/index.ts");
+  const emailWorkerSrc = fs.readFileSync(emailWorkerPath, "utf8");
+  assert.ok(
+    emailWorkerSrc.includes('url.pathname === "/cash-event-relay"'),
+    "email-worker deve possuir rota /cash-event-relay"
+  );
+  assert.ok(
+    emailWorkerSrc.includes("/cash-notify"),
+    "email-worker deve chamar /cash-notify no Worker do Folgas"
+  );
+
+  const folgasWorkerPath = "/Users/gleuce/FOLGAS 3.0/Gestao-de-folgas3.0/notifications-worker/src/index.js";
+  const folgasWorkerSrc = fs.readFileSync(folgasWorkerPath, "utf8");
+  assert.ok(
+    folgasWorkerSrc.includes('route === "/cash-notify"'),
+    "Folgas Worker deve conter a rota /cash-notify"
+  );
+  assert.ok(
+    folgasWorkerSrc.includes("X-Service-Token"),
+    "Folgas Worker deve validar X-Service-Token"
+  );
+  assert.ok(
+    folgasWorkerSrc.includes("cash_closing") && folgasWorkerSrc.includes("cash_returned") && folgasWorkerSrc.includes("cash_conference"),
+    "Folgas Worker deve contemplar fechamento, devolução e conferência de caixa"
+  );
+});
+
+
 
 
