@@ -307,7 +307,20 @@ export default {
       const download = payload as { fileId?: unknown };
       if (url.pathname === "/cash-event-relay") {
         const p = payload as Record<string, unknown>;
-        const { eventKind, unitId, unitName, operatorName, date, difference, shift } = p;
+        const {
+          eventKind,
+          unitId,
+          unitName,
+          operatorName,
+          date,
+          difference,
+          revenueTotal,
+          countedTotal,
+          shift,
+          closingId,
+          returnReason,
+          reviewedBy,
+        } = p;
         if (!eventKind || !unitId) return jsonResponse({ error: "missing_fields" }, 400, origin);
         if (!env.FOLGAS_WORKER_SECRET) {
           console.log(JSON.stringify({ event: "cash_relay_skipped", reason: "FOLGAS_WORKER_SECRET_not_configured", userId: verifiedUser.userId }));
@@ -317,7 +330,20 @@ export default {
           const folgasRes = await fetch(`${FOLGAS_WORKER_URL}/cash-notify`, {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Service-Token": env.FOLGAS_WORKER_SECRET },
-            body: JSON.stringify({ eventKind, unitId, unitName, operatorName, date, difference, shift }),
+            body: JSON.stringify({
+              eventKind,
+              unitId,
+              unitName,
+              operatorName,
+              date,
+              difference,
+              revenueTotal,
+              countedTotal,
+              shift,
+              closingId,
+              returnReason,
+              reviewedBy,
+            }),
             signal: AbortSignal.timeout(8000),
           }).catch(() => null);
           const result: Record<string, unknown> = folgasRes?.ok

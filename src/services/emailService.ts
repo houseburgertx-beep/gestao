@@ -11,7 +11,12 @@ export type CashNotifyEvent = {
   operatorName: string;
   date: string;
   difference: number;
+  revenueTotal?: number;
+  countedTotal?: number;
   shift?: string;
+  closingId?: string;
+  returnReason?: string;
+  reviewedBy?: string;
 };
 
 export async function notifyCashEventViaFolgas(payload: CashNotifyEvent): Promise<void> {

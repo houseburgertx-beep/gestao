@@ -732,7 +732,11 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
         operatorName: str(updated, "operatorName"),
         date: str(updated, "date"),
         difference: Number(updated.difference || 0),
+        revenueTotal: Number(updated.systemTotal || 0),
+        countedTotal: Number(updated.countedTotal || 0),
         shift: str(updated, "shift"),
+        closingId: String(updated.id || ""),
+        returnReason: str(updated, "returnReason"),
       });
       setMessage("Caixa devolvido ao operador para conferência.");
     } catch (err) {
@@ -4240,7 +4244,11 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         operatorName: str(updated, "operatorName"),
         date: str(updated, "date"),
         difference: Number(updated.difference || 0),
+        revenueTotal: Number(updated.systemTotal || 0),
+        countedTotal: Number(updated.countedTotal || 0),
         shift: str(updated, "shift"),
+        closingId: String(updated.id || ""),
+        returnReason: str(updated, "returnReason"),
       });
       onSaved();
       onClose();

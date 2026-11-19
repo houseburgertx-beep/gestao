@@ -496,18 +496,40 @@ export async function commitRecords(
     });
   }
   if (["cashClosings", "cashConferences"].includes(origin.kind) && !origin.archived) {
+    const isReturnedClosing =
+      origin.kind === "cashClosings" && str(origin, "status") === "Devolvido ao operador";
     const difference = Number(origin.difference || 0);
     const unitName = String(state.units.find((unit) => unit.id === origin.unitId)?.name || origin.unitId);
-    void addNotificationToFirestore({type:"approval",eventKind:"cash_closing",unitId:origin.unitId,title:origin.kind === "cashClosings" ? "Fechamento de caixa enviado" : "Conferência de caixa concluída",message:`${unitName} · ${str(origin,"date").split("-").reverse().join("/")} · ${difference === 0 ? "Sem divergência no fechamento principal." : `Divergência: ${currency(difference)}.`}`,details:[{label:"Unidade",value:unitName},{label:"Data",value:str(origin,"date").split("-").reverse().join("/")},{label:"Operador",value:str(origin,"operatorName") || "DADO PENDENTE"},{label:"Situação",value:str(origin,"status")},{label:"Diferença",value:currency(difference)}],link:origin.kind === "cashClosings" ? "/conferencia-caixa/" : "/fechamento-caixa/",severity:difference !== 0 ? "warning" : "success",read:false,timestamp:new Date().toISOString()});
-    void notifyCashEventViaFolgas({
-      eventKind: origin.kind === "cashClosings" ? "cash_closing" : "cash_conference",
-      unitId: origin.unitId,
-      unitName,
-      operatorName: str(origin, "operatorName"),
-      date: str(origin, "date"),
-      difference,
-      shift: str(origin, "shift"),
-    });
+    const relatedClosing =
+      origin.kind === "cashClosings"
+        ? origin
+        : records.find((r) => r.kind === "cashClosings") ||
+          state.cashClosings.find((c) => c.id === origin.closingId);
+    const revenueTotal = Number(relatedClosing?.systemTotal ?? origin.systemTotal ?? 0);
+    const countedTotal = Number(relatedClosing?.countedTotal ?? origin.countedTotal ?? 0);
+    const shift = str(origin, "shift") || (relatedClosing ? str(relatedClosing, "shift") : "");
+    const closingId = String(
+      origin.kind === "cashClosings"
+        ? origin.id
+        : origin.closingId || relatedClosing?.id || origin.id || ""
+    );
+    const reviewedBy = str(origin, "reviewedBy") || (relatedClosing ? str(relatedClosing, "conferredBy") : "");
+    if (!isReturnedClosing) {
+      void addNotificationToFirestore({type:"approval",eventKind:"cash_closing",unitId:origin.unitId,title:origin.kind === "cashClosings" ? "Fechamento de caixa enviado" : "Conferência de caixa concluída",message:`${unitName} · ${str(origin,"date").split("-").reverse().join("/")} · ${difference === 0 ? "Sem divergência no fechamento principal." : `Divergência: ${currency(difference)}.`}`,details:[{label:"Unidade",value:unitName},{label:"Data",value:str(origin,"date").split("-").reverse().join("/")},{label:"Operador",value:str(origin,"operatorName") || "DADO PENDENTE"},{label:"Situação",value:str(origin,"status")},{label:"Diferença",value:currency(difference)}],link:origin.kind === "cashClosings" ? "/conferencia-caixa/" : "/fechamento-caixa/",severity:difference !== 0 ? "warning" : "success",read:false,timestamp:new Date().toISOString()});
+      void notifyCashEventViaFolgas({
+        eventKind: origin.kind === "cashClosings" ? "cash_closing" : "cash_conference",
+        unitId: origin.unitId,
+        unitName,
+        operatorName: str(origin, "operatorName") || (relatedClosing ? str(relatedClosing, "operatorName") : ""),
+        date: str(origin, "date") || (relatedClosing ? str(relatedClosing, "date") : ""),
+        difference,
+        revenueTotal,
+        countedTotal,
+        shift,
+        closingId,
+        reviewedBy,
+      });
+    }
     const pix = records.filter((record) => record.kind === "payables" && record.pixKey);
     if (pix.length) void addNotificationToFirestore({type:"payable",eventKind:"pix_request",unitId:origin.unitId,title:"Novas solicitações de PIX",message:`${pix.length} solicitação(ões) de PIX no fechamento de ${unitName}. Total: ${currency(pix.reduce((sum,record) => sum + Number(record.amount || 0),0))}.`,details:pix.slice(0,12).map((record) => ({label:"Pagamento PIX",value:`${str(record,"description")} · ${currency(Number(record.amount || 0))}`})),link:"/contas-a-pagar/",severity:"warning",read:false,timestamp:new Date().toISOString()});
   }
