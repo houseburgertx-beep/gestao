@@ -615,10 +615,11 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
   }, []);
 
   useEffect(() => {
+    if (urlParams.lockUnit && urlParams.unitId) return;
     if (currentUnit) {
       setSelectedUnit(currentUnit);
     }
-  }, [currentUnit]);
+  }, [currentUnit, urlParams.lockUnit, urlParams.unitId]);
 
   const handleSelectUnit = (unitId: string) => {
     if (urlParams.lockUnit) return;

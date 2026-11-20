@@ -496,8 +496,11 @@ export async function commitRecords(
     });
   }
   if (["cashClosings", "cashConferences"].includes(origin.kind) && !origin.archived) {
-    const isReturnedClosing =
-      origin.kind === "cashClosings" && str(origin, "status") === "Devolvido ao operador";
+    const closingStatus = str(origin, "status");
+    const shouldNotifyCashEvent =
+      origin.kind === "cashConferences" ||
+      (origin.kind === "cashClosings" &&
+        (!closingStatus || closingStatus === "Aguardando conferência"));
     const difference = Number(origin.difference || 0);
     const unitName = String(state.units.find((unit) => unit.id === origin.unitId)?.name || origin.unitId);
     const relatedClosing =
@@ -514,7 +517,7 @@ export async function commitRecords(
         : origin.closingId || relatedClosing?.id || origin.id || ""
     );
     const reviewedBy = str(origin, "reviewedBy") || (relatedClosing ? str(relatedClosing, "conferredBy") : "");
-    if (!isReturnedClosing) {
+    if (shouldNotifyCashEvent) {
       void addNotificationToFirestore({type:"approval",eventKind:"cash_closing",unitId:origin.unitId,title:origin.kind === "cashClosings" ? "Fechamento de caixa enviado" : "Conferência de caixa concluída",message:`${unitName} · ${str(origin,"date").split("-").reverse().join("/")} · ${difference === 0 ? "Sem divergência no fechamento principal." : `Divergência: ${currency(difference)}.`}`,details:[{label:"Unidade",value:unitName},{label:"Data",value:str(origin,"date").split("-").reverse().join("/")},{label:"Operador",value:str(origin,"operatorName") || "DADO PENDENTE"},{label:"Situação",value:str(origin,"status")},{label:"Diferença",value:currency(difference)}],link:origin.kind === "cashClosings" ? "/conferencia-caixa/" : "/fechamento-caixa/",severity:difference !== 0 ? "warning" : "success",read:false,timestamp:new Date().toISOString()});
       void notifyCashEventViaFolgas({
         eventKind: origin.kind === "cashClosings" ? "cash_closing" : "cash_conference",

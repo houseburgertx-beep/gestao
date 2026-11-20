@@ -239,7 +239,14 @@ export function CashClosingWizard({
   const lockUnitParam = urlParams.get("lockUnit") === "true";
   const normRole = normalizeRole(userProfile?.role);
   const isOperator = normRole === "operator";
-  const isUnitLocked = lockUnitParam || allowedUnit !== "all" || isOperator || Boolean(urlUnit && lockUnitParam);
+  const validUrlUnit =
+    urlUnit && ["eunapolis", "teixeira", "foodpark", "central"].includes(urlUnit) ? urlUnit : "";
+  const effectiveLockedUnit =
+    validUrlUnit ||
+    (allowedUnit !== "all" ? allowedUnit : "") ||
+    (userProfile?.unitId && userProfile.unitId !== "all" ? userProfile.unitId : "");
+  const isUnitLocked =
+    Boolean(effectiveLockedUnit) && (lockUnitParam || allowedUnit !== "all" || isOperator);
 
   const draft = useMemo(() => (!activeTargetClosing ? loadDraftData() : null), [activeTargetClosing]);
   const [hasDraft, setHasDraft] = useState(() => Boolean(draft));
@@ -249,12 +256,24 @@ export function CashClosingWizard({
   // Passo 1: Identificação
   const [unit, setUnit] = useState<string>(() => {
     if (activeTargetClosing?.unitId) return activeTargetClosing.unitId;
-    if (urlUnit && ["eunapolis", "teixeira", "foodpark", "central"].includes(urlUnit)) return urlUnit;
-    if (allowedUnit !== "all") return allowedUnit;
+    if (effectiveLockedUnit) return effectiveLockedUnit;
     if (draft?.unit && !isUnitLocked) return draft.unit;
     if (currentUnit !== "all" && !isUnitLocked) return currentUnit;
-    return data.units[0]?.id || "";
+    const defaultStore = data.units.find((u) => !u.archived && u.id !== "central") || data.units[0];
+    return defaultStore?.id || "";
   });
+
+  useEffect(() => {
+    if (activeTargetClosing?.unitId) return;
+    if (effectiveLockedUnit && unit !== effectiveLockedUnit) {
+      setUnit(effectiveLockedUnit);
+      return;
+    }
+    if (!unit && data.units.length > 0) {
+      const defaultStore = data.units.find((u) => !u.archived && u.id !== "central") || data.units[0];
+      if (defaultStore?.id) setUnit(defaultStore.id);
+    }
+  }, [activeTargetClosing?.unitId, effectiveLockedUnit, unit, data.units]);
 
   const [date, setDate] = useState(() => {
     if (activeTargetClosing) return str(activeTargetClosing, "date") || dateToday();
@@ -285,6 +304,12 @@ export function CashClosingWizard({
     if (draft?.operatorName) return draft.operatorName;
     return userProfile?.displayName || "";
   });
+
+  useEffect(() => {
+    if (!operatorName && userProfile?.displayName) {
+      setOperatorName(userProfile.displayName);
+    }
+  }, [operatorName, userProfile?.displayName]);
 
   const [shift, setShift] = useState(() => {
     if (activeTargetClosing) return str(activeTargetClosing, "shift") || "Único";
@@ -397,6 +422,7 @@ export function CashClosingWizard({
   });
 
   useEffect(() => {
+    if (banks.length === 0) return;
     setMachines((prev) => {
       const next: Record<string, MachineEntry> = {};
       banks.forEach((b) => {
@@ -1521,7 +1547,7 @@ export function CashClosingWizard({
                     </label>
                     <select
                       value={unit}
-                      disabled={isUnitLocked}
+                      disabled={isUnitLocked && Boolean(unit)}
                       onChange={(e) => {
                         setUnit(e.target.value);
                         setMachines({});
