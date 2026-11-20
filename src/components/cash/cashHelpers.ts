@@ -68,8 +68,15 @@ export const safeUUID = () =>
 
 export const brl = (cents: number) => currency(Math.round(cents));
 
-export const toMoneyCents = (val: string | number | undefined | null): number =>
-  Math.max(0, Math.round(Number(String(val ?? "0").replace(",", ".").trim()) * 100) || 0);
+export const toMoneyCents = (val: string | number | undefined | null): number => {
+  if (typeof val === "number") return Number.isFinite(val) ? Math.max(0, Math.round(val * 100)) : 0;
+  const raw = String(val ?? "").replace(/[^\d.,-]/g, "").trim();
+  if (!raw) return 0;
+  const normalized = raw.includes(",")
+    ? raw.replace(/\./g, "").replace(",", ".")
+    : raw;
+  return Math.max(0, Math.round(Number(normalized) * 100) || 0);
+};
 
 export const toMoneyInput = (val: unknown): string =>
   typeof val === "number" && val !== 0 ? String(val / 100) : "";

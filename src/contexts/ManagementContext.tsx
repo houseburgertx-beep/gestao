@@ -95,9 +95,19 @@ export function ManagementProvider({
     "house190";
   const normRole = normalizeRole(userProfile?.role);
   const isFinanceOrAdmin = normRole === "admin" || normRole === "accountant";
+  const urlUnitParam =
+    typeof window !== "undefined"
+      ? (() => {
+          const p = new URLSearchParams(window.location.search);
+          const u = p.get("unitId") || p.get("unit") || "";
+          return ["teixeira", "eunapolis", "foodpark", "central"].includes(u) ? u : "";
+        })()
+      : "";
   const allowedUnit = isFinanceOrAdmin
     ? "all"
-    : (userProfile?.unitId && userProfile.unitId !== "all" ? userProfile.unitId : "teixeira");
+    : userProfile?.unitId && userProfile.unitId !== "all"
+      ? userProfile.unitId
+      : urlUnitParam || "teixeira";
   useEffect(() => {
     const targetKinds = Object.keys(DEFINITIONS).filter((k) => {
       if (isFinanceOrAdmin) return true;

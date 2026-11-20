@@ -242,8 +242,8 @@ export function CashClosingWizard({
   const validUrlUnit =
     urlUnit && ["eunapolis", "teixeira", "foodpark", "central"].includes(urlUnit) ? urlUnit : "";
   const effectiveLockedUnit =
-    validUrlUnit ||
     (allowedUnit !== "all" ? allowedUnit : "") ||
+    validUrlUnit ||
     (userProfile?.unitId && userProfile.unitId !== "all" ? userProfile.unitId : "");
   const isUnitLocked =
     Boolean(effectiveLockedUnit) && (lockUnitParam || allowedUnit !== "all" || isOperator);
@@ -936,13 +936,19 @@ export function CashClosingWizard({
     if (!unit) issues.push({ step: 1, text: "Selecione a unidade do fechamento." });
     if (!date) issues.push({ step: 1, text: "Informe a data do turno." });
     if (!operatorName.trim()) issues.push({ step: 1, text: "Informe o nome do operador." });
+    if (existingForShift && !activeTargetClosing) {
+      issues.push({
+        step: 1,
+        text: "Já existe um fechamento para esta data e turno. Volte ao Passo 1 e clique em \"Carregar dados existentes\" para editar, ou altere o turno.",
+      });
+    }
     if (cSangria > 0 && !sangriaRecipient.trim()) {
       issues.push({
         step: 2,
         text: "Informe para quem foi entregue a sangria ou onde está guardada.",
       });
     }
-    if (usedMachinesCount === 0 && cSysCredit + cSysDebit + cSysPix > 0) {
+    if (banks.length > 0 && usedMachinesCount === 0 && cSysCredit + cSysDebit + cSysPix > 0) {
       issues.push({
         step: 3,
         text: "Ative e preencha ao menos uma maquininha de cartão/PIX utilizada.",
@@ -972,8 +978,11 @@ export function CashClosingWizard({
     unit,
     date,
     operatorName,
+    existingForShift,
+    activeTargetClosing,
     cSangria,
     sangriaRecipient,
+    banks.length,
     usedMachinesCount,
     cSysCredit,
     cSysDebit,
