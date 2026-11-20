@@ -22,19 +22,39 @@ export type CashNotifyEvent = {
 export async function notifyCashEventViaFolgas(payload: CashNotifyEvent): Promise<void> {
   const user = auth.currentUser;
   if (!user) return;
-  try {
-    const token = await user.getIdToken();
-    await fetch(`${HOUSE190_WORKER_URL}/cash-event-relay`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10000),
-    });
-  } catch (err) {
-    console.warn("Relay de notificacao WhatsApp/Folgas indisponivel:", err);
+  const serialized = JSON.stringify(payload);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`${HOUSE190_WORKER_URL}/cash-event-relay`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: serialized,
+        keepalive: true,
+        signal: AbortSignal.timeout(25000),
+      });
+      const result = await response.json().catch(() => null);
+      if (response.ok && result?.ok !== false && !result?.folgas_error) {
+        if (Number(result?.failed || 0) > 0) {
+          console.warn("Relay WhatsApp/Folgas teve falhas parciais:", result);
+        }
+        return;
+      }
+      console.warn(
+        "Relay de notificacao WhatsApp/Folgas retornou erro:",
+        response.status,
+        result
+      );
+      if (response.status >= 400 && response.status < 500) return;
+    } catch (err) {
+      console.warn("Relay de notificacao WhatsApp/Folgas indisponivel:", err);
+    }
+    if (attempt === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
   }
 }
 

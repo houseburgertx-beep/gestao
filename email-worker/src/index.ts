@@ -27,6 +27,7 @@ type EmailEnv = Env & {
   GOOGLE_SCRIPT_URL: string;
   GOOGLE_SCRIPT_SECRET: string;
   FOLGAS_WORKER_SECRET?: string;
+  FOLGAS_NOTIFICATIONS?: Fetcher;
 };
 
 type NotificationPayload = {
@@ -268,7 +269,7 @@ export default {
         const actor = directory.find((user) => user.id === verifiedUser.userId);
         if (!actor?.active) return jsonResponse({error:"inactive_user"},403,origin);
         if (actor.role === "manager" && payload.unitId !== actor.unitId) return jsonResponse({error:"unit_not_allowed"},403,origin);
-        if (actor.role === "manager" && !["task_created","task_completed"].includes(payload.kind || "")) return jsonResponse({error:"event_not_allowed"},403,origin);
+        if (actor.role === "manager" && !["task_created","task_completed","cash_closing","pix_request"].includes(payload.kind || "")) return jsonResponse({error:"event_not_allowed"},403,origin);
         if (actor.role === "operator" && (payload.unitId !== actor.unitId || !["cash_closing","pix_request"].includes(payload.kind || ""))) return jsonResponse({error:"event_not_allowed"},403,origin);
         const recipients = recipientsFor(directory,payload);
         if (!recipients.length) throw new Error("recipient_directory_unavailable");
@@ -324,36 +325,68 @@ export default {
         if (!eventKind || !unitId) return jsonResponse({ error: "missing_fields" }, 400, origin);
         if (!env.FOLGAS_WORKER_SECRET) {
           console.log(JSON.stringify({ event: "cash_relay_skipped", reason: "FOLGAS_WORKER_SECRET_not_configured", userId: verifiedUser.userId }));
-          return jsonResponse({ ok: true, skipped: true, reason: "not_configured" }, 200, origin);
+          return jsonResponse({ ok: false, skipped: true, reason: "not_configured" }, 503, origin);
         }
         try {
-          const folgasRes = await fetch(`${FOLGAS_WORKER_URL}/cash-notify`, {
+          const relayPayload = {
+            eventKind,
+            unitId,
+            unitName,
+            operatorName,
+            date,
+            difference,
+            revenueTotal,
+            countedTotal,
+            shift,
+            closingId,
+            returnReason,
+            reviewedBy,
+          };
+          const relayRequest = new Request(`${FOLGAS_WORKER_URL}/cash-notify`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "X-Service-Token": env.FOLGAS_WORKER_SECRET },
-            body: JSON.stringify({
+            headers: {
+              "Content-Type": "application/json",
+              "X-Service-Token": env.FOLGAS_WORKER_SECRET,
+            },
+            body: JSON.stringify(relayPayload),
+          });
+          const viaBinding = Boolean(env.FOLGAS_NOTIFICATIONS);
+          const folgasRes = env.FOLGAS_NOTIFICATIONS
+            ? await env.FOLGAS_NOTIFICATIONS.fetch(relayRequest)
+            : await fetch(relayRequest, { signal: AbortSignal.timeout(25000) });
+
+          if (!folgasRes.ok) {
+            const errText = await folgasRes.text().catch(() => "");
+            console.error(JSON.stringify({
+              event: "cash_relay_failed",
+              viaBinding,
+              status: folgasRes.status,
+              body: errText.slice(0, 300),
               eventKind,
               unitId,
-              unitName,
-              operatorName,
-              date,
-              difference,
-              revenueTotal,
-              countedTotal,
-              shift,
-              closingId,
-              returnReason,
-              reviewedBy,
-            }),
-            signal: AbortSignal.timeout(8000),
-          }).catch(() => null);
-          const result: Record<string, unknown> = folgasRes?.ok
-            ? ((await folgasRes.json().catch(() => ({}))) as Record<string, unknown>)
-            : { folgas_error: folgasRes?.status };
-          console.log(JSON.stringify({ event: "cash_relay_sent", eventKind, unitId, userId: verifiedUser.userId, ...result }));
+              userId: verifiedUser.userId,
+            }));
+            return jsonResponse(
+              { ok: false, folgas_error: folgasRes.status, details: errText.slice(0, 200) },
+              502,
+              origin
+            );
+          }
+
+          const result = (await folgasRes.json().catch(() => ({}))) as Record<string, unknown>;
+          console.log(JSON.stringify({
+            event: "cash_relay_sent",
+            viaBinding,
+            eventKind,
+            unitId,
+            userId: verifiedUser.userId,
+            ...result,
+          }));
           return jsonResponse({ ok: true, ...result }, 200, origin);
         } catch (relayErr) {
-          console.error(JSON.stringify({ event: "cash_relay_error", reason: relayErr instanceof Error ? relayErr.message : "unknown", userId: verifiedUser.userId }));
-          return jsonResponse({ ok: true, skipped: true, reason: "relay_failed" }, 200, origin);
+          const reason = relayErr instanceof Error ? relayErr.message : String(relayErr || "unknown");
+          console.error(JSON.stringify({ event: "cash_relay_error", reason, eventKind, unitId, userId: verifiedUser.userId }));
+          return jsonResponse({ ok: false, reason: "relay_failed", details: reason.slice(0, 200) }, 502, origin);
         }
       }
 

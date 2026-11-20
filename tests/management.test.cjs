@@ -1161,6 +1161,18 @@ test("Integração Financeiro ↔ Folgas 3.0: relay e rota /cash-notify configur
     emailWorkerSrc.includes("/cash-notify"),
     "email-worker deve chamar /cash-notify no Worker do Folgas"
   );
+  assert.ok(
+    emailWorkerSrc.includes("env.FOLGAS_NOTIFICATIONS"),
+    "email-worker deve usar Service Binding FOLGAS_NOTIFICATIONS para evitar Cloudflare Error 1042"
+  );
+
+  const emailWranglerPath = path.join(__dirname, "../email-worker/wrangler.jsonc");
+  const emailWranglerSrc = fs.readFileSync(emailWranglerPath, "utf8");
+  assert.ok(
+    emailWranglerSrc.includes("FOLGAS_NOTIFICATIONS") &&
+      emailWranglerSrc.includes("house-folgas-notifications"),
+    "email-worker/wrangler.jsonc deve declarar o Service Binding para house-folgas-notifications"
+  );
 
   const folgasWorkerPath = "/Users/gleuce/FOLGAS 3.0/Gestao-de-folgas3.0/notifications-worker/src/index.js";
   const folgasWorkerSrc = fs.readFileSync(folgasWorkerPath, "utf8");
