@@ -321,6 +321,8 @@ export default {
           closingId,
           returnReason,
           reviewedBy,
+          isResubmission,
+          channelBreakdown,
         } = p;
         if (!eventKind || !unitId) return jsonResponse({ error: "missing_fields" }, 400, origin);
         if (!env.FOLGAS_WORKER_SECRET) {
@@ -341,6 +343,8 @@ export default {
             closingId,
             returnReason,
             reviewedBy,
+            isResubmission,
+            channelBreakdown,
           };
           const relayRequest = new Request(`${FOLGAS_WORKER_URL}/cash-notify`, {
             method: "POST",

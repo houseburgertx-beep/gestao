@@ -239,10 +239,47 @@ async function createRecords(records: RecordData[]) {
     .then(({ replicateToSheet }) => replicateToSheet({}, records))
     .catch(() => {});
 }
+export type CommitRecordsOptions = {
+  skipCashNotify?: boolean;
+};
+
+export function evaluateCashCommitNotification(
+  origin: { id: string; kind: string; archived?: boolean; status?: unknown },
+  state: { cashClosings?: { id: string; status?: unknown }[]; cashConferences?: { id: string }[] },
+  options?: CommitRecordsOptions,
+): { shouldNotify: boolean; isResubmission: boolean } {
+  if (options?.skipCashNotify || origin.archived) {
+    return { shouldNotify: false, isResubmission: false };
+  }
+  if (origin.kind === "cashConferences") {
+    const previousConference = (state.cashConferences || []).find((c) => c.id === origin.id);
+    return { shouldNotify: !previousConference, isResubmission: false };
+  }
+  if (origin.kind === "cashClosings") {
+    const closingStatus = typeof origin.status === "string" ? origin.status : "";
+    if (closingStatus && closingStatus !== "Aguardando conferência") {
+      return { shouldNotify: false, isResubmission: false };
+    }
+    const previousClosing = (state.cashClosings || []).find((c) => c.id === origin.id);
+    if (!previousClosing) {
+      return { shouldNotify: true, isResubmission: false };
+    }
+    const prevStatus = typeof previousClosing.status === "string" ? previousClosing.status : "";
+    const wasReturned = prevStatus === "Devolvido ao operador" || prevStatus === "Devolvido";
+    const wasDraft = prevStatus === "Rascunho";
+    return {
+      shouldNotify: wasReturned || wasDraft,
+      isResubmission: wasReturned,
+    };
+  }
+  return { shouldNotify: false, isResubmission: false };
+}
+
 export async function commitRecords(
   records: RecordData[],
   state: Database,
   origin: RecordData,
+  options?: CommitRecordsOptions,
 ) {
   const uniqueFields: Record<string, string[]> = {
     revenues: ["date", "channel"],
@@ -496,11 +533,8 @@ export async function commitRecords(
     });
   }
   if (["cashClosings", "cashConferences"].includes(origin.kind) && !origin.archived) {
-    const closingStatus = str(origin, "status");
-    const shouldNotifyCashEvent =
-      origin.kind === "cashConferences" ||
-      (origin.kind === "cashClosings" &&
-        (!closingStatus || closingStatus === "Aguardando conferência"));
+    const { shouldNotify: shouldNotifyCashEvent, isResubmission } =
+      evaluateCashCommitNotification(origin, state, options);
     const difference = Number(origin.difference || 0);
     const unitName = String(state.units.find((unit) => unit.id === origin.unitId)?.name || origin.unitId);
     const relatedClosing =
@@ -531,6 +565,7 @@ export async function commitRecords(
         shift,
         closingId,
         reviewedBy,
+        isResubmission,
       });
     }
     const pix = records.filter((record) => record.kind === "payables" && record.pixKey);

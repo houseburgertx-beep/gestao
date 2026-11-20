@@ -1190,6 +1190,101 @@ test("Integração Financeiro ↔ Folgas 3.0: relay e rota /cash-notify configur
   );
 });
 
+test("Takeat: extractChannelsFromTakeatResponse reconhece delivery_takeat e ignora client sem duplicar", () => {
+  const takeatSrc = fs.readFileSync(path.join(__dirname, "../src/services/takeatService.ts"), "utf8");
+  const parseFn = takeatSrc.slice(
+    takeatSrc.indexOf("export function parseBRLNumber("),
+    takeatSrc.indexOf("/**", takeatSrc.indexOf("export function parseBRLNumber("))
+  );
+  const extractFn = takeatSrc.slice(
+    takeatSrc.indexOf("export function extractChannelsFromTakeatResponse("),
+    takeatSrc.indexOf("export function processOfficialRevenue(")
+  );
+  const compiled = ts.transpileModule(
+    `${parseFn}\n${extractFn}`,
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }
+  ).outputText;
+  const mod = { exports: {} };
+  new Function("module", "exports", compiled)(mod, mod.exports);
+
+  const res = mod.exports.extractChannelsFromTakeatResponse({
+    payment_without_tax: {
+      delivery_takeat: "991.69",
+      ifood: "2984.37",
+      balcony: "0.00",
+      table: "1589.88",
+      client: "5565.94",
+    },
+  });
+  assert.equal(res.delivery, 991.69);
+  assert.equal(res.ifood, 2984.37);
+  assert.equal(res.salao, 1589.88);
+  assert.equal(res.totalRevenue, 5565.94);
+});
+
+test("Notificação de caixa: dispara apenas em novo fechamento, reenvio pós-devolução ou rascunho; ignora edições/anexos em caixa já pendente", () => {
+  const mgmtSrc = fs.readFileSync(path.join(__dirname, "../src/services/managementService.ts"), "utf8");
+  const start = mgmtSrc.indexOf("export function evaluateCashCommitNotification(");
+  const end = mgmtSrc.indexOf("export async function commitRecords(");
+  const fnSrc = mgmtSrc.slice(start, end);
+  const compiled = ts.transpileModule(fnSrc, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+  }).outputText;
+  const mod = { exports: {} };
+  new Function("module", "exports", compiled)(mod, mod.exports);
+  const evaluate = mod.exports.evaluateCashCommitNotification;
+
+  const emptyState = { cashClosings: [], cashConferences: [] };
+  assert.deepEqual(
+    evaluate({ id: "c1", kind: "cashClosings", status: "Aguardando conferência" }, emptyState),
+    { shouldNotify: true, isResubmission: false }
+  );
+
+  // Atualização posterior (anexo, sangria ou regravação) de um caixa que já estava Aguardando conferência NÃO pode reenviar
+  const pendingState = {
+    cashClosings: [{ id: "c1", kind: "cashClosings", status: "Aguardando conferência" }],
+    cashConferences: [],
+  };
+  assert.deepEqual(
+    evaluate({ id: "c1", kind: "cashClosings", status: "Aguardando conferência" }, pendingState),
+    { shouldNotify: false, isResubmission: false }
+  );
+
+  // Reenvio legítimo após devolução ao operador
+  const returnedState = {
+    cashClosings: [{ id: "c1", kind: "cashClosings", status: "Devolvido ao operador" }],
+    cashConferences: [],
+  };
+  assert.deepEqual(
+    evaluate({ id: "c1", kind: "cashClosings", status: "Aguardando conferência" }, returnedState),
+    { shouldNotify: true, isResubmission: true }
+  );
+
+  // Cancelamento de devolução com skipCashNotify NÃO deve reenviar
+  assert.deepEqual(
+    evaluate(
+      { id: "c1", kind: "cashClosings", status: "Aguardando conferência" },
+      returnedState,
+      { skipCashNotify: true }
+    ),
+    { shouldNotify: false, isResubmission: false }
+  );
+
+  // Nova conferência notifica; edição de conferência existente não duplica
+  assert.deepEqual(
+    evaluate({ id: "conf1", kind: "cashConferences" }, emptyState),
+    { shouldNotify: true, isResubmission: false }
+  );
+  assert.deepEqual(
+    evaluate(
+      { id: "conf1", kind: "cashConferences" },
+      { cashClosings: [], cashConferences: [{ id: "conf1", kind: "cashConferences" }] }
+    ),
+    { shouldNotify: false, isResubmission: false }
+  );
+});
+
+
 
 
 

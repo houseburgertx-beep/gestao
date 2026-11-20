@@ -4,6 +4,12 @@ import type { AppNotification } from "@/types";
 
 const EMAIL_WORKER_URL = HOUSE190_EMAIL_URL;
 
+export type CashChannelBreakdown = {
+  total: number;
+  channels: { key: string; label: string; revenue: number }[];
+  source?: string;
+};
+
 export type CashNotifyEvent = {
   eventKind: "cash_closing" | "cash_returned" | "cash_conference";
   unitId: string;
@@ -17,6 +23,8 @@ export type CashNotifyEvent = {
   closingId?: string;
   returnReason?: string;
   reviewedBy?: string;
+  isResubmission?: boolean;
+  channelBreakdown?: CashChannelBreakdown | null;
 };
 
 export async function notifyCashEventViaFolgas(payload: CashNotifyEvent): Promise<void> {

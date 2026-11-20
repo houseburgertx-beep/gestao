@@ -660,7 +660,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
         updatedAt: now,
         updatedBy: user.uid
       }));
-      commitRecords(updates, data, updates[0]).catch(err => {
+      commitRecords(updates, data, updates[0], { skipCashNotify: true }).catch(err => {
         console.warn("[CashWorkspace] Falha ao auto-atualizar status de caixas conferidos:", err);
       });
     }
@@ -682,7 +682,7 @@ export function CashWorkspace({ mode }: { mode: "closing" | "conference" | "audi
         updatedBy: userUid
       };
       try {
-        await commitRecords([updated], data, updated);
+        await commitRecords([updated], data, updated, { skipCashNotify: true });
         setMessage("Devolução cancelada. Caixa retornou para Aguardando conferência.");
       } catch (err) {
         console.error("Erro ao cancelar devolução:", err);
@@ -3990,7 +3990,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
           updatedAt: new Date().toISOString(),
           updatedBy: user?.uid || ""
         };
-        await commitRecords([updatedClosing], data, updatedClosing);
+        await commitRecords([updatedClosing], data, updatedClosing, { skipCashNotify: true });
       }
 
       if (failed.length > 0) {
@@ -4014,7 +4014,7 @@ function ConferenceModal({ closing, onClose, onSaved }: { closing: RecordData; o
         updatedAt: new Date().toISOString(),
         updatedBy: user?.uid || ""
       };
-      await commitRecords([updatedClosing], data, updatedClosing);
+      await commitRecords([updatedClosing], data, updatedClosing, { skipCashNotify: true });
     } catch {
       alert("Erro ao remover comprovante.");
     }
@@ -6818,7 +6818,7 @@ function SangriasTab({
         updatedAt: now,
         updatedBy: user.uid,
       };
-      await commitRecords([updated], data, updated);
+      await commitRecords([updated], data, updated, { skipCashNotify: true });
       setSuccessId(closing.id);
       setEditingId(null);
       setTimeout(() => setSuccessId(null), 3500);

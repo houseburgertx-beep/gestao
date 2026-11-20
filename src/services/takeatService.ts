@@ -636,7 +636,7 @@ export function extractChannelsFromTakeatResponse(
 
   let rawBalcony = parseBRLNumber(pwt.balcony);
   let rawTable = parseBRLNumber(pwt.table);
-  let rawDelivery = parseBRLNumber(pwt.delivery);
+  let rawDelivery = parseBRLNumber(pwt.delivery_takeat ?? pwt.delivery);
   let rawIfood = parseBRLNumber(pwt.ifood || pwt.iFood || pwt.IFOOD);
 
   // Varre exaustivamente todas as chaves do objeto de pagamentos sem taxas
@@ -647,6 +647,7 @@ export function extractChannelsFromTakeatResponse(
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]/g, "");
+    if (cleanKey === "client" || cleanKey === "total") continue;
     const num = parseBRLNumber(val);
     if (num <= 0) continue;
 
@@ -686,6 +687,8 @@ export function extractChannelsFromTakeatResponse(
     }
     // Delivery Próprio
     else if (
+      cleanKey.includes("deliverytakeat") ||
+      cleanKey === "delivery" ||
       cleanKey.includes("deliveryproprio") ||
       cleanKey.includes("proprio") ||
       cleanKey.includes("whatsapp") ||
