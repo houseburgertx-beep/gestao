@@ -99,13 +99,50 @@ export function parsePayablePixNameAndDesc(
   };
 }
 
+function isPlaceholderPixKey(rawKey: string): boolean {
+  const trimmed = String(rawKey || "").trim();
+  if (!trimmed) return true;
+  if (/^[\d\s()+.\-\/]+$/.test(trimmed)) {
+    const digits = trimmed.replace(/\D/g, "");
+    if (digits.length >= 6 && /^(\d)\1+$/.test(digits)) return true;
+  }
+  return false;
+}
+
+export function normalizeUnitKey(unitId?: string | null): string {
+  return String(unitId || "").trim().toLowerCase();
+}
+
+export function scopedHiddenPixId(unitId: string, contactId: string): string {
+  const u = normalizeUnitKey(unitId);
+  return u ? `${u}::${contactId}` : contactId;
+}
+
 export function buildPixDirectory(
   data: PixDirectoryDatabase,
   unitId: string,
   localSaved: SavedPixContact[] = [],
   hiddenIds: string[] = [],
 ): SavedPixContact[] {
-  const hiddenSet = new Set(hiddenIds.filter(Boolean));
+  const targetUnit = normalizeUnitKey(unitId);
+  const enforceUnitIsolation = Boolean(targetUnit && targetUnit !== "all");
+  const matchesTargetUnit = (recordUnitId?: string | null) => {
+    if (!enforceUnitIsolation) return true;
+    return normalizeUnitKey(recordUnitId) === targetUnit;
+  };
+
+  const hiddenSet = new Set<string>();
+  for (const rawHidden of hiddenIds) {
+    if (!rawHidden) continue;
+    if (rawHidden.includes("::")) {
+      const [hUnit, hId] = rawHidden.split("::");
+      if (!enforceUnitIsolation || normalizeUnitKey(hUnit) === targetUnit) {
+        if (hId) hiddenSet.add(hId);
+      }
+    } else {
+      hiddenSet.add(rawHidden);
+    }
+  }
   const map = new Map<string, SavedPixContact>();
 
   const upsert = (entry: {
@@ -118,9 +155,11 @@ export function buildPixDirectory(
     usageIncrement?: number;
     pinned?: boolean;
   }) => {
+    if (!matchesTargetUnit(entry.unitId)) return;
+
     const cleanKey = String(entry.key || "").trim();
     const cleanName = String(entry.name || "").trim();
-    if (!cleanKey || !cleanName || !isValidPixKey(cleanKey)) return;
+    if (!cleanKey || !cleanName || !isValidPixKey(cleanKey) || isPlaceholderPixKey(cleanKey)) return;
 
     const id = normalizePixKeyId(cleanKey);
     if (!id || hiddenSet.has(id)) return;
@@ -170,9 +209,10 @@ export function buildPixDirectory(
     }
   };
 
-  // 1. Saved locally (explicitly or auto-saved)
+  // 1. Saved locally for this unit only
   for (const item of localSaved) {
     if (!item || typeof item !== "object") continue;
+    if (!matchesTargetUnit(item.unitId)) continue;
     upsert({
       name: item.name,
       key: item.key,
@@ -185,27 +225,29 @@ export function buildPixDirectory(
     });
   }
 
-  // 2. Registered suppliers with PIX key
+  // 2. Registered suppliers (build lookup map for all, but only include directly if tied to this unit)
   const suppliersById = new Map<string, string>();
   for (const supplier of data.suppliers || []) {
     if (!supplier || supplier.archived) continue;
     const sName = str(supplier, "name") || str(supplier, "tradeName") || str(supplier, "legalName");
     if (supplier.id && sName) suppliersById.set(supplier.id, sName);
     const sKey = str(supplier, "pixKey");
-    if (sName && sKey) {
+    if (sName && sKey && matchesTargetUnit(supplier.unitId)) {
       upsert({
         name: sName,
         key: sKey,
         source: "supplier",
+        unitId: supplier.unitId,
         lastUsedAt: str(supplier, "updatedAt") || str(supplier, "createdAt"),
         usageIncrement: 1,
       });
     }
   }
 
-  // 3. Registered employees with PIX key (when available in context)
+  // 3. Registered employees with PIX key from this unit only
   for (const emp of data.employees || []) {
     if (!emp || emp.archived) continue;
+    if (!matchesTargetUnit(emp.unitId)) continue;
     const eName = str(emp, "name");
     const eKey = str(emp, "pixKey") || str(emp, "bankData");
     if (eName && eKey && isValidPixKey(eKey)) {
@@ -220,9 +262,9 @@ export function buildPixDirectory(
     }
   }
 
-  // 4. Historical cash closing PIX requests (shared via Firestore across all store devices)
+  // 4. Historical cash closing PIX requests from this unit only
   const closings = [...(data.cashClosings || [])]
-    .filter((c) => c && !c.archived && c.pixRequestsJson)
+    .filter((c) => c && !c.archived && c.pixRequestsJson && matchesTargetUnit(c.unitId))
     .sort((a, b) =>
       (str(a, "date") || str(a, "updatedAt")).localeCompare(str(b, "date") || str(b, "updatedAt")),
     );
@@ -244,9 +286,9 @@ export function buildPixDirectory(
     }
   }
 
-  // 5. Payables with PIX key (from cash closing or financial accounts payable)
+  // 5. Payables with PIX key from this unit only
   const payables = [...(data.payables || [])]
-    .filter((p) => p && !p.archived)
+    .filter((p) => p && !p.archived && matchesTargetUnit(p.unitId))
     .sort((a, b) =>
       (str(a, "dueDate") || str(a, "updatedAt")).localeCompare(str(b, "dueDate") || str(b, "updatedAt")),
     );
@@ -272,10 +314,6 @@ export function buildPixDirectory(
   }
 
   return Array.from(map.values()).sort((a, b) => {
-    const aSameUnit = Boolean(unitId && a.unitId === unitId);
-    const bSameUnit = Boolean(unitId && b.unitId === unitId);
-    if (aSameUnit !== bSameUnit) return aSameUnit ? -1 : 1;
-
     if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
 
     if (b.usageCount !== a.usageCount) return b.usageCount - a.usageCount;
@@ -362,13 +400,14 @@ export function upsertLocalSavedPixContact(
 ): SavedPixContact[] {
   const cleanName = String(entry.name || "").trim();
   const cleanKey = String(entry.key || "").trim();
-  if (!cleanName || !cleanKey || !isValidPixKey(cleanKey)) return list;
+  if (!cleanName || !cleanKey || !isValidPixKey(cleanKey) || isPlaceholderPixKey(cleanKey)) return list;
 
   const id = normalizePixKeyId(cleanKey);
   if (!id) return list;
 
+  const unitKey = normalizeUnitKey(entry.unitId);
   const cleanDesc = String(entry.defaultDescription || "").trim();
-  const existing = list.find((c) => c.id === id);
+  const existing = list.find((c) => c.id === id && normalizeUnitKey(c.unitId) === unitKey);
 
   const updated: SavedPixContact = {
     id,
@@ -376,11 +415,14 @@ export function upsertLocalSavedPixContact(
     key: cleanKey,
     defaultDescription: cleanDesc || existing?.defaultDescription,
     source: "saved",
-    unitId: entry.unitId || existing?.unitId,
+    unitId: unitKey || undefined,
     usageCount: (existing?.usageCount || 0) + 1,
     lastUsedAt: nowIso,
     pinned: true,
   };
 
-  return [updated, ...list.filter((c) => c.id !== id)].slice(0, 120);
+  return [
+    updated,
+    ...list.filter((c) => !(c.id === id && normalizeUnitKey(c.unitId) === unitKey)),
+  ].slice(0, 200);
 }

@@ -11,17 +11,20 @@ import {
   loadHiddenPixContactIds,
   loadLocalSavedPixContacts,
   normalizePixKeyId,
+  normalizeUnitKey,
   persistAutoSavePixPreference,
   persistHiddenPixContactIds,
   persistLocalSavedPixContacts,
   PixDirectoryDatabase,
   SavedPixContact,
+  scopedHiddenPixId,
   upsertLocalSavedPixContact,
 } from "@/domain/cash/pixContacts";
 
 const DEFAULT_VISIBLE_PILLS = 8;
 
 export function usePixDirectory(data: PixDirectoryDatabase, unitId: string) {
+  const unitKey = normalizeUnitKey(unitId);
   const [autoSavePix, setAutoSavePixState] = useState<boolean>(() => loadAutoSavePixPreference());
   const [localSaved, setLocalSaved] = useState<SavedPixContact[]>(() => loadLocalSavedPixContacts());
   const [hiddenIds, setHiddenIds] = useState<string[]>(() => loadHiddenPixContactIds());
@@ -32,8 +35,8 @@ export function usePixDirectory(data: PixDirectoryDatabase, unitId: string) {
   }, []);
 
   const contacts = useMemo(
-    () => buildPixDirectory(data, unitId, localSaved, hiddenIds),
-    [data, unitId, localSaved, hiddenIds],
+    () => buildPixDirectory(data, unitKey, localSaved, hiddenIds),
+    [data, unitKey, localSaved, hiddenIds],
   );
 
   const contactsById = useMemo(() => {
@@ -41,6 +44,17 @@ export function usePixDirectory(data: PixDirectoryDatabase, unitId: string) {
     for (const c of contacts) map.set(c.id, c);
     return map;
   }, [contacts]);
+
+  const hiddenForUnit = useMemo(() => {
+    return hiddenIds.filter((raw) => {
+      if (!raw) return false;
+      if (raw.includes("::")) {
+        const [hUnit] = raw.split("::");
+        return !unitKey || unitKey === "all" || normalizeUnitKey(hUnit) === unitKey;
+      }
+      return true;
+    });
+  }, [hiddenIds, unitKey]);
 
   const saveContact = useCallback(
     (entry: { name: string; key: string; defaultDescription?: string }) => {
@@ -50,11 +64,11 @@ export function usePixDirectory(data: PixDirectoryDatabase, unitId: string) {
 
       const keyId = normalizePixKeyId(cleanKey);
       if (!keyId) return;
+      const scopedId = scopedHiddenPixId(unitKey, keyId);
 
       setHiddenIds((prev) => {
-        if (!prev.includes(keyId)) return prev;
-        const next = prev.filter((id) => id !== keyId);
-        persistHiddenPixContactIds(next);
+        const next = prev.filter((id) => id !== scopedId && id !== keyId);
+        if (next.length !== prev.length) persistHiddenPixContactIds(next);
         return next;
       });
 
@@ -63,13 +77,13 @@ export function usePixDirectory(data: PixDirectoryDatabase, unitId: string) {
           name: cleanName,
           key: cleanKey,
           defaultDescription: entry.defaultDescription,
-          unitId,
+          unitId: unitKey,
         });
         persistLocalSavedPixContacts(next);
         return next;
       });
     },
-    [unitId],
+    [unitKey],
   );
 
   const saveRequestsBatch = useCallback(
@@ -80,7 +94,14 @@ export function usePixDirectory(data: PixDirectoryDatabase, unitId: string) {
       );
       if (!valid.length) return;
 
-      const idsToUnhide = new Set(valid.map((r) => normalizePixKeyId(r.key)).filter(Boolean));
+      const idsToUnhide = new Set<string>();
+      for (const r of valid) {
+        const keyId = normalizePixKeyId(r.key);
+        if (keyId) {
+          idsToUnhide.add(keyId);
+          idsToUnhide.add(scopedHiddenPixId(unitKey, keyId));
+        }
+      }
       setHiddenIds((prev) => {
         const next = prev.filter((id) => !idsToUnhide.has(id));
         if (next.length !== prev.length) persistHiddenPixContactIds(next);
@@ -94,37 +115,51 @@ export function usePixDirectory(data: PixDirectoryDatabase, unitId: string) {
             name: r.name,
             key: r.key,
             defaultDescription: r.description,
-            unitId,
+            unitId: unitKey,
           });
         }
         persistLocalSavedPixContacts(next);
         return next;
       });
     },
-    [autoSavePix, unitId],
+    [autoSavePix, unitKey],
   );
 
-  const removeContact = useCallback((contactId: string) => {
-    if (!contactId) return;
-    setLocalSaved((prev) => {
-      const next = prev.filter((c) => c.id !== contactId);
-      persistLocalSavedPixContacts(next);
-      return next;
-    });
+  const removeContact = useCallback(
+    (contactId: string) => {
+      if (!contactId) return;
+      const scopedId = scopedHiddenPixId(unitKey, contactId);
+      setLocalSaved((prev) => {
+        const next = prev.filter(
+          (c) => !(c.id === contactId && normalizeUnitKey(c.unitId) === unitKey),
+        );
+        persistLocalSavedPixContacts(next);
+        return next;
+      });
+      setHiddenIds((prev) => {
+        if (prev.includes(scopedId)) return prev;
+        const next = [...prev, scopedId];
+        persistHiddenPixContactIds(next);
+        return next;
+      });
+    },
+    [unitKey],
+  );
+
+  const restoreHidden = useCallback(() => {
     setHiddenIds((prev) => {
-      if (prev.includes(contactId)) return prev;
-      const next = [...prev, contactId];
+      const next = prev.filter((raw) => {
+        if (!raw.includes("::")) return false;
+        const [hUnit] = raw.split("::");
+        return Boolean(unitKey && unitKey !== "all" && normalizeUnitKey(hUnit) !== unitKey);
+      });
       persistHiddenPixContactIds(next);
       return next;
     });
-  }, []);
-
-  const restoreHidden = useCallback(() => {
-    setHiddenIds([]);
-    persistHiddenPixContactIds([]);
-  }, []);
+  }, [unitKey]);
 
   return {
+    unitId: unitKey,
     contacts,
     contactsById,
     autoSavePix,
@@ -133,7 +168,7 @@ export function usePixDirectory(data: PixDirectoryDatabase, unitId: string) {
     saveRequestsBatch,
     removeContact,
     restoreHidden,
-    hiddenCount: hiddenIds.length,
+    hiddenCount: hiddenForUnit.length,
   };
 }
 
@@ -166,6 +201,12 @@ export function PixRequestsSection({
   const [openSuggestRowId, setOpenSuggestRowId] = useState<string | null>(null);
   const [pendingFocusAmountId, setPendingFocusAmountId] = useState<string | null>(null);
   const amountInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+
+  useEffect(() => {
+    setShelfQuery("");
+    setShowAllSaved(false);
+    setOpenSuggestRowId(null);
+  }, [directory.unitId]);
 
   useEffect(() => {
     if (!pendingFocusAmountId) return;
@@ -325,7 +366,7 @@ export function PixRequestsSection({
         <div className="mt-3.5 border-t border-zinc-100 pt-3 dark:border-zinc-800/80">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <span className="text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
-              Chaves salvas ({contacts.length}) — toque para preencher
+              Chaves salvas da loja ({contacts.length}) — toque para preencher
             </span>
 
             <div className="flex items-center gap-2">

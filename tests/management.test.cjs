@@ -1284,7 +1284,7 @@ test("Notificação de caixa: dispara apenas em novo fechamento, reenvio pós-de
   );
 });
 
-test("Chaves PIX salvas no fechamento: agrega chaves ja cadastradas (fechamentos, contas, fornecedores, funcionarios), deduplica, ordena por unidade/uso e oculta removidas", () => {
+test("Chaves PIX salvas no fechamento: isola estritamente por loja sem misturar unidades, deduplica e ignora chaves ficticias", () => {
   const originalResolve = Module._resolveFilename;
   Module._resolveFilename = function (request, parent, isMain, options) {
     if (typeof request === "string" && request.startsWith("@/")) {
@@ -1299,6 +1299,7 @@ test("Chaves PIX salvas no fechamento: agrega chaves ja cadastradas (fechamentos
       filterPixContacts,
       formatCompactPixKey,
       normalizePixKeyId,
+      scopedHiddenPixId,
       upsertLocalSavedPixContact,
     } = require("../src/domain/cash/pixContacts.ts");
 
@@ -1312,10 +1313,12 @@ test("Chaves PIX salvas no fechamento: agrega chaves ja cadastradas (fechamentos
 
     const dbMock = {
       suppliers: [
-        { id: "sup-1", kind: "suppliers", name: "Verduras do Sul", pixKey: "12.345.678/0001-99", updatedAt: "2026-11-10T10:00:00Z" },
+        { id: "sup-1", kind: "suppliers", unitId: "eunapolis", name: "Verduras Eunapolis", pixKey: "12.345.678/0001-99", updatedAt: "2026-11-10T10:00:00Z" },
+        { id: "sup-2", kind: "suppliers", name: "Fornecedor Global Sem Loja", pixKey: "98.765.432/0001-11", updatedAt: "2026-11-10T10:00:00Z" },
       ],
       employees: [
         { id: "emp-1", kind: "employees", unitId: "eunapolis", name: "Carlos Motoboy", bankData: "carlos@pix.com", updatedAt: "2026-11-12T10:00:00Z" },
+        { id: "emp-2", kind: "employees", unitId: "teixeira", name: "Nycole Teixeira", bankData: "10316797588", updatedAt: "2026-11-12T10:00:00Z" },
       ],
       cashClosings: [
         {
@@ -1326,6 +1329,7 @@ test("Chaves PIX salvas no fechamento: agrega chaves ja cadastradas (fechamentos
           updatedAt: "2026-11-18T23:00:00Z",
           pixRequestsJson: JSON.stringify([
             { id: "1", name: "Joao Gas", key: "(73) 99912-3456", description: "Gas emergencial", amount: "120" },
+            { id: "fake", name: "Jackson Teste", key: "00000000000", description: "Ficticio", amount: "10" },
           ]),
         },
         {
@@ -1367,24 +1371,49 @@ test("Chaves PIX salvas no fechamento: agrega chaves ja cadastradas (fechamentos
           pixKey: "marcos.tec@gmail.com",
           dueDate: "2026-11-17",
         },
+        {
+          id: "pay-3",
+          kind: "payables",
+          unitId: "foodpark",
+          description: "PIX — Carvao (Carvao Foodpark)",
+          pixKey: "73999001122",
+          dueDate: "2026-11-19",
+        },
       ],
     };
 
-    // 1. Agrega todas as fontes e deduplica (73) 99912-3456 == 73999123456
-    const dir = buildPixDirectory(dbMock, "eunapolis", [], []);
-    assert.equal(dir.length, 5);
-    assert.equal(dir[0].name, "Joao Gas");
-    assert.equal(dir[0].usageCount, 2);
-    assert.equal(dir[0].defaultDescription, "Botijao P13");
+    // 1. Eunapolis ve SOMENTE chaves de Eunapolis (nunca Teixeira, Foodpark, fornecedor sem loja ou chave 00000000000)
+    const dirEun = buildPixDirectory(dbMock, "eunapolis", [], []);
+    assert.equal(dirEun.length, 4);
+    assert.equal(dirEun[0].name, "Joao Gas");
+    assert.equal(dirEun[0].usageCount, 2);
+    assert.equal(dirEun[0].defaultDescription, "Botijao P13");
+    assert.ok(!dirEun.some((c) => c.name === "Gelo TX"));
+    assert.ok(!dirEun.some((c) => c.name === "Nycole Teixeira"));
+    assert.ok(!dirEun.some((c) => c.name === "Carvao Foodpark"));
+    assert.ok(!dirEun.some((c) => c.name === "Fornecedor Global Sem Loja"));
+    assert.ok(!dirEun.some((c) => c.name === "Jackson Teste"));
 
-    // 2. Busca por nome ou trecho da chave PIX
-    assert.equal(filterPixContacts(dir, "marcos").length, 1);
-    assert.equal(filterPixContacts(dir, "99912").length, 1);
-    assert.equal(filterPixContacts(dir, "verduras")[0].key, "12.345.678/0001-99");
+    // 2. Teixeira ve SOMENTE chaves de Teixeira
+    const dirTx = buildPixDirectory(dbMock, "teixeira", [], []);
+    assert.equal(dirTx.length, 2);
+    assert.ok(dirTx.some((c) => c.name === "Gelo TX"));
+    assert.ok(dirTx.some((c) => c.name === "Nycole Teixeira"));
+    assert.ok(!dirTx.some((c) => c.name === "Joao Gas"));
 
-    // 3. Salvamento automatico local (upsert) prioriza contato salvo e evita duplicata
+    // 3. Foodpark ve SOMENTE chaves de Foodpark
+    const dirFp = buildPixDirectory(dbMock, "foodpark", [], []);
+    assert.equal(dirFp.length, 1);
+    assert.equal(dirFp[0].name, "Carvao Foodpark");
+
+    // 4. Busca por nome ou trecho da chave PIX
+    assert.equal(filterPixContacts(dirEun, "marcos").length, 1);
+    assert.equal(filterPixContacts(dirEun, "99912").length, 1);
+    assert.equal(filterPixContacts(dirEun, "verduras")[0].key, "12.345.678/0001-99");
+
+    // 5. Salvamento automatico local e isolado por loja
     let local = upsertLocalSavedPixContact([], {
-      name: "Agua Mineral",
+      name: "Agua Mineral Eunapolis",
       key: "73981234567",
       defaultDescription: "Galao 20L",
       unitId: "eunapolis",
@@ -1394,15 +1423,29 @@ test("Chaves PIX salvas no fechamento: agrega chaves ja cadastradas (fechamentos
       key: "(73) 98123-4567",
       unitId: "eunapolis",
     });
-    assert.equal(local.length, 1);
-    assert.equal(local[0].name, "Agua Mineral Express");
-    assert.equal(local[0].defaultDescription, "Galao 20L");
-    assert.equal(local[0].usageCount, 2);
+    local = upsertLocalSavedPixContact(local, {
+      name: "Agua Mineral Teixeira",
+      key: "73981234567",
+      unitId: "teixeira",
+    });
+    assert.equal(local.length, 2);
+    const eunSaved = buildPixDirectory({ cashClosings: [], payables: [] }, "eunapolis", local, []);
+    const txSaved = buildPixDirectory({ cashClosings: [], payables: [] }, "teixeira", local, []);
+    assert.equal(eunSaved.length, 1);
+    assert.equal(eunSaved[0].name, "Agua Mineral Express");
+    assert.equal(txSaved.length, 1);
+    assert.equal(txSaved[0].name, "Agua Mineral Teixeira");
 
-    // 4. Ocultar um atalho remove da listagem sem quebrar os demais
-    const dirWithHidden = buildPixDirectory(dbMock, "eunapolis", local, [normalizePixKeyId("73999123456")]);
-    assert.ok(!dirWithHidden.some((c) => c.name === "Joao Gas"));
-    assert.equal(dirWithHidden[0].name, "Agua Mineral Express");
+    // 6. Ocultar chave em Eunapolis nao oculta a mesma chave em Teixeira
+    const hiddenOnlyEun = [scopedHiddenPixId("eunapolis", normalizePixKeyId("73981234567"))];
+    assert.equal(
+      buildPixDirectory({ cashClosings: [], payables: [] }, "eunapolis", local, hiddenOnlyEun).length,
+      0
+    );
+    assert.equal(
+      buildPixDirectory({ cashClosings: [], payables: [] }, "teixeira", local, hiddenOnlyEun).length,
+      1
+    );
   } finally {
     Module._resolveFilename = originalResolve;
   }
