@@ -48,6 +48,7 @@ import {
   TakeatMotoboySummary,
 } from "@/services/takeatService";
 import { MotoboyBreakdownModal } from "./MotoboyBreakdownModal";
+import { PixRequestsSection, usePixDirectory } from "./PixRequestsSection";
 import { normalizeRole } from "@/components/layout/managementNavigation";
 import {
   brl,
@@ -455,6 +456,7 @@ export function CashClosingWizard({
     if (Array.isArray(draft?.pixRequests)) return draft.pixRequests;
     return [];
   });
+  const pixDirectory = usePixDirectory(data, unit);
   const [notes, setNotes] = useState(() =>
     initialClosing ? str(initialClosing, "notes") : draft?.notes || ""
   );
@@ -1302,6 +1304,7 @@ export function CashClosingWizard({
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           await commitRecords(allRecords, data, row);
+          pixDirectory.saveRequestsBatch(activePixRequests);
           try {
             localStorage.removeItem(DRAFT_KEY);
           } catch {}
@@ -2298,137 +2301,12 @@ export function CashClosingWizard({
           {/* ============================================================== */}
           {step === 5 && (
             <div className="space-y-4">
-              {/* Solicitações de PIX */}
-              <section className="rounded-[16px] border border-zinc-200/90 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.03)] sm:p-5 dark:border-zinc-800 dark:bg-zinc-900">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                      Solicitações de PIX (opcional)
-                    </h3>
-                    <p className="mt-0.5 text-xs text-zinc-400">
-                      Pagamentos que o financeiro precisa realizar via PIX
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPixRequests((rows) => [
-                        ...rows,
-                        { id: safeUUID(), name: "", key: "", description: "", amount: "" },
-                      ])
-                    }
-                    className="inline-flex items-center gap-1 rounded-[10px] border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                  >
-                    <Plus size={13} /> Nova solicitação
-                  </button>
-                </div>
-
-                {pixRequests.length > 0 ? (
-                  <div className="mt-4 space-y-3">
-                    {pixRequests.map((item, idx) => {
-                      const keyValid = !item.key.trim() || isValidPixKey(item.key);
-                      return (
-                        <div
-                          key={item.id}
-                          className="space-y-3 rounded-[10px] border border-zinc-200 bg-zinc-50/60 p-3.5 dark:border-zinc-800 dark:bg-zinc-950/40"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
-                              Solicitação #{idx + 1}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setPixRequests((rows) => rows.filter((r) => r.id !== item.id))
-                              }
-                              className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-rose-600"
-                            >
-                              <Trash2 size={13} /> Remover
-                            </button>
-                          </div>
-
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div className="space-y-1">
-                              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                                Favorecido
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="Nome ou fornecedor"
-                                value={item.name}
-                                onChange={(e) =>
-                                  setPixRequests((rows) =>
-                                    rows.map((r) =>
-                                      r.id === item.id ? { ...r, name: e.target.value } : r
-                                    )
-                                  )
-                                }
-                                className="h-10 w-full rounded-[10px] border border-zinc-200 bg-white px-3 text-[16px] text-zinc-900 outline-none focus:border-zinc-900 sm:text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                                Chave PIX
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="CPF, CNPJ, e-mail ou telefone"
-                                value={item.key}
-                                onChange={(e) =>
-                                  setPixRequests((rows) =>
-                                    rows.map((r) =>
-                                      r.id === item.id ? { ...r, key: e.target.value } : r
-                                    )
-                                  )
-                                }
-                                className={`h-10 w-full rounded-[10px] border bg-white px-3 text-[16px] text-zinc-900 outline-none sm:text-sm dark:bg-zinc-900 dark:text-zinc-100 ${
-                                  !keyValid
-                                    ? "border-rose-400 focus:border-rose-500"
-                                    : "border-zinc-200 focus:border-zinc-900 dark:border-zinc-700"
-                                }`}
-                              />
-                              {!keyValid && (
-                                <p className="text-[11px] text-rose-600">Formato de chave inválido</p>
-                              )}
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                                Motivo / Descrição
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="Ex.: Gás de cozinha emergencial"
-                                value={item.description}
-                                onChange={(e) =>
-                                  setPixRequests((rows) =>
-                                    rows.map((r) =>
-                                      r.id === item.id ? { ...r, description: e.target.value } : r
-                                    )
-                                  )
-                                }
-                                className="h-10 w-full rounded-[10px] border border-zinc-200 bg-white px-3 text-[16px] text-zinc-900 outline-none focus:border-zinc-900 sm:text-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-                              />
-                            </div>
-                            <MoneyField
-                              label="Valor"
-                              value={item.amount}
-                              onChange={(val) =>
-                                setPixRequests((rows) =>
-                                  rows.map((r) => (r.id === item.id ? { ...r, amount: val } : r))
-                                )
-                              }
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="mt-3 border-t border-zinc-100 pt-3 text-xs text-zinc-400 dark:border-zinc-800">
-                    Nenhuma solicitação de PIX registrada neste turno.
-                  </p>
-                )}
-              </section>
+              {/* Solicitações de PIX com chaves salvas e salvamento automático */}
+              <PixRequestsSection
+                pixRequests={pixRequests}
+                setPixRequests={setPixRequests}
+                directory={pixDirectory}
+              />
 
               {/* Comprovantes e fotos */}
               <section className="rounded-[16px] border border-zinc-200/90 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.03)] sm:p-5 dark:border-zinc-800 dark:bg-zinc-900">

@@ -188,6 +188,7 @@ export const DEFINITIONS: Record<string, Definition> = {
     fields: [
       f("name", "Nome"),
       f("document", "CNPJ / CPF", "text", false),
+      f("pixKey", "Chave PIX", "text", false),
       f("email", "E-mail", "text", false),
       f("phone", "Telefone", "text", false),
     ],

@@ -40,6 +40,7 @@ import {
 import { CashClosingHome } from "./CashClosingHome";
 import { CashClosingWizard } from "./CashClosingWizard";
 import { MotoboyBreakdownModal } from "./MotoboyBreakdownModal";
+import { PixRequestsSection, usePixDirectory } from "./PixRequestsSection";
 import { serializeSafeAttachments } from "./cashHelpers";
 import "@/components/management/management.css";
 
@@ -1362,6 +1363,7 @@ function ClosingModal({
     if (Array.isArray(draft?.pixRequests)) return draft.pixRequests;
     return [];
   });
+  const pixDirectory = usePixDirectory(data, unit);
   const [motoboySystem, setMotoboySystem] = useState(() => initialClosing ? toMoneyInput(initialClosing.motoboySystem) : draft?.motoboySystem || "");
   const [motoboyPaid, setMotoboyPaid] = useState(() => initialClosing ? toMoneyInput(initialClosing.motoboyPaid) : draft?.motoboyPaid || "");
   const [ifoodAudit, setIfoodAudit] = useState(() => initialClosing ? toMoneyInput(initialClosing.ifoodAudit) : draft?.ifoodAudit || "");
@@ -1911,6 +1913,7 @@ function ClosingModal({
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           await commitRecords(allRecords, data, row);
+          pixDirectory.saveRequestsBatch(requestedPix);
           try {
             localStorage.removeItem(DRAFT_KEY);
           } catch {}
@@ -2970,90 +2973,11 @@ function ClosingModal({
           {/* STEP 3: SOLICITAÇÕES DE PIX (CONTAS A PAGAR) */}
           {activeStep === 3 && (
             <div className="space-y-4">
-              <div className="closing-section-lead">
-                <div>
-                  <h3>Solicitações de PIX (Contas a Pagar do Fechamento)</h3>
-                  <p>Valores que precisam ser pagos urgentemente via PIX pela gerência ou financeiro.</p>
-                </div>
-                <button
-                  type="button"
-                  className="cash-add text-xs py-1.5 px-3"
-                  onClick={() => setPixRequests(rows => [...rows, { id: safeUUID(), name: "", key: "", description: "", amount: "" }])}
-                >
-                  + Adicionar solicitação de PIX
-                </button>
-              </div>
-
-              {pixRequests.length > 0 ? (
-                <div className="space-y-2.5">
-                  {pixRequests.map((item, idx) => {
-                    const keyValid = !item.key.trim() || isValidPixKey(item.key);
-                    return (
-                      <div key={item.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 items-center p-3 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
-                        <div>
-                          <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Favorecido (Nome)</label>
-                          <input
-                            type="text"
-                            placeholder="Ex.: Fornecedor Verduras"
-                            value={item.name}
-                            onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, name: e.target.value } : r))}
-                            className="w-full p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Chave PIX</label>
-                          <input
-                            type="text"
-                            placeholder="CPF, CNPJ, e-mail, telefone..."
-                            value={item.key}
-                            onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, key: e.target.value } : r))}
-                            className={`w-full p-2 rounded-lg border text-xs ${!keyValid ? "border-rose-500 bg-rose-50 dark:bg-rose-950/30" : "border-zinc-300 dark:border-zinc-700"}`}
-                          />
-                          {!keyValid && <span className="text-[10px] text-rose-500 block mt-0.5">Formato inválido</span>}
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Motivo / Descrição</label>
-                          <input
-                            type="text"
-                            placeholder="Ex.: Gás de cozinha emergencial"
-                            value={item.description}
-                            onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, description: e.target.value } : r))}
-                            className="w-full p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-semibold text-zinc-500 uppercase block mb-1">Valor (R$)</label>
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="0,00"
-                              value={item.amount}
-                              onChange={e => setPixRequests(rows => rows.map(r => r.id === item.id ? { ...r, amount: e.target.value } : r))}
-                              className="flex-1 p-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-xs font-semibold"
-                            />
-                            <button
-                              type="button"
-                              className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition"
-                              onClick={() => setPixRequests(rows => rows.filter(r => r.id !== item.id))}
-                              aria-label={`Remover solicitação PIX ${idx + 1}`}
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="people-empty py-8 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">
-                  <Zap size={28} className="text-zinc-400" />
-                  <strong>Nenhuma solicitação de PIX lançada neste turno</strong>
-                  <span>Se precisou realizar pagamentos emergenciais via PIX, clique no botão acima para lançar a conta a pagar.</span>
-                </div>
-              )}
+              <PixRequestsSection
+                pixRequests={pixRequests}
+                setPixRequests={setPixRequests}
+                directory={pixDirectory}
+              />
             </div>
           )}
 
